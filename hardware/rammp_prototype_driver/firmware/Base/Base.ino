@@ -176,7 +176,7 @@ int16_t scaled_ml_pwm;
 int16_t scaled_mr_pwm;
 
 // IMU offset
-float pitch_trim_deg = 7.0f;
+float pitch_trim_deg = 9.0f;
 float roll_trim_deg = 0.0f;
 
 float getPitchTrim() { return pitch_trim_deg; }

@@ -829,6 +829,7 @@ class MEBotControlNode(Node):
                     goal.canceled()
                     result.success = False
                     self.user_control_enabled = True
+                    self.cap_user_speed = False
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
@@ -842,6 +843,7 @@ class MEBotControlNode(Node):
                     goal.canceled()
                     result.success = False
                     self.user_control_enabled = True
+                    self.cap_user_speed = False
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
@@ -878,6 +880,7 @@ class MEBotControlNode(Node):
                     goal.canceled()
                     result.success = False
                     self.user_control_enabled = True
+                    self.cap_user_speed = False
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
@@ -903,6 +906,7 @@ class MEBotControlNode(Node):
                 goal.canceled()
                 result.success = False
                 self.user_control_enabled = True
+                self.cap_user_speed = False
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")
@@ -917,6 +921,7 @@ class MEBotControlNode(Node):
                 goal.canceled()
                 result.success = False
                 self.user_control_enabled = True
+                self.cap_user_speed = False
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")

@@ -257,8 +257,6 @@ void setup()
     Serial1.begin(38400);   // roboclaw 1
     Serial2.begin(38400);   // roboclaw 2
     Serial3.begin(38400);   // roboclaw 3
-    PI_MOTORS.begin(115200);
-    PI_BT.begin(9600);
 
     set_calculation_constants();
     initialize_digital_pins();

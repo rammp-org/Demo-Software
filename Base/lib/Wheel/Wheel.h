@@ -25,7 +25,7 @@ class Wheel : public Component {
 
     Carriage& carriage;
 
-    Wheel(int, int, Carriage&, signed long&, signed long&);
+    Wheel(int, MotorID, Carriage&, signed long&, signed long&);
     void calculate_main_wheels_positions(float&);
     void proportional_PID(float&, bool&, bool&);
 };

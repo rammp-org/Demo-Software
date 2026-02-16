@@ -2,7 +2,7 @@
 #include <Component.h>
 #include <Constants.h>
 
-Component::Component(int lc_pin, int motor_id) : LOADCELL_PIN(lc_pin), MOTOR_ID(motor_id) {};
+Component::Component(int lc_pin, MotorID motor_id) : LOADCELL_PIN(lc_pin), MOTOR_ID(motor_id) {};
 
 void Component::initialize_pins() {
     // pinMode(DIR_PIN, OUTPUT);
@@ -20,22 +20,22 @@ void Component::move() {
     }
 
     switch(MOTOR_ID) {
-        case 0:
+        case MOTOR_RC:
             roboclaw_casters.DutyM1(0x80, duty);
             break;
-        case 1:
+        case MOTOR_FC:
             roboclaw_casters.DutyM2(0x80, duty);
             break;
-        case 2:
+        case MOTOR_ML:
             roboclaw_main.DutyM1(0x80, duty);
             break;
-        case 3:
+        case MOTOR_MR:
             roboclaw_main.DutyM2(0x80, duty);
             break;
-        case 4:
+        case MOTOR_ML_CARRIAGE:
             roboclaw_carriages.DutyM1(0x80, duty);
             break;
-        case 5:
+        case MOTOR_MR_CARRIAGE:
             roboclaw_carriages.DutyM2(0x80, duty);
             break;
         default:

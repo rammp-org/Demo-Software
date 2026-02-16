@@ -1,13 +1,22 @@
 #ifndef COMPONENT_H
 #define COMPONENT_H
 
+enum MotorID {
+    MOTOR_RC = 0,
+    MOTOR_FC = 1,
+    MOTOR_ML = 2,
+    MOTOR_MR = 3,
+    MOTOR_ML_CARRIAGE = 4,
+    MOTOR_MR_CARRIAGE = 5
+};
+
 class Component
 {
 public:
     const int LOADCELL_PIN;
     // const int PWM_PIN;
     // const int DIR_PIN;
-    const int MOTOR_ID;     // specify which motor this is
+    const MotorID MOTOR_ID;     // specify which motor this is
     // Member variables
     float pos = 0.0, err = 0.0, des = 3.0, eha = 0.0;
     float des_pre = 0.0;
@@ -23,7 +32,7 @@ public:
     float loadcell = 0.0;
     float lc = 0.0;
 
-    Component(int, int);
+    Component(int, MotorID);
     virtual void initialize_pins();
     void move();
     void retrieve_lc_reading();

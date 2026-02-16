@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Wheel.h>
 
-Wheel::Wheel(int lc_pin, int motor_id, Carriage &carriageRef, signed long &encoder1, signed long &encoder2) : Component(lc_pin, motor_id), encoder_val_1(encoder1), encoder_val_2(encoder2), carriage(carriageRef) {};
+Wheel::Wheel(int lc_pin, MotorID motor_id, Carriage &carriageRef, signed long &encoder1, signed long &encoder2) : Component(lc_pin, motor_id), encoder_val_1(encoder1), encoder_val_2(encoder2), carriage(carriageRef) {};
 
 void Wheel::calculate_main_wheels_positions(float &elapsed_time)
 {

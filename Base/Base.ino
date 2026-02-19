@@ -72,18 +72,18 @@ IMU_Class IMU = IMU_Class(bno);
 
 EncoderContainer EContr;
 
-Caster RC = Caster(RC_LOADCELL_PIN, 0);
-Caster FC = Caster(FC_LOADCELL_PIN, 1);
+Caster RC = Caster(RC_LOADCELL_PIN, MOTOR_RC);
+Caster FC = Caster(FC_LOADCELL_PIN, MOTOR_FC);
 
-Carriage ML_Carriage = Carriage(4, CARRIAGE_SW1_PIN, CARRIAGE_SW2_PIN, EContr.encoderf[11]);
+Carriage ML_Carriage = Carriage(MOTOR_ML_CARRIAGE, CARRIAGE_SW1_PIN, CARRIAGE_SW2_PIN, EContr.encoderf[11]);
 
 // make ML and connect ML Carriage to it
-Wheel ML = Wheel(ML_LOADCELL_PIN, 2, ML_Carriage, EContr.encoderf[7], EContr.encoder[9]);
+Wheel ML = Wheel(ML_LOADCELL_PIN, MOTOR_ML, ML_Carriage, EContr.encoderf[7], EContr.encoder[9]);
 
-Carriage MR_Carriage = Carriage(5, CARRIAGE_SW3_PIN, CARRIAGE_SW4_PIN, EContr.encoderf[12]);
+Carriage MR_Carriage = Carriage(MOTOR_MR_CARRIAGE, CARRIAGE_SW3_PIN, CARRIAGE_SW4_PIN, EContr.encoderf[12]);
 
 // make MR and connect MR Carriage to it
-Wheel MR = Wheel(MR_LOADCELL_PIN, 3, MR_Carriage, EContr.encoderf[5], EContr.encoderf[10]);
+Wheel MR = Wheel(MR_LOADCELL_PIN, MOTOR_MR, MR_Carriage, EContr.encoderf[5], EContr.encoderf[10]);
 
 Timer timer;
 
@@ -257,8 +257,6 @@ void setup()
     Serial1.begin(38400);   // roboclaw 1
     Serial2.begin(38400);   // roboclaw 2
     Serial3.begin(38400);   // roboclaw 3
-    PI_MOTORS.begin(115200);
-    PI_BT.begin(9600);
 
     set_calculation_constants();
     initialize_digital_pins();

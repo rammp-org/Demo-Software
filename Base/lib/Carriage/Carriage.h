@@ -12,7 +12,7 @@ class Carriage : public Component {
     signed long& encoder_val;
     int carriage_ticks = 1;
 
-    Carriage(int, int, int, signed long&);
+    Carriage(MotorID, int, int, signed long&);
     void initialize_pins() override;
     void retrieve_readings();
     void limit_switch();

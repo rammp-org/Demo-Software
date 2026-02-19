@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Carriage.h>
 
-Carriage::Carriage(int motor_id, int sw_1_pin, int sw_2_pin, signed long& encoder) :  Component(NO_PIN, motor_id),
+Carriage::Carriage(MotorID motor_id, int sw_1_pin, int sw_2_pin, signed long& encoder) :  Component(NO_PIN, motor_id),
                                                                         SW1_PIN(sw_1_pin),
                                                                         SW2_PIN(sw_2_pin),
                                                                         encoder_val(encoder) { des = 0.0; };
@@ -18,12 +18,14 @@ void Carriage::retrieve_readings() {
 };
 
 void Carriage::limit_switch() {
-    // if (sw1 == 0 && motor_dir == 1) {
-    //     analogWrite(PWM_PIN, 0);
-    // }
-    // if (sw2 == 0 && motor_dir == 0) {
-    //     analogWrite(PWM_PIN, 0);
-    // }
+    if (sw1 == 0 && motor_dir == 1) {
+        motor_PWM = 0;
+        move();
+    }
+    if (sw2 == 0 && motor_dir == 0) {
+        motor_PWM = 0;
+        move();
+    }
 };
 
 void Carriage::calculate_carriages_position() {

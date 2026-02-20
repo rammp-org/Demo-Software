@@ -93,9 +93,9 @@ int CA_flag = 1;
 MotorController motor_controller = MotorController(RC, FC, MR, ML, timer, self_leveling_on, action, CA_flag);
 
 // Initialize RoboClaw Controllers
-RoboClaw roboclaw_casters(&Serial1, 10000);
-RoboClaw roboclaw_main(&Serial2, 10000);
-RoboClaw roboclaw_carriages(&Serial3, 10000);
+RoboClaw roboclaw_casters(&Serial1, 10000); //Serial3
+RoboClaw roboclaw_main(&Serial2, 10000);    //Serial4
+RoboClaw roboclaw_carriages(&Serial3, 10000); //Serial5
 
 JoyStick js;
 

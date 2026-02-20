@@ -12,19 +12,19 @@ extern RoboClaw roboclaw_carriages;
 //----------------------------------------
 // #define FC_DIR_PIN 30
 // #define FC_PWM_PIN 29
-#define FC_LOADCELL_PIN A17
+#define FC_LOADCELL_PIN A17 //already correct
 
 // #define ML_DIR_PIN 11
 // #define ML_PWM_PIN 10
-#define ML_LOADCELL_PIN A16
+#define ML_LOADCELL_PIN A16 //A15
 
 // #define MR_DIR_PIN 8
 // #define MR_PWM_PIN 9
-#define MR_LOADCELL_PIN A15
+#define MR_LOADCELL_PIN A15  //A14
 
 // #define RC_DIR_PIN 6
 // #define RC_PWM_PIN 7
-#define RC_LOADCELL_PIN A14
+#define RC_LOADCELL_PIN A14  //A16
 
 // #define ML_CARRIAGE_DIR_PIN 4
 // #define ML_CARRIAGE_PWM_PIN 5
@@ -32,10 +32,10 @@ extern RoboClaw roboclaw_carriages;
 // #define MR_CARRIAGE_DIR_PIN 3
 // #define MR_CARRIAGE_PWM_PIN 2
 
-#define CARRIAGE_SW1_PIN 23
-#define CARRIAGE_SW2_PIN 22
-#define CARRIAGE_SW3_PIN 13
-#define CARRIAGE_SW4_PIN 33
+#define CARRIAGE_SW1_PIN 23 // ML carriage forward limit switch  
+#define CARRIAGE_SW2_PIN 22 // ML carriage backward limit switch  
+#define CARRIAGE_SW3_PIN 13 // MR carriage forward limit switch
+#define CARRIAGE_SW4_PIN 33 // MR carriage backward limit switch
 
 // Omni2 variables for SL and CC applications
 // variable names need to be changed with schematics later

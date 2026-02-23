@@ -1,5 +1,7 @@
 import sys
 import serial
+from GUI.components.MeBotState_pub import MeBotStateNode
+from GUI.components.csv_logger import csvLoggerNode
 from PyQt5.QtWidgets import QMainWindow, QStackedWidget, QApplication
 from components.TeensyController import TeensyController
 from components.DataLogger import DataLogger
@@ -25,12 +27,15 @@ class MEBotApp(QMainWindow):
         # Create QStackedWidget
         self.stacked_widget = QStackedWidget()
         self.teensy_controller = TeensyController(self.serial_port)
-        self.data_logger = DataLogger(self.serial_port)
+        # self.data_logger = DataLogger(self.serial_port)
+        self.data_logger = csvLoggerNode()  # Initialize the ROS2 node for CSV logging
         
         # Create and add screens
         self.screen0 = UserWindow(self.stacked_widget, self.teensy_controller, self.data_logger)
         self.screen1 = DevWindow(self.stacked_widget, self.teensy_controller)
         
+        self.State_pub = MeBotStateNode(self.screen0)
+
         self.stacked_widget.addWidget(self.screen0)
         self.stacked_widget.addWidget(self.screen1)
         

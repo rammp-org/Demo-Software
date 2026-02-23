@@ -526,6 +526,9 @@ void displaydata()
     // IMU
     PIout += String(IMU.pitchf + 3.0) + ',';
     PIout += String(IMU.rollf) + ',';
+    PIout += String(IMU.ax) + ','; 
+    PIout += String(IMU.ay) + ',';
+    PIout += String(IMU.az) + ',';
 
     //current encoder counters
     PIout += String(FC.pos) + ',';
@@ -538,35 +541,25 @@ void displaydata()
     PIout += String(MR.loadcell) + ',';
     PIout += String(ML.loadcell) + ',';
 
+    #wheel positions
     PIout += String(ML.wheel_pos) + ',';
     PIout += String(MR.wheel_pos) + ',';
 
+    //CA_Flag
     PIout += String(CA_flag) + ',';
 
+    //Apptime
     PIout += "0";   //placeholder for appTime
-    PIout += String(Wheel.speed_drivef) + ','; 
-    //acceleration will be calculated in csv_logger
-    PIout += String(IMU.ax) + ','; 
-    PIout += String(IMU.ay) + ',';
-    PIout += String(IMU.az) + ',';
-    //tilt can be calculated using pitch and roll in csv_logger
 
-        // self.appTime = 0.0
-        // self.speed = 0.0  Wheel.speed_drivef
-        // self.acceleration = 0.0
-        // self.accel_x = 0.0 IMU.ax
-        // self.accel_y = 0.0   IMU.ay
-        // self.accel_z = 0.0 IMU.az
-        // self.seat_angle_pitch = 0.0
-        // self.seat_angle_roll = 0.0
-        // self.tilt = 0.0
-        // self.measure_height = 0.0
+    //velocity 
+    PIout += String(Wheel.speed_drivef) + ','; 
+
+    //acceleration will be calculated in sensor_data_pub 
+    //tilt can be calculated using pitch and roll in sensor_data_pub
+    //measure height will be calculated in sensor_data_pub using encoder data
 
     PIout += ']';
     Serial.println(PIout);
-    //Serial.print("\r\n");
-
-
 }
 
 void reset_newmebot_array()

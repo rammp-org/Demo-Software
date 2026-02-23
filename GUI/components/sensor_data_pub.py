@@ -11,6 +11,7 @@ from std_msgs.msg import String
 from std_msgs.msg import Int64
 import csv_logger
 import MeBotState_pub
+import math
 
 class dataPub(Node): 
     def __init__(self, MeBot_logger, State_pub):
@@ -146,28 +147,39 @@ class dataPub(Node):
 
     #update variables to be published        
     def update_data(self, data):
-        self.appTime = data[0]
-        self.speed = data[1]
-        self.acceleration = data[2]
-        self.accel_x = data[3]
-        self.accel_y = data[4]
-        self.accel_z = data[5]
-        self.seat_angle_pitch = data[6]
-        self.seat_angle_roll = data[7]
-        self.tilt = data[8]
-        self.measure_height = data[9]
-
-        self.FC_pos = data[10]
-        self.RC_pos = data[11]
-        self.MR_pos = data[12]
-        self.ML_pos = data[13]
-        self.FC_loadcell = data[14]
-        self.MR_loadcell = data[15]
-        self.ML_loadcell = data[16]
-        self.ML_wheel_pos = data[17]
-        self.MR_wheel_pos = data[18]
-        self.CA_flag = data[19]
         
+        #IMU
+        self.seat_angle_pitch = data[0]
+        self.seat_angle_roll = data[1]
+        self.accel_x = data[2]
+        self.accel_y = data[3]
+        self.accel_z = data[4]
+
+        #Encoders
+        self.FC_pos = data[5]
+        self.RC_pos = data[6]
+        self.MR_pos = data[7]
+        self.ML_pos = data[8]
+
+
+        #loadcells 
+        self.FC_loadcell = data[9]
+        self.MR_loadcell = data[10]
+        self.ML_loadcell = data[11]
+
+        #wheel positions
+        self.ML_wheel_pos = data[12]
+        self.MR_wheel_pos = data[13]
+
+        #CA_flag
+        self.CA_flag = data[14]
+
+        #Apptime
+        self.appTime = data[15]
+
+        #velocity
+        self.speed = data[16]
+         
     def publish_appTime(self):
         msg = Float64()
         msg.data = float(self.appTime) 
@@ -204,7 +216,7 @@ class dataPub(Node):
         self.seat_angle_pitch_publisher.publish(msg)
     
     def publish_seat_angle_roll(self):
-        msg = Float64()
+        msg = Float64() 
         msg.data = float(self.seat_angle_roll) 
         self.seat_angle_roll_publisher.publish(msg)
 

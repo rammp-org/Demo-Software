@@ -9,12 +9,10 @@ from datetime import datetime
 from std_msgs.msg import Float64
 from std_msgs.msg import String
 from std_msgs.msg import Int64
-import csv_logger
-import MeBotState_pub
 import math
 
 class dataPub(Node): 
-    def __init__(self, MeBot_logger, State_pub):
+    def __init__(self):
         super().__init__("data_pub") 
 
         #serial init
@@ -130,7 +128,7 @@ class dataPub(Node):
         self.MR_wheel_pos_publisher = self.create_publisher(Float64, 'MR_wheel_pos', 10)
         self.MR_wheel_pos_timer = self.create_timer(1.0, self.publish_MR_wheel_pos)
 
-        self.CA_flag_publisher = self.create_publisher(String, 'CA_flag', 10)
+        self.CA_flag_publisher = self.create_publisher(Int64, 'CA_flag', 10)
         self.CA_flag_timer = self.create_timer(1.0, self.publish_CA_flag)
 
     #reading incoming serial data from teensy

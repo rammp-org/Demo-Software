@@ -541,7 +541,7 @@ void displaydata()
     PIout += String(MR.loadcell) + ',';
     PIout += String(ML.loadcell) + ',';
 
-    #wheel positions
+    //wheel positions
     PIout += String(ML.wheel_pos) + ',';
     PIout += String(MR.wheel_pos) + ',';
 
@@ -552,7 +552,8 @@ void displaydata()
     PIout += "0";   //placeholder for appTime
 
     //velocity 
-    PIout += String(Wheel.speed_drivef) + ','; 
+    PIout += String(ML.speed_drivef) + ','; 
+    PIout += String(MR.speed_drivef) + ','; 
 
     //acceleration will be calculated in sensor_data_pub 
     //tilt can be calculated using pitch and roll in sensor_data_pub

@@ -28,9 +28,12 @@ class dataPub(Node):
 
         #variables for publishing and csv logging
         self.appTime = 0.0
-        self.prev_speed = 0.0
-        self.current_speed = 0.0
-        self.acceleration = 0.0
+        self.prev_speed_ML = 0.0
+        self.current_speed_ML = 0.0
+        self.prev_speed_MR = 0.0
+        self.current_speed_MR = 0.0
+        self.acceleration_ML = 0.0
+        self.acceleration_MR = 0.0
         self.accel_x = 0.0
         self.accel_y = 0.0
         self.accel_z = 0.0
@@ -61,11 +64,17 @@ class dataPub(Node):
         self.appTime_publisher = self.create_publisher(Float64, 'app_time', 10)
         self.appTime_timer = self.create_timer(1.0, self.publish_appTime)
 
-        self.speed_publisher = self.create_publisher(Float64, 'chair_speed', 10)
-        self.speed_timer = self.create_timer(1.0, self.publish_speed)
+        self.speed_ML_publisher = self.create_publisher(Float64, 'chair_speed_ML', 10)
+        self.speed_ML_timer = self.create_timer(1.0, self.publish_speed_ML)
 
-        self.acceleration_publisher = self.create_publisher(Float64, 'chair_acceleration', 10)
-        self.acceleration_timer = self.create_timer(1.0, self.publish_acceleration)
+        self.speed_MR_publisher = self.create_publisher(Float64, 'chair_speed_MR', 10)
+        self.speed_MR_timer = self.create_timer(1.0, self.publish_speed_MR)
+
+        self.acceleration_ML_publisher = self.create_publisher(Float64, 'chair_acceleration_ML', 10)
+        self.acceleration_ML_timer = self.create_timer(1.0, self.publish_acceleration_ML)
+
+        self.acceleration_MR_publisher = self.create_publisher(Float64, 'chair_acceleration_MR', 10)
+        self.acceleration_MR_timer = self.create_timer(1.0, self.publish_acceleration_MR)
 
         self.accel_x_publisher = self.create_publisher(Float64, 'accelerometer_x', 10)
         self.accel_x_timer = self.create_timer(1.0, self.publish_accel_x)
@@ -165,23 +174,35 @@ class dataPub(Node):
         self.appTime = data[15]
 
         #velocity
-        self.prev_speed = self.current_speed
-        self.current_speed = data[16]
+        self.prev_speed_ML = self.current_speed_ML
+        self.current_speed_ML = data[16]
+        self.prev_speed_MR = self.current_speed_MR
+        self.current_speed_MR = data[17]
          
     def publish_appTime(self):
         msg = Float64()
         msg.data = float(self.appTime) 
         self.appTime_publisher.publish(msg)    
 
-    def publish_speed(self):
+    def publish_speed_ML(self):
         msg = Float64()
-        msg.data = float(self.current_speed) 
-        self.speed_publisher.publish(msg)
+        msg.data = float(self.current_speed_ML) 
+        self.speed_ML_publisher.publish(msg)
 
-    def publish_acceleration(self):
+    def publish_speed_MR(self):
         msg = Float64()
-        msg.data = float(self.current_speed - self.prev_speed)  #calculate acceleration using change in speed over time (0.1s between serial data updates)
-        self.acceleration_publisher.publish(msg)
+        msg.data = float(self.current_speed_MR) 
+        self.speed_MR_publisher.publish(msg)
+
+    def publish_acceleration_ML(self):
+        msg = Float64()
+        msg.data = float(self.current_speed_ML - self.prev_speed_ML)  #calculate acceleration using change in speed over time (0.1s between serial data updates)
+        self.acceleration_ML_publisher.publish(msg)
+
+    def publish_acceleration_MR(self):
+        msg = Float64()
+        msg.data = float(self.current_speed_MR - self.prev_speed_MR)  #calculate acceleration using change in speed over time (0.1s between serial data updates)
+        self.acceleration_MR_publisher.publish(msg)
 
     def publish_accel_x(self):
         msg = Float64()

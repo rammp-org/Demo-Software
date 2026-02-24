@@ -180,7 +180,7 @@ class dataPub(Node):
 
     def publish_acceleration(self):
         msg = Float64()
-        msg.data = float(self.current_speed - self.prev_speed/1)  #calculate acceleration using change in speed over time (1s between serial data updates)
+        msg.data = float(self.current_speed - self.prev_speed)  #calculate acceleration using change in speed over time (0.1s between serial data updates)
         self.acceleration_publisher.publish(msg)
 
     def publish_accel_x(self):

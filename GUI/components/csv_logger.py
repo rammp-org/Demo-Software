@@ -54,7 +54,6 @@ class csvLoggerNode(Node):
         if self.logging:
             return  # Already logging, do nothing
         
-        
         file_exists = os.path.isfile(self.filename)
 
         # open file

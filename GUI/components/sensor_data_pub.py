@@ -222,6 +222,7 @@ class dataPub(Node):
 
     def publish_tilt(self):
         msg = Float64()
+        self.tilt =math.acos(math.cos(self.seat_angle_pitch)*math.cos(self.seat_angle_roll)) * (180/math.pi)  #calculate tilt in degrees using pitch and roll
         msg.data = float(self.tilt) 
         self.tilt_publisher.publish(msg)
     

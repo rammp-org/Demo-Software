@@ -37,7 +37,7 @@ class MeBotStateNode(Node):
         self.CA_sub = self.create_subscription(Int64, 'CA_flag', self.update_CA_flag, 10) #subscribe to CA_flag topic published by sensor_data_pub
         self.CA_pub = self.create_publisher(String, 'MeBot_CA_state', 10)
         self.CA_timer =self.create_timer(1.0,self.publish_CA_state)
-
+        
     def update_CA_flag(self, msg):  #called from sensor_data_pub to update CA_flag value
         self.CA_flag = msg.data
 

@@ -26,13 +26,10 @@ class dataPub(Node):
         #timer for serial data reading 
         self.serial_timer = self.create_timer(1.0, self.read_serial_data)
 
-        self.logger = MeBot_logger  #object to store certain data into csv
-        self.state_pub = State_pub  #object to publish MeBot state data for CA_flag
-        self.csv_string ="" #string to be written into csv file, updated with each new line of serial data
-
         #variables for publishing and csv logging
         self.appTime = 0.0
-        self.speed = 0.0
+        self.prev_speed = 0.0
+        self.current_speed = 0.0
         self.acceleration = 0.0
         self.accel_x = 0.0
         self.accel_y = 0.0
@@ -43,7 +40,6 @@ class dataPub(Node):
         self.measure_height = 0.0
 
         #variables for only publishing 
-        #need to understand what each is for/represents
         self.IMU_pitch = 0.0
         self.IMU_roll = 0.0
 
@@ -127,27 +123,18 @@ class dataPub(Node):
 
         self.CA_flag_publisher = self.create_publisher(String, 'CA_flag', 10)
         self.CA_flag_timer = self.create_timer(1.0, self.publish_CA_flag)
-        # self.CA_flag_timer = self.create_timer(1.0, self.update_CA_flag)
-
-    # def write_csv_data(self):
-    #     # Write current data to CSV file
-    #     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S %p")
-    #     self.csv_string = f"{timestamp},{self.appTime},{self.speed},{self.acceleration},{self.accel_x},{self.accel_y},{self.accel_z},{self.seat_angle_pitch},{self.seat_angle_roll},{self.tilt},{self.measure_height}"
-    #     self.logger.log(self.csv_string)
 
     #reading incoming serial data from teensy
     def read_serial_data(self):
         line = self.ser.readline()
         if line:
             raw_data = line.decode("utf-8", errors="replace").strip()
-            if (raw_data.startswith("D")):
-                data = ast.literal_eval(raw_data)
-                self.update_data(data)  # Update variables with new data
-                self.write_csv_data()  # Write to CSV file
+            data = ast.literal_eval(raw_data)
+            self.update_data(data)  # Update variables with new data
+                
 
     #update variables to be published        
     def update_data(self, data):
-        
         #IMU
         self.seat_angle_pitch = data[0]
         self.seat_angle_roll = data[1]
@@ -178,7 +165,8 @@ class dataPub(Node):
         self.appTime = data[15]
 
         #velocity
-        self.speed = data[16]
+        self.prev_speed = self.current_speed
+        self.current_speed = data[16]
          
     def publish_appTime(self):
         msg = Float64()
@@ -187,12 +175,12 @@ class dataPub(Node):
 
     def publish_speed(self):
         msg = Float64()
-        msg.data = float(self.speed) 
+        msg.data = float(self.current_speed) 
         self.speed_publisher.publish(msg)
 
     def publish_acceleration(self):
         msg = Float64()
-        msg.data = float(self.acceleration) 
+        msg.data = float(self.current_speed - self.prev_speed/1)  #calculate acceleration using change in speed over time (1s between serial data updates)
         self.acceleration_publisher.publish(msg)
 
     def publish_accel_x(self):
@@ -290,8 +278,7 @@ class dataPub(Node):
         msg = Int64()
         msg.data = int(self.CA_flag) 
         self.CA_flag_publisher.publish(msg)
-    # def update_CA_flag(self):
-    #     self.state_pub.update_CA_flag(self.CA_flag)     #call MeBotState_pub method to update CA_flag value
+   
 
 def main(args=None):
     rclpy.init(args=args)

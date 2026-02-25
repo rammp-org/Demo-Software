@@ -22,7 +22,10 @@ class dataPub(Node):
                     timeout=1)
         
         #timer for serial data reading 
-        self.serial_timer = self.create_timer(1.0, self.read_serial_data)
+        self.serial_timer = self.create_timer(.001, self.read_serial_data)
+
+        #publishing rate for all topics
+        self.publish_rate = .001  #should be the same rate as the serial data updates 
 
         #variables for publishing and csv logging
         self.appTime = 0.0
@@ -60,86 +63,86 @@ class dataPub(Node):
 
         #publishers and timers
         self.appTime_publisher = self.create_publisher(Float64, 'app_time', 10)
-        self.appTime_timer = self.create_timer(1.0, self.publish_appTime)
+        self.appTime_timer = self.create_timer(self.publish_rate, self.publish_appTime)
 
         self.speed_ML_publisher = self.create_publisher(Float64, 'chair_speed_ML', 10)
-        self.speed_ML_timer = self.create_timer(1.0, self.publish_speed_ML)
+        self.speed_ML_timer = self.create_timer(self.publish_rate, self.publish_speed_ML)
 
         self.speed_MR_publisher = self.create_publisher(Float64, 'chair_speed_MR', 10)
-        self.speed_MR_timer = self.create_timer(1.0, self.publish_speed_MR)
+        self.speed_MR_timer = self.create_timer(self.publish_rate, self.publish_speed_MR)
 
         self.acceleration_ML_publisher = self.create_publisher(Float64, 'chair_acceleration_ML', 10)
-        self.acceleration_ML_timer = self.create_timer(1.0, self.publish_acceleration_ML)
+        self.acceleration_ML_timer = self.create_timer(self.publish_rate, self.publish_acceleration_ML)
 
         self.acceleration_MR_publisher = self.create_publisher(Float64, 'chair_acceleration_MR', 10)
-        self.acceleration_MR_timer = self.create_timer(1.0, self.publish_acceleration_MR)
+        self.acceleration_MR_timer = self.create_timer(self.publish_rate, self.publish_acceleration_MR)
 
         self.accel_x_publisher = self.create_publisher(Float64, 'accelerometer_x', 10)
-        self.accel_x_timer = self.create_timer(1.0, self.publish_accel_x)
+        self.accel_x_timer = self.create_timer(self.publish_rate, self.publish_accel_x)
 
         self.accel_y_publisher = self.create_publisher(Float64, 'accelerometer_y', 10)
-        self.accel_y_timer = self.create_timer(1.0, self.publish_accel_y)
+        self.accel_y_timer = self.create_timer(self.publish_rate, self.publish_accel_y)
 
         self.accel_z_publisher = self.create_publisher(Float64, 'accelerometer_z', 10)
-        self.accel_z_timer = self.create_timer(1.0, self.publish_accel_z)
+        self.accel_z_timer = self.create_timer(self.publish_rate, self.publish_accel_z)
 
         self.seat_angle_pitch_publisher = self.create_publisher(Float64, 'seat_angle_pitch', 10)
-        self.seat_angle_pitch_timer = self.create_timer(1.0, self.publish_seat_angle_pitch)
+        self.seat_angle_pitch_timer = self.create_timer(self.publish_rate, self.publish_seat_angle_pitch)
 
         self.seat_angle_roll_publisher = self.create_publisher(Float64, 'seat_angle_roll', 10)
-        self.seat_angle_roll_timer = self.create_timer(1.0, self.publish_seat_angle_roll)
+        self.seat_angle_roll_timer = self.create_timer(self.publish_rate, self.publish_seat_angle_roll)
 
         self.tilt_publisher = self.create_publisher(Float64, 'tilt', 10)
-        self.tilt_timer = self.create_timer(1.0, self.publish_tilt)
+        self.tilt_timer = self.create_timer(self.publish_rate, self.publish_tilt)
 
         self.measure_height_publisher = self.create_publisher(Float64, 'measure_height', 10)
-        self.measure_height_timer = self.create_timer(1.0, self.publish_measure_height)
+        self.measure_height_timer = self.create_timer(self.publish_rate, self.publish_measure_height)
 
         self.IMU_pitch_publisher = self.create_publisher(Float64, 'IMU_pitch', 10)
-        self.IMU_pitch_timer = self.create_timer(1.0, self.publish_IMU_pitch)
+        self.IMU_pitch_timer = self.create_timer(self.publish_rate, self.publish_IMU_pitch)
 
         self.IMU_roll_publisher = self.create_publisher(Float64, 'IMU_roll', 10)
-        self.IMU_roll_timer = self.create_timer(1.0, self.publish_IMU_roll)
+        self.IMU_roll_timer = self.create_timer(self.publish_rate, self.publish_IMU_roll)
 
         self.FC_pos_publisher = self.create_publisher(Float64, 'FC_pos', 10)
-        self.FC_pos_timer = self.create_timer(1.0, self.publish_FC_pos)
+        self.FC_pos_timer = self.create_timer(self.publish_rate, self.publish_FC_pos)
 
         self.RC_pos_publisher = self.create_publisher(Float64, 'RC_pos', 10)
-        self.RC_pos_timer = self.create_timer(1.0, self.publish_RC_pos)
+        self.RC_pos_timer = self.create_timer(self.publish_rate, self.publish_RC_pos)
 
         self.MR_pos_publisher = self.create_publisher(Float64, 'MR_pos', 10)
-        self.MR_pos_timer = self.create_timer(1.0, self.publish_MR_pos)
+        self.MR_pos_timer = self.create_timer(self.publish_rate, self.publish_MR_pos)
 
         self.ML_pos_publisher = self.create_publisher(Float64, 'ML_pos', 10)
-        self.ML_pos_timer = self.create_timer(1.0, self.publish_ML_pos)
+        self.ML_pos_timer = self.create_timer(self.publish_rate, self.publish_ML_pos)
 
         self.FC_loadcell_publisher = self.create_publisher(Float64, 'FC_loadcell', 10)  
-        self.FC_loadcell_timer = self.create_timer(1.0, self.publish_FC_loadcell)   
+        self.FC_loadcell_timer = self.create_timer(self.publish_rate, self.publish_FC_loadcell)   
 
         self.MR_loadcell_publisher = self.create_publisher(Float64, 'MR_loadcell', 10)      
-        self.MR_loadcell_timer = self.create_timer(1.0, self.publish_MR_loadcell)   
+        self.MR_loadcell_timer = self.create_timer(self.publish_rate, self.publish_MR_loadcell)   
 
         self.ML_loadcell_publisher = self.create_publisher(Float64, 'ML_loadcell', 10)  
-        self.ML_loadcell_timer = self.create_timer(1.0, self.publish_ML_loadcell)   
+        self.ML_loadcell_timer = self.create_timer(self.publish_rate, self.publish_ML_loadcell)   
 
         self.ML_wheel_pos_publisher = self.create_publisher(Float64, 'ML_wheel_pos', 10)
-        self.ML_wheel_pos_timer = self.create_timer(1.0, self.publish_ML_wheel_pos)
+        self.ML_wheel_pos_timer = self.create_timer(self.publish_rate, self.publish_ML_wheel_pos)
 
         self.MR_wheel_pos_publisher = self.create_publisher(Float64, 'MR_wheel_pos', 10)
-        self.MR_wheel_pos_timer = self.create_timer(1.0, self.publish_MR_wheel_pos)
+        self.MR_wheel_pos_timer = self.create_timer(self.publish_rate, self.publish_MR_wheel_pos)
 
         self.CA_flag_publisher = self.create_publisher(Int64, 'CA_flag', 10)
-        self.CA_flag_timer = self.create_timer(1.0, self.publish_CA_flag)
+        self.CA_flag_timer = self.create_timer(self.publish_rate, self.publish_CA_flag)
 
     #reading incoming serial data from teensy
     def read_serial_data(self):
         line = self.ser.readline()
         if line:
             raw_data = line.decode("utf-8", errors="replace").strip()
-            data = ast.literal_eval(raw_data)
-            self.update_data(data)  # Update variables with new data
+            if (raw_data.startswith('[') and raw_data.endswith(']')):  #check if data is in expected list format
+                data = ast.literal_eval(raw_data)
+                self.update_data(data)  # Update variables with new data
                 
-
     #update variables to be published        
     def update_data(self, data):
         #IMU
@@ -154,7 +157,6 @@ class dataPub(Node):
         self.RC_pos = data[6]
         self.MR_pos = data[7]
         self.ML_pos = data[8]
-
 
         #loadcells 
         self.FC_loadcell = data[9]

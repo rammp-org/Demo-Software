@@ -68,7 +68,7 @@
 //-----------------------------
 Adafruit_BNO055 bno;
 
-IMU_Class IMU = IMU_Class(bno);
+//IMU_Class IMU = IMU_Class(bno);
 
 EncoderContainer EContr;
 
@@ -93,9 +93,9 @@ int CA_flag = 1;
 MotorController motor_controller = MotorController(RC, FC, MR, ML, timer, self_leveling_on, action, CA_flag);
 
 // Initialize RoboClaw Controllers
-RoboClaw roboclaw_casters(&Serial1, 10000); //Serial3
+RoboClaw roboclaw_casters(&Serial3, 10000); //Serial3
 RoboClaw roboclaw_main(&Serial2, 10000);    //Serial4
-RoboClaw roboclaw_carriages(&Serial3, 10000); //Serial5
+RoboClaw roboclaw_carriages(&Serial1, 10000); //Serial5
 
 JoyStick js;
 
@@ -260,7 +260,7 @@ void setup()
 
     set_calculation_constants();
     initialize_digital_pins();
-    IMU.initialize_BNO055_sensor();
+//    IMU.initialize_BNO055_sensor();
 
     delay(1000);
     bno.setExtCrystalUse(true);
@@ -287,7 +287,7 @@ void loop()
     FC.retrieve_lc_reading();
     RC.retrieve_lc_reading();
 
-    IMU.retrieve_readings();
+//    IMU.retrieve_readings();
     EContr.retrieve_readings();
 
     // carriage switches, sw1 = leftback, sw2 = leftfront, sw3 = rightfront, sw4 = rightback
@@ -483,7 +483,7 @@ void select_mode_based_on_GUI_command()
 
 void select_controller_based_on_model()
 {
-    IMU.am = IMU.am + 0.005;
+//    IMU.am = IMU.am + 0.005;
     switch (mode)
     {
     case 1: // dev mode
@@ -521,31 +521,47 @@ void select_controller_based_on_model()
 
 void displaydata()
 {
-    String PIout = "";
+    String PIout = "[";
 
     // IMU
-    PIout += String(IMU.pitchf + 3.0) + ',';
-    PIout += String(IMU.rollf) + ',';
+    PIout += "0,";
+    PIout += "0,";
+    PIout += "0,";
+    PIout += "0,";
+    PIout += "0,";
+//
+//    //current encoder counters
+    PIout += "0,";
+    PIout += "0,";
+    PIout += String(MR.carriage.pos) + ',';
+    PIout += String(ML.carriage.pos) + ',';
+//
+//    //loadcell readings
+    PIout += "0,";
+    PIout += "0,";
+    PIout += "0,";
+//
+//
+//    //wheel positions
+    PIout += "0,";
+    PIout += "0,";
+//
+//    //ca_flag
+    PIout += "0,";
+//
+//    //apptime
+    PIout += "0,";
+//
+//    //velocity
+    PIout += "0,";
+    PIout += "0,";
 
-    // // Retrieve current encoder counters
-    PIout += String(FC.pos) + ',';
-    PIout += String(RC.pos) + ',';
-    PIout += String(MR.pos) + ',';
-    PIout += String(ML.pos) + ',';
-    PIout += String("\t") + ',';
-    PIout += String(FC.loadcell) + ',';
-    PIout += String(MR.loadcell) + ',';
-    PIout += String(ML.loadcell) + ',';
-    PIout += String("\t") + ',';
+    //acceleration will be calculated in sensor_data_pub 
+    //tilt can be calculated using pitch and roll in sensor_data_pub
+    //measure height will be calculated in sensor_data_pub using encoder data
 
-    // PIout += String(ML.wheel_pos) + ',';
-    PIout += String(MR.wheel_pos) + ',';
-    PIout += String("\t") + ',';
-
-    PIout += String(CA_flag) + ',';
-
-    Serial.print(PIout);
-    Serial.print("\r\n");
+    PIout += "]";
+    Serial.println(PIout);
 }
 
 void reset_newmebot_array()
@@ -928,143 +944,143 @@ void advanced_features()
 // advanced_features helper functions
 void self_leveling_application()
 {
-    dpitchrd = 1 * (pneupitch / DG - IMU.pitchrd);
-    drollrd = 1 * (pneuroll / DG - IMU.rollrd);
-    // Self-leveling starting angle at 3 degrees
-    // dpitchrd = 1 * (pneupitch / DG - IMU.pitchrd) + 3.0 / DG;
-    if (fabs(dpitchrd) < 0.001)
-    {
-        dpitchrd = 0.0;
-    }
-    if (fabs(drollrd) < 0.001)
-    {
-        drollrd = 0.0;
-    }
-
-    // construct_rotm_array(dpitchrd, drollrd);
-    rotm[0][0] = cos(dpitchrd);
-    rotm[0][1] = 0.0;
-    rotm[0][2] = sin(dpitchrd);
-    rotm[0][3] = 0.0;
-    rotm[1][0] = sin(drollrd) * sin(dpitchrd);
-    rotm[1][1] = cos(drollrd);
-    rotm[1][2] = -1 * sin(drollrd) * cos(dpitchrd);
-    rotm[1][3] = 0.0;
-    rotm[2][0] = -1 * cos(drollrd) * sin(dpitchrd);
-    rotm[2][1] = sin(drollrd);
-    rotm[2][2] = cos(drollrd) * cos(dpitchrd);
-    rotm[2][3] = 9.5; // was 10
-    rotm[3][0] = 0.0;
-    rotm[3][1] = 0.0;
-    rotm[3][2] = 0.0;
-    rotm[3][3] = 1.0;
-
-    // set_newmebot_array_base_on_rotm_and_mebot();
-    for (int row = 0; row < 4; row++)
-    {
-        for (int col = 0; col < 4; col++)
-        {
-            for (int inner = 0; inner < 4; inner++)
-            {
-                newmebot[row][col] += rotm[row][inner] * mebot[inner][col];
-            }
-        }
-    }
-
-    // Initialize self-leveling for 5 seconds
-    sl_counter = sl_counter + 1;
-    if (sl_counter < 80 * 5)
-    {
-        // calculate_desired_values_for_Mws_RC_FC();
-        ML.des = newmebot[2][0];
-        RC.des = (newmebot[2][1] + newmebot[2][2]) / 2;
-        MR.des = newmebot[2][3];
-        // stop DW carriage and front casters if previous action moved them
-        ML.carriage.des = 0.1;
-        MR.carriage.des = 0.1;
-        FC.des = 1.0;
-    }
-    else
-    {
-        sl_counter = 80 * 5;
-        // Inhibit EHA movement if IMU.pitch is positive (driving up)
-        if (dpitchrd * DG < 6.0 && fabs(drollrd * DG) < 2.0)
-        {
-            ML.des = ML.des_pre;
-            RC.des = RC.des_pre;
-            MR.des = MR.des_pre;
-            FC.des = FC.pos;
-            // Serial.println("No change in SL des values");
-        }
-        else
-        {
-            // calculate_desired_values_for_Mws_RC_FC();
-            ML.des = newmebot[2][0];
-            RC.des = (newmebot[2][1] + newmebot[2][2]) / 2;
-            MR.des = newmebot[2][3];
-            // stop DW carriage and front casters if previous action moved them
-            ML.carriage.des = ML.carriage.pos;
-            MR.carriage.des = MR.carriage.pos;
-            FC.des = FC.pos;
-
-            // COMMENTED FOR RAMMP DEMO
-            //  Reduce speed in positive pitch and all roll (going down or side slopes)
-            //  if (dpitchrd * DG > 6.0 || drollrd * DG > 3.0 || drollrd * DG < -3.0)
-            //  {
-            //      if (js.speed_counter > 1)
-            //      {
-            //          speed_counter = speed_counter + 1;
-            //          if (speed_counter < 20 * 1 && speed_counter >= 1)
-            //          {
-            //              // Serial.println("no change");
-            //              analogWrite(JS_X_PIN, 0);
-            //          }
-            //          else if (speed_counter >= 20 * 1 && speed_counter < 20 * 2)
-            //          {
-            //              // Serial.println(" speed CHANGEEE");
-            //              analogWrite(JS_X_PIN, 255);
-            //          }
-            //          else if (speed_counter >= 20 * 2 && speed_counter <= 20 * 3)
-            //          {
-            //              analogWrite(JS_X_PIN, 0);
-            //          }
-            //          else
-            //          {
-            //              // Serial.println("nothing");
-            //              speed_counter = 0;
-            //          }
-            //      }
-            //      else if (js.speed_counter == 1)
-            //      {
-            //          analogWrite(JS_X_PIN, 0);
-            //          analogWrite(JS_Y_PIN, 0);
-            //          speed_counter = 0;
-            //      }
-            //  }
-            //  Speed DOWN. Use it with dpitchrd*DG in if-statement
-            //  else {
-            //    if (js.speed_counter < 3) {
-            //      test_counter = test_counter + 1;
-            //      if (test_counter < 20 * 1 && test_counter >= 1) {
-            //        analogWrite(JS_Y_PIN, 0);
-            //      } else if (test_counter >= 20 * 1 && test_counter < 20 * 2) {
-            //        analogWrite(JS_Y_PIN, 255);
-            //      } else if (test_counter >= 20 * 2 && test_counter < 20 * 3) {
-            //        analogWrite(JS_Y_PIN, 0);
-            //      } else {
-            //        Serial.println("keep me at this speed");
-            //        analogWrite(JS_Y_PIN, 0);
-            //        analogWrite(JS_X_PIN, 0);
-            //        test_counter = 0;
-            //      }
-            //    } else if (js.speed_counter >= 3) {
-            //      analogWrite(JS_Y_PIN, 0);
-            //      analogWrite(JS_X_PIN, 0);
-            //      test_counter = 0;
-            //    }
-            //  }
-        }
-    }
+//    dpitchrd = 1 * (pneupitch / DG - IMU.pitchrd);
+//    drollrd = 1 * (pneuroll / DG - IMU.rollrd);
+//    // Self-leveling starting angle at 3 degrees
+//    // dpitchrd = 1 * (pneupitch / DG - IMU.pitchrd) + 3.0 / DG;
+//    if (fabs(dpitchrd) < 0.001)
+//    {
+//        dpitchrd = 0.0;
+//    }
+//    if (fabs(drollrd) < 0.001)
+//    {
+//        drollrd = 0.0;
+//    }
+//
+//    // construct_rotm_array(dpitchrd, drollrd);
+//    rotm[0][0] = cos(dpitchrd);
+//    rotm[0][1] = 0.0;
+//    rotm[0][2] = sin(dpitchrd);
+//    rotm[0][3] = 0.0;
+//    rotm[1][0] = sin(drollrd) * sin(dpitchrd);
+//    rotm[1][1] = cos(drollrd);
+//    rotm[1][2] = -1 * sin(drollrd) * cos(dpitchrd);
+//    rotm[1][3] = 0.0;
+//    rotm[2][0] = -1 * cos(drollrd) * sin(dpitchrd);
+//    rotm[2][1] = sin(drollrd);
+//    rotm[2][2] = cos(drollrd) * cos(dpitchrd);
+//    rotm[2][3] = 9.5; // was 10
+//    rotm[3][0] = 0.0;
+//    rotm[3][1] = 0.0;
+//    rotm[3][2] = 0.0;
+//    rotm[3][3] = 1.0;
+//
+//    // set_newmebot_array_base_on_rotm_and_mebot();
+//    for (int row = 0; row < 4; row++)
+//    {
+//        for (int col = 0; col < 4; col++)
+//        {
+//            for (int inner = 0; inner < 4; inner++)
+//            {
+//                newmebot[row][col] += rotm[row][inner] * mebot[inner][col];
+//            }
+//        }
+//    }
+//
+//    // Initialize self-leveling for 5 seconds
+//    sl_counter = sl_counter + 1;
+//    if (sl_counter < 80 * 5)
+//    {
+//        // calculate_desired_values_for_Mws_RC_FC();
+//        ML.des = newmebot[2][0];
+//        RC.des = (newmebot[2][1] + newmebot[2][2]) / 2;
+//        MR.des = newmebot[2][3];
+//        // stop DW carriage and front casters if previous action moved them
+//        ML.carriage.des = 0.1;
+//        MR.carriage.des = 0.1;
+//        FC.des = 1.0;
+//    }
+//    else
+//    {
+//        sl_counter = 80 * 5;
+//        // Inhibit EHA movement if IMU.pitch is positive (driving up)
+//        if (dpitchrd * DG < 6.0 && fabs(drollrd * DG) < 2.0)
+//        {
+//            ML.des = ML.des_pre;
+//            RC.des = RC.des_pre;
+//            MR.des = MR.des_pre;
+//            FC.des = FC.pos;
+//            // Serial.println("No change in SL des values");
+//        }
+//        else
+//        {
+//            // calculate_desired_values_for_Mws_RC_FC();
+//            ML.des = newmebot[2][0];
+//            RC.des = (newmebot[2][1] + newmebot[2][2]) / 2;
+//            MR.des = newmebot[2][3];
+//            // stop DW carriage and front casters if previous action moved them
+//            ML.carriage.des = ML.carriage.pos;
+//            MR.carriage.des = MR.carriage.pos;
+//            FC.des = FC.pos;
+//
+//            // COMMENTED FOR RAMMP DEMO
+//            //  Reduce speed in positive pitch and all roll (going down or side slopes)
+//            //  if (dpitchrd * DG > 6.0 || drollrd * DG > 3.0 || drollrd * DG < -3.0)
+//            //  {
+//            //      if (js.speed_counter > 1)
+//            //      {
+//            //          speed_counter = speed_counter + 1;
+//            //          if (speed_counter < 20 * 1 && speed_counter >= 1)
+//            //          {
+//            //              // Serial.println("no change");
+//            //              analogWrite(JS_X_PIN, 0);
+//            //          }
+//            //          else if (speed_counter >= 20 * 1 && speed_counter < 20 * 2)
+//            //          {
+//            //              // Serial.println(" speed CHANGEEE");
+//            //              analogWrite(JS_X_PIN, 255);
+//            //          }
+//            //          else if (speed_counter >= 20 * 2 && speed_counter <= 20 * 3)
+//            //          {
+//            //              analogWrite(JS_X_PIN, 0);
+//            //          }
+//            //          else
+//            //          {
+//            //              // Serial.println("nothing");
+//            //              speed_counter = 0;
+//            //          }
+//            //      }
+//            //      else if (js.speed_counter == 1)
+//            //      {
+//            //          analogWrite(JS_X_PIN, 0);
+//            //          analogWrite(JS_Y_PIN, 0);
+//            //          speed_counter = 0;
+//            //      }
+//            //  }
+//            //  Speed DOWN. Use it with dpitchrd*DG in if-statement
+//            //  else {
+//            //    if (js.speed_counter < 3) {
+//            //      test_counter = test_counter + 1;
+//            //      if (test_counter < 20 * 1 && test_counter >= 1) {
+//            //        analogWrite(JS_Y_PIN, 0);
+//            //      } else if (test_counter >= 20 * 1 && test_counter < 20 * 2) {
+//            //        analogWrite(JS_Y_PIN, 255);
+//            //      } else if (test_counter >= 20 * 2 && test_counter < 20 * 3) {
+//            //        analogWrite(JS_Y_PIN, 0);
+//            //      } else {
+//            //        Serial.println("keep me at this speed");
+//            //        analogWrite(JS_Y_PIN, 0);
+//            //        analogWrite(JS_X_PIN, 0);
+//            //        test_counter = 0;
+//            //      }
+//            //    } else if (js.speed_counter >= 3) {
+//            //      analogWrite(JS_Y_PIN, 0);
+//            //      analogWrite(JS_X_PIN, 0);
+//            //      test_counter = 0;
+//            //    }
+//            //  }
+//        }
+//    }
 }
 
 void get_GUI_input_from_serial()
@@ -1073,6 +1089,7 @@ void get_GUI_input_from_serial()
     {
         String serial_input = Serial.readStringUntil('\n');
         action = serial_input.charAt(0);
+//        Serial.println(action);
     }
 }
 

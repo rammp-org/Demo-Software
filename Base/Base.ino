@@ -658,12 +658,12 @@ void individual_motor_FF()
         motor_controller.FC_DOWN_1s();
     }
     // left carriage Forward
-    else if (action == 'g')
+    else if (action == 't')
     {
         motor_controller.LEFT_CARRIAGE_FORWARD_point4s();
     }
     // left side carriage Backward
-    else if (action == 't')
+    else if (action == 'g')
     {
         motor_controller.LEFT_CARRIAGE_BACKWARD_point4s();
     }

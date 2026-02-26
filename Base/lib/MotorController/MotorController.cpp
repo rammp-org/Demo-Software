@@ -67,70 +67,70 @@ void MotorController::move_each_wheel(float height_ML, float height_RC, float he
 // individual_motor_FF helper functions
 void MotorController::ML_UP_1s()
 {
-    count_ticks(100);
+    count_ticks(10);
     set_motorpwm(0, 100, 0, 0, 0, 0);
     set_motordir(0, 1, 0, 0, 0, 0);
 }
 
 void MotorController::ML_DOWN_1s()
 {
-    count_ticks(100);
+    count_ticks(10);
     set_motorpwm(0, 100, 0, 0, 0, 0);
     set_motordir(0, 0, 0, 0, 0, 0);
 }
 
 void MotorController::RC_UP_1s()
 {
-    count_ticks(100);
+    count_ticks(10);
     set_motorpwm(0, 0, 0, 100, 0, 0);
     set_motordir(0, 0, 0, 0, 0, 0);
 }
 
 void MotorController::RC_DOWN_1s()
 {
-    count_ticks(100);
+    count_ticks(10);
     set_motorpwm(0, 0, 0, 100, 0, 0);
     set_motordir(0, 0, 0, 1, 0, 0);
 }
 
 void MotorController::MR_UP_1s()
 {
-    count_ticks(100);
+    count_ticks(10);
     set_motorpwm(0, 0, 100, 0, 0, 0);
     set_motordir(0, 0, 1, 0, 0, 0);
 }
 
 void MotorController::MR_DOWN_1s()
 {
-    count_ticks(100);
+    count_ticks(10);
     set_motorpwm(0, 0, 100, 0, 0, 0);
     set_motordir(0, 0, 0, 0, 0, 0);
 }
 
 void MotorController::FC_UP_1s()
 {
-    count_ticks(100);
+    count_ticks(10);
     set_motorpwm(100, 0, 0, 0, 0, 0);
     set_motordir(1, 0, 0, 0, 0, 0);
 }
 
 void MotorController::FC_DOWN_1s()
 {
-    count_ticks(100);
+    count_ticks(10);
     set_motorpwm(100, 0, 0, 0, 0, 0);
     set_motordir(0, 0, 0, 0, 0, 0);
 }
 
 void MotorController::LEFT_CARRIAGE_FORWARD_point4s()
 {
-    count_ticks(300);
+    count_ticks(30);
     set_motorpwm(0, 0, 0, 0, 100, 0);
     set_motordir(0, 0, 0, 0, 1, 0);
 }
 
 void MotorController::LEFT_CARRIAGE_BACKWARD_point4s()
 {
-    count_ticks(300);
+    count_ticks(30);
     set_motorpwm(0, 0, 0, 0, 100, 0);
     set_motordir(0, 0, 0, 0, 0, 0);
     // Serial.println("RELAY1 DOWN");
@@ -138,28 +138,28 @@ void MotorController::LEFT_CARRIAGE_BACKWARD_point4s()
 
 void MotorController::RIGHT_CARRIAGE_FORWARD_point4s()
 {
-    count_ticks(300);
+    count_ticks(30);
     set_motorpwm(0, 0, 0, 0, 0, 100);
     set_motordir(0, 0, 0, 0, 0, 1);
 }
 
 void MotorController::RIGHT_CARRIAGE_BACKWARD_point4s()
 {
-    count_ticks(300);
+    count_ticks(30);
     set_motorpwm(0, 0, 0, 0, 0, 100);
     set_motordir(0, 0, 0, 0, 0, 0);
 }
 
 void MotorController::BOTH_CARRIAGE_FORWARD_4s()
 {
-    count_ticks(300);
+    count_ticks(30);
     set_motorpwm(0, 0, 0, 0, 100, 100);
     set_motordir(0, 0, 0, 0, 0, 1);
 }
 
 void MotorController::BOTH_CARRIAGE_BACKWARD_4s()
 {
-    count_ticks(300);
+    count_ticks(30);
     set_motorpwm(0, 0, 0, 0, 100, 100);
     set_motordir(0, 0, 0, 0, 1, 0);
 }

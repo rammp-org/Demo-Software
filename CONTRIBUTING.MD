@@ -81,7 +81,7 @@ If the rebase applied changes, you may have to run:
 git push origin [YOUR FEATURE BRANCH] --force-with-lease
 ```
 
-Finally, go to repo on Github and create a new pull request from your feature branch to `dev`. Provide a brief description of the feature, your test procedures, and your test results in the description. If you include the phrase `Closes #[Issue number]`, the PR will automatically be linked to the issue.
+Finally, go to the repo on Github and create a new pull request from your feature branch to `dev`. GitHub will ask you to choose a PR template from a dropdown — select **feature_to_dev**. Fill it out with a description of your changes, your test procedure, and your results. If you include the phrase `Closes #[Issue number]`, the PR will automatically be linked to the issue.
 
 Before merging a pull request, you will need to get somebody to review your code, so go ahead and assign a relevant reviewer.
 

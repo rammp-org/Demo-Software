@@ -1,2 +1,19 @@
+# IDE / Editor
 .vscode/
+.idea/
+
+# Python
 __pycache__/
+*.pyc
+venv/
+.venv/
+
+# macOS
+.DS_Store
+
+# Data logs (runtime output)
+*.csv
+*.log
+
+# Claude Code
+CLAUDE.md

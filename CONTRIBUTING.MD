@@ -60,12 +60,15 @@ Once you have sufficiently tested your code, it's time to open a pull request in
 
 First, you should rebase your latest changes onto `dev`. This applies your commits to the latest version of `dev` so that there are not merge conflicts if `dev` has changed since you started developing. You can do this by running:
 
-```
+First, you should merge the latest changes in `dev` into your feature branch. This ensures that you resolve merge conflicts before opening your pull request. You can do this by running:
+
+```bash
 git checkout dev
 git pull origin dev
 git checkout [YOUR FEATURE BRANCH]
-git rebase dev
+git merge dev
 ```
+
 After rebasing, you can then push your latest changes to Github by running:
 
 ```bash
@@ -74,7 +77,7 @@ git push origin [YOUR FEATURE BRANCH]
 
 If the rebase applied changes, you may have to run:
 
-```
+```bash
 git push origin [YOUR FEATURE BRANCH] --force-with-lease
 ```
 
@@ -106,22 +109,6 @@ git checkout -b hotfix/critical-sensor-fix
 **Back-port to dev: CRITICAL.** Immediately merge the hotfix branch (or main) into dev so the bug doesn't reappear in the next release cycle.
 
 # FAQ
-
-## What is a rebase?
-
-Rebasing is similar to a commit in that it merges code from two branches with changes. However, it merges the code by re-applying the changes from one branch on the latest code in the other branch.
-
-[Here's an article with more details](https://dev.to/maxwell_dev/the-git-rebase-introduction-i-wish-id-had)
-
-## My rebase is giving me weird errors
-
-You can stop the rebase process at any time by running:
-
-```
-git rebase --abort
-```
-
-If you're worried you going to break things, run that command and ask for help.
 
 ## Do I lose my history with Squash and Merge?
 The git log on the server stays clean (one commit per feature), but the GitHub PR Archive preserves every individual commit and comment you made during development.

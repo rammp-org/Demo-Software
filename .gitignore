@@ -17,3 +17,32 @@ venv/
 
 # Claude Code
 CLAUDE.md
+
+# ROS 2 Build Artifacts
+install/
+build/
+log/
+
+# Python artifacts
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache/
+.pycheck/
+
+# C++ / IDE artifacts
+**/*.swp
+.vscode/
+.idea/
+.vs/
+*.user
+
+# System / OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+# (Usually you want to keep docs, but skip generated Doxygen output)
+docs/_build/
+doxygen_output/

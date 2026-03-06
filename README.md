@@ -20,7 +20,7 @@ Foundational packages for the RAMMP prototype.
 * **`rammp_prototype_gui`**: Interface layer for communication with the Unreal Engine-based GUI.
 
 ### 2. Demo Modules (`demo_modules/`)
-Task-specific research modules provided by unveristy partners. These are self-contained "skills" (e.g., stabilization, navigation, manipulation) designed to interface with the core platform via standardized ROS 2 topics and actions.
+Task-specific research modules provided by university partners. These are self-contained "skills" (e.g., stabilization, navigation, manipulation) designed to interface with the core platform via standardized ROS 2 topics and actions.
 
 ### 3. Hardware Drivers (`hardware/`)
 Interfaces between the ROS 2 computational graph and physical components.

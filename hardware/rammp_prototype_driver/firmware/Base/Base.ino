@@ -3,45 +3,51 @@
   repository and look those header files inside the open library folder.
   SD.h, utility/imumaths.h and SPI.h can be find online
 
-  Pinout for the MCP23S17, LINK: https://ww1.microchip.com/downloads/en/devicedoc/20001952c.pdf
-  Data sheet for the Adafruit_BNO055, LINK: https://learn.adafruit.com/adafruit-bno055-absolute-orientation-sensor/downloads
+  Pinout for the MCP23S17, LINK:
+  https://ww1.microchip.com/downloads/en/devicedoc/20001952c.pdf Data sheet for
+  the Adafruit_BNO055, LINK:
+  https://learn.adafruit.com/adafruit-bno055-absolute-orientation-sensor/downloads
   Teensy 4.0 PinoutL, LINK: https://www.pjrc.com/teensy/pinout.html
 
   Documentation for js.x:
-  1. range 0 to 127 will make the robot turn right, higher number means faster turning rate
+  1. range 0 to 127 will make the robot turn right, higher number means faster
+  turning rate
 
   slow                fast
   |                 |
   [0----right turn----127]
 
-  2. range 128 to 255 will make the robot turn left, lower number means faster turning rate
-  fast                slow
-  |                    |
-  [128----left turn----255]
+  2. range 128 to 255 will make the robot turn left, lower number means faster
+  turning rate fast                slow |                    | [128----left
+  turn----255]
 
 
   Documentation for js.y:
-  1. range 0 to 127 will make the robot go forward, higher number means faster speed
+  1. range 0 to 127 will make the robot go forward, higher number means faster
+  speed
 
   slow                fast
   |                   |
   [0----go forward----127]
 
-  2. range 128 to 255 will make the robot go backward, lower number means faster speed
+  2. range 128 to 255 will make the robot go backward, lower number means faster
+  speed
 
   fast                  slow
   |                     |
   [128----go backward----255]
 
   packet string format:
-  "curb_height + distance_of_interest + angle_initial_turn + sign_initial_turn + angle_final_turn + sign_final_turn"
-  0.00(meter)   0.00(meter)            000.00(degree)       0(-) / 1(+)         000.00(degree)     0(-)/1(+)
-  4             4                      6                    1                   6                  1          total of 22 charactors
+  "curb_height + distance_of_interest + angle_initial_turn + sign_initial_turn +
+  angle_final_turn + sign_final_turn" 0.00(meter)   0.00(meter) 000.00(degree)
+  0(-) / 1(+)         000.00(degree)     0(-)/1(+) 4             4 6 1 6 1 total
+  of 22 charactors
 
   main functions:
   displaydata: Used to print out variables in Serial Monitor.
-  manual_features: Four seat functions: Elevation, Tilt Back-Forth, Lateral Tilt, Drive wheel configuration
-  advanced_features: Self-leveling, Curb Climbing, Curb Descending, Pause, Reset
+  manual_features: Four seat functions: Elevation, Tilt Back-Forth, Lateral
+  Tilt, Drive wheel configuration advanced_features: Self-leveling, Curb
+  Climbing, Curb Descending, Pause, Reset
 */
 
 #include <Carriage.h>
@@ -68,34 +74,39 @@
 //-----------------------------
 Adafruit_BNO055 bno;
 
-//IMU_Class IMU = IMU_Class(bno);
+// IMU_Class IMU = IMU_Class(bno);
 
 EncoderContainer EContr;
 
 Caster RC = Caster(RC_LOADCELL_PIN, MOTOR_RC);
 Caster FC = Caster(FC_LOADCELL_PIN, MOTOR_FC);
 
-Carriage ML_Carriage = Carriage(MOTOR_ML_CARRIAGE, CARRIAGE_SW1_PIN, CARRIAGE_SW2_PIN, EContr.encoderf[11]);
+Carriage ML_Carriage = Carriage(MOTOR_ML_CARRIAGE, CARRIAGE_SW1_PIN,
+                                CARRIAGE_SW2_PIN, EContr.encoderf[11]);
 
 // make ML and connect ML Carriage to it
-Wheel ML = Wheel(ML_LOADCELL_PIN, MOTOR_ML, ML_Carriage, EContr.encoderf[7], EContr.encoder[9]);
+Wheel ML = Wheel(ML_LOADCELL_PIN, MOTOR_ML, ML_Carriage, EContr.encoderf[7],
+                 EContr.encoder[9]);
 
-Carriage MR_Carriage = Carriage(MOTOR_MR_CARRIAGE, CARRIAGE_SW3_PIN, CARRIAGE_SW4_PIN, EContr.encoderf[12]);
+Carriage MR_Carriage = Carriage(MOTOR_MR_CARRIAGE, CARRIAGE_SW3_PIN,
+                                CARRIAGE_SW4_PIN, EContr.encoderf[12]);
 
 // make MR and connect MR Carriage to it
-Wheel MR = Wheel(MR_LOADCELL_PIN, MOTOR_MR, MR_Carriage, EContr.encoderf[5], EContr.encoderf[10]);
+Wheel MR = Wheel(MR_LOADCELL_PIN, MOTOR_MR, MR_Carriage, EContr.encoderf[5],
+                 EContr.encoderf[10]);
 
 Timer timer;
 
 bool self_leveling_on = false;
 char action;
 int CA_flag = 1;
-MotorController motor_controller = MotorController(RC, FC, MR, ML, timer, self_leveling_on, action, CA_flag);
+MotorController motor_controller =
+    MotorController(RC, FC, MR, ML, timer, self_leveling_on, action, CA_flag);
 
 // Initialize RoboClaw Controllers
-RoboClaw roboclaw_casters(&Serial3, 10000); //Serial3
-RoboClaw roboclaw_main(&Serial2, 10000);    //Serial4
-RoboClaw roboclaw_carriages(&Serial1, 10000); //Serial5
+RoboClaw roboclaw_casters(&Serial3, 10000);   // Serial3
+RoboClaw roboclaw_main(&Serial2, 10000);      // Serial4
+RoboClaw roboclaw_carriages(&Serial1, 10000); // Serial5
 
 JoyStick js;
 
@@ -114,8 +125,9 @@ float dist1 = 0.0, dist2 = 0.0;
 
 int commaIndex = 0;
 
-// carriage switches, sw1 = leftback, sw2 = leftfront, sw3 = rightfront, sw4 = rightback
-// int carriage_sw1 = 0, carriage_sw2 = 0, carriage_sw3 = 0, carriage_sw4 = 0;
+// carriage switches, sw1 = leftback, sw2 = leftfront, sw3 = rightfront, sw4 =
+// rightback int carriage_sw1 = 0, carriage_sw2 = 0, carriage_sw3 = 0,
+// carriage_sw4 = 0;
 
 // MEBot length: 68cm, DWs width: 62cm, RC width: 22cm
 double mebot[4][4] = {
@@ -125,10 +137,8 @@ double mebot[4][4] = {
     {-31, -11, 11, 31},
     {0, 0, 0, 0},
     {1, 1, 1, 1}};
-double rotm[4][4] = {{0., 0., 0., 0.},
-                     {0., 0., 0., 0.},
-                     {0., 0., 0., 0.},
-                     {0., 0., 0., 0.}};
+double rotm[4][4] = {
+    {0., 0., 0., 0.}, {0., 0., 0., 0.}, {0., 0., 0., 0.}, {0., 0., 0., 0.}};
 double newmebot[4][4] = {{0.0, 0.0, 0.0, 0.0},
                          {0.0, 0.0, 0.0, 0.0},
                          {0.0, 0.0, 0.0, 0.0},
@@ -154,7 +164,8 @@ bool done_initial_turn = false;
 bool done_final_turn = false;
 int state = 0;
 bool yaw_begin_travel_stored = false;
-int task = 0; // To keep a track of which task is being performed throughout the curb detection process
+int task = 0; // To keep a track of which task is being performed throughout the
+              // curb detection process
 
 // Not used
 bool yaw_begin_final_turn_stored = false;
@@ -185,7 +196,8 @@ float distance_readings[NUM_READINGS];
 float theta_readings[NUM_READINGS];
 float initial_angle_readings[NUM_READINGS];
 float final_angle_readings[NUM_READINGS];
-float minInitialAngle = -1; // Initialize to a value that won't interfere with actual data
+float minInitialAngle =
+    -1; // Initialize to a value that won't interfere with actual data
 
 // variables to do moving averages
 // float cur_theta = 0.0; // Not Used
@@ -220,7 +232,8 @@ float final_angle_to_stop = 0.0;
 
 // Variables for wheel postions
 float init_posr = 0.0; // the initial position of the right wheel
-// float cur_posr = 0.0;   // the current position of the right wheel // Not Used
+// float cur_posr = 0.0;   // the current position of the right wheel // Not
+// Used
 
 // CACD variables
 // Not being used for anything
@@ -251,131 +264,129 @@ float FC_state = 0.0;
 bool drive_forward = false;
 
 // Setup routine runs once when you press reset:
-void setup()
-{
-    Serial.begin(115200);   // jetson
-    Serial1.begin(38400);   // roboclaw 1
-    Serial2.begin(38400);   // roboclaw 2
-    Serial3.begin(38400);   // roboclaw 3
+void setup() {
+  Serial.begin(115200); // jetson
+  Serial1.begin(38400); // roboclaw 1
+  Serial2.begin(38400); // roboclaw 2
+  Serial3.begin(38400); // roboclaw 3
 
-    set_calculation_constants();
-    initialize_digital_pins();
-//    IMU.initialize_BNO055_sensor();
+  set_calculation_constants();
+  initialize_digital_pins();
+  //    IMU.initialize_BNO055_sensor();
 
-    delay(1000);
-    bno.setExtCrystalUse(true);
-    initialize_all_readings();
+  delay(1000);
+  bno.setExtCrystalUse(true);
+  initialize_all_readings();
 }
 
 // Loop routine runs over and over again indefinitely:
-void loop()
-{
-    //  if (PI_MOTORS.available() > 0)
-    //  {
-    //  // read the string data from the real-sense
-    //    input = PI_MOTORS.readStringUntil('\n');
-    //  }
-    //  Serial.println(input);
-    timer.updateTime();
+void loop() {
+  //  if (PI_MOTORS.available() > 0)
+  //  {
+  //  // read the string data from the real-sense
+  //    input = PI_MOTORS.readStringUntil('\n');
+  //  }
+  //  Serial.println(input);
+  timer.updateTime();
 
-    // get_GUI_input_from_bluetooth_joystick();
+  // get_GUI_input_from_bluetooth_joystick();
 
-    js.retrieve_omni2_iom_readings();
+  js.retrieve_omni2_iom_readings();
 
-    MR.retrieve_lc_reading();
-    ML.retrieve_lc_reading();
-    FC.retrieve_lc_reading();
-    RC.retrieve_lc_reading();
+  MR.retrieve_lc_reading();
+  ML.retrieve_lc_reading();
+  FC.retrieve_lc_reading();
+  RC.retrieve_lc_reading();
 
-//    IMU.retrieve_readings();
-    EContr.retrieve_readings();
+  //    IMU.retrieve_readings();
+  EContr.retrieve_readings();
 
-    // carriage switches, sw1 = leftback, sw2 = leftfront, sw3 = rightfront, sw4 = rightback
-    MR.carriage.retrieve_readings();
-    ML.carriage.retrieve_readings();
+  // carriage switches, sw1 = leftback, sw2 = leftfront, sw3 = rightfront, sw4 =
+  // rightback
+  MR.carriage.retrieve_readings();
+  ML.carriage.retrieve_readings();
 
-    MR.calculate_main_wheels_positions(timer.elapsed_time);
-    ML.calculate_main_wheels_positions(timer.elapsed_time);
-    calculate_casters_positions();
+  MR.calculate_main_wheels_positions(timer.elapsed_time);
+  ML.calculate_main_wheels_positions(timer.elapsed_time);
+  calculate_casters_positions();
 
-    MR.carriage.calculate_carriages_position();
-    ML.carriage.calculate_carriages_position();
+  MR.carriage.calculate_carriages_position();
+  ML.carriage.calculate_carriages_position();
 
-    calculate_pitch_and_roll_angle();
+  calculate_pitch_and_roll_angle();
 
-    get_GUI_input_from_serial();
+  get_GUI_input_from_serial();
 
-    /* The method below is for getting input using bluetooth, keeping it for now */
-    // get_GUI_input_from_bluetooth();
-    // manual_features();
+  /* The method below is for getting input using bluetooth, keeping it for now
+   */
+  // get_GUI_input_from_bluetooth();
+  // manual_features();
 
-    select_mode_based_on_GUI_command();
-    select_controller_based_on_model();
-    motor_controller.set_positions_for_MWs_and_RC();
+  select_mode_based_on_GUI_command();
+  select_controller_based_on_model();
+  motor_controller.set_positions_for_MWs_and_RC();
 
-    motor_controller.carriage_limits_switch();
+  motor_controller.carriage_limits_switch();
 
-    displaydata();
+  displaydata();
 
-    // Reduce delay to increase frequency. Currently set to 8ms
-    delay(5);
-    reset_newmebot_array();
+  // Reduce delay to increase frequency. Currently set to 8ms
+  delay(5);
+  reset_newmebot_array();
 }
 
 /*
  * ***********************************************************
  * ********* below are helper finctions for setup()***********
  */
-void set_calculation_constants()
-{
-    ML_Carriage.carriage_ticks = 12000;
-    MR_Carriage.carriage_ticks = -12531;
+void set_calculation_constants() {
+  ML_Carriage.carriage_ticks = 12000;
+  MR_Carriage.carriage_ticks = -12531;
 
-    ML.pos_ticks = -390;
-    ML.wheel_pos_ticks = 15212;
-    ML.angle_ticks = -390;
-    ML.eha_norm = 39.4;
+  ML.pos_ticks = -390;
+  ML.wheel_pos_ticks = 15212;
+  ML.angle_ticks = -390;
+  ML.eha_norm = 39.4;
 
-    MR.pos_ticks = 380;
-    MR.wheel_pos_ticks = -15212;
-    MR.angle_ticks = 356;
-    MR.eha_norm = 35.47;
+  MR.pos_ticks = 380;
+  MR.wheel_pos_ticks = -15212;
+  MR.angle_ticks = 356;
+  MR.eha_norm = 35.47;
 }
 
-void initialize_digital_pins()
-{
-    // EHA and DW carriage direction and pwms
-    MR.initialize_pins();
-    MR.carriage.initialize_pins();
-    ML.initialize_pins();
-    ML.carriage.initialize_pins();
-    RC.initialize_pins();
-    FC.initialize_pins();
+void initialize_digital_pins() {
+  // EHA and DW carriage direction and pwms
+  MR.initialize_pins();
+  MR.carriage.initialize_pins();
+  ML.initialize_pins();
+  ML.carriage.initialize_pins();
+  RC.initialize_pins();
+  FC.initialize_pins();
 
-    // Omni2-CC pins
-    pinMode(OMNI2_PROFILE_PIN, OUTPUT);
-    pinMode(OMNI2_FORWARD_PIN, OUTPUT);
-    pinMode(OMNI2_LEFT_PIN, OUTPUT);
-    pinMode(OMNI2_RIGHT_PIN, OUTPUT);
-    pinMode(OMNI2_REVERSE_PIN, OUTPUT);
+  // Omni2-CC pins
+  pinMode(OMNI2_PROFILE_PIN, OUTPUT);
+  pinMode(OMNI2_FORWARD_PIN, OUTPUT);
+  pinMode(OMNI2_LEFT_PIN, OUTPUT);
+  pinMode(OMNI2_RIGHT_PIN, OUTPUT);
+  pinMode(OMNI2_REVERSE_PIN, OUTPUT);
 
-    // Omni2-SL pins
-    pinMode(JS_SD_PIN, INPUT);
-    pinMode(JS_PFILE_PIN, INPUT);
-    pinMode(JS_SUP_PIN, INPUT);
+  // Omni2-SL pins
+  pinMode(JS_SD_PIN, INPUT);
+  pinMode(JS_PFILE_PIN, INPUT);
+  pinMode(JS_SUP_PIN, INPUT);
 
-    // set up initial joystick I/O values
-    pinMode(JS_SW_PIN, OUTPUT);
-    digitalWrite(JS_SW_PIN, LOW); // Profile
-    analogWrite(JS_X_PIN, 0);     // Speed UP
-    analogWrite(JS_Y_PIN, 0);     // Speed DOWN
-    // Serial.println("omni2_variables OFF");
+  // set up initial joystick I/O values
+  pinMode(JS_SW_PIN, OUTPUT);
+  digitalWrite(JS_SW_PIN, LOW); // Profile
+  analogWrite(JS_X_PIN, 0);     // Speed UP
+  analogWrite(JS_Y_PIN, 0);     // Speed DOWN
+  // Serial.println("omni2_variables OFF");
 
-    digitalWrite(OMNI2_PROFILE_PIN, LOW);
-    digitalWrite(OMNI2_FORWARD_PIN, LOW);
-    digitalWrite(OMNI2_LEFT_PIN, LOW);
-    digitalWrite(OMNI2_RIGHT_PIN, LOW);
-    digitalWrite(OMNI2_REVERSE_PIN, LOW);
+  digitalWrite(OMNI2_PROFILE_PIN, LOW);
+  digitalWrite(OMNI2_FORWARD_PIN, LOW);
+  digitalWrite(OMNI2_LEFT_PIN, LOW);
+  digitalWrite(OMNI2_RIGHT_PIN, LOW);
+  digitalWrite(OMNI2_REVERSE_PIN, LOW);
 }
 
 /*
@@ -388,206 +399,195 @@ void initialize_digital_pins()
  * ********* below are helper finctions for loop()************
  */
 
-void calculate_casters_positions()
-{
-    // Height: DWs: 21cm, RC: 20cm, FC: 23cm (off ground)
-    // GC: DWs: 3cm, RC: 1cm, FC: 5cm (off ground)
-    /* Calculation w.r.t bottom of the base */
+void calculate_casters_positions() {
+  // Height: DWs: 21cm, RC: 20cm, FC: 23cm (off ground)
+  // GC: DWs: 3cm, RC: 1cm, FC: 5cm (off ground)
+  /* Calculation w.r.t bottom of the base */
 
-    RC.pos = (float)EContr.encoderf[3] * -18.4 / 680.0; // 0 - 18.4
-    // RC.pos = 3.0 + 26.8 * sin((-7.0 + (float)EContr.encoderf[3] * -60 / 710) / DG);
+  RC.pos = (float)EContr.encoderf[3] * -18.4 / 680.0; // 0 - 18.4
+  // RC.pos = 3.0 + 26.8 * sin((-7.0 + (float)EContr.encoderf[3] * -60 / 710) /
+  // DG);
 
-    // raw min-max encoder value to limit eha motor movement
-    RC.eha = fabs(EContr.encoderf[1]) / 85.62; // actuator stroke 0 - 10.15 cm
+  // raw min-max encoder value to limit eha motor movement
+  RC.eha = fabs(EContr.encoderf[1]) / 85.62; // actuator stroke 0 - 10.15 cm
 
-    FC.pos = ((float)EContr.encoderf[2]);               // max encoder value to z-height
-    FC.pos = 1.0 + ((float)EContr.encoderf[2] * 0.031); // 2.5 to 22.5 cm
+  FC.pos = ((float)EContr.encoderf[2]); // max encoder value to z-height
+  FC.pos = 1.0 + ((float)EContr.encoderf[2] * 0.031); // 2.5 to 22.5 cm
 
-    // NOT WORKING PROPERLY
-    // raw min-max encoder value to limit eha motor movement
-    FC.eha = fabs(EContr.encoderf[4]) / 83.6; // actuator stroke 0 - 10.15 cm
-    // RC.angle = -7.0 + (float)EContr.encoderf[3] * -60 / 710;
+  // NOT WORKING PROPERLY
+  // raw min-max encoder value to limit eha motor movement
+  FC.eha = fabs(EContr.encoderf[4]) / 83.6; // actuator stroke 0 - 10.15 cm
+  // RC.angle = -7.0 + (float)EContr.encoderf[3] * -60 / 710;
 }
 
-void calculate_pitch_and_roll_angle()
-{
-    // Obtain pitch and roll angles from pneumatics
-    float xac1 = mebot[0][3] - mebot[0][1];
-    float yac1 = mebot[1][3] - mebot[1][1];
-    float zac1 = ML.pos - RC.pos;
-    float xbd1 = mebot[0][2] - mebot[0][0];
-    float ybd1 = mebot[1][2] - mebot[1][0];
-    float zbd1 = RC.pos - MR.pos;
+void calculate_pitch_and_roll_angle() {
+  // Obtain pitch and roll angles from pneumatics
+  float xac1 = mebot[0][3] - mebot[0][1];
+  float yac1 = mebot[1][3] - mebot[1][1];
+  float zac1 = ML.pos - RC.pos;
+  float xbd1 = mebot[0][2] - mebot[0][0];
+  float ybd1 = mebot[1][2] - mebot[1][0];
+  float zbd1 = RC.pos - MR.pos;
 
-    float xac2 = (xac1) / sqrt((xac1 * xac1) + (yac1 * yac1) + (zac1 * zac1));
-    float yac2 = (yac1) / sqrt((xac1 * xac1) + (yac1 * yac1) + (zac1 * zac1));
-    float zac2 = (zac1) / sqrt((xac1 * xac1) + (yac1 * yac1) + (zac1 * zac1));
+  float xac2 = (xac1) / sqrt((xac1 * xac1) + (yac1 * yac1) + (zac1 * zac1));
+  float yac2 = (yac1) / sqrt((xac1 * xac1) + (yac1 * yac1) + (zac1 * zac1));
+  float zac2 = (zac1) / sqrt((xac1 * xac1) + (yac1 * yac1) + (zac1 * zac1));
 
-    float xbd2 = (xbd1) / sqrt((xbd1 * xbd1) + (ybd1 * ybd1) + (zbd1 * zbd1));
-    float ybd2 = (ybd1) / sqrt((xbd1 * xbd1) + (ybd1 * ybd1) + (zbd1 * zbd1));
-    float zbd2 = (zbd1) / sqrt((xbd1 * xbd1) + (ybd1 * ybd1) + (zbd1 * zbd1));
+  float xbd2 = (xbd1) / sqrt((xbd1 * xbd1) + (ybd1 * ybd1) + (zbd1 * zbd1));
+  float ybd2 = (ybd1) / sqrt((xbd1 * xbd1) + (ybd1 * ybd1) + (zbd1 * zbd1));
+  float zbd2 = (zbd1) / sqrt((xbd1 * xbd1) + (ybd1 * ybd1) + (zbd1 * zbd1));
 
-    float u[3] = {0, 0, 0};
-    u[0] = yac2 * zbd2 - zac2 * ybd2;
-    u[1] = zac2 * xbd2 - xac2 * zbd2;
-    u[2] = xac2 * ybd2 - yac2 * xbd2;
+  float u[3] = {0, 0, 0};
+  u[0] = yac2 * zbd2 - zac2 * ybd2;
+  u[1] = zac2 * xbd2 - xac2 * zbd2;
+  u[2] = xac2 * ybd2 - yac2 * xbd2;
 
-    pneuroll = atan2(MR.pos - ML.pos, 62) * DG;
-    pneupitch = atan2((ML.pos + MR.pos) / 2 - RC.pos, 68) * DG;
+  pneuroll = atan2(MR.pos - ML.pos, 62) * DG;
+  pneupitch = atan2((ML.pos + MR.pos) / 2 - RC.pos, 68) * DG;
 }
 
-void get_GUI_input_from_bluetooth()
-{
-    if (PI_BT.available() > 0)
-    {
-        String serial_input = PI_BT.readStringUntil('\n');
-        action = serial_input.charAt(0);
-        // Serial.println(action);
+void get_GUI_input_from_bluetooth() {
+  if (PI_BT.available() > 0) {
+    String serial_input = PI_BT.readStringUntil('\n');
+    action = serial_input.charAt(0);
+    // Serial.println(action);
+  }
+}
+
+void select_mode_based_on_GUI_command() {
+  switch (action) {
+  case '1': // Control each motor with keyboard
+    set_mode(1);
+    self_leveling_on = false;
+    break;
+
+  case '2': // Control motor with desired position
+    set_mode(2);
+    self_leveling_on = false;
+    break;
+
+  case '3': // Self-leveling control using IMU as input
+    set_mode(3);
+    break;
+
+  case '4': //  Manual curb climb control
+    set_mode(4);
+    break;
+
+  case '5': // Manual features -> Carriage
+    set_mode(5);
+    break;
+
+  case '6': // Manual features incremental
+    set_mode(6);
+    break;
+
+  default:
+    break;
+  }
+}
+
+void select_controller_based_on_model() {
+  //    IMU.am = IMU.am + 0.005;
+  switch (mode) {
+  case 1: // dev mode
+    individual_motor_FF();
+    break;
+
+  case 2: // manual control
+    motor_controller.manual_features_proportional();
+    break;
+
+  case 3: // advanced features
+    advanced_features();
+    break;
+
+    // case 4: // manual curb climb control
+    //     // Eventually change to CD
+    //     manual_curb_climb_v2();
+    //     break;
+
+  case 5: // manual control for carriage -> set_mode(5)
+    motor_controller.manual_features_carriage();
+    analogWrite(JS_Y_PIN, 0);
+    analogWrite(JS_Y_PIN, 0);
+    analogWrite(JS_Y_PIN, 0);
+    break;
+
+  case 6:
+    motor_controller.manual_features();
+    break;
+
+  default:
+    break;
+  }
+}
+
+void displaydata() {
+  String PIout = "[";
+
+  // IMU
+  PIout += "0,";
+  PIout += "0,";
+  PIout += "0,";
+  PIout += "0,";
+  PIout += "0,";
+  //
+  //    //current encoder counters
+  PIout += "0,";
+  PIout += "0,";
+  PIout += String(MR.carriage.pos) + ',';
+  PIout += String(ML.carriage.pos) + ',';
+  //
+  //    //loadcell readings
+  PIout += "0,";
+  PIout += "0,";
+  PIout += "0,";
+  //
+  //
+  //    //wheel positions
+  PIout += "0,";
+  PIout += "0,";
+  //
+  //    //ca_flag
+  PIout += "0,";
+  //
+  //    //apptime
+  PIout += "0,";
+  //
+  //    //velocity
+  PIout += "0,";
+  PIout += "0,";
+
+  // acceleration will be calculated in sensor_data_pub
+  // tilt can be calculated using pitch and roll in sensor_data_pub
+  // measure height will be calculated in sensor_data_pub using encoder data
+
+  PIout += "]";
+  Serial.println(PIout);
+}
+
+void reset_newmebot_array() {
+  MR.last_err = MR.err;
+  ML.last_err = ML.err;
+  RC.last_err = RC.err;
+  FC.last_err = FC.err;
+  MR.carriage.last_err = MR.carriage.err;
+  ML.carriage.last_err = ML.carriage.err;
+  ML.wheel_pos_pre = ML.wheel_pos;
+  MR.wheel_pos_pre = MR.wheel_pos;
+  RC.des_pre = RC.des;
+  ML.des_pre = ML.des;
+  MR.des_pre = MR.des;
+  FC.des_pre = FC.des;
+  MR.carriage.des_pre = MR.carriage.des;
+  ML.carriage.des_pre = ML.carriage.des;
+
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 4; j++) {
+      newmebot[i][j] = 0.0;
     }
-}
-
-void select_mode_based_on_GUI_command()
-{
-    switch (action)
-    {
-    case '1': // Control each motor with keyboard
-        set_mode(1);
-        self_leveling_on = false;
-        break;
-
-    case '2': // Control motor with desired position
-        set_mode(2);
-        self_leveling_on = false;
-        break;
-
-    case '3': // Self-leveling control using IMU as input
-        set_mode(3);
-        break;
-
-    case '4': //  Manual curb climb control
-        set_mode(4);
-        break;
-
-    case '5': // Manual features -> Carriage
-        set_mode(5);
-        break;
-
-    case '6': // Manual features incremental
-        set_mode(6);
-        break;
-
-    default:
-        break;
-    }
-}
-
-void select_controller_based_on_model()
-{
-//    IMU.am = IMU.am + 0.005;
-    switch (mode)
-    {
-    case 1: // dev mode
-        individual_motor_FF();
-        break;
-
-    case 2: // manual control
-        motor_controller.manual_features_proportional();
-        break;
-
-    case 3: // advanced features
-        advanced_features();
-        break;
-
-        // case 4: // manual curb climb control
-        //     // Eventually change to CD
-        //     manual_curb_climb_v2();
-        //     break;
-
-    case 5: // manual control for carriage -> set_mode(5)
-        motor_controller.manual_features_carriage();
-        analogWrite(JS_Y_PIN, 0);
-        analogWrite(JS_Y_PIN, 0);
-        analogWrite(JS_Y_PIN, 0);
-        break;
-
-    case 6:
-        motor_controller.manual_features();
-        break;
-
-    default:
-        break;
-    }
-}
-
-void displaydata()
-{
-    String PIout = "[";
-
-    // IMU
-    PIout += "0,";
-    PIout += "0,";
-    PIout += "0,";
-    PIout += "0,";
-    PIout += "0,";
-//
-//    //current encoder counters
-    PIout += "0,";
-    PIout += "0,";
-    PIout += String(MR.carriage.pos) + ',';
-    PIout += String(ML.carriage.pos) + ',';
-//
-//    //loadcell readings
-    PIout += "0,";
-    PIout += "0,";
-    PIout += "0,";
-//
-//
-//    //wheel positions
-    PIout += "0,";
-    PIout += "0,";
-//
-//    //ca_flag
-    PIout += "0,";
-//
-//    //apptime
-    PIout += "0,";
-//
-//    //velocity
-    PIout += "0,";
-    PIout += "0,";
-
-    //acceleration will be calculated in sensor_data_pub 
-    //tilt can be calculated using pitch and roll in sensor_data_pub
-    //measure height will be calculated in sensor_data_pub using encoder data
-
-    PIout += "]";
-    Serial.println(PIout);
-}
-
-void reset_newmebot_array()
-{
-    MR.last_err = MR.err;
-    ML.last_err = ML.err;
-    RC.last_err = RC.err;
-    FC.last_err = FC.err;
-    MR.carriage.last_err = MR.carriage.err;
-    ML.carriage.last_err = ML.carriage.err;
-    ML.wheel_pos_pre = ML.wheel_pos;
-    MR.wheel_pos_pre = MR.wheel_pos;
-    RC.des_pre = RC.des;
-    ML.des_pre = ML.des;
-    MR.des_pre = MR.des;
-    FC.des_pre = FC.des;
-    MR.carriage.des_pre = MR.carriage.des;
-    ML.carriage.des_pre = ML.carriage.des;
-
-    for (int i = 0; i < 4; i++)
-    {
-        for (int j = 0; j < 4; j++)
-        {
-            newmebot[i][j] = 0.0;
-        }
-    }
+  }
 }
 
 /*
@@ -601,496 +601,450 @@ void reset_newmebot_array()
  */
 
 // select_mode_based_on_GUI_command helper function
-void set_mode(int num)
-{
-    ML.des = ML.pos;
-    MR.des = MR.pos;
-    RC.des = RC.pos;
-    FC.des = FC.pos;
-    ML.carriage.des = ML.carriage.pos;
-    MR.carriage.des = MR.carriage.pos;
-    mode = num;
+void set_mode(int num) {
+  ML.des = ML.pos;
+  MR.des = MR.pos;
+  RC.des = RC.pos;
+  FC.des = FC.pos;
+  ML.carriage.des = ML.carriage.pos;
+  MR.carriage.des = MR.carriage.pos;
+  mode = num;
 }
 
 // select_controller_based_on_model helper functions
-void individual_motor_FF()
-{
-    // Serial.println("I'm here in Individual Motor FF");
+void individual_motor_FF() {
+  // Serial.println("I'm here in Individual Motor FF");
+  CA_flag = 1;
+  // ML UP
+  if (action == 'q') {
+    motor_controller.ML_UP_1s(); // raise ML up for 1 second
+  }
+  // ML DOWN
+  else if (action == 'a') {
+    motor_controller.ML_DOWN_1s();
+  }
+  // RC UP, activate relay 2 forward
+  else if (action == 'w') {
+    motor_controller.RC_UP_1s();
+  }
+  // RC DOWN, activate relay 2 reverse
+  else if (action == 's') {
+    motor_controller.RC_DOWN_1s();
+  }
+  // MR UP
+  else if (action == 'e') {
+    motor_controller.MR_UP_1s();
+  }
+  // MR DOWN
+  else if (action == 'd') {
+    motor_controller.MR_DOWN_1s();
+  }
+  // FC UP
+  else if (action == 'r') {
+    motor_controller.FC_UP_1s();
+  }
+  // FC DOWN
+  else if (action == 'f') {
+    motor_controller.FC_DOWN_1s();
+  }
+  // left carriage Forward
+  else if (action == 't') {
+    motor_controller.LEFT_CARRIAGE_FORWARD_point4s();
+  }
+  // left side carriage Backward
+  else if (action == 'g') {
+    motor_controller.LEFT_CARRIAGE_BACKWARD_point4s();
+  }
+  // right side carriage Forward
+  else if (action == 'y') {
+    motor_controller.RIGHT_CARRIAGE_FORWARD_point4s();
+  }
+  // right side carriage Backward
+  else if (action == 'h') {
+    motor_controller.RIGHT_CARRIAGE_BACKWARD_point4s();
+  }
+  // right side carriage Forward
+  else if (action == 'j') {
+    motor_controller.BOTH_CARRIAGE_FORWARD_4s();
+  }
+  // right side carriage Backward
+  else if (action == 'u') {
+    motor_controller.BOTH_CARRIAGE_BACKWARD_4s();
+  } else if (action == 'z') {
+    motor_controller.NO_MOVEMENT();
+    js.x = 0;
+    js.y = 0;
+    digitalWrite(JS_SW_PIN, 0);
+    analogWrite(JS_X_PIN, 0);
+    analogWrite(JS_Y_PIN, 0);
+  }
+}
+
+void initialize_all_readings() {
+  for (int i = 0; i < NUM_READINGS; i++) {
+    height_readings[i] = 0.0;
+    distance_readings[i] = 0.0;
+    theta_readings[i] = 0.0;
+    initial_angle_readings[i] = 0.0;
+    final_angle_readings[i] = 0.0;
+  }
+}
+
+float normalize_angle(float angle) {
+  angle = fmod(angle, 360);
+  if (angle < 0)
+    angle += 360;
+  return angle;
+}
+
+void reset_all_automation_variables() {
+  // Curb negotiation variables
+  raise_chair = false;
+  curb_climb_prestep = false;
+  cc_profile = false;
+  curb_height_measure = false;
+
+  // Not used
+  //  js.x = 0;
+  //  js.y = 0;
+
+  // These are not used
+  hei_average = 0.0;
+  ini_average = 0.0;
+  dis_average = 0.0;
+  fin_average = 0.0;
+  theta_average = 0.0;
+
+  init_posr = 0.0;
+
+  IMUyaw_initial = 0.0;
+  IMU_diff = 0.0;
+  initial_angle_to_turn = 0.0;
+  initial_angle_to_stop = 0.0;
+  yaw_initial_turn = 0.0;
+  yaw_after_initial_turn = 0.0;
+
+  yaw_begin_travel = 0.0;
+  distance_to_travel = 0.0;
+  distance_traveled = 0.0;
+  yaw_travel = 0.0;
+  yaw_after_travel = 0.0;
+
+  final_angle_to_turn = 0.0;
+  final_angle_to_stop = 0.0;
+  yaw_final_turn = 0.0;
+  yaw_after_final_turn = 0.0;
+
+  sign_initial_angle = "0";
+  sign_final_angle = "0";
+  done_travel = false;
+  done_initial_turn = false;
+  done_final_turn = false;
+  bypass_3_step = false;
+  curb_climb_automation = false;
+  curb_descend_automation = false;
+  self_leveling_on = false;
+
+  done_reading_data = false;
+  did_once = false;
+  set_CA = false;
+  yaw_begin_final_turn_stored = false;
+  yaw_begin_travel_stored = false;
+
+  CA_flag = 1;
+  second_counter = 0;
+
+  dis_two_third = 0.0;
+  task = 0;
+  profile_counter = 0;
+  speed_counter = 0;
+  front_caster_counter = 0;
+}
+
+void advanced_features() {
+  // Self leveling
+  if (action == 's') {
+    SL_profile = true;
+    CN_profile = false;
+    self_leveling_on = true;
     CA_flag = 1;
-    // ML UP
-    if (action == 'q')
-    {
-        motor_controller.ML_UP_1s(); // raise ML up for 1 second
-    }
-    // ML DOWN
-    else if (action == 'a')
-    {
-        motor_controller.ML_DOWN_1s();
-    }
-    // RC UP, activate relay 2 forward
-    else if (action == 'w')
-    {
-        motor_controller.RC_UP_1s();
-    }
-    // RC DOWN, activate relay 2 reverse
-    else if (action == 's')
-    {
-        motor_controller.RC_DOWN_1s();
-    }
-    // MR UP
-    else if (action == 'e')
-    {
-        motor_controller.MR_UP_1s();
-    }
-    // MR DOWN
-    else if (action == 'd')
-    {
-        motor_controller.MR_DOWN_1s();
-    }
-    // FC UP
-    else if (action == 'r')
-    {
-        motor_controller.FC_UP_1s();
-    }
-    // FC DOWN
-    else if (action == 'f')
-    {
-        motor_controller.FC_DOWN_1s();
-    }
-    // left carriage Forward
-    else if (action == 't')
-    {
-        motor_controller.LEFT_CARRIAGE_FORWARD_point4s();
-    }
-    // left side carriage Backward
-    else if (action == 'g')
-    {
-        motor_controller.LEFT_CARRIAGE_BACKWARD_point4s();
-    }
-    // right side carriage Forward
-    else if (action == 'y')
-    {
-        motor_controller.RIGHT_CARRIAGE_FORWARD_point4s();
-    }
-    // right side carriage Backward
-    else if (action == 'h')
-    {
-        motor_controller.RIGHT_CARRIAGE_BACKWARD_point4s();
-    }
-    // right side carriage Forward
-    else if (action == 'j')
-    {
-        motor_controller.BOTH_CARRIAGE_FORWARD_4s();
-    }
-    // right side carriage Backward
-    else if (action == 'u')
-    {
-        motor_controller.BOTH_CARRIAGE_BACKWARD_4s();
-    }
-    else if (action == 'z')
-    {
-        motor_controller.NO_MOVEMENT();
-        js.x = 0;
-        js.y = 0;
-        digitalWrite(JS_SW_PIN, 0);
-        analogWrite(JS_X_PIN, 0);
-        analogWrite(JS_Y_PIN, 0);
-    }
-}
-
-void initialize_all_readings()
-{
-    for (int i = 0; i < NUM_READINGS; i++)
-    {
-        height_readings[i] = 0.0;
-        distance_readings[i] = 0.0;
-        theta_readings[i] = 0.0;
-        initial_angle_readings[i] = 0.0;
-        final_angle_readings[i] = 0.0;
-    }
-}
-
-float normalize_angle(float angle)
-{
-    angle = fmod(angle, 360);
-    if (angle < 0)
-        angle += 360;
-    return angle;
-}
-
-void reset_all_automation_variables()
-{
-    // Curb negotiation variables
-    raise_chair = false;
-    curb_climb_prestep = false;
-    cc_profile = false;
-    curb_height_measure = false;
-
-    // Not used
-    //  js.x = 0;
-    //  js.y = 0;
-
-    // These are not used
-    hei_average = 0.0;
-    ini_average = 0.0;
-    dis_average = 0.0;
-    fin_average = 0.0;
-    theta_average = 0.0;
-
-    init_posr = 0.0;
-
-    IMUyaw_initial = 0.0;
-    IMU_diff = 0.0;
-    initial_angle_to_turn = 0.0;
-    initial_angle_to_stop = 0.0;
-    yaw_initial_turn = 0.0;
-    yaw_after_initial_turn = 0.0;
-
-    yaw_begin_travel = 0.0;
-    distance_to_travel = 0.0;
-    distance_traveled = 0.0;
-    yaw_travel = 0.0;
-    yaw_after_travel = 0.0;
-
-    final_angle_to_turn = 0.0;
-    final_angle_to_stop = 0.0;
-    yaw_final_turn = 0.0;
-    yaw_after_final_turn = 0.0;
-
-    sign_initial_angle = "0";
-    sign_final_angle = "0";
-    done_travel = false;
-    done_initial_turn = false;
-    done_final_turn = false;
-    bypass_3_step = false;
-    curb_climb_automation = false;
-    curb_descend_automation = false;
+  }
+  // Curb climbing Automation
+  else if (action == 'c') {
     self_leveling_on = false;
-
-    done_reading_data = false;
-    did_once = false;
-    set_CA = false;
-    yaw_begin_final_turn_stored = false;
-    yaw_begin_travel_stored = false;
-
+    CN_profile = true;
+    raise_chair = true;
     CA_flag = 1;
-    second_counter = 0;
+  }
+  // Curb descend Automation
+  else if (action == 'd') {
+    self_leveling_on = false;
+    CN_profile = true;
+    curb_descend_automation = true;
+  }
+  // Reset the chair to the initial state
+  else if (action == 'r') {
+    CA_flag = 1;
+    self_leveling_on = false;
+    sl_counter = 0;
+    FC.des = 2.0;
+    motor_controller.move_each_wheel(3.0, 0.3, 3.0);
+    MR.carriage.des = 0.1;
+    ML.carriage.des = 0.1;
+    js.set_joystick_speed(0, 0);
 
-    dis_two_third = 0.0;
-    task = 0;
-    profile_counter = 0;
-    speed_counter = 0;
-    front_caster_counter = 0;
-}
+    // Reset all curb climb variables
+    reset_all_automation_variables();
+  }
 
-void advanced_features()
-{
-    // Self leveling
-    if (action == 's')
-    {
-        SL_profile = true;
-        CN_profile = false;
-        self_leveling_on = true;
-        CA_flag = 1;
-    }
-    // Curb climbing Automation
-    else if (action == 'c')
-    {
-        self_leveling_on = false;
-        CN_profile = true;
-        raise_chair = true;
-        CA_flag = 1;
-    }
-    // Curb descend Automation
-    else if (action == 'd')
-    {
-        self_leveling_on = false;
-        CN_profile = true;
-        curb_descend_automation = true;
-    }
-    // Reset the chair to the initial state
-    else if (action == 'r')
-    {
-        CA_flag = 1;
-        self_leveling_on = false;
-        sl_counter = 0;
-        FC.des = 2.0;
-        motor_controller.move_each_wheel(3.0, 0.3, 3.0);
-        MR.carriage.des = 0.1;
-        ML.carriage.des = 0.1;
-        js.set_joystick_speed(0, 0);
+  // Steps for curb descending automation
+  if (curb_descend_automation == true) {
+    // Serial.println("Curb Drop Automation");
 
-        // Reset all curb climb variables
-        reset_all_automation_variables();
-    }
+    // Reset all curb descend variables
+    // reset_all_automation_variables();
+    // auto_curb_descend();
+  }
 
-    // Steps for curb descending automation
-    if (curb_descend_automation == true)
-    {
-        // Serial.println("Curb Drop Automation");
-
-        // Reset all curb descend variables
-        // reset_all_automation_variables();
-        // auto_curb_descend();
-    }
+  // Elevate RC/DWs to their maximum position. Front caster to lowest position
+  // Chair must be near curb before starting this step.
+  // Otherwise, next step may not work as intended.
+  if (raise_chair == true) {
+    // Assume curb climb selection was selected with joystick --> change to CN
+    // profile: if (CN_profile == true)
+    // {
+    //     profile_counter = profile_counter + 1;
+    //     if (profile_counter < 20 * 1)
+    //     {
+    //         digitalWrite(JS_SW_PIN, LOW);
+    //     }
+    //     else if (profile_counter >= 20 * 1 && profile_counter < 20 * 2)
+    //     {
+    //         Serial.println("profile 1");
+    //         digitalWrite(JS_SW_PIN, HIGH);
+    //     }
+    //     else if (profile_counter >= 20 * 2 && profile_counter < 20 * 3)
+    //     {
+    //         digitalWrite(JS_SW_PIN, LOW);
+    //     }
+    //     else
+    //     {
+    //         CN_profile = false;
+    //         profile_counter = 0;
+    //     }
+    // }
 
     // Elevate RC/DWs to their maximum position. Front caster to lowest position
-    // Chair must be near curb before starting this step.
-    // Otherwise, next step may not work as intended.
-    if (raise_chair == true)
-    {
-        // Assume curb climb selection was selected with joystick --> change to CN profile:
-        // if (CN_profile == true)
-        // {
-        //     profile_counter = profile_counter + 1;
-        //     if (profile_counter < 20 * 1)
-        //     {
-        //         digitalWrite(JS_SW_PIN, LOW);
-        //     }
-        //     else if (profile_counter >= 20 * 1 && profile_counter < 20 * 2)
-        //     {
-        //         Serial.println("profile 1");
-        //         digitalWrite(JS_SW_PIN, HIGH);
-        //     }
-        //     else if (profile_counter >= 20 * 2 && profile_counter < 20 * 3)
-        //     {
-        //         digitalWrite(JS_SW_PIN, LOW);
-        //     }
-        //     else
-        //     {
-        //         CN_profile = false;
-        //         profile_counter = 0;
-        //     }
-        // }
+    front_caster_counter = front_caster_counter + 1;
+    if (front_caster_counter < 200) {
+      FC.des = 2.0; // Front caster to lowest position
+    } else {
+      front_caster_counter = 200;
+      FC.des = FC.pos;
+    }
+    ML.carriage.des = 0.1;
+    MR.carriage.des = 0.1;
+    RC.des = 8.0; // initial value 7.0
+    ML.des = 20.0;
+    MR.des = 20.0;
+    // record MR.pos, ML.pos values to calculate distance to be traveled later
+    if (MR.pos > 19.0 && ML.pos > 19.0) {
+      CA_flag = 2;
+      ML.wheel_pos_init = ML.wheel_pos;
+      MR.wheel_pos_init = MR.wheel_pos;
+      MLpreloadcell = ML.loadcell;
+      MRpreloadcell = MR.loadcell;
+      curb_climb_prestep = true;
+    }
+  }
+  // MEBot takes control
+  if (curb_climb_prestep == true) {
+    raise_chair = false;
+    cc_profile = true;
+    auto_curb_climb();
+  }
 
-        // Elevate RC/DWs to their maximum position. Front caster to lowest position
-        front_caster_counter = front_caster_counter + 1;
-        if (front_caster_counter < 200)
-        {
-            FC.des = 2.0; // Front caster to lowest position
-        }
-        else
-        {
-            front_caster_counter = 200;
-            FC.des = FC.pos;
-        }
-        ML.carriage.des = 0.1;
-        MR.carriage.des = 0.1;
-        RC.des = 8.0; // initial value 7.0
-        ML.des = 20.0;
-        MR.des = 20.0;
-        // record MR.pos, ML.pos values to calculate distance to be traveled later
-        if (MR.pos > 19.0 && ML.pos > 19.0)
-        {
-            CA_flag = 2;
-            ML.wheel_pos_init = ML.wheel_pos;
-            MR.wheel_pos_init = MR.wheel_pos;
-            MLpreloadcell = ML.loadcell;
-            MRpreloadcell = MR.loadcell;
-            curb_climb_prestep = true;
-        }
+  if (self_leveling_on) {
+    // change to SL profile:
+    if (SL_profile == true) {
+      profile_counter = profile_counter + 1;
+      if (profile_counter < 20 * 1) {
+        digitalWrite(JS_SW_PIN, LOW);
+      } else if (profile_counter >= 20 * 1 && profile_counter < 20 * 2) {
+        Serial.println("profile 1");
+        digitalWrite(JS_SW_PIN, HIGH);
+      } else if (profile_counter >= 20 * 2 && profile_counter < 20 * 3) {
+        digitalWrite(JS_SW_PIN, LOW);
+      } else if (profile_counter >= 20 * 3 && profile_counter < 20 * 4) {
+        Serial.println("profile 2");
+        digitalWrite(JS_SW_PIN, HIGH);
+      } else if (profile_counter >= 20 * 4 && profile_counter < 20 * 5) {
+        digitalWrite(JS_SW_PIN, LOW);
+      } else {
+        SL_profile = false;
+        profile_counter = 0;
+      }
     }
-    // MEBot takes control
-    if (curb_climb_prestep == true)
-    {
-        raise_chair = false;
-        cc_profile = true;
-        auto_curb_climb();
+    if (SL_profile == false) {
+      self_leveling_application();
     }
-
-    if (self_leveling_on)
-    {
-        // change to SL profile:
-        if (SL_profile == true)
-        {
-            profile_counter = profile_counter + 1;
-            if (profile_counter < 20 * 1)
-            {
-                digitalWrite(JS_SW_PIN, LOW);
-            }
-            else if (profile_counter >= 20 * 1 && profile_counter < 20 * 2)
-            {
-                Serial.println("profile 1");
-                digitalWrite(JS_SW_PIN, HIGH);
-            }
-            else if (profile_counter >= 20 * 2 && profile_counter < 20 * 3)
-            {
-                digitalWrite(JS_SW_PIN, LOW);
-            }
-            else if (profile_counter >= 20 * 3 && profile_counter < 20 * 4)
-            {
-                Serial.println("profile 2");
-                digitalWrite(JS_SW_PIN, HIGH);
-            }
-            else if (profile_counter >= 20 * 4 && profile_counter < 20 * 5)
-            {
-                digitalWrite(JS_SW_PIN, LOW);
-            }
-            else
-            {
-                SL_profile = false;
-                profile_counter = 0;
-            }
-        }
-        if (SL_profile == false)
-        {
-            self_leveling_application();
-        }
-        // Serial.println("SL ON within advanced features");
-    }
-    motor_controller.individual_motor_PID();
+    // Serial.println("SL ON within advanced features");
+  }
+  motor_controller.individual_motor_PID();
 }
 
 // advanced_features helper functions
-void self_leveling_application()
-{
-//    dpitchrd = 1 * (pneupitch / DG - IMU.pitchrd);
-//    drollrd = 1 * (pneuroll / DG - IMU.rollrd);
-//    // Self-leveling starting angle at 3 degrees
-//    // dpitchrd = 1 * (pneupitch / DG - IMU.pitchrd) + 3.0 / DG;
-//    if (fabs(dpitchrd) < 0.001)
-//    {
-//        dpitchrd = 0.0;
-//    }
-//    if (fabs(drollrd) < 0.001)
-//    {
-//        drollrd = 0.0;
-//    }
-//
-//    // construct_rotm_array(dpitchrd, drollrd);
-//    rotm[0][0] = cos(dpitchrd);
-//    rotm[0][1] = 0.0;
-//    rotm[0][2] = sin(dpitchrd);
-//    rotm[0][3] = 0.0;
-//    rotm[1][0] = sin(drollrd) * sin(dpitchrd);
-//    rotm[1][1] = cos(drollrd);
-//    rotm[1][2] = -1 * sin(drollrd) * cos(dpitchrd);
-//    rotm[1][3] = 0.0;
-//    rotm[2][0] = -1 * cos(drollrd) * sin(dpitchrd);
-//    rotm[2][1] = sin(drollrd);
-//    rotm[2][2] = cos(drollrd) * cos(dpitchrd);
-//    rotm[2][3] = 9.5; // was 10
-//    rotm[3][0] = 0.0;
-//    rotm[3][1] = 0.0;
-//    rotm[3][2] = 0.0;
-//    rotm[3][3] = 1.0;
-//
-//    // set_newmebot_array_base_on_rotm_and_mebot();
-//    for (int row = 0; row < 4; row++)
-//    {
-//        for (int col = 0; col < 4; col++)
-//        {
-//            for (int inner = 0; inner < 4; inner++)
-//            {
-//                newmebot[row][col] += rotm[row][inner] * mebot[inner][col];
-//            }
-//        }
-//    }
-//
-//    // Initialize self-leveling for 5 seconds
-//    sl_counter = sl_counter + 1;
-//    if (sl_counter < 80 * 5)
-//    {
-//        // calculate_desired_values_for_Mws_RC_FC();
-//        ML.des = newmebot[2][0];
-//        RC.des = (newmebot[2][1] + newmebot[2][2]) / 2;
-//        MR.des = newmebot[2][3];
-//        // stop DW carriage and front casters if previous action moved them
-//        ML.carriage.des = 0.1;
-//        MR.carriage.des = 0.1;
-//        FC.des = 1.0;
-//    }
-//    else
-//    {
-//        sl_counter = 80 * 5;
-//        // Inhibit EHA movement if IMU.pitch is positive (driving up)
-//        if (dpitchrd * DG < 6.0 && fabs(drollrd * DG) < 2.0)
-//        {
-//            ML.des = ML.des_pre;
-//            RC.des = RC.des_pre;
-//            MR.des = MR.des_pre;
-//            FC.des = FC.pos;
-//            // Serial.println("No change in SL des values");
-//        }
-//        else
-//        {
-//            // calculate_desired_values_for_Mws_RC_FC();
-//            ML.des = newmebot[2][0];
-//            RC.des = (newmebot[2][1] + newmebot[2][2]) / 2;
-//            MR.des = newmebot[2][3];
-//            // stop DW carriage and front casters if previous action moved them
-//            ML.carriage.des = ML.carriage.pos;
-//            MR.carriage.des = MR.carriage.pos;
-//            FC.des = FC.pos;
-//
-//            // COMMENTED FOR RAMMP DEMO
-//            //  Reduce speed in positive pitch and all roll (going down or side slopes)
-//            //  if (dpitchrd * DG > 6.0 || drollrd * DG > 3.0 || drollrd * DG < -3.0)
-//            //  {
-//            //      if (js.speed_counter > 1)
-//            //      {
-//            //          speed_counter = speed_counter + 1;
-//            //          if (speed_counter < 20 * 1 && speed_counter >= 1)
-//            //          {
-//            //              // Serial.println("no change");
-//            //              analogWrite(JS_X_PIN, 0);
-//            //          }
-//            //          else if (speed_counter >= 20 * 1 && speed_counter < 20 * 2)
-//            //          {
-//            //              // Serial.println(" speed CHANGEEE");
-//            //              analogWrite(JS_X_PIN, 255);
-//            //          }
-//            //          else if (speed_counter >= 20 * 2 && speed_counter <= 20 * 3)
-//            //          {
-//            //              analogWrite(JS_X_PIN, 0);
-//            //          }
-//            //          else
-//            //          {
-//            //              // Serial.println("nothing");
-//            //              speed_counter = 0;
-//            //          }
-//            //      }
-//            //      else if (js.speed_counter == 1)
-//            //      {
-//            //          analogWrite(JS_X_PIN, 0);
-//            //          analogWrite(JS_Y_PIN, 0);
-//            //          speed_counter = 0;
-//            //      }
-//            //  }
-//            //  Speed DOWN. Use it with dpitchrd*DG in if-statement
-//            //  else {
-//            //    if (js.speed_counter < 3) {
-//            //      test_counter = test_counter + 1;
-//            //      if (test_counter < 20 * 1 && test_counter >= 1) {
-//            //        analogWrite(JS_Y_PIN, 0);
-//            //      } else if (test_counter >= 20 * 1 && test_counter < 20 * 2) {
-//            //        analogWrite(JS_Y_PIN, 255);
-//            //      } else if (test_counter >= 20 * 2 && test_counter < 20 * 3) {
-//            //        analogWrite(JS_Y_PIN, 0);
-//            //      } else {
-//            //        Serial.println("keep me at this speed");
-//            //        analogWrite(JS_Y_PIN, 0);
-//            //        analogWrite(JS_X_PIN, 0);
-//            //        test_counter = 0;
-//            //      }
-//            //    } else if (js.speed_counter >= 3) {
-//            //      analogWrite(JS_Y_PIN, 0);
-//            //      analogWrite(JS_X_PIN, 0);
-//            //      test_counter = 0;
-//            //    }
-//            //  }
-//        }
-//    }
+void self_leveling_application() {
+  //    dpitchrd = 1 * (pneupitch / DG - IMU.pitchrd);
+  //    drollrd = 1 * (pneuroll / DG - IMU.rollrd);
+  //    // Self-leveling starting angle at 3 degrees
+  //    // dpitchrd = 1 * (pneupitch / DG - IMU.pitchrd) + 3.0 / DG;
+  //    if (fabs(dpitchrd) < 0.001)
+  //    {
+  //        dpitchrd = 0.0;
+  //    }
+  //    if (fabs(drollrd) < 0.001)
+  //    {
+  //        drollrd = 0.0;
+  //    }
+  //
+  //    // construct_rotm_array(dpitchrd, drollrd);
+  //    rotm[0][0] = cos(dpitchrd);
+  //    rotm[0][1] = 0.0;
+  //    rotm[0][2] = sin(dpitchrd);
+  //    rotm[0][3] = 0.0;
+  //    rotm[1][0] = sin(drollrd) * sin(dpitchrd);
+  //    rotm[1][1] = cos(drollrd);
+  //    rotm[1][2] = -1 * sin(drollrd) * cos(dpitchrd);
+  //    rotm[1][3] = 0.0;
+  //    rotm[2][0] = -1 * cos(drollrd) * sin(dpitchrd);
+  //    rotm[2][1] = sin(drollrd);
+  //    rotm[2][2] = cos(drollrd) * cos(dpitchrd);
+  //    rotm[2][3] = 9.5; // was 10
+  //    rotm[3][0] = 0.0;
+  //    rotm[3][1] = 0.0;
+  //    rotm[3][2] = 0.0;
+  //    rotm[3][3] = 1.0;
+  //
+  //    // set_newmebot_array_base_on_rotm_and_mebot();
+  //    for (int row = 0; row < 4; row++)
+  //    {
+  //        for (int col = 0; col < 4; col++)
+  //        {
+  //            for (int inner = 0; inner < 4; inner++)
+  //            {
+  //                newmebot[row][col] += rotm[row][inner] * mebot[inner][col];
+  //            }
+  //        }
+  //    }
+  //
+  //    // Initialize self-leveling for 5 seconds
+  //    sl_counter = sl_counter + 1;
+  //    if (sl_counter < 80 * 5)
+  //    {
+  //        // calculate_desired_values_for_Mws_RC_FC();
+  //        ML.des = newmebot[2][0];
+  //        RC.des = (newmebot[2][1] + newmebot[2][2]) / 2;
+  //        MR.des = newmebot[2][3];
+  //        // stop DW carriage and front casters if previous action moved them
+  //        ML.carriage.des = 0.1;
+  //        MR.carriage.des = 0.1;
+  //        FC.des = 1.0;
+  //    }
+  //    else
+  //    {
+  //        sl_counter = 80 * 5;
+  //        // Inhibit EHA movement if IMU.pitch is positive (driving up)
+  //        if (dpitchrd * DG < 6.0 && fabs(drollrd * DG) < 2.0)
+  //        {
+  //            ML.des = ML.des_pre;
+  //            RC.des = RC.des_pre;
+  //            MR.des = MR.des_pre;
+  //            FC.des = FC.pos;
+  //            // Serial.println("No change in SL des values");
+  //        }
+  //        else
+  //        {
+  //            // calculate_desired_values_for_Mws_RC_FC();
+  //            ML.des = newmebot[2][0];
+  //            RC.des = (newmebot[2][1] + newmebot[2][2]) / 2;
+  //            MR.des = newmebot[2][3];
+  //            // stop DW carriage and front casters if previous action moved
+  //            them ML.carriage.des = ML.carriage.pos; MR.carriage.des =
+  //            MR.carriage.pos; FC.des = FC.pos;
+  //
+  //            // COMMENTED FOR RAMMP DEMO
+  //            //  Reduce speed in positive pitch and all roll (going down or
+  //            side slopes)
+  //            //  if (dpitchrd * DG > 6.0 || drollrd * DG > 3.0 || drollrd *
+  //            DG < -3.0)
+  //            //  {
+  //            //      if (js.speed_counter > 1)
+  //            //      {
+  //            //          speed_counter = speed_counter + 1;
+  //            //          if (speed_counter < 20 * 1 && speed_counter >= 1)
+  //            //          {
+  //            //              // Serial.println("no change");
+  //            //              analogWrite(JS_X_PIN, 0);
+  //            //          }
+  //            //          else if (speed_counter >= 20 * 1 && speed_counter <
+  //            20 * 2)
+  //            //          {
+  //            //              // Serial.println(" speed CHANGEEE");
+  //            //              analogWrite(JS_X_PIN, 255);
+  //            //          }
+  //            //          else if (speed_counter >= 20 * 2 && speed_counter <=
+  //            20 * 3)
+  //            //          {
+  //            //              analogWrite(JS_X_PIN, 0);
+  //            //          }
+  //            //          else
+  //            //          {
+  //            //              // Serial.println("nothing");
+  //            //              speed_counter = 0;
+  //            //          }
+  //            //      }
+  //            //      else if (js.speed_counter == 1)
+  //            //      {
+  //            //          analogWrite(JS_X_PIN, 0);
+  //            //          analogWrite(JS_Y_PIN, 0);
+  //            //          speed_counter = 0;
+  //            //      }
+  //            //  }
+  //            //  Speed DOWN. Use it with dpitchrd*DG in if-statement
+  //            //  else {
+  //            //    if (js.speed_counter < 3) {
+  //            //      test_counter = test_counter + 1;
+  //            //      if (test_counter < 20 * 1 && test_counter >= 1) {
+  //            //        analogWrite(JS_Y_PIN, 0);
+  //            //      } else if (test_counter >= 20 * 1 && test_counter < 20 *
+  //            2) {
+  //            //        analogWrite(JS_Y_PIN, 255);
+  //            //      } else if (test_counter >= 20 * 2 && test_counter < 20 *
+  //            3) {
+  //            //        analogWrite(JS_Y_PIN, 0);
+  //            //      } else {
+  //            //        Serial.println("keep me at this speed");
+  //            //        analogWrite(JS_Y_PIN, 0);
+  //            //        analogWrite(JS_X_PIN, 0);
+  //            //        test_counter = 0;
+  //            //      }
+  //            //    } else if (js.speed_counter >= 3) {
+  //            //      analogWrite(JS_Y_PIN, 0);
+  //            //      analogWrite(JS_X_PIN, 0);
+  //            //      test_counter = 0;
+  //            //    }
+  //            //  }
+  //        }
+  //    }
 }
 
-void get_GUI_input_from_serial()
-{
-    if (Serial.available() > 0)
-    {
-        String serial_input = Serial.readStringUntil('\n');
-        action = serial_input.charAt(0);
-//        Serial.println(action);
-    }
+void get_GUI_input_from_serial() {
+  if (Serial.available() > 0) {
+    String serial_input = Serial.readStringUntil('\n');
+    action = serial_input.charAt(0);
+    //        Serial.println(action);
+  }
 }
 
 //======================================================================
@@ -1124,11 +1078,9 @@ void get_GUI_input_from_serial()
 //         }
 //     }
 //     if (CA_flag == 2) {
-//         // step three, push the frame onto the curb followed by elevating ML,MR
-//         MR.carriage.des = 30.0;
-//         ML.carriage.des = 30.0;
-//         FC.des = FC_state;
-//         if (ML.carriage.pos > 15.0) {
+//         // step three, push the frame onto the curb followed by elevating
+//         ML,MR MR.carriage.des = 30.0; ML.carriage.des = 30.0; FC.des =
+//         FC_state; if (ML.carriage.pos > 15.0) {
 //             motor_controller.move_each_wheel(3.5, 21.0, 3.5);
 //         }
 //         if (MR.carriage.pos > 29.5 && ML.carriage.pos > 29.5) {
@@ -1156,10 +1108,9 @@ void get_GUI_input_from_serial()
 //             }
 //         }
 //     } else if (CA_flag == 4) {
-//         // step six, lift rear casters and move the carriage back to the edge of the curb to hold the weight
-//         FC.des = FC_state;
-//         MR.carriage.des = 30.0;
-//         ML.carriage.des = 30.0;
+//         // step six, lift rear casters and move the carriage back to the edge
+//         of the curb to hold the weight FC.des = FC_state; MR.carriage.des
+//         = 30.0; ML.carriage.des = 30.0;
 //         motor_controller.move_each_wheel(3.5, 2.0, 3.5);
 //         if (drive_forward == true) {
 //             test_counter = test_counter + 1;
@@ -1216,144 +1167,117 @@ void get_GUI_input_from_serial()
 
 //======================================================================
 // // Automated CC. Manual drive. Both drive wheels lift together
-void auto_curb_climb()
-{
-    if (CA_flag == 2)
-    {
-        // step two, drive forward till hit the curb
-        motor_controller.move_each_wheel(20.5, RC.pos, 20.5);
-        FC.des = 2.0;
-        // Hit curb to start CC automation
-        if (abs(MLpreloadcell - ML.loadcell) > 20 || abs(MRpreloadcell - MR.loadcell) > 20)
-        {
-            CA_flag = 3;
-        }
+void auto_curb_climb() {
+  if (CA_flag == 2) {
+    // step two, drive forward till hit the curb
+    motor_controller.move_each_wheel(20.5, RC.pos, 20.5);
+    FC.des = 2.0;
+    // Hit curb to start CC automation
+    if (abs(MLpreloadcell - ML.loadcell) > 20 ||
+        abs(MRpreloadcell - MR.loadcell) > 20) {
+      CA_flag = 3;
+    }
 
-        // MR.wheel_traveled = MR.wheel_pos - MR.wheel_pos_init;
-        // if (MR.wheel_traveled > 30.0)
-        //     CA_flag = 3;
-        // }
-    }
-    else if (CA_flag == 3)
-    {
-        // step three, push the carriage onto the curb and elevating ML,MR
-        MR.carriage.des = 30.0;
-        ML.carriage.des = 30.0;
-        FC.des = 2.0;
-        // if (ML.carriage.pos > 10.0)
-        // {
-        motor_controller.move_each_wheel(ML.pos, 21.0, MR.pos);
-        // }
+    // MR.wheel_traveled = MR.wheel_pos - MR.wheel_pos_init;
+    // if (MR.wheel_traveled > 30.0)
+    //     CA_flag = 3;
+    // }
+  } else if (CA_flag == 3) {
+    // step three, push the carriage onto the curb and elevating ML,MR
+    MR.carriage.des = 30.0;
+    ML.carriage.des = 30.0;
+    FC.des = 2.0;
+    // if (ML.carriage.pos > 10.0)
+    // {
+    motor_controller.move_each_wheel(ML.pos, 21.0, MR.pos);
+    // }
 
-        if (MR.carriage.pos > 29.5 && ML.carriage.pos > 29.5)
-        {
-            CA_flag = 4;
-        }
+    if (MR.carriage.pos > 29.5 && ML.carriage.pos > 29.5) {
+      CA_flag = 4;
     }
-    else if (CA_flag == 4)
-    {
-        // step four, raise the main wheels
-        // and spin the wheel a bit to reduce friction if the wheel is touching the curb
-        motor_controller.move_each_wheel(3.0, 21.0, 3.0);
-        FC.des = 4.0;
-        MR.carriage.des = 30.0;
-        ML.carriage.des = 30.0;
-        //         js.set_joystick_speed(0, 25);
-        if (MR.pos < 4.0 && ML.pos < 4.0)
-        {
-            CA_flag = 5;
-            //             js.set_joystick_speed(0, 0);
-        }
+  } else if (CA_flag == 4) {
+    // step four, raise the main wheels
+    // and spin the wheel a bit to reduce friction if the wheel is touching the
+    // curb
+    motor_controller.move_each_wheel(3.0, 21.0, 3.0);
+    FC.des = 4.0;
+    MR.carriage.des = 30.0;
+    ML.carriage.des = 30.0;
+    //         js.set_joystick_speed(0, 25);
+    if (MR.pos < 4.0 && ML.pos < 4.0) {
+      CA_flag = 5;
+      //             js.set_joystick_speed(0, 0);
     }
-    else if (CA_flag == 5)
-    {
-        // step five, move the the driving wheels and the carriage onto the curb
-        motor_controller.move_each_wheel(3.0, RC.pos, 3.0);
-        //         js.set_joystick_speed(245, 30);
-        MR.carriage.des = 13.0;
-        ML.carriage.des = 13.0;
-        FC.des = 6.0;
-        if (MR.carriage.pos < 13.5 && ML.carriage.pos < 13.5)
-        {
-            CA_flag = 6;
-            //             js.set_joystick_speed(0, 0);
-        }
+  } else if (CA_flag == 5) {
+    // step five, move the the driving wheels and the carriage onto the curb
+    motor_controller.move_each_wheel(3.0, RC.pos, 3.0);
+    //         js.set_joystick_speed(245, 30);
+    MR.carriage.des = 13.0;
+    ML.carriage.des = 13.0;
+    FC.des = 6.0;
+    if (MR.carriage.pos < 13.5 && ML.carriage.pos < 13.5) {
+      CA_flag = 6;
+      //             js.set_joystick_speed(0, 0);
     }
-    else if (CA_flag == 6)
-    {
-        // step six, move the carriage back to the edge of the curb to hold the weight
-        motor_controller.move_each_wheel(ML.pos, RC.pos, MR.pos);
-        FC.des = 1.0;
-        //         js.set_joystick_speed(245, 20);
-        MR.carriage.des = 31.0;
-        ML.carriage.des = 31.0;
-        if (MR.carriage.pos > 30.0 && ML.carriage.pos > 30.0)
-        {
-            CA_flag = 7;
-            //             js.set_joystick_speed(0, 0);
-        }
+  } else if (CA_flag == 6) {
+    // step six, move the carriage back to the edge of the curb to hold the
+    // weight
+    motor_controller.move_each_wheel(ML.pos, RC.pos, MR.pos);
+    FC.des = 1.0;
+    //         js.set_joystick_speed(245, 20);
+    MR.carriage.des = 31.0;
+    ML.carriage.des = 31.0;
+    if (MR.carriage.pos > 30.0 && ML.carriage.pos > 30.0) {
+      CA_flag = 7;
+      //             js.set_joystick_speed(0, 0);
     }
-    else if (CA_flag == 7)
-    {
-        // step seven, raise rear casters
-        motor_controller.move_each_wheel(3.5, 3.0, 3.5);
-        FC.des = 1.0;
-        MR.carriage.des = MR.carriage.pos;
-        ML.carriage.des = ML.carriage.pos;
-        //         js.set_joystick_speed(245, 30);
-        if (RC.pos < 4.0)
-        {
-            CA_flag = 8;
-            ML.wheel_pos_init = ML.wheel_pos;
-            MR.wheel_pos_init = MR.wheel_pos;
-            //             js.set_joystick_speed(0, 0);
-        }
+  } else if (CA_flag == 7) {
+    // step seven, raise rear casters
+    motor_controller.move_each_wheel(3.5, 3.0, 3.5);
+    FC.des = 1.0;
+    MR.carriage.des = MR.carriage.pos;
+    ML.carriage.des = ML.carriage.pos;
+    //         js.set_joystick_speed(245, 30);
+    if (RC.pos < 4.0) {
+      CA_flag = 8;
+      ML.wheel_pos_init = ML.wheel_pos;
+      MR.wheel_pos_init = MR.wheel_pos;
+      //             js.set_joystick_speed(0, 0);
     }
-    else if (CA_flag == 8)
-    {
-        // step eight, move both carriage back to original position
-        motor_controller.move_each_wheel(3.5, 3.0, 3.5);
-        FC.des = FC.pos;
-        MR.wheel_traveled = MR.wheel_pos - MR.wheel_pos_init;
-        if (MR.wheel_traveled < 15.0)
-        {
-            //             js.set_joystick_speed(245, 50);
-        }
-        else
-        {
-            MR.carriage.des = 0.5;
-            ML.carriage.des = 0.5;
-            //             js.set_joystick_speed(245, 10);
-        }
-        if (MR.carriage.pos < 1.0 && ML.carriage.pos < 1.0)
-        {
-            CA_flag = 9;
-            //             js.set_joystick_speed(0, 0);
-        }
+  } else if (CA_flag == 8) {
+    // step eight, move both carriage back to original position
+    motor_controller.move_each_wheel(3.5, 3.0, 3.5);
+    FC.des = FC.pos;
+    MR.wheel_traveled = MR.wheel_pos - MR.wheel_pos_init;
+    if (MR.wheel_traveled < 15.0) {
+      //             js.set_joystick_speed(245, 50);
+    } else {
+      MR.carriage.des = 0.5;
+      ML.carriage.des = 0.5;
+      //             js.set_joystick_speed(245, 10);
     }
-    // Raise front casters and STOP any movement
-    else if (CA_flag == 9)
-    {
-        front_caster_counter = front_caster_counter + 1;
-        if (front_caster_counter < 200)
-        {
-            FC.des = 0.0; // Front caster to lowest position
-        }
-        else
-        {
-            front_caster_counter = 200;
-            FC.des = FC.pos;
-        }
-        motor_controller.move_each_wheel(ML.pos, RC.pos, MR.pos);
-        MR.carriage.des = MR.carriage.pos;
-        ML.carriage.des = ML.carriage.pos;
-        CA_flag = 0;
+    if (MR.carriage.pos < 1.0 && ML.carriage.pos < 1.0) {
+      CA_flag = 9;
+      //             js.set_joystick_speed(0, 0);
     }
-    else if (CA_flag == 0)
-    {
-        // Reset all curb climb variables
-        reset_all_automation_variables();
+  }
+  // Raise front casters and STOP any movement
+  else if (CA_flag == 9) {
+    front_caster_counter = front_caster_counter + 1;
+    if (front_caster_counter < 200) {
+      FC.des = 0.0; // Front caster to lowest position
+    } else {
+      front_caster_counter = 200;
+      FC.des = FC.pos;
     }
+    motor_controller.move_each_wheel(ML.pos, RC.pos, MR.pos);
+    MR.carriage.des = MR.carriage.pos;
+    ML.carriage.des = ML.carriage.pos;
+    CA_flag = 0;
+  } else if (CA_flag == 0) {
+    // Reset all curb climb variables
+    reset_all_automation_variables();
+  }
 }
 
 //======================================================================
@@ -1372,18 +1296,19 @@ void auto_curb_climb()
 //         if (!did_once)  // flag, so this if statement will only run once
 //         {
 //             IMUyaw_initial = IMU.yaw;  // record the initial IMU.yaw reading
-//             init_posr = MR.wheel_pos;  // record the initial postion of the right wheel
-//             give_sign_to_angles();
+//             init_posr = MR.wheel_pos;  // record the initial postion of the
+//             right wheel give_sign_to_angles();
 
 //             // calculate the angle to stop
-//             initial_angle_to_stop = normalize_angle(IMUyaw_initial - initial_angle_to_turn);
+//             initial_angle_to_stop = normalize_angle(IMUyaw_initial -
+//             initial_angle_to_turn);
 
 //             did_once = true;
 //         }
 
 //         if (!done_initial_turn) {
-//             // level_the_wheels(); // doesn't do anything other than set variables that aren't even being used anywhere
-//             state = 1;
+//             // level_the_wheels(); // doesn't do anything other than set
+//             variables that aren't even being used anywhere state = 1;
 //             execute_initial_turn_real_sense();
 //         } else {
 //             if (!done_travel) {
@@ -1396,14 +1321,15 @@ void auto_curb_climb()
 //                     execute_final_turn_real_sense();
 //                 } else {
 //                     //        yaw_final_stop = IMU.yaw;
-//                     //        curb_climb_automation = false;// need to be commented for curb climbing sequence to happen
+//                     //        curb_climb_automation = false;// need to be
+//                     commented for curb climbing sequence to happen
 
-//                     // BELOW IS THE ACTUAL CLIMBING SEQUENCE, comment out if only needs to test the 3 step automation
-//                     if (!set_CA) {
-//                         // CA = 1 only happen once, this will triger the climbing sequence
-//                         CA_flag = 1;  // Is it the same as CA_flag in Siva?
-//                         CA_init_pos = MR.wheel_pos;
-//                         set_CA = true;
+//                     // BELOW IS THE ACTUAL CLIMBING SEQUENCE, comment out if
+//                     only needs to test the 3 step automation if (!set_CA) {
+//                         // CA = 1 only happen once, this will triger the
+//                         climbing sequence CA_flag = 1;  // Is it the same as
+//                         CA_flag in Siva? CA_init_pos = MR.wheel_pos; set_CA =
+//                         true;
 //                     }
 //                     state = 4;
 //                     // auto_curb_climb();
@@ -1509,7 +1435,8 @@ void auto_curb_climb()
 //         check_input_source(test_with_real_sense);
 //         count += 1;
 //         // Check the length of input
-//         if (PACKET_LENGTH <= input.length() && input.length() <= PACKET_LENGTH + 6)  //(input.length() == PACKET_LENGTH)
+//         if (PACKET_LENGTH <= input.length() && input.length() <=
+//         PACKET_LENGTH + 6)  //(input.length() == PACKET_LENGTH)
 //         {
 //             extract_data_from_input_real_sense();  // Task 3
 
@@ -1534,9 +1461,11 @@ void auto_curb_climb()
 // void extract_data_from_input_real_sense() {
 //     /*
 //       packet string format:
-//       "curb_height + distance_of_interest + angle_initial_turn + sign_initial_turn + angle_final_turn + sign_final_turn"
-//       0.00(meter)    0.00(meter)            000.00(degree)       0(-) / 1(+)         000.00(degree)     0(-)/1(+)
-//       4              4                      6                    1                   6                  1          total of 22 charactors
+//       "curb_height + distance_of_interest + angle_initial_turn +
+//       sign_initial_turn + angle_final_turn + sign_final_turn" 0.00(meter)
+//       0.00(meter)            000.00(degree)       0(-) / 1(+) 000.00(degree)
+//       0(-)/1(+) 4              4                      6                    1
+//       6                  1          total of 22 charactors
 
 //       Break down:
 //       packet: 0.00|0.00|000.00|0 |000.00|0
@@ -1551,12 +1480,12 @@ void auto_curb_climb()
 //     String dis = input.substring(4, 8);
 //     // index 8 to 13 should give the initial angle
 //     String ini = input.substring(8, 14);
-//     // index 13 to 14 should give the direaction, "0" means right, "1" means left
-//     sign_initial_angle = input.substring(14, 15);
+//     // index 13 to 14 should give the direaction, "0" means right, "1" means
+//     left sign_initial_angle = input.substring(14, 15);
 //     // index 14 to 19 should give the final angle
 //     String fin = input.substring(15, 21);
-//     // index 19 to 20 should give the direction, "0" means right, "1" means left
-//     sign_final_angle = input.substring(21, 22);
+//     // index 19 to 20 should give the direction, "0" means right, "1" means
+//     left sign_final_angle = input.substring(21, 22);
 
 //     // Serial.println(input.length());
 
@@ -1568,11 +1497,13 @@ void auto_curb_climb()
 //     float currentIni = cur_ini = ini.toFloat();
 //     cur_fin = fin.toFloat();
 
-//     // Check if the minimum initial angle has not been set or if the current angle is smaller than the stored minimum
-//     if (minInitialAngle == -1 || fabs(currentIni - minInitialAngle) < ANGLE_THRESHOLD) {
-//         // If the difference between the current and stored values is within the threshold, update the minimum
-//         minInitialAngle = currentIni;
-//         cur_ini = minInitialAngle;  // Update cur_ini to be the smallest initial angle
+//     // Check if the minimum initial angle has not been set or if the current
+//     angle is smaller than the stored minimum if (minInitialAngle == -1 ||
+//     fabs(currentIni - minInitialAngle) < ANGLE_THRESHOLD) {
+//         // If the difference between the current and stored values is within
+//         the threshold, update the minimum minInitialAngle = currentIni;
+//         cur_ini = minInitialAngle;  // Update cur_ini to be the smallest
+//         initial angle
 //     }
 
 //     // debug print
@@ -1674,15 +1605,16 @@ void auto_curb_climb()
 //     // Update task number/order
 //     task = 7;
 
-//     // first check the readings from real-sense to see if we can climb the curb directly
-//     if (dis_average <= (0.2 * 100) && fin_average - ini_average <= 4) {
+//     // first check the readings from real-sense to see if we can climb the
+//     curb directly if (dis_average <= (0.2 * 100) && fin_average - ini_average
+//     <= 4) {
 //         bypass_3_step = true;
 //     }
 
-//     // assign the averaged readings from real-sense to parameters used by the 3-step process
-//     c_h = hei_average * 0.3937;  // convert centimeter into inch
-//     distance_to_travel = dis_average;
-//     initial_angle_to_turn = ini_average;
+//     // assign the averaged readings from real-sense to parameters used by the
+//     3-step process c_h = hei_average * 0.3937;  // convert centimeter into
+//     inch distance_to_travel = dis_average; initial_angle_to_turn =
+//     ini_average;
 //     //  initial_angle_to_turn = ini_angle;
 //     final_angle_to_turn = fin_average;
 //     dis_two_third = distance_to_travel / 3 * 2;
@@ -1715,7 +1647,8 @@ void auto_curb_climb()
 //     {
 //         js.x = RIGHT_TURN_JOY_X;
 //     }
-//     else if (fabs(IMU_diff) > fabs(angle_in_degree / 2) && fabs(IMU_diff) < fabs(angle_in_degree))
+//     else if (fabs(IMU_diff) > fabs(angle_in_degree / 2) && fabs(IMU_diff) <
+//     fabs(angle_in_degree))
 //     {
 //         if (js.x > SLOW_RIGHT_TURN_JOY_X)
 //         {
@@ -1741,7 +1674,8 @@ void auto_curb_climb()
 //     {
 //         js.x = LEFT_TURN_JOY_X;
 //     }
-//     else if (fabs(IMU_diff) > fabs(angle_in_degree / 2) && fabs(IMU_diff) < fabs(angle_in_degree))
+//     else if (fabs(IMU_diff) > fabs(angle_in_degree / 2) && fabs(IMU_diff) <
+//     fabs(angle_in_degree))
 //     {
 //         if (js.x < SLOW_LEFT_TURN_JOY_X)
 //         {
@@ -1757,8 +1691,9 @@ void auto_curb_climb()
 // void execute_initial_turn_real_sense()
 // {
 //     yaw_initial_turn = IMU.yaw;
-//     // if IMU.yaw is not within the range of  degree of the target, keep turning
-//     if (IMU.yaw > initial_angle_to_stop + 1 || IMU.yaw < initial_angle_to_stop - 1)
+//     // if IMU.yaw is not within the range of  degree of the target, keep
+//     turning if (IMU.yaw > initial_angle_to_stop + 1 || IMU.yaw <
+//     initial_angle_to_stop - 1)
 //     {
 //         // check_which_way_to_turn();
 //         if (sign_initial_angle == "0")
@@ -1784,8 +1719,9 @@ void auto_curb_climb()
 // void execute_final_turn_real_sense()
 // {
 //     yaw_final_turn = IMU.yaw;
-//     // if IMU.yaw is not within the range of  degree of the target, keep turning
-//     if (IMU.yaw > final_angle_to_stop + 1 || IMU.yaw < final_angle_to_stop - 1)
+//     // if IMU.yaw is not within the range of  degree of the target, keep
+//     turning if (IMU.yaw > final_angle_to_stop + 1 || IMU.yaw <
+//     final_angle_to_stop - 1)
 //     {
 //         // check_which_way_to_turn();
 //         if (sign_final_angle == "0")
@@ -1839,10 +1775,8 @@ void auto_curb_climb()
 //     else
 //     {
 //         yaw_after_travel = IMU.yaw;
-//         final_angle_to_stop = normalize_angle(yaw_begin_travel - final_angle_to_turn);
-//         js.y = 0;
-//         js.x = 0;
-//         done_travel = true;
+//         final_angle_to_stop = normalize_angle(yaw_begin_travel -
+//         final_angle_to_turn); js.y = 0; js.x = 0; done_travel = true;
 //     }
 // }
 

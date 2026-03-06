@@ -1,0 +1,31 @@
+name: ROS 2 Build
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src/Demo-Software
+
+      - uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: humble
+
+      - name: Install dependencies
+        run: rosdep install -i --from-path src --rosdistro humble -r -y
+
+      - name: Build
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --symlink-install --event-handlers console_cohesion+

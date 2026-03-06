@@ -61,11 +61,16 @@ git clone [https://github.com/rammp-org/Demo-Software.git](https://github.com/ra
 
 ### Building the Workspace
 
-Install dependencies using `rosdep` and build the packages. Using `--symlink-install` is recommended for development:
+If this is your first time using `rosdep`, initialize it:
+
+```bash
+sudo rosdep init
+rosdep update
+```
 
 ```bash
 cd ~/ros2_ws
-rosdep install -i --from-path src --rosdistro humble -y
+rosdep install -i --from-path src --rosdistro humble -r -y
 colcon build --symlink-install
 source install/setup.bash
 

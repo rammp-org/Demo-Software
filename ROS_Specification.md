@@ -1,26 +1,32 @@
 
 # ROS Node Specifications
+This document defines the specification for all of the ROS nodes for the April 2026 RAMMP Prototype demo. The collection of specifications linked from this document should always reflect the full system architecture.
 
-[core/BehaviorTreeNode](./core/rammp_prototype_behavior/Behavior%20Tree%20Node.md)
-[core/GuiMonitorNode](./core/rammp_prototype_gui/GuiMonitorNode.md)
-[demo_modules/CupStabilizerNode](./demo_modules/atdev_coffee_stabilizer/Cup%20Stabilizer%20Node.md)
-[demo_modules/DoorOpenerNode](./demo_modules/cmu_door_opener/Door%20Open%20Node.md)
-[demo_modules/DrinkingNode](./demo_modules/cornell_feeding/Drinking%20Node.md)
-[demo_modules/NavigationNode](./demo_modules/neu_navigation/Navigation%20Node.md)
-[hardware/ArmControlNode](./hardware/arm_driver/Arm%20Control%20Node.md)
-[hardware/RammpPrototypeControlNode](./hardware/rammp_prototype_driver/MEBot%20Control%20Node.md)
-[hardware/XBoxControllerNode](./hardware/xbox_controller_driver/XBox%20Controller%20Node.md)
+## Node Specifications
+Each of these links define the specification for the various nodes in the ROS network..
+
+- [core/BehaviorTreeNode](./core/rammp_prototype_behavior/Behavior%20Tree%20Node.md)
+- [core/GuiMonitorNode](./core/rammp_prototype_gui/GuiMonitorNode.md)
+- [demo_modules/CupStabilizerNode](./demo_modules/atdev_coffee_stabilizer/Cup%20Stabilizer%20Node.md)
+- [demo_modules/DoorOpenerNode](./demo_modules/cmu_door_opener/Door%20Open%20Node.md)
+- [demo_modules/DrinkingNode](./demo_modules/cornell_feeding/Drinking%20Node.md)
+- [demo_modules/NavigationNode](./demo_modules/neu_navigation/Navigation%20Node.md)
+- [hardware/ArmControlNode](./hardware/arm_driver/Arm%20Control%20Node.md)
+- [hardware/RammpPrototypeControlNode](./hardware/rammp_prototype_driver/MEBot%20Control%20Node.md)
+- [hardware/XBoxControllerNode](./hardware/xbox_controller_driver/XBox%20Controller%20Node.md)
 
 
 ## ROS Node Diagram
 
+These diagrams outline the topics, actions, and services for communication between all of the nodes.
+
 ```mermaid
-%%{init: { 'theme': 'base', 
+%%{init: { 'theme': 'base',
 'flowchart': { 'nodeSpacing': 50, 'rankSpacing': 100 },'themeVariables': { 'primaryTextColor':'white', 'primaryBorderColor':'#ffffff'}}}%%
 graph RL
     subgraph legend[Diagram Legend]
-    
-        
+
+
         subgraph  arrows[Arrows]
         cm1[Communication Legend Node1]
         style cm1 fill:#000000
@@ -40,7 +46,7 @@ graph RL
         end
         subgraph Node[Node]
         Gui["Gui Nodes"]
-        style Gui fill:#0c7aba 
+        style Gui fill:#0c7aba
         style Gui width:230px,height:50px,text-anchor:middle
         Sensor["Sensor  Nodes"]
         style Sensor fill:#05723f
@@ -78,7 +84,7 @@ graph LR
     RSN["RealSense Node"]
     SCN["Static Camera Node"]
     NCN["Navigation Camera Node"]
-    
+
     BTN -->|/state| Gui
     Gui -->|/user_input| BTN
     Gui -->|/mebot/seat/manual_control| MBN
@@ -112,7 +118,7 @@ graph LR
     XCN -->|/estop| MBN
     XCN -->|/estop| BTN
     MBN -->|/luci/joystick/enable| LUCI
-    
+
     style Gui fill:#0c7aba
     style BTN fill:#8309ef
     style MBN fill:#ff6f61
@@ -135,6 +141,6 @@ graph LR
 
     %% ACTION connections (green)
     linkStyle 11,12,13,14,15 stroke:green,stroke-width:2px,color:green;
-    
+
 
 ```

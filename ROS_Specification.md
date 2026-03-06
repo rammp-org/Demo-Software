@@ -2,6 +2,8 @@
 # ROS Node Specifications
 This document defines the specification for all of the ROS nodes for the April 2026 RAMMP Prototype demo. The collection of specifications linked from this document should always reflect the full system architecture.
 
+**NOTE: As you are developing, please ensure that any changes in you are making in the ROS specification are reflected in the docs below.**
+
 ## Node Specifications
 Each of these links define the specification for the various nodes in the ROS network..
 

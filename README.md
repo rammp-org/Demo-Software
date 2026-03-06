@@ -69,7 +69,7 @@ source install/setup.bash
 
 The tasks for the upcoming demo are organized in a couple of key locations
 
-- [ros_specification](ROS_Specification.md) : This document outlines the communication specifications for all of the ROS nodes in the demo. All nodes should be developed to match these specifications. Each package also contains a README with the detailed specifications for the nodes required for those packages.
+- [ros_specification](ROS_Specification.md) : This document outlines the communication specifications for all of the ROS nodes in the demo. All nodes should be developed to match these specifications. Each package also contains a README with the detailed specifications for the nodes required for those packages. **Please ensure that any changes you make to the specification are reflected in these docs.**
 - [Github Issues](https://github.com/rammp-org/Demo-Software/issues): The individual tasks that need to be completed are all outlined here. Before starting on any work, please ensure that there is an issue open for it and that you are assigned to it.
 
 Please refer to **[CONTRIBUTING.MD](CONTRIBUTING.MD)** for detailed guidelines regarding:

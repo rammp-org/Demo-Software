@@ -20,12 +20,6 @@ uv tool install pre-commit
 pre-commit install
 ```
 
-To run manually against all files:
-
-```bash
-uv tool run pre-commit run --all-files
-```
-
 ### Without `uv`
 
 ```bash

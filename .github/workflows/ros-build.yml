@@ -22,6 +22,11 @@ jobs:
         with:
           required-ros-distributions: humble
 
+      - name: Initialize rosdep
+        run: |
+          sudo rosdep init || true
+          rosdep update
+
       - name: Install dependencies
         run: rosdep install -i --from-path src --rosdistro humble -r -y
 

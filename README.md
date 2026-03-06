@@ -71,7 +71,7 @@ rosdep update
 ```bash
 cd ~/ros2_ws
 rosdep install -i --from-path src --rosdistro humble -r -y
-colcon build
+colcon build --symlink-install
 source install/setup.bash
 
 ```

@@ -27,12 +27,6 @@ pip install pre-commit
 pre-commit install
 ```
 
-To run manually against all files:
-
-```bash
-pre-commit run --all-files
-```
-
 ### Notes
 
 - On first run, pre-commit will download the hook environments — this may take a minute.

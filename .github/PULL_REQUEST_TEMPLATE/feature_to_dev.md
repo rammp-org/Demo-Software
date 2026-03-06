@@ -17,5 +17,6 @@ Closes #[issue number]
 
 ## Checklist
 - [ ] Merged latest `dev` into this branch and resolved all conflicts
+- [ ] Documentation updated to reflect all changes in code and/or specifications
 - [ ] Tested on hardware (or documented why hardware testing was not applicable)
 - [ ] Reviewer assigned

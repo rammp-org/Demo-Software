@@ -6,7 +6,7 @@
 
 <!-- List the PRs being promoted from dev to main -->
 
-- # 
+-
 
 ## Integration Testing
 
@@ -14,8 +14,8 @@
 
 ### Test Environment
 
-- \[ \] Tested on RAMMP Prototype hardware
-- \[ \] All existing functionality verified (drive, tilt, elevation, curb automation)
+- [ ] Tested on RAMMP Prototype hardware
+- [ ] All existing functionality verified (drive, tilt, elevation, curb automation)
 
 ### Features Tested
 
@@ -31,7 +31,7 @@
 
 ## Checklist
 
-- \[ \] All included PRs have been reviewed and approved
-- \[ \] No unfinished features or debug code in this branch
-- \[ \] Hotfix back-port to `dev` completed (if applicable)
-- \[ \] Ready to deploy to RAMMP Prototype
+- [ ] All included PRs have been reviewed and approved
+- [ ] No unfinished features or debug code in this branch
+- [ ] Hotfix back-port to `dev` completed (if applicable)
+- [ ] Ready to deploy to RAMMP Prototype

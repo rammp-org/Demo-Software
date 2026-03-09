@@ -7,8 +7,8 @@
 
 > **TODO:**
 >
-> - \[ \] Define `system_state` and `curb_info`.
-> - \[ \] Determine all inputs to the GUI node, including all necessary camera streams
+> - [ ] Define `system_state` and `curb_info`.
+> - [ ] Determine all inputs to the GUI node, including all necessary camera streams
 
 ### Publishers:
 

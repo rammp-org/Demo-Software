@@ -11,9 +11,9 @@ from std_msgs.msg import String
 from std_msgs.msg import Int64
 import math
 
-class dataPub(Node): 
+class driverNode(Node): 
     def __init__(self):
-        super().__init__("data_pub") 
+        super().__init__("driver_node") 
 
         #serial init
         self.ser =  serial.Serial(
@@ -60,6 +60,22 @@ class dataPub(Node):
         self.MR_wheel_pos = 0.0
 
         self.CA_flag = 0.0
+
+        self.action = "z"  #variable to store most recent action command Base.ino recieved
+        
+        #services
+        self.drive_enable_service = self.create_service(bool, 'drive_enable', self.drive_enable_callback)
+        self.self_level_enable_service = self.create_service(bool, 'self_level_enable', self.self_level_enable_callback)
+  
+
+        #subscriptions
+        # self.drive_enable_subscription = self.create_subscription(bool,'drive_enable', self.drive_enable_callback, 10)
+        # self.level_enable_subscription = self.create_subscription(bool,'level_enable', self.level_enable_callback, 10)
+        self.manual_seat_control_subscription = self.create_subscription(bool,'manual_seat_control', self.manual_seat_control_callback, 10)
+        self.curb_ascend_subscription = self.create_subscription(bool,'curb_ascend', self.curb_ascend_callback, 10)
+        self.curb_descend_subscription = self.create_subscription(bool,'curb_descend', self.curb_descend_callback, 10)
+
+        #add estop
 
         #publishers and timers
         self.appTime_publisher = self.create_publisher(Float64, 'app_time', 10)
@@ -134,6 +150,9 @@ class dataPub(Node):
         self.CA_flag_publisher = self.create_publisher(Int64, 'CA_flag', 10)
         self.CA_flag_timer = self.create_timer(self.publish_rate, self.publish_CA_flag)
 
+        self.action_publisher = self.create_publisher(String, 'action', 10)
+        self.action_timer = self.create_timer(self.publish_rate, self.publish_action)
+
     #reading incoming serial data from teensy
     def read_serial_data(self):
         line = self.ser.readline()
@@ -142,7 +161,9 @@ class dataPub(Node):
             if (raw_data.startswith('[') and raw_data.endswith(']')):  #check if data is in expected list format
                 data = ast.literal_eval(raw_data)
                 self.update_data(data)  # Update variables with new data
-                
+            if (raw_data.startswith('Action:')):  #check if data is an action command from Base.ino
+                self.action = raw_data.split('Action:')[1].strip()[0]
+    
     #update variables to be published        
     def update_data(self, data):
         #IMU
@@ -299,11 +320,60 @@ class dataPub(Node):
         msg = Int64()
         msg.data = int(self.CA_flag) 
         self.CA_flag_publisher.publish(msg)
-   
+    
+    def publish_action(self):
+        msg = String()
+        msg.data = str(self.action) 
+        self.action_publisher.publish(msg)
+    
+    def drive_enable_callback(self, msg):
+        if msg.data == True:
+            #content
+            pass
+
+    def level_enable_callback(self, msg):
+        if msg.data == True:
+            #content
+            pass
+    
+    def manual_seat_control_callback(self, msg):
+        if msg.data == True:
+            #content
+            pass       
+    
+    def curb_ascend_callback(self, msg):
+        if msg.data == True:
+            #content
+            pass
+    
+    def curb_descend_callback(self, msg):
+        if msg.data == True:
+            #content
+            pass
+
+    def drive_enable_callback(self, request, response): 
+        if request.data == True:
+            #content
+            pass
+        else:
+            #content
+            pass
+
+        return response
+
+    def self_level_enable_callback(self, request, response):
+        if request.data == True:
+            #content
+            pass
+        else:
+            #content
+            pass
+
+        return response
 
 def main(args=None):
     rclpy.init(args=args)
-    node = dataPub()
+    node = driverNode()
     rclpy.spin(node)
     rclpy.shutdown()
 

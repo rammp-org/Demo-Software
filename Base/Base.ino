@@ -304,6 +304,7 @@ void loop()
     calculate_pitch_and_roll_angle();
 
     get_GUI_input_from_serial();
+    Serial.println(f"Action: {action}"); //for driver_node to publish
 
     /* The method below is for getting input using bluetooth, keeping it for now */
     // get_GUI_input_from_bluetooth();
@@ -312,8 +313,11 @@ void loop()
     select_mode_based_on_GUI_command();
     select_controller_based_on_model();
     motor_controller.set_positions_for_MWs_and_RC();
+    Serial.println(f"Action: {action}"); //for driver_node to publish
 
     motor_controller.carriage_limits_switch();
+    Serial.println(f"Action: {action}"); //for driver_node to publish
+
 
     displaydata();
 
@@ -554,6 +558,9 @@ void displaydata()
     //velocity 
     PIout += String(ML.speed_drivef) + ','; 
     PIout += String(MR.speed_drivef) + ','; 
+
+    //action
+    PIout += String(action) + ',';
 
     //acceleration will be calculated in sensor_data_pub 
     //tilt can be calculated using pitch and roll in sensor_data_pub
@@ -1088,6 +1095,8 @@ void get_GUI_input_from_serial()
     {
         String serial_input = Serial.readStringUntil('\n');
         action = serial_input.charAt(0);
+
+        Serial.println(action); //for driver_node to publish
     }
 }
 

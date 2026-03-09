@@ -90,11 +90,11 @@ class MeBotStateNode(Node):
     #     msg.data = self.UI.carriage_state.value
     #     self.carriage_state_pub.publish(msg)
 
-# def main(args=None):
-#     rclpy.init(args=args)
-#     node = MeBotStateNode() 
-#     rclpy.spin(node)
-#     rclpy.shutdown()
+def main(args=None):
+    rclpy.init(args=args)
+    node = MeBotStateNode() 
+    rclpy.spin(node)
+    rclpy.shutdown()
 
-# if __name__ == "__main__":
-#     main()
+if __name__ == "__main__":
+    main()

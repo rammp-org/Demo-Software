@@ -9,11 +9,12 @@ from datetime import datetime
 from std_msgs.msg import Float64
 from std_msgs.msg import String
 from std_msgs.msg import Int64
+from sensor_msgs.msg import Imu
 import math
 
-class driverNode(Node): 
+class MEBotControlNode(Node): 
     def __init__(self):
-        super().__init__("driver_node") 
+        super().__init__("MEBot_control_node") 
 
         #serial init
         self.ser =  serial.Serial(
@@ -152,6 +153,9 @@ class driverNode(Node):
 
         self.action_publisher = self.create_publisher(String, 'action', 10)
         self.action_timer = self.create_timer(self.publish_rate, self.publish_action)
+
+        self.imu_publisher = self.create_publisher(Imu, 'imu_data', 10)
+        self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
 
     #reading incoming serial data from teensy
     def read_serial_data(self):
@@ -325,16 +329,31 @@ class driverNode(Node):
         msg = String()
         msg.data = str(self.action) 
         self.action_publisher.publish(msg)
-    
-    def drive_enable_callback(self, msg):
-        if msg.data == True:
-            #content
-            pass
 
-    def level_enable_callback(self, msg):
-        if msg.data == True:
-            #content
-            pass
+    def publish_imu_data(self):
+        msg = Imu()
+        #populate Imu message fields with appropriate data
+        msg.linear_acceleration.x = self.accel_x
+        msg.linear_acceleration.y = self.accel_y
+        msg.linear_acceleration.z = self.accel_z
+
+        #convert seat angles from degrees to radians for orientation fields
+        pitch = math.radians(self.seat_angle_pitch)
+        roll = math.radians(self.seat_angle_roll)
+        yaw = 0.0  #assuming yaw is 0 since it is not measured by the IMU
+
+        #populate orientation fields using Euler angles (assuming yaw is 0)
+        qx = math.sin(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) - math.cos(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
+        qy = math.cos(roll/2) * math.sin(pitch/2) * math.cos(yaw/2) + math.sin(roll/2) * math.cos(pitch/2) * math.sin(yaw/2)
+        qz = math.cos(roll/2) * math.cos(pitch/2) * math.sin(yaw/2) - math.sin(roll/2) * math.sin(pitch/2) * math.cos(yaw/2)
+        qw = math.cos(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) + math.sin(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
+
+        msg.orientation.x = qx
+        msg.orientation.y = qy
+        msg.orientation.z = qz
+        msg.orientation.w = qw
+
+        self.imu_publisher.publish(msg)
     
     def manual_seat_control_callback(self, msg):
         if msg.data == True:
@@ -373,7 +392,7 @@ class driverNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = driverNode()
+    node = MEBotControlNode()
     rclpy.spin(node)
     rclpy.shutdown()
 

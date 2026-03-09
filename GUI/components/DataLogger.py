@@ -3,6 +3,7 @@ import os
 
 DATA_DIR = "/home/herl/Desktop/Data"  # Ensure '~' is expanded correctly
 
+
 class DataLogger:
     def __init__(self, serial_port):
         self.ser = serial_port
@@ -14,7 +15,7 @@ class DataLogger:
         # Open the log file for appending
         self.file_name = f'log-{time.strftime("%m_%d_%Y-%H_%M_%S")}.csv'
         file_path = os.path.join(DATA_DIR, self.file_name)
-        self.log_file = open(file_path, 'a')
+        self.log_file = open(file_path, "a")
 
         # Add header if the file is empty
         if os.stat(file_path).st_size == 0:
@@ -32,7 +33,7 @@ class DataLogger:
         if self.logging:
             try:
                 # Read one complete line from the serial port
-                line = self.ser.readline().decode('utf-8').strip()
+                line = self.ser.readline().decode("utf-8").strip()
                 if line:  # Process non-empty lines
                     timestamp = time.strftime("%m_%d_%Y-%H:%M:%S")
                     log_entry = f"{timestamp},{line}\n"
@@ -49,8 +50,8 @@ class DataLogger:
 
     def stop(self):
         self.logging = False
-        if hasattr(self, 'log_file') and not self.log_file.closed:
+        if hasattr(self, "log_file") and not self.log_file.closed:
             self.log_file.close()
-        
+
         # red text
         print(f"\033[91mStopped logging to {self.file_name}\033[0m")

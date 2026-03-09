@@ -33,7 +33,7 @@ repos:
         args: [--autofix]
 
   # 5. Markdown
-  # - repo: https://github.com/executablebooks/mdformat
-  #   rev: 0.7.17
-  #   hooks:
-  #     - id: mdformat
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.17
+    hooks:
+      - id: mdformat

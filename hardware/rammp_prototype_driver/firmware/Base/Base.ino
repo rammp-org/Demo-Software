@@ -324,9 +324,9 @@ void loop() {
 
   select_mode_based_on_GUI_command();
   select_controller_based_on_model();
-  motor_controller.set_positions_for_MWs_and_RC();
 
   motor_controller.carriage_limits_switch();
+  motor_controller.set_positions_for_MWs_and_RC();
 
   displaydata();
 

@@ -560,9 +560,9 @@ void displaydata()
     PIout += "0,";
     PIout += "0,";
 
-    //acceleration will be calculated in sensor_data_pub 
-    //tilt can be calculated using pitch and roll in sensor_data_pub
-    //measure height will be calculated in sensor_data_pub using encoder data
+    //acceleration calculated in MEBot_control_node using velocity data
+    //tilt calculated using pitch and roll in MEBot_control_node
+    //measure height will be calculated in MEBot_control_node using encoder data
 
     PIout += "]";
     Serial.println(PIout);

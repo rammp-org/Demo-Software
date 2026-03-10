@@ -33,9 +33,7 @@ class MEBotApp(QMainWindow):
         # Create QStackedWidget
         self.stacked_widget = QStackedWidget()
         self.teensy_controller = TeensyController(self.serial_port)
-        # self.data_logger = DataLogger(self.serial_port)
         self.data_logger = csvLoggerNode()  # Initialize the ROS2 node for CSV logging
-        # self.MeBotStateNode = MeBotStateNode(self.teensy_controller)  # Initialize the ROS2 node for publishing MeBot state
 
         # Create and add screens
         self.screen0 = UserWindow(self.stacked_widget, self.teensy_controller, self.data_logger)

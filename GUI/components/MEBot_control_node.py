@@ -11,6 +11,8 @@ from std_msgs.msg import String
 from std_msgs.msg import Int64
 from sensor_msgs.msg import Imu
 import math
+from tf2_msgs.msg import TFMessage
+from geometry_msgs.msg import TransformStamped
 
 class MEBotControlNode(Node): 
     def __init__(self):
@@ -68,12 +70,15 @@ class MEBotControlNode(Node):
         self.drive_enable_service = self.create_service(bool, 'drive_enable', self.drive_enable_callback)
         self.self_level_enable_service = self.create_service(bool, 'self_level_enable', self.self_level_enable_callback)
   
-
         #subscriptions
         self.manual_seat_control_subscription = self.create_subscription(bool,'manual_seat_control', self.manual_seat_control_callback, 10) #message type is placeholder
         self.curb_ascend_subscription = self.create_subscription(bool,'curb_ascend', self.curb_ascend_callback, 10)
         self.curb_descend_subscription = self.create_subscription(bool,'curb_descend', self.curb_descend_callback, 10)
         self.estop_subscription = self.create_subscription(bool,'estop', self.estop_callback, 10)
+
+        #tf publisher 
+        self.tf_pubslisher = self.create_publisher(TFMessage, 'tf_data', 10)
+        self.tf_timer = self.create_timer(self.publish_rate, self.publish_tf_data)
 
         #publishers and timers
         self.appTime_publisher = self.create_publisher(Float64, 'app_time', 10)
@@ -200,7 +205,36 @@ class MEBotControlNode(Node):
         self.current_speed_ML = data[16]
         self.prev_speed_MR = self.current_speed_MR
         self.current_speed_MR = data[17]
-         
+
+    def publish_tf_data(self):
+        msg = TFMessage()
+        transform = TransformStamped()
+
+        #populate transform fields with appropriate data
+        transform.header.stamp = self.get_clock().now().to_msg()
+        transform.header.frame_id = "base_link" #placeholder
+        transform.child_frame_id = "seat_link"  #placeholder
+
+        #transform calculations are placeholders 
+        #convert seat angles from degrees to radians for orientation fields
+        pitch = math.radians(self.seat_angle_pitch)
+        roll = math.radians(self.seat_angle_roll)
+        yaw = 0.0  #assuming yaw is 0 since it is not measured by the IMU
+
+        #populate orientation fields using Euler angles (assuming yaw is 0)
+        qx = math.sin(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) - math.cos(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
+        qy = math.cos(roll/2) * math.sin(pitch/2) * math.cos(yaw/2) + math.sin(roll/2) * math.cos(pitch/2) * math.sin(yaw/2)
+        qz = math.cos(roll/2) * math.cos(pitch/2) * math.sin(yaw/2) - math.sin(roll/2) * math.sin(pitch/2) * math.cos(yaw/2)
+        qw = math.cos(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) + math.sin(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
+
+        transform.transform.rotation.x = qx
+        transform.transform.rotation.y = qy
+        transform.transform.rotation.z = qz
+        transform.transform.rotation.w = qw
+
+        msg.transforms.append(transform)
+        self.tf_pubslisher.publish(msg)     
+        
     def publish_appTime(self):
         msg = Float64()
         msg.data = float(self.appTime) 

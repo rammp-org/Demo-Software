@@ -206,6 +206,8 @@ class MEBotControlNode(Node):
         self.prev_speed_MR = self.current_speed_MR
         self.current_speed_MR = data[17]
 
+
+#joint state instead
     def publish_tf_data(self):
         msg = TFMessage()
         transform = TransformStamped()

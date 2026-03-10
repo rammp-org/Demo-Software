@@ -15,8 +15,10 @@ class csvLoggerNode(Node):
         self.csvfile = None
         self.headers = [ 'Timestamp',
                     'Time to complete command (s)', #maybe default to 0 if not used, if used, first number is which command being timed
-                    'Chair speed (m/s)',
-                    'Chair acceleration (m/s^2)',
+                    'Chair speed ML (m/s)',
+                    'Chair speed MR (m/s)',
+                    'Chair acceleration ML (m/s^2)',
+                    'Chair acceleration MR (m/s^2)',
                     'Accelerometer x (m/s^2)',
                     'Accelerometer y (m/s^2)',
                     'Accelerometer z (m/s^2)',
@@ -27,8 +29,10 @@ class csvLoggerNode(Node):
 
         #subscriptions to sensor data topics
         self.appTime_sub = self.create_subscription(Float64, 'app_time', self.AppTime_callback, 10)
-        self.speed_sub = self.create_subscription(Float64, 'chair_speed', self.speed_callback, 10)
-        self.acceleration_sub = self.create_subscription(Float64, 'chair_acceleration', self.acceleration_callback, 10)
+        self.speed_ML_sub = self.create_subscription(Float64, 'chair_speed_ML', self.speed_ML_callback, 10)
+        self.speed_MR_sub = self.create_subscription(Float64, 'chair_speed_MR', self.speed_MR_callback, 10)
+        self.acceleration_ML_sub = self.create_subscription(Float64, 'chair_acceleration_ML', self.acceleration_ML_callback, 10)
+        self.acceleration_MR_sub = self.create_subscription(Float64, 'chair_acceleration_MR', self.acceleration_MR_callback, 10)
         self.accel_x_sub = self.create_subscription(Float64, 'accelerometer_x', self.accel_x_callback, 10)
         self.accel_y_sub = self.create_subscription(Float64, 'accelerometer_y', self.accel_y_callback, 10)
         self.accel_z_sub = self.create_subscription(Float64, 'accelerometer_z', self.accel_z_callback, 10)
@@ -53,7 +57,6 @@ class csvLoggerNode(Node):
     def start(self):
         if self.logging:
             return  # Already logging, do nothing
-        
         
         file_exists = os.path.isfile(self.filename)
 
@@ -81,15 +84,19 @@ class csvLoggerNode(Node):
         
         timestamp = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
         # timestamp = self.get_clock().now().nanoseconds / 1e9 #don't know yet if I have to use ros time or can just use datetime, but this is how to get ros time in seconds
-        data = [timestamp, self.appTime, self.speed, self.acceleration, self.accel_x, self.accel_y, self.accel_z, self.seat_angle_pitch, self.seat_angle_roll, self.tilt, self.measure_height]
+        data = [timestamp, self.appTime, self.speed_ML, self.speed_MR, self.acceleration_ML, self.acceleration_MR, self.accel_x, self.accel_y, self.accel_z, self.seat_angle_pitch, self.seat_angle_roll, self.tilt, self.measure_height]
         self.writer.writerow(data)
 
     def AppTime_callback(self, msg):
         self.appTime = msg.data
-    def speed_callback(self, msg):
-        self.speed = msg.data
-    def acceleration_callback(self, msg):
-        self.acceleration = msg.data
+    def speed_ML_callback(self, msg):
+        self.speed_ML = msg.data
+    def speed_MR_callback(self, msg):
+        self.speed_MR = msg.data
+    def acceleration_ML_callback(self, msg):
+        self.acceleration_ML = msg.data
+    def acceleration_MR_callback(self, msg):
+        self.acceleration_MR = msg.data
     def accel_x_callback(self, msg):
         self.accel_x = msg.data
     def accel_y_callback(self, msg):

@@ -1,16 +1,24 @@
 import sys
 import serial
+from GUI.components.MeBotState_pub import MeBotStateNode
+from GUI.components.csv_logger import csvLoggerNode
 from PyQt5.QtWidgets import QMainWindow, QStackedWidget, QApplication
 from components.TeensyController import TeensyController
 from components.DataLogger import DataLogger
 from windows.UserWindow import UserWindow
 from windows.DevWindow import DevWindow
+from MeBotState_pub import MeBotStateNode
+import rclpy
             
 
 class MEBotApp(QMainWindow):
     def __init__(self):
+
         super().__init__()
 
+        # initialize ROS
+        rclpy.init()
+       
         # Serial communication setup
         # /dev/rfcomm0 should be used to initialize serial if want to use wireless mode (Bluetooth)
         # /dev/ttyACM0 should be used to initialize serial if want to use wired mode (USB)
@@ -25,8 +33,10 @@ class MEBotApp(QMainWindow):
         # Create QStackedWidget
         self.stacked_widget = QStackedWidget()
         self.teensy_controller = TeensyController(self.serial_port)
-        self.data_logger = DataLogger(self.serial_port)
-        
+        # self.data_logger = DataLogger(self.serial_port)
+        self.data_logger = csvLoggerNode()  # Initialize the ROS2 node for CSV logging
+        # self.MeBotStateNode = MeBotStateNode(self.teensy_controller)  # Initialize the ROS2 node for publishing MeBot state
+
         # Create and add screens
         self.screen0 = UserWindow(self.stacked_widget, self.teensy_controller, self.data_logger)
         self.screen1 = DevWindow(self.stacked_widget, self.teensy_controller)
@@ -45,4 +55,12 @@ if __name__ == "__main__":
     window = MEBotApp()
     window.showFullScreen()
     # window.show()
+
+    # spin ROS node
+    rclpy.spin(window.MeBotStateNode)
+
+    # cleanup
+    window.MeBotStateNode.destroy_node()
+    rclpy.shutdown()
+
     sys.exit(app.exec_())

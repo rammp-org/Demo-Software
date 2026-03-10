@@ -304,7 +304,7 @@ void loop()
     calculate_pitch_and_roll_angle();
 
     get_GUI_input_from_serial();
-    Serial.print("Action: "); //for driver_node to publish
+    Serial.print("Action:"); //for driver_node to publish
     Serial.println(action);
 
     /* The method below is for getting input using bluetooth, keeping it for now */
@@ -314,11 +314,11 @@ void loop()
     select_mode_based_on_GUI_command();
     select_controller_based_on_model();
     motor_controller.set_positions_for_MWs_and_RC();
-    Serial.print("Action: "); //for driver_node to publish
+    Serial.print("Action:"); //for driver_node to publish
     Serial.println(action);
 
     motor_controller.carriage_limits_switch();
-    Serial.print("Action: "); //for driver_node to publish
+    Serial.print("Action:"); //for driver_node to publish
     Serial.println(action);
 
 

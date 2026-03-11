@@ -340,17 +340,17 @@ void loop() {
  * ********* below are helper finctions for setup()***********
  */
 void set_calculation_constants() {
-  ML_Carriage.carriage_ticks = 12000;
-  MR_Carriage.carriage_ticks = -12531;
+  ML_Carriage.carriage_ticks = 12744;
+  MR_Carriage.carriage_ticks = -12685;
 
-  ML.pos_ticks = -390;
+  ML.pos_ticks = -383;
   ML.wheel_pos_ticks = 15212;
-  ML.angle_ticks = -390;
+  ML.angle_ticks = -383;
   ML.eha_norm = 39.4;
 
-  MR.pos_ticks = 380;
+  MR.pos_ticks = 432;
   MR.wheel_pos_ticks = -15212;
-  MR.angle_ticks = 356;
+  MR.angle_ticks = 432;
   MR.eha_norm = 35.47;
 }
 
@@ -404,15 +404,17 @@ void calculate_casters_positions() {
   // GC: DWs: 3cm, RC: 1cm, FC: 5cm (off ground)
   /* Calculation w.r.t bottom of the base */
 
-  RC.pos = (float)EContr.encoderf[3] * -18.4 / 680.0; // 0 - 18.4
+  // RC bottom enc = 680.0, but now 548
+  RC.pos = (float)EContr.encoderf[3] * -18.4 / 548.0; // 0 - 18.4
   // RC.pos = 3.0 + 26.8 * sin((-7.0 + (float)EContr.encoderf[3] * -60 / 710) /
   // DG);
 
   // raw min-max encoder value to limit eha motor movement
   RC.eha = fabs(EContr.encoderf[1]) / 85.62; // actuator stroke 0 - 10.15 cm
 
-  FC.pos = ((float)EContr.encoderf[2]); // max encoder value to z-height
-  FC.pos = 1.0 + ((float)EContr.encoderf[2] * 0.031); // 2.5 to 22.5 cm
+  // FC.pos =  // 2.5 plus 17.78
+  // FC.pos = ((float)EContr.encoderf[2]); // max encoder value to z-height
+  FC.pos = 2.5 + ((float)EContr.encoderf[2] * 17.78 / 609.0); // 2.5 to 20.28 cm
 
   // NOT WORKING PROPERLY
   // raw min-max encoder value to limit eha motor movement

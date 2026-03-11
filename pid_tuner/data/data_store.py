@@ -9,7 +9,7 @@ from typing import List, Tuple, Optional
 import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 
-from ..serial.protocol import EncoderData
+from ..serial_driver.protocol import EncoderData
 
 
 @dataclass

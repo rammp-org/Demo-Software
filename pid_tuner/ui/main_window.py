@@ -19,7 +19,7 @@ from PyQt6.QtCore import Qt, QTimer
 
 from ..data.data_store import DataStore
 from ..data.joint_config import get_joint_names, get_joint_id_from_index, get_joint_info
-from ..serial.serial_handler import SerialHandler
+from ..serial_driver.serial_handler import SerialHandler
 from .plot_widget import PlotWidget
 from .control_panel import ControlPanel
 from .serial_console import SerialConsole

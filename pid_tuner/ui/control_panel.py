@@ -18,7 +18,7 @@ from PyQt6.QtCore import pyqtSignal, QTimer
 import math
 
 from ..data.data_store import DataStore
-from ..serial.serial_handler import SerialHandler
+from ..serial_driver.serial_handler import SerialHandler
 
 
 class ControlPanel(QWidget):

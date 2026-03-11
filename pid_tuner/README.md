@@ -89,22 +89,90 @@ To preview target signals before connecting to hardware:
 | 11 | ML Carriage | Middle Left Carriage |
 | 12 | MR Carriage | Middle Right Carriage |
 
-## Teensy Firmware Requirements
+## Serial Protocol / Teensy Firmware Requirements
 
-The Teensy firmware (Base.ino) must be modified to support this tuner. See [TEENSY_PROTOCOL.md](TEENSY_PROTOCOL.md) for the required serial protocol specification.
+The Teensy firmware (Base.ino) must be modified to communicate with this tuner. See [TEENSY_PROTOCOL.md](TEENSY_PROTOCOL.md) for complete implementation details.
 
-### Quick Summary
+### Serial Configuration
 
-**Teensy sends** (at ~200Hz):
+- **Baud Rate:** 115200
+- **Line Ending:** `\n` (newline)
+- **Encoding:** ASCII
+
+### Teensy -> PC: Encoder Data
+
+The Teensy must output encoder data at ~200Hz in this format:
+
 ```
-ENC:<timestamp_ms>,<enc1>,<enc2>,...,<enc12>
+ENC:<timestamp_ms>,<enc1>,<enc2>,<enc3>,<enc4>,<enc5>,<enc6>,<enc7>,<enc8>,<enc9>,<enc10>,<enc11>,<enc12>\n
 ```
 
-**PC sends**:
+**Example:**
 ```
-T<joint>:<ticks>   # Set target (e.g., T1:5000)
-z                  # Disable motors
+ENC:12345,100,-50,320,0,1500,-1200,800,900,15000,-15200,12000,-12500
 ```
+
+**Fields:**
+| Field | Description |
+|-------|-------------|
+| `timestamp_ms` | Milliseconds since boot (`millis()`) |
+| `enc1-enc12` | Raw encoder ticks for joints 1-12 (signed long) |
+
+**Arduino Implementation:**
+```cpp
+void displaydata() {
+  Serial.print("ENC:");
+  Serial.print(millis());
+  for (int i = 1; i <= 12; i++) {
+    Serial.print(",");
+    Serial.print(EContr.encoder[i]);
+  }
+  Serial.println();
+}
+```
+
+### PC -> Teensy: Commands
+
+| Command | Format | Example | Description |
+|---------|--------|---------|-------------|
+| Set Target | `T<joint>:<ticks>\n` | `T7:1500` | Set joint 7 target to 1500 ticks |
+| Step Input | `S<joint>:<step>\n` | `S7:-100` | Add -100 ticks to joint 7 target |
+| Disable Motors | `z\n` | `z` | Emergency stop (existing command) |
+
+**Arduino Implementation (add to command parser):**
+```cpp
+void parse_command() {
+  if (Serial.available() > 0) {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+    
+    if (input.length() < 1) return;
+    char cmd = input.charAt(0);
+    
+    if (cmd == 'T') {
+      // Set Target: T<joint>:<ticks>
+      int colonIdx = input.indexOf(':');
+      if (colonIdx > 1) {
+        int joint = input.substring(1, colonIdx).toInt();
+        long target = input.substring(colonIdx + 1).toInt();
+        if (joint >= 1 && joint <= 12) {
+          // Apply target to your motor controller
+          set_joint_target(joint, target);
+        }
+      }
+    } else {
+      // Fall back to existing single-char commands
+      action = cmd;
+    }
+  }
+}
+```
+
+### Important Notes
+
+1. **Raw Ticks Only:** All values are raw encoder ticks (signed long) - no unit conversion
+2. **Output Rate:** Call `displaydata()` every loop (~200Hz with 5ms delay)
+3. **Backward Compatible:** Single-character commands ('z', '1', '2', etc.) still work
 
 ## File Structure
 

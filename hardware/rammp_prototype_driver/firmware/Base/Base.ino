@@ -74,7 +74,7 @@
 //-----------------------------
 Adafruit_BNO055 bno;
 
-// IMU_Class IMU = IMU_Class(bno);
+IMU_Class IMU = IMU_Class(bno);
 
 EncoderContainer EContr;
 
@@ -272,7 +272,7 @@ void setup() {
 
   set_calculation_constants();
   initialize_digital_pins();
-  //    IMU.initialize_BNO055_sensor();
+  IMU.initialize_BNO055_sensor();
 
   delay(1000);
   bno.setExtCrystalUse(true);
@@ -298,7 +298,7 @@ void loop() {
   FC.retrieve_lc_reading();
   RC.retrieve_lc_reading();
 
-  //    IMU.retrieve_readings();
+  IMU.retrieve_readings();
   EContr.retrieve_readings();
 
   // carriage switches, sw1 = leftback, sw2 = leftfront, sw3 = rightfront, sw4 =
@@ -490,7 +490,7 @@ void select_mode_based_on_GUI_command() {
 }
 
 void select_controller_based_on_model() {
-  //    IMU.am = IMU.am + 0.005;
+  IMU.am = IMU.am + 0.005;
   switch (mode) {
   case 1: // dev mode
     individual_motor_FF();

@@ -26,10 +26,10 @@ class MEBotControlNodeTest(Node):
                     timeout=1)
         
         #timer for serial data reading 
-        self.serial_timer = self.create_timer(.001, self.read_serial_data)
+        self.serial_timer = self.create_timer(.0001, self.read_serial_data)
 
         #publishing rate for all topics
-        self.publish_rate = .001  
+        self.publish_rate = .0001  
 
         #IMU
         self.IMU_pitch = 0.0
@@ -161,7 +161,7 @@ class MEBotControlNodeTest(Node):
             if (raw_data.startswith('[') and raw_data.endswith(']')):  #check if data is in expected list format
                 data = ast.literal_eval(raw_data)
 
-                self.logger.info(f"Received data: {data}")  # Log the received data
+                self.get_logger().info(f"Received data: {data}")  # Log the received data
 
                 self.update_data(data)  # Update variables with new data
             if (raw_data.startswith('Action:')):  #check if data is an action command from Base.ino

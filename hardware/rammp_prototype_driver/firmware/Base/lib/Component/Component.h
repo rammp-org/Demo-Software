@@ -30,6 +30,7 @@ public:
   float Kacc = 0.0;
   float loadcell = 0.0;
   float lc = 0.0;
+  float max_allowed_PWM = 20.0;
 
   Component(int, MotorID);
   virtual void initialize_pins();

@@ -104,9 +104,9 @@ MotorController motor_controller =
     MotorController(RC, FC, MR, ML, timer, self_leveling_on, action, CA_flag);
 
 // Initialize RoboClaw Controllers
-RoboClaw roboclaw_casters(&Serial3, 10000);   // Serial3
-RoboClaw roboclaw_main(&Serial2, 10000);      // Serial4
-RoboClaw roboclaw_carriages(&Serial1, 10000); // Serial5
+RoboClaw roboclaw_carriages(&Serial3, 10000);   // Serial3
+RoboClaw roboclaw_casters(&Serial4, 10000);      // Serial4
+RoboClaw roboclaw_main(&Serial5, 10000); // Serial5
 
 JoyStick js;
 
@@ -266,9 +266,9 @@ bool drive_forward = false;
 // Setup routine runs once when you press reset:
 void setup() {
   Serial.begin(115200); // jetson
-  Serial1.begin(38400); // roboclaw 1
-  Serial2.begin(38400); // roboclaw 2
-  Serial3.begin(38400); // roboclaw 3
+  Serial3.begin(460800); // roboclaw 1
+  Serial4.begin(460800); // roboclaw 2
+  Serial5.begin(460800); // roboclaw 3
 
   set_calculation_constants();
   initialize_digital_pins();
@@ -281,12 +281,12 @@ void setup() {
 
 // Loop routine runs over and over again indefinitely:
 void loop() {
-  //  if (PI_MOTORS.available() > 0)
-  //  {
-  //  // read the string data from the real-sense
-  //    input = PI_MOTORS.readStringUntil('\n');
-  //  }
-  //  Serial.println(input);
+//    if (PI_MOTORS.available() > 0)
+//    {
+//    // read the string data from the real-sense
+//      input = PI_MOTORS.readStringUntil('\n');
+//    }
+//    Serial.println(input);
   timer.updateTime();
 
   // get_GUI_input_from_bluetooth_joystick();
@@ -328,17 +328,66 @@ void loop() {
   motor_controller.carriage_limits_switch();
   motor_controller.set_positions_for_MWs_and_RC();
 
-  displaydata();
+//  displaydata();
 
   // Reduce delay to increase frequency. Currently set to 8ms
   delay(5);
   reset_newmebot_array();
+
+//  Serial.println("looped");
 }
 
 /*
  * ***********************************************************
  * ********* below are helper finctions for setup()***********
  */
+
+//void set_joint_target(int joint, float target_cm) {
+//
+//  // Zero out all motors (des = current pos, error = 0, no movement)
+//  RC.des          = RC.pos;
+//  FC.des          = FC.pos;
+//  ML.des          = ML.pos;
+//  MR.des          = MR.pos;
+//  ML.carriage.des = ML.carriage.pos;
+//  MR.carriage.des = MR.carriage.pos;
+//
+//  // Reset accumulated error and acceleration on all motors
+//  // so there's no windup carried over from previous state
+//  RC.cum_err          = 0; RC.Kacc          = 0;
+//  FC.cum_err          = 0; FC.Kacc          = 0;
+//  ML.cum_err          = 0; ML.Kacc          = 0;
+//  MR.cum_err          = 0; MR.Kacc          = 0;
+//  ML.carriage.cum_err = 0; ML.carriage.Kacc = 0;
+//  MR.carriage.cum_err = 0; MR.carriage.Kacc = 0;
+//
+//  // Set target on selected motor only, with safe range clamp
+//  switch (joint) {
+//    case 1: RC.des          = constrain(target_cm, 1.0,  21.0); break;
+//    case 2: FC.des          = constrain(target_cm, 2.0,  15.0); break;
+//    case 3: ML.des          = constrain(target_cm, 3.0,  21.0); break;
+//    case 4: MR.des          = constrain(target_cm, 3.0,  21.0); break;
+//    case 5: ML.carriage.des = constrain(target_cm, 0.0,   1.0); break;
+//    case 6: MR.carriage.des = constrain(target_cm, 0.0,   1.0); break;
+//    default:
+//      Serial.println("ERR: joint must be 1-6");
+//      return;
+//  }
+//
+//  // Confirm back to monitor
+//  Serial.print(">> Joint "); Serial.print(joint);
+//  Serial.print(" target: ");
+//  switch (joint) {
+//    case 1: Serial.print(RC.des);          break;
+//    case 2: Serial.print(FC.des);          break;
+//    case 3: Serial.print(ML.des);          break;
+//    case 4: Serial.print(MR.des);          break;
+//    case 5: Serial.print(ML.carriage.des); break;
+//    case 6: Serial.print(MR.carriage.des); break;
+//  }
+//  Serial.println(" cm");
+//}
+
 void set_calculation_constants() {
   ML_Carriage.carriage_ticks = 12744;
   MR_Carriage.carriage_ticks = -12685;
@@ -452,7 +501,7 @@ void get_GUI_input_from_bluetooth() {
   if (PI_BT.available() > 0) {
     String serial_input = PI_BT.readStringUntil('\n');
     action = serial_input.charAt(0);
-    // Serial.println(action);
+    Serial.println(action);
   }
 }
 
@@ -1045,8 +1094,9 @@ void get_GUI_input_from_serial() {
   if (Serial.available() > 0) {
     String serial_input = Serial.readStringUntil('\n');
     action = serial_input.charAt(0);
-    //        Serial.println(action);
+    Serial.println(action);
   }
+//  Serial.println("hey");
 }
 
 //======================================================================

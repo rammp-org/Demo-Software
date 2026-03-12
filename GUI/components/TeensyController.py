@@ -206,14 +206,14 @@ class TeensyController:
             self.mode = Modes.SELF_LEVELING
             self.action = Actions.RESET
 
-            self.send_mode_action()
+            # self.send_mode_action()
 
-            time.sleep(3)
-            self.send_neutral_signal_to_teensy()
+            # time.sleep(3)
+            # self.send_neutral_signal_to_teensy()
 
             # NOTE: Temporary Solution
             # need to switch to a different mode so the motors stop
-            self.raise_up_pressed()
+            # self.raise_up_pressed()
             self.send_neutral_signal_to_teensy()
 
             # Mimic Manual Reset (lower everything)

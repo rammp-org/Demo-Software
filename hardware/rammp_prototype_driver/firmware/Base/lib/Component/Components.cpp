@@ -12,13 +12,23 @@ void Component::initialize_pins(){
 
 void Component::move() {
   motor_PWM = normalize_value(motor_PWM);
+  float clamped_motor_PWM = std::clamp(motor_PWM, 0.0f, max_allowed_PWM);
 
   int duty;
   if (motor_dir == 0) {
-    duty = -int((motor_PWM * 32767) / 255);
+    duty = -int((clamped_motor_PWM * 32767) / 255);
   } else {
-    duty = int((motor_PWM * 32767) / 255);
+    duty = int((clamped_motor_PWM * 32767) / 255);
   }
+
+  // String output = "ID: ";
+  // output += MOTOR_ID;
+  // output += " | PWM: ";
+  // output += motor_PWM;
+  // output += " | Dir: ";
+  // output += motor_dir;
+
+  // Serial.println(output);
 
   switch (MOTOR_ID) {
   case MOTOR_RC:
@@ -43,7 +53,7 @@ void Component::move() {
     break;
   }
 };
-
+// m1 = l/rear
 // old move function
 // void Component::move() {
 //     motor_PWM = normalize_value(motor_PWM);

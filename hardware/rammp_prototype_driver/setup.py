@@ -22,6 +22,8 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "control_node = rammp_prototype_driver.MEBot_control_node:main"
+        ],
     },
 )

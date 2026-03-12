@@ -116,21 +116,23 @@ class SerialHandler(QObject):
         """
         self._command_queue.put(command)
 
-    def set_target(self, joint_id: int, target_ticks: int):
+    def set_target(self, joint_id: int, target_cm: float):
         """Send target position command."""
-        cmd = ProtocolEncoder.set_target(joint_id, target_ticks)
+        cmd = ProtocolEncoder.set_target(joint_id, target_cm)
         self.send_command(cmd)
 
-    def send_step(self, joint_id: int, step_ticks: int):
+    def send_step(self, joint_id: int, step_cm: float):
         """Send step input command."""
-        cmd = ProtocolEncoder.step_input(joint_id, step_ticks)
+        cmd = ProtocolEncoder.step_input(joint_id, step_cm)
         self.send_command(cmd)
 
     def start_sine(
-        self, joint_id: int, amplitude: int, frequency: float, duration: float
+        self, joint_id: int, amplitude_cm: float, frequency: float, duration: float
     ):
         """Send sine wave start command."""
-        cmd = ProtocolEncoder.start_sine_wave(joint_id, amplitude, frequency, duration)
+        cmd = ProtocolEncoder.start_sine_wave(
+            joint_id, amplitude_cm, frequency, duration
+        )
         self.send_command(cmd)
 
     def stop_sine(self, joint_id: int):

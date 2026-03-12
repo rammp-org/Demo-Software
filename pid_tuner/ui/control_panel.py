@@ -32,7 +32,7 @@ class ControlPanel(QWidget):
     """
 
     # Default step sizes
-    DEFAULT_STEP_SIZES = [10, 50, 100, 500, 1000]
+    DEFAULT_STEP_SIZES = [0.5, 1.0, 2.0, 5.0, 10.0]
 
     def __init__(
         self, data_store: DataStore, serial_handler: SerialHandler, parent=None
@@ -81,21 +81,21 @@ class ControlPanel(QWidget):
         self._position_label = QLabel("---")
         self._position_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         layout.addWidget(self._position_label, 0, 1)
-        layout.addWidget(QLabel("ticks"), 0, 2)
+        layout.addWidget(QLabel("cm"), 0, 2)
 
         # Target
         layout.addWidget(QLabel("Target:"), 1, 0)
         self._target_label = QLabel("---")
         self._target_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         layout.addWidget(self._target_label, 1, 1)
-        layout.addWidget(QLabel("ticks"), 1, 2)
+        layout.addWidget(QLabel("cm"), 1, 2)
 
         # Error
         layout.addWidget(QLabel("Error:"), 2, 0)
         self._error_label = QLabel("---")
         self._error_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         layout.addWidget(self._error_label, 2, 1)
-        layout.addWidget(QLabel("ticks"), 2, 2)
+        layout.addWidget(QLabel("cm"), 2, 2)
 
         # Update timer
         self._status_timer = QTimer(self)
@@ -113,13 +113,14 @@ class ControlPanel(QWidget):
         input_layout = QHBoxLayout()
         input_layout.addWidget(QLabel("Target:"))
 
-        self._target_input = QSpinBox()
-        self._target_input.setRange(-1000000, 1000000)
-        self._target_input.setSingleStep(100)
-        self._target_input.setValue(0)
+        self._target_input = QDoubleSpinBox()
+        self._target_input.setRange(-1000.0, 1000.0)
+        self._target_input.setSingleStep(0.5)
+        self._target_input.setDecimals(2)
+        self._target_input.setValue(0.0)
         input_layout.addWidget(self._target_input)
 
-        input_layout.addWidget(QLabel("ticks"))
+        input_layout.addWidget(QLabel("cm"))
 
         self._set_target_btn = QPushButton("Set Target")
         self._set_target_btn.clicked.connect(self._on_set_target)
@@ -162,13 +163,14 @@ class ControlPanel(QWidget):
         step_size_layout = QHBoxLayout()
         step_size_layout.addWidget(QLabel("Step Size:"))
 
-        self._step_size_input = QSpinBox()
-        self._step_size_input.setRange(1, 100000)
-        self._step_size_input.setSingleStep(10)
-        self._step_size_input.setValue(100)
+        self._step_size_input = QDoubleSpinBox()
+        self._step_size_input.setRange(0.1, 1000.0)
+        self._step_size_input.setSingleStep(0.5)
+        self._step_size_input.setDecimals(1)
+        self._step_size_input.setValue(1.0)
         step_size_layout.addWidget(self._step_size_input)
 
-        step_size_layout.addWidget(QLabel("ticks"))
+        step_size_layout.addWidget(QLabel("cm"))
         step_size_layout.addStretch()
         layout.addLayout(step_size_layout)
 
@@ -206,11 +208,13 @@ class ControlPanel(QWidget):
 
         # Amplitude
         params_layout.addWidget(QLabel("Amplitude:"), 0, 0)
-        self._sine_amplitude_input = QSpinBox()
-        self._sine_amplitude_input.setRange(1, 100000)
-        self._sine_amplitude_input.setValue(500)
+        self._sine_amplitude_input = QDoubleSpinBox()
+        self._sine_amplitude_input.setRange(0.1, 100.0)
+        self._sine_amplitude_input.setSingleStep(0.5)
+        self._sine_amplitude_input.setDecimals(1)
+        self._sine_amplitude_input.setValue(5.0)
         params_layout.addWidget(self._sine_amplitude_input, 0, 1)
-        params_layout.addWidget(QLabel("ticks"), 0, 2)
+        params_layout.addWidget(QLabel("cm"), 0, 2)
 
         # Frequency
         params_layout.addWidget(QLabel("Frequency:"), 1, 0)
@@ -323,11 +327,11 @@ class ControlPanel(QWidget):
         step = -self._step_size_input.value()
         self._apply_step(step)
 
-    def _on_quick_step(self, step: int):
+    def _on_quick_step(self, step: float):
         """Handle quick step button click."""
         self._apply_step(step)
 
-    def _apply_step(self, step: int):
+    def _apply_step(self, step: float):
         """Apply a step to the current target."""
         joint_id = self._data_store.selected_joint
         joint_data = self._data_store.get_selected_joint_data()
@@ -398,7 +402,7 @@ class ControlPanel(QWidget):
         # Calculate sine value
         t = self._sine_start_time
         value = self._sine_amplitude * math.sin(2 * math.pi * self._sine_frequency * t)
-        target = int(self._sine_center + value)
+        target = self._sine_center + value
 
         # Update
         joint_id = self._data_store.selected_joint

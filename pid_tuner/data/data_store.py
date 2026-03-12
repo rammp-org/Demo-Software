@@ -25,8 +25,8 @@ class JointData:
     targets: deque = field(default_factory=lambda: deque(maxlen=2000))
 
     # Current state
-    current_position: int = 0
-    current_target: int = 0
+    current_position: float = 0.0
+    current_target: float = 0.0
 
     # Start time for relative timestamps
     _start_time: int = 0
@@ -41,7 +41,7 @@ class JointData:
         self._start_time_real = 0
 
     def add_sample(
-        self, timestamp_ms: int, position: int, target: Optional[int] = None
+        self, timestamp_ms: int, position: float, target: Optional[float] = None
     ):
         """Add a new sample to the rolling buffer."""
         # Convert timestamp to seconds from start
@@ -59,7 +59,7 @@ class JointData:
             self.current_target = target
         self.targets.append(self.current_target)
 
-    def add_simulated_sample(self, target: int):
+    def add_simulated_sample(self, target: float):
         """Add a simulated sample with synthetic timestamp (for preview mode)."""
         # Initialize start time on first sample
         if self._start_time_real == 0:
@@ -74,7 +74,7 @@ class JointData:
         self.current_position = target
         self.current_target = target
 
-    def set_target(self, target: int):
+    def set_target(self, target: float):
         """Set the current target position."""
         self.current_target = target
 
@@ -111,7 +111,7 @@ class DataStore(QObject):
     data_updated = pyqtSignal(int)  # Emits joint_id that was updated
     simulation_changed = pyqtSignal(bool)  # Emitted when simulation mode changes
 
-    NUM_JOINTS = 12
+    NUM_JOINTS = 6
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
     SIMULATION_UPDATE_MS = 20  # 50 Hz simulation rate
 
@@ -173,19 +173,18 @@ class DataStore(QObject):
 
     def process_encoder_data(self, data: EncoderData):
         """
-        Process incoming encoder data and update all joints.
+        Process incoming position data and update all joints.
 
         Args:
-            data: Parsed encoder data from Teensy
+            data: Parsed position data from Teensy
         """
-        for i, value in enumerate(data.encoder_values):
+        for i, value in enumerate(data.position_values):
             joint_id = i + 1
             self._joints[i].add_sample(data.timestamp_ms, value)
 
-        # Emit update signal for selected joint
         self.data_updated.emit(self._selected_joint)
 
-    def set_target(self, joint_id: int, target: int):
+    def set_target(self, joint_id: int, target: float):
         """Set target position for a joint."""
         if 1 <= joint_id <= self.NUM_JOINTS:
             self._joints[joint_id - 1].set_target(target)

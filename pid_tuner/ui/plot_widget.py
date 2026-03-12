@@ -105,7 +105,7 @@ class PlotWidget(QWidget):
         """Set up the pyqtgraph plot."""
         self._plot_widget.setBackground("w")
         self._plot_widget.showGrid(x=True, y=True, alpha=0.3)
-        self._plot_widget.setLabel("left", "Position", units="ticks")
+        self._plot_widget.setLabel("left", "Position", units="cm")
         self._plot_widget.setLabel("bottom", "Time", units="s")
         self._plot_widget.setTitle("Encoder Position vs Target")
 

@@ -24,71 +24,31 @@ class JointInfo:
 
 # Joint configurations based on EncoderContainer.h mapping
 JOINTS: List[JointInfo] = [
-    JointInfo(
-        id=1, name="RC Top", short_name="RC_T", description="Rear Caster Top Encoder"
-    ),
+    JointInfo(id=1, name="RC", short_name="RC", description="Rear Caster"),
     JointInfo(
         id=2,
-        name="FC Bottom",
-        short_name="FC_B",
-        description="Front Caster Bottom Encoder",
+        name="FC",
+        short_name="FC",
+        description="Front Caster",
     ),
     JointInfo(
         id=3,
-        name="RC Bottom",
-        short_name="RC_B",
-        description="Rear Caster Bottom Encoder (0-850 range)",
+        name="ML",
+        short_name="ML",
+        description="Main Left Wheel",
     ),
-    JointInfo(
-        id=4, name="FC Top", short_name="FC_T", description="Front Caster Top Encoder"
-    ),
+    JointInfo(id=4, name="MR", short_name="MR", description="Main Right Wheel"),
     JointInfo(
         id=5,
-        name="MR Back",
-        short_name="MR_B",
-        description="Main Right Wheel Back Encoder",
+        name="ML Carriage",
+        short_name="ML_C",
+        description="Main Left Carriage",
     ),
     JointInfo(
         id=6,
-        name="ML Front",
-        short_name="ML_F",
-        description="Main Left Wheel Front Encoder",
-    ),
-    JointInfo(
-        id=7,
-        name="ML Back",
-        short_name="ML_B",
-        description="Main Left Wheel Back Encoder",
-    ),
-    JointInfo(
-        id=8,
-        name="MR Front",
-        short_name="MR_F",
-        description="Main Right Wheel Front Encoder",
-    ),
-    JointInfo(
-        id=9,
-        name="ML Drive Wheel",
-        short_name="ML_DW",
-        description="Main Left Drive Wheel Encoder",
-    ),
-    JointInfo(
-        id=10,
-        name="MR Drive Wheel",
-        short_name="MR_DW",
-        description="Main Right Drive Wheel Encoder",
-    ),
-    JointInfo(
-        id=11,
-        name="ML Carriage",
-        short_name="ML_C",
-        description="Main Left Carriage Encoder",
-    ),
-    JointInfo(
-        id=12,
         name="MR Carriage",
         short_name="MR_C",
-        description="Main Right Carriage Encoder",
+        description="Main Right Carriage",
     ),
 ]
 

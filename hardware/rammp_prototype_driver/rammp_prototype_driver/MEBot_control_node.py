@@ -31,42 +31,49 @@ class MEBotControlNode(Node):
         #publishing rate for all topics
         self.publish_rate = .001  
 
-        #variables for publishing and csv logging
-        self.appTime = 0.0
-        self.prev_speed_ML = 0.0
-        self.current_speed_ML = 0.0
-        self.prev_speed_MR = 0.0
-        self.current_speed_MR = 0.0
-        self.acceleration_ML = 0.0
-        self.acceleration_MR = 0.0
+        #IMU
+        self.IMU_pitch = 0.0
+        self.IMU_roll = 0.0       
         self.accel_x = 0.0
         self.accel_y = 0.0
         self.accel_z = 0.0
-        self.seat_angle_pitch = 0.0
-        self.seat_angle_roll = 0.0
-        self.tilt = 0.0
-        self.measure_height = 0.0
 
-        #variables for only publishing 
-        self.IMU_pitch = 0.0
-        self.IMU_roll = 0.0
-
+        #Encoders
         self.FC_pos = 0.0
         self.RC_pos = 0.0
         self.MR_pos = 0.0
         self.ML_pos = 0.0
-
-        self.FC_loadcell = 0.0
-        self.MR_loadcell = 0.0
-        self.ML_loadcell = 0.0
-
+        self.ML_carriage_pos = 0.0
+        self.MR_carriage_pos = 0.0
         self.ML_wheel_pos = 0.0
         self.MR_wheel_pos = 0.0
 
-        self.CA_flag = 0.0
-
-        self.action = "z"  #variable to store most recent action command Base.ino recieved
+        #Loadcells
+        self.FC_loadcell = 0.0
+        self.MR_loadcell = 0.0
+        self.ML_loadcell = 0.0        
         
+        #CA_flag and action
+        self.CA_flag = 0.0
+        self.action = "z"  #variable to store most recent action command Base.ino recieved
+
+        #app time
+        self.appTime = 0.0
+
+        #velocity and acceleration
+        self.prev_speed_ML = 0.0
+        self.current_speed_ML = 0.0
+
+        self.prev_speed_MR = 0.0
+        self.current_speed_MR = 0.0
+
+        self.acceleration_ML = 0.0
+        self.acceleration_MR = 0.0
+
+        #tilt and measure height
+        self.tilt = 0.0
+        self.measure_height = 0.0
+
         #services
         self.drive_enable_service = self.create_service(bool, 'drive_enable', self.drive_enable_callback)
         self.self_level_enable_service = self.create_service(bool, 'self_level_enable', self.self_level_enable_callback)
@@ -86,6 +93,60 @@ class MEBotControlNode(Node):
         self.tf_timer = self.create_timer(self.publish_rate, self.publish_tf_data)
 
         #publishers and timers for sensor and state data
+        self.IMU_pitch_publisher = self.create_publisher(Float64, 'IMU_pitch', 10)
+        self.IMU_pitch_timer = self.create_timer(self.publish_rate, self.publish_IMU_pitch)
+
+        self.IMU_roll_publisher = self.create_publisher(Float64, 'IMU_roll', 10)
+        self.IMU_roll_timer = self.create_timer(self.publish_rate, self.publish_IMU_roll)        
+        
+        self.accel_x_publisher = self.create_publisher(Float64, 'accelerometer_x', 10)
+        self.accel_x_timer = self.create_timer(self.publish_rate, self.publish_accel_x)
+
+        self.accel_y_publisher = self.create_publisher(Float64, 'accelerometer_y', 10)
+        self.accel_y_timer = self.create_timer(self.publish_rate, self.publish_accel_y)
+
+        self.accel_z_publisher = self.create_publisher(Float64, 'accelerometer_z', 10)
+        self.accel_z_timer = self.create_timer(self.publish_rate, self.publish_accel_z)        
+        
+        self.FC_pos_publisher = self.create_publisher(Float64, 'FC_pos', 10)
+        self.FC_pos_timer = self.create_timer(self.publish_rate, self.publish_FC_pos)
+
+        self.RC_pos_publisher = self.create_publisher(Float64, 'RC_pos', 10)
+        self.RC_pos_timer = self.create_timer(self.publish_rate, self.publish_RC_pos)
+
+        self.MR_pos_publisher = self.create_publisher(Float64, 'MR_pos', 10)
+        self.MR_pos_timer = self.create_timer(self.publish_rate, self.publish_MR_pos)
+
+        self.ML_pos_publisher = self.create_publisher(Float64, 'ML_pos', 10)
+        self.ML_pos_timer = self.create_timer(self.publish_rate, self.publish_ML_pos)
+        
+        self.ML_carriage_pos_publisher = self.create_publisher(Float64, 'ML_carriage_pos', 10)
+        self.ML_carriage_pos_timer = self.create_timer(self.publish_rate, self.publish_ML_carriage_pos)
+
+        self.MR_carriage_pos_publisher = self.create_publisher(Float64, 'MR_carriage_pos', 10)
+        self.MR_carriage_pos_timer = self.create_timer(self.publish_rate, self.publish_MR_carriage_pos)        
+        
+        self.FC_loadcell_publisher = self.create_publisher(Float64, 'FC_loadcell', 10)  
+        self.FC_loadcell_timer = self.create_timer(self.publish_rate, self.publish_FC_loadcell)   
+
+        self.MR_loadcell_publisher = self.create_publisher(Float64, 'MR_loadcell', 10)      
+        self.MR_loadcell_timer = self.create_timer(self.publish_rate, self.publish_MR_loadcell)   
+
+        self.ML_loadcell_publisher = self.create_publisher(Float64, 'ML_loadcell', 10)  
+        self.ML_loadcell_timer = self.create_timer(self.publish_rate, self.publish_ML_loadcell)  
+
+        self.ML_wheel_pos_publisher = self.create_publisher(Float64, 'ML_wheel_pos', 10)
+        self.ML_wheel_pos_timer = self.create_timer(self.publish_rate, self.publish_ML_wheel_pos)
+
+        self.MR_wheel_pos_publisher = self.create_publisher(Float64, 'MR_wheel_pos', 10)
+        self.MR_wheel_pos_timer = self.create_timer(self.publish_rate, self.publish_MR_wheel_pos) 
+
+        self.CA_flag_publisher = self.create_publisher(Int64, 'CA_flag', 10)
+        self.CA_flag_timer = self.create_timer(self.publish_rate, self.publish_CA_flag)
+
+        self.action_publisher = self.create_publisher(String, 'action', 10)
+        self.action_timer = self.create_timer(self.publish_rate, self.publish_action)    
+
         self.appTime_publisher = self.create_publisher(Float64, 'app_time', 10)
         self.appTime_timer = self.create_timer(self.publish_rate, self.publish_appTime)
 
@@ -101,65 +162,11 @@ class MEBotControlNode(Node):
         self.acceleration_MR_publisher = self.create_publisher(Float64, 'chair_acceleration_MR', 10)
         self.acceleration_MR_timer = self.create_timer(self.publish_rate, self.publish_acceleration_MR)
 
-        self.accel_x_publisher = self.create_publisher(Float64, 'accelerometer_x', 10)
-        self.accel_x_timer = self.create_timer(self.publish_rate, self.publish_accel_x)
-
-        self.accel_y_publisher = self.create_publisher(Float64, 'accelerometer_y', 10)
-        self.accel_y_timer = self.create_timer(self.publish_rate, self.publish_accel_y)
-
-        self.accel_z_publisher = self.create_publisher(Float64, 'accelerometer_z', 10)
-        self.accel_z_timer = self.create_timer(self.publish_rate, self.publish_accel_z)
-
-        self.seat_angle_pitch_publisher = self.create_publisher(Float64, 'seat_angle_pitch', 10)
-        self.seat_angle_pitch_timer = self.create_timer(self.publish_rate, self.publish_seat_angle_pitch)
-
-        self.seat_angle_roll_publisher = self.create_publisher(Float64, 'seat_angle_roll', 10)
-        self.seat_angle_roll_timer = self.create_timer(self.publish_rate, self.publish_seat_angle_roll)
-
         self.tilt_publisher = self.create_publisher(Float64, 'tilt', 10)
         self.tilt_timer = self.create_timer(self.publish_rate, self.publish_tilt)
 
         self.measure_height_publisher = self.create_publisher(Float64, 'measure_height', 10)
         self.measure_height_timer = self.create_timer(self.publish_rate, self.publish_measure_height)
-
-        self.IMU_pitch_publisher = self.create_publisher(Float64, 'IMU_pitch', 10)
-        self.IMU_pitch_timer = self.create_timer(self.publish_rate, self.publish_IMU_pitch)
-
-        self.IMU_roll_publisher = self.create_publisher(Float64, 'IMU_roll', 10)
-        self.IMU_roll_timer = self.create_timer(self.publish_rate, self.publish_IMU_roll)
-
-        self.FC_pos_publisher = self.create_publisher(Float64, 'FC_pos', 10)
-        self.FC_pos_timer = self.create_timer(self.publish_rate, self.publish_FC_pos)
-
-        self.RC_pos_publisher = self.create_publisher(Float64, 'RC_pos', 10)
-        self.RC_pos_timer = self.create_timer(self.publish_rate, self.publish_RC_pos)
-
-        self.MR_pos_publisher = self.create_publisher(Float64, 'MR_pos', 10)
-        self.MR_pos_timer = self.create_timer(self.publish_rate, self.publish_MR_pos)
-
-        self.ML_pos_publisher = self.create_publisher(Float64, 'ML_pos', 10)
-        self.ML_pos_timer = self.create_timer(self.publish_rate, self.publish_ML_pos)
-
-        self.FC_loadcell_publisher = self.create_publisher(Float64, 'FC_loadcell', 10)  
-        self.FC_loadcell_timer = self.create_timer(self.publish_rate, self.publish_FC_loadcell)   
-
-        self.MR_loadcell_publisher = self.create_publisher(Float64, 'MR_loadcell', 10)      
-        self.MR_loadcell_timer = self.create_timer(self.publish_rate, self.publish_MR_loadcell)   
-
-        self.ML_loadcell_publisher = self.create_publisher(Float64, 'ML_loadcell', 10)  
-        self.ML_loadcell_timer = self.create_timer(self.publish_rate, self.publish_ML_loadcell)   
-
-        self.ML_wheel_pos_publisher = self.create_publisher(Float64, 'ML_wheel_pos', 10)
-        self.ML_wheel_pos_timer = self.create_timer(self.publish_rate, self.publish_ML_wheel_pos)
-
-        self.MR_wheel_pos_publisher = self.create_publisher(Float64, 'MR_wheel_pos', 10)
-        self.MR_wheel_pos_timer = self.create_timer(self.publish_rate, self.publish_MR_wheel_pos)
-
-        self.CA_flag_publisher = self.create_publisher(Int64, 'CA_flag', 10)
-        self.CA_flag_timer = self.create_timer(self.publish_rate, self.publish_CA_flag)
-
-        self.action_publisher = self.create_publisher(String, 'action', 10)
-        self.action_timer = self.create_timer(self.publish_rate, self.publish_action)
 
         self.imu_publisher = self.create_publisher(Imu, 'imu_data', 10)
         self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
@@ -178,8 +185,8 @@ class MEBotControlNode(Node):
     #update variables to be published        
     def update_data(self, data):
         #IMU
-        self.seat_angle_pitch = data[0]
-        self.seat_angle_roll = data[1]
+        self.IMU_pitch = data[0]
+        self.IMU_roll = data[1]
         self.accel_x = data[2]
         self.accel_y = data[3]
         self.accel_z = data[4]
@@ -189,33 +196,33 @@ class MEBotControlNode(Node):
         self.RC_pos = data[6]
         self.MR_pos = data[7]
         self.ML_pos = data[8]
+        self.ML_carriage_pos = data[9]
+        self.MR_carriage_pos = data[10]
+        self.ML_wheel_pos = data[11]
+        self.MR_wheel_pos = data[12]
 
         #loadcells 
-        self.FC_loadcell = data[9]
-        self.MR_loadcell = data[10]
-        self.ML_loadcell = data[11]
-
-        #wheel positions
-        self.ML_wheel_pos = data[12]
-        self.MR_wheel_pos = data[13]
+        self.FC_loadcell = data[13]
+        self.MR_loadcell = data[14]
+        self.ML_loadcell = data[15]
 
         #CA_flag
-        self.CA_flag = data[14]
+        self.CA_flag = data[16]
 
         #Apptime
-        self.appTime = data[15]
+        self.appTime = data[17]
 
         #velocity
         self.prev_speed_ML = self.current_speed_ML
-        self.current_speed_ML = data[16]
+        self.current_speed_ML = data[18]
         self.prev_speed_MR = self.current_speed_MR
-        self.current_speed_MR = data[17]
+        self.current_speed_MR = data[19]
 
     def publish_joint_states(self):
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.name = ['FC_joint', 'RC_joint', 'MR_joint', 'ML_joint', 'ML_wheel_joint', 'MR_wheel_joint']  
-        msg.position = [self.FC_pos, self.RC_pos, self.MR_pos, self.ML_pos, self.ML_wheel_pos, self.MR_wheel_pos]  #joint positions from encoders
+        msg.name = ['FC_joint', 'RC_joint', 'MR_joint', 'ML_joint','ML_carriage_joint', 'MR_carriage_joint', 'ML_wheel_joint', 'MR_wheel_joint']  
+        msg.position = [self.FC_pos, self.RC_pos, self.MR_pos, self.ML_pos, self.ML_carriage_pos, self.MR_carriage_pos, self.ML_wheel_pos, self.MR_wheel_pos]  #joint positions from encoders
         self.joint_state_publisher.publish(msg)
 
     def publish_tf_data(self):
@@ -263,19 +270,9 @@ class MEBotControlNode(Node):
         msg.data = float(self.accel_z) 
         self.accel_z_publisher.publish(msg)
 
-    def publish_seat_angle_pitch(self):
-        msg = Float64()
-        msg.data = float(self.seat_angle_pitch) 
-        self.seat_angle_pitch_publisher.publish(msg)
-    
-    def publish_seat_angle_roll(self):
-        msg = Float64() 
-        msg.data = float(self.seat_angle_roll) 
-        self.seat_angle_roll_publisher.publish(msg)
-
     def publish_tilt(self):
         msg = Float64()
-        self.tilt =math.acos(math.cos(self.seat_angle_pitch)*math.cos(self.seat_angle_roll)) * (180/math.pi)  #calculate tilt in degrees using pitch and roll
+        self.tilt =math.acos(math.cos(self.IMU_pitch)*math.cos(self.IMU_roll)) * (180/math.pi)  #calculate tilt in degrees using pitch and roll
         msg.data = float(self.tilt) 
         self.tilt_publisher.publish(msg)
     
@@ -314,6 +311,16 @@ class MEBotControlNode(Node):
         msg.data = float(self.ML_pos) 
         self.ML_pos_publisher.publish(msg)
     
+    def publish_ML_carriage_pos(self):
+        msg = Float64()
+        msg.data = float(self.ML_carriage_pos) 
+        self.ML_carriage_pos_publisher.publish(msg)
+    
+    def publish_MR_carriage_pos(self):
+        msg = Float64()
+        msg.data = float(self.MR_carriage_pos) 
+        self.MR_carriage_pos_publisher.publish(msg)
+
     def publish_FC_loadcell(self):      
         msg = Float64()
         msg.data = float(self.FC_loadcell) 
@@ -356,9 +363,9 @@ class MEBotControlNode(Node):
         msg.linear_acceleration.y = self.accel_y
         msg.linear_acceleration.z = self.accel_z
 
-        #convert seat angles from degrees to radians for orientation fields
-        pitch = math.radians(self.seat_angle_pitch)
-        roll = math.radians(self.seat_angle_roll)
+        #convert IMU angles from degrees to radians for orientation fields
+        pitch = math.radians(self.IMU_pitch)
+        roll = math.radians(self.IMU_roll)
         yaw = 0.0  #assuming yaw is 0 since it is not measured by the IMU
 
         #populate orientation fields using Euler angles (assuming yaw is 0)

@@ -527,37 +527,36 @@ void displaydata() {
   String PIout = "[";
 
   // IMU
-  PIout += "0,";
-  PIout += "0,";
-  PIout += "0,";
-  PIout += "0,";
-  PIout += "0,";
-  //
-  //    //current encoder counters
-  PIout += "0,";
-  PIout += "0,";
+  PIout += String(IMU.pitchf + 3.0) + ',';
+  PIout += String(IMU.rollf) + ',';
+  PIout += String(IMU.ax) + ','; 
+  PIout += String(IMU.ay) + ',';
+  PIout += String(IMU.az) + ',';
+  
+  //Encoders
+  PIout += String(FC.pos) + ',';
+  PIout += String(RC.pos) + ',';
+  PIout += String(MR.pos) + ',';
+  PIout += String(ML.pos) + ',';
   PIout += String(MR.carriage.pos) + ',';
   PIout += String(ML.carriage.pos) + ',';
-  //
-  //    //loadcell readings
-  PIout += "0,";
-  PIout += "0,";
-  PIout += "0,";
-  //
-  //
-  //    //wheel positions
-  PIout += "0,";
-  PIout += "0,";
-  //
-  //    //ca_flag
-  PIout += "0,";
-  //
-  //    //apptime
-  PIout += "0,";
-  //
-  //    //velocity
-  PIout += "0,";
-  PIout += "0,";
+  PIout += String(ML.wheel_pos) + ',';
+  PIout += String(MR.wheel_pos) + ',';
+
+  //loadcell readings
+  PIout += String(FC.loadcell) + ',';
+  PIout += String(MR.loadcell) + ',';
+  PIout += String(ML.loadcell) + ',';
+
+  //ca_flag
+  PIout += String(CA_flag) + ',';
+
+  //apptime
+  PIout += "0,"; //placeholder
+  
+  //velocity
+  PIout += String(ML.speed_drivef) + ','; 
+  PIout += String(MR.speed_drivef) + ',';
 
   // acceleration will be calculated in sensor_data_pub
   // tilt can be calculated using pitch and roll in sensor_data_pub

@@ -1,37 +1,37 @@
-import sys
-import serial
 import traceback
 import time
 from enum import Enum
 
+
 class Modes(Enum):
-    MANUAL = '1'
-    NORMAL = '2'
-    SELF_LEVELING = '3'
-    CARRIAGE = '5'
-    BUTTON = '6'
+    MANUAL = "1"
+    NORMAL = "2"
+    SELF_LEVELING = "3"
+    CARRIAGE = "5"
+    BUTTON = "6"
+
 
 class Actions(Enum):
-    NEUTRAL = 'z'
-    RAISE_UP = 'q'
-    LOWER_DOWN = 'a'
-    TILT_FORWARD = 's'
-    TILT_BACKWARD = 'w'
-    TILT_LEFT = 'r'
-    TILT_RIGHT = 'f'
-    CARRIAGE_FORWARD = 'u'
-    CARRIAGE_BACKWARD = 'j'
-    RESET = 'r'
-    CURB_ASCEND = 'c'
-    CURB_DESCEND = 'd'
+    NEUTRAL = "z"
+    RAISE_UP = "q"
+    LOWER_DOWN = "a"
+    TILT_FORWARD = "s"
+    TILT_BACKWARD = "w"
+    TILT_LEFT = "r"
+    TILT_RIGHT = "f"
+    CARRIAGE_FORWARD = "u"
+    CARRIAGE_BACKWARD = "j"
+    RESET = "r"
+    CURB_ASCEND = "c"
+    CURB_DESCEND = "d"
 
-class TeensyController():
+
+class TeensyController:
     def __init__(self, serial_port):
-
         self.ser = serial_port
         self.mode = Modes.NORMAL
         self.action = Actions.NEUTRAL
-    
+
     def send_mode_action(self):
         # send the mode to Teensy
         self.ser.write((f"{self.mode.value}\n").encode())
@@ -46,33 +46,33 @@ class TeensyController():
         except Exception as e:
             print("Error sending 'z' to Teensy:", e)
             traceback.print_exc()
-    
+
     def raise_up_pressed(self):
         try:
             self.mode = Modes.NORMAL
             self.action = Actions.RAISE_UP
 
             print("Raise Up Pressed")
-            
+
             self.send_mode_action()
 
         except Exception as e:
-                print("Error in raise_up_pressed:", e)
-                traceback.print_exc()
-    
+            print("Error in raise_up_pressed:", e)
+            traceback.print_exc()
+
     def lower_down_pressed(self):
         try:
             self.mode = Modes.NORMAL
             self.action = Actions.LOWER_DOWN
 
             print("Lower Down Pressed")
-            
+
             self.send_mode_action()
 
         except Exception as e:
-                print("Error lower_down_pressed:", e)
-                traceback.print_exc()
-    
+            print("Error lower_down_pressed:", e)
+            traceback.print_exc()
+
     def tilt_forward_pressed(self):
         try:
             self.mode = Modes.NORMAL
@@ -85,7 +85,7 @@ class TeensyController():
         except Exception as e:
             print("Error in tilt_forward_pressed:", e)
             traceback.print_exc()
-        
+
     def tilt_backward_pressed(self):
         try:
             self.mode = Modes.NORMAL
@@ -94,7 +94,7 @@ class TeensyController():
             print("Tilt Backward Pressed")
 
             self.send_mode_action()
-        
+
         except Exception as e:
             print("Error in tilt_backward_pressed:", e)
             traceback.print_exc()
@@ -111,7 +111,7 @@ class TeensyController():
         except Exception as e:
             print("Error in tilt_left_pressed:", e)
             traceback.print_exc()
-        
+
     def tilt_right_pressed(self):
         try:
             self.mode = Modes.NORMAL
@@ -132,7 +132,7 @@ class TeensyController():
             print("Carriage Forward Pressed")
 
             self.send_mode_action()
-            
+
             # NOTE: Temporary Solution
             # need to switch to a different mode so motors stop running
             # Look into a different solution but for now this works
@@ -143,7 +143,7 @@ class TeensyController():
         except Exception as e:
             print("Error in carriage_forward_pressed:", e)
             traceback.print_exc()
-        
+
     def carriage_backward_pressed(self):
         try:
             self.mode = Modes.CARRIAGE
@@ -174,8 +174,8 @@ class TeensyController():
             self.send_neutral_signal_to_teensy()
 
         except Exception as e:
-                print("Error in self_leveling_pressed:", e)
-                traceback.print_exc()
+            print("Error in self_leveling_pressed:", e)
+            traceback.print_exc()
 
     def curb_climb_automation(self):
         try:
@@ -207,10 +207,10 @@ class TeensyController():
             self.action = Actions.RESET
 
             self.send_mode_action()
-            
+
             time.sleep(3)
             self.send_neutral_signal_to_teensy()
-            
+
             # NOTE: Temporary Solution
             # need to switch to a different mode so the motors stop
             self.raise_up_pressed()
@@ -228,7 +228,7 @@ class TeensyController():
         except Exception as e:
             print("Error in reset:", e)
             traceback.print_exc()
-    
+
     def FC_UP_pressed(self):
         print("FC UP pressed")
         self.ser.write(("1" + "\n").encode())
@@ -283,6 +283,7 @@ class TeensyController():
         print("R CARRIAGE FORWARD pressed")
         self.ser.write(("1" + "\n").encode())
         self.ser.write(("y" + "\n").encode())
+
     def R_CARRIAGE_BACKWARD_pressed(self):
         print("R CARRIAGE BACKWARD pressed")
         self.ser.write(("1" + "\n").encode())

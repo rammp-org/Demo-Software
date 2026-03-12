@@ -1,10 +1,11 @@
-
 # ROS Node Specifications
+
 This document defines the specification for all of the ROS nodes for the April 2026 RAMMP Prototype demo. The collection of specifications linked from this document should always reflect the full system architecture.
 
 **NOTE: As you are developing, please ensure that any changes in you are making in the ROS specification are reflected in the docs below.**
 
 ## Node Specifications
+
 Each of these links define the specification for the various nodes in the ROS network..
 
 - [core/BehaviorTreeNode](./core/rammp_prototype_behavior/Behavior%20Tree%20Node.md)
@@ -16,7 +17,6 @@ Each of these links define the specification for the various nodes in the ROS ne
 - [hardware/ArmControlNode](./hardware/arm_driver/Arm%20Control%20Node.md)
 - [hardware/RammpPrototypeControlNode](./hardware/rammp_prototype_driver/MEBot%20Control%20Node.md)
 - [hardware/XBoxControllerNode](./hardware/xbox_controller_driver/XBox%20Controller%20Node.md)
-
 
 ## ROS Node Diagram
 
@@ -69,6 +69,7 @@ graph RL
     end
 
 ```
+
 ```mermaid
 %%{init: { 'theme': 'base', 'themeVariables': { 'primaryTextColor':'white', 'primaryBorderColor':'#ffffff'}}}%%
 

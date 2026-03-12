@@ -29,7 +29,7 @@ class MEBotControlNode(Node):
         self.serial_timer = self.create_timer(.001, self.read_serial_data)
 
         #publishing rate for all topics
-        self.publish_rate = .001  #should be the same rate as the serial data updates 
+        self.publish_rate = .001  
 
         #variables for publishing and csv logging
         self.appTime = 0.0
@@ -85,7 +85,7 @@ class MEBotControlNode(Node):
         self.tf_pubslisher = self.create_publisher(TFMessage, 'tf_data', 10)
         self.tf_timer = self.create_timer(self.publish_rate, self.publish_tf_data)
 
-        #publishers and timers
+        #publishers and timers for sensor and state data
         self.appTime_publisher = self.create_publisher(Float64, 'app_time', 10)
         self.appTime_timer = self.create_timer(self.publish_rate, self.publish_appTime)
 
@@ -219,10 +219,10 @@ class MEBotControlNode(Node):
         self.joint_state_publisher.publish(msg)
 
     def publish_tf_data(self):
-        msg = TFMessage()
-        transform = TransformStamped()
+        pass
+        # msg = TFMessage()
+        # transform = TransformStamped()
   
-        
     def publish_appTime(self):
         msg = Float64()
         msg.data = float(self.appTime) 

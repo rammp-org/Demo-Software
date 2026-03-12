@@ -78,22 +78,22 @@ Adafruit_BNO055 bno;
 
 EncoderContainer EContr;
 
-Caster RC = Caster(RC_LOADCELL_PIN, MOTOR_RC);
-Caster FC = Caster(FC_LOADCELL_PIN, MOTOR_FC);
+Caster RC = Caster(RC_LOADCELL_PIN, MOTOR_RC, false);
+Caster FC = Caster(FC_LOADCELL_PIN, MOTOR_FC, false);
 
 Carriage ML_Carriage = Carriage(MOTOR_ML_CARRIAGE, CARRIAGE_SW1_PIN,
-                                CARRIAGE_SW2_PIN, EContr.encoderf[11]);
+                                CARRIAGE_SW2_PIN, EContr.encoderf[11], true);
 
 // make ML and connect ML Carriage to it
 Wheel ML = Wheel(ML_LOADCELL_PIN, MOTOR_ML, ML_Carriage, EContr.encoderf[7],
-                 EContr.encoder[9]);
+                 EContr.encoder[9], false);
 
 Carriage MR_Carriage = Carriage(MOTOR_MR_CARRIAGE, CARRIAGE_SW3_PIN,
-                                CARRIAGE_SW4_PIN, EContr.encoderf[12]);
+                                CARRIAGE_SW4_PIN, EContr.encoderf[12], true);
 
 // make MR and connect MR Carriage to it
 Wheel MR = Wheel(MR_LOADCELL_PIN, MOTOR_MR, MR_Carriage, EContr.encoderf[5],
-                 EContr.encoderf[10]);
+                 EContr.encoderf[10], true);
 
 Timer timer;
 
@@ -566,7 +566,7 @@ void select_controller_based_on_model() {
     break;
 
   case 6:
-    motor_controller.manual_features();
+    // motor_controller.manual_features();
     break;
 
   default:
@@ -664,64 +664,79 @@ void set_mode(int num) {
 
 // select_controller_based_on_model helper functions
 void individual_motor_FF() {
-  // Serial.println("I'm here in Individual Motor FF");
+  Serial.println("I'm here in Individual Motor FF");
   CA_flag = 1;
   // ML UP
   if (action == 'q') {
+    Serial.println("ML_UP_1s");
     motor_controller.ML_UP_1s(); // raise ML up for 1 second
   }
   // ML DOWN
   else if (action == 'a') {
+    Serial.println("ML_DOWN_1s");
     motor_controller.ML_DOWN_1s();
   }
   // RC UP, activate relay 2 forward
   else if (action == 'w') {
+    Serial.println("RC_UP_1s");
     motor_controller.RC_UP_1s();
   }
   // RC DOWN, activate relay 2 reverse
   else if (action == 's') {
+    Serial.println("RC_DOWN_1s");
     motor_controller.RC_DOWN_1s();
   }
   // MR UP
   else if (action == 'e') {
+    Serial.println("MR_UP_1s");
     motor_controller.MR_UP_1s();
   }
   // MR DOWN
   else if (action == 'd') {
+    Serial.println("MR_DOWN_1s");
     motor_controller.MR_DOWN_1s();
   }
   // FC UP
   else if (action == 'r') {
+    Serial.println("FC_UP_1s");
     motor_controller.FC_UP_1s();
   }
   // FC DOWN
   else if (action == 'f') {
+    Serial.println("FC_DOWN_1s");
     motor_controller.FC_DOWN_1s();
   }
   // left carriage Forward
   else if (action == 't') {
+    Serial.println("LEFT_CARRIAGE_FORWARD_point4s");
     motor_controller.LEFT_CARRIAGE_FORWARD_point4s();
   }
   // left side carriage Backward
   else if (action == 'g') {
+    Serial.println("LEFT_CARRIAGE_BACKWARD_point4s");
     motor_controller.LEFT_CARRIAGE_BACKWARD_point4s();
   }
   // right side carriage Forward
   else if (action == 'y') {
+    Serial.println("RIGHT_CARRIAGE_FORWARD_point4s");
     motor_controller.RIGHT_CARRIAGE_FORWARD_point4s();
   }
   // right side carriage Backward
   else if (action == 'h') {
+    Serial.println("RIGHT_CARRIAGE_BACKWARD_point4s");
     motor_controller.RIGHT_CARRIAGE_BACKWARD_point4s();
   }
   // right side carriage Forward
   else if (action == 'j') {
+    Serial.println("BOTH_CARRIAGE_FORWARD_4s");
     motor_controller.BOTH_CARRIAGE_FORWARD_4s();
   }
   // right side carriage Backward
   else if (action == 'u') {
+    Serial.println("BOTH_CARRIAGE_BACKWARD_4s");
     motor_controller.BOTH_CARRIAGE_BACKWARD_4s();
   } else if (action == 'z') {
+    Serial.println("NO_MOVEMENT");
     motor_controller.NO_MOVEMENT();
     js.x = 0;
     js.y = 0;

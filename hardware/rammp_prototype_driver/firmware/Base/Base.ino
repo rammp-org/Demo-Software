@@ -326,14 +326,10 @@ void loop() {
 
   select_mode_based_on_GUI_command();
   select_controller_based_on_model();
-  motor_controller.set_positions_for_MWs_and_RC();
-  Serial.print("Action: ");
-  Serial.println(action);
 
   motor_controller.carriage_limits_switch();
-  Serial.print("Action: ");
-  Serial.println(action);
-  
+  motor_controller.set_positions_for_MWs_and_RC();
+
   displaydata();
 
   // Reduce delay to increase frequency. Currently set to 8ms

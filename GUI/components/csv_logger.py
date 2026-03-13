@@ -5,39 +5,62 @@ import os.path
 import csv
 from std_msgs.msg import Float64
 
+
 class csvLoggerNode(Node):
     def __init__(self):
         super().__init__("csv_logger_node")
-        
+
         self.logging = False
         self.filename = "sensor_dataLogging.csv"
         self.writer = None
         self.csvfile = None
-        self.headers = [ 'Timestamp',
-                    'Time to complete command (s)', #maybe default to 0 if not used, if used, first number is which command being timed
-                    'Chair speed (m/s)',
-                    'Chair acceleration (m/s^2)',
-                    'Accelerometer x (m/s^2)',
-                    'Accelerometer y (m/s^2)',
-                    'Accelerometer z (m/s^2)',
-                    'Seat angle pitch (degrees)',
-                    'Seat angle roll (degrees)',
-                    'Tilt (degrees)',
-                    'Measure height (m)']
+        self.headers = [
+            "Timestamp",
+            "Time to complete command (s)",  # maybe default to 0 if not used, if used, first number is which command being timed
+            "Chair speed (m/s)",
+            "Chair acceleration (m/s^2)",
+            "Accelerometer x (m/s^2)",
+            "Accelerometer y (m/s^2)",
+            "Accelerometer z (m/s^2)",
+            "Seat angle pitch (degrees)",
+            "Seat angle roll (degrees)",
+            "Tilt (degrees)",
+            "Measure height (m)",
+        ]
 
-        #subscriptions to sensor data topics
-        self.appTime_sub = self.create_subscription(Float64, 'app_time', self.AppTime_callback, 10)
-        self.speed_sub = self.create_subscription(Float64, 'chair_speed', self.speed_callback, 10)
-        self.acceleration_sub = self.create_subscription(Float64, 'chair_acceleration', self.acceleration_callback, 10)
-        self.accel_x_sub = self.create_subscription(Float64, 'accelerometer_x', self.accel_x_callback, 10)
-        self.accel_y_sub = self.create_subscription(Float64, 'accelerometer_y', self.accel_y_callback, 10)
-        self.accel_z_sub = self.create_subscription(Float64, 'accelerometer_z', self.accel_z_callback, 10)
-        self.seat_angle_pitch_sub = self.create_subscription(Float64, 'seat_angle_pitch', self.seat_angle_pitch_callback, 10)
-        self.seat_angle_roll_sub = self.create_subscription(Float64, 'seat_angle_roll', self.seat_angle_roll_callback, 10)
-        self.tilt_sub = self.create_subscription(Float64, 'tilt', self.tilt_callback, 10)
-        self.measure_height_sub = self.create_subscription(Float64, 'measure_height', self.measure_height_callback, 10)
+        # subscriptions to sensor data topics
+        self.appTime_sub = self.create_subscription(
+            Float64, "app_time", self.AppTime_callback, 10
+        )
+        self.speed_sub = self.create_subscription(
+            Float64, "chair_speed", self.speed_callback, 10
+        )
+        self.acceleration_sub = self.create_subscription(
+            Float64, "chair_acceleration", self.acceleration_callback, 10
+        )
+        self.accel_x_sub = self.create_subscription(
+            Float64, "accelerometer_x", self.accel_x_callback, 10
+        )
+        self.accel_y_sub = self.create_subscription(
+            Float64, "accelerometer_y", self.accel_y_callback, 10
+        )
+        self.accel_z_sub = self.create_subscription(
+            Float64, "accelerometer_z", self.accel_z_callback, 10
+        )
+        self.seat_angle_pitch_sub = self.create_subscription(
+            Float64, "seat_angle_pitch", self.seat_angle_pitch_callback, 10
+        )
+        self.seat_angle_roll_sub = self.create_subscription(
+            Float64, "seat_angle_roll", self.seat_angle_roll_callback, 10
+        )
+        self.tilt_sub = self.create_subscription(
+            Float64, "tilt", self.tilt_callback, 10
+        )
+        self.measure_height_sub = self.create_subscription(
+            Float64, "measure_height", self.measure_height_callback, 10
+        )
 
-        #variables to store data for logging, updated by callbacks
+        # variables to store data for logging, updated by callbacks
         self.appTime = 0.0
         self.speed = 0.0
         self.acceleration = 0.0
@@ -49,16 +72,17 @@ class csvLoggerNode(Node):
         self.tilt = 0.0
         self.measure_height = 0.0
 
-    #user window functions 
+    # user window functions
     def start(self):
         if self.logging:
             return  # Already logging, do nothing
-        
-        
+
         file_exists = os.path.isfile(self.filename)
 
         # open file
-        self.csvfile = open(self.filename, 'a', newline='', buffering=1)  # Open in append mode with line buffering
+        self.csvfile = open(
+            self.filename, "a", newline="", buffering=1
+        )  # Open in append mode with line buffering
         self.writer = csv.writer(self.csvfile)
 
         if not file_exists:
@@ -74,40 +98,62 @@ class csvLoggerNode(Node):
             self.csvfile.close()
         self.writer = None
         self.csvfile = None
-    
+
     def log(self):
         if not self.logging or self.writer is None:
             return
-        
+
         timestamp = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
         # timestamp = self.get_clock().now().nanoseconds / 1e9 #don't know yet if I have to use ros time or can just use datetime, but this is how to get ros time in seconds
-        data = [timestamp, self.appTime, self.speed, self.acceleration, self.accel_x, self.accel_y, self.accel_z, self.seat_angle_pitch, self.seat_angle_roll, self.tilt, self.measure_height]
+        data = [
+            timestamp,
+            self.appTime,
+            self.speed,
+            self.acceleration,
+            self.accel_x,
+            self.accel_y,
+            self.accel_z,
+            self.seat_angle_pitch,
+            self.seat_angle_roll,
+            self.tilt,
+            self.measure_height,
+        ]
         self.writer.writerow(data)
 
     def AppTime_callback(self, msg):
         self.appTime = msg.data
+
     def speed_callback(self, msg):
         self.speed = msg.data
+
     def acceleration_callback(self, msg):
         self.acceleration = msg.data
+
     def accel_x_callback(self, msg):
         self.accel_x = msg.data
+
     def accel_y_callback(self, msg):
         self.accel_y = msg.data
+
     def accel_z_callback(self, msg):
         self.accel_z = msg.data
+
     def seat_angle_pitch_callback(self, msg):
         self.seat_angle_pitch = msg.data
+
     def seat_angle_roll_callback(self, msg):
-        self.seat_angle_roll = msg.data 
+        self.seat_angle_roll = msg.data
+
     def tilt_callback(self, msg):
         self.tilt = msg.data
-    def measure_height_callback(self, msg): 
+
+    def measure_height_callback(self, msg):
         self.measure_height = msg.data
+
 
 def main(args=None):
     rclpy.init(args=args)
-    node = csvLoggerNode() 
+    node = csvLoggerNode()
     rclpy.spin(node)
     rclpy.shutdown()
 

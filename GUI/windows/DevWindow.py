@@ -1,10 +1,9 @@
 from PyQt5.QtWidgets import QMainWindow, QWidget, QMenuBar, QStatusBar
-from PyQt5.QtGui import QColor
 from PyQt5.QtCore import QRect, QMetaObject, QCoreApplication
 from components.Buttons import BaseButton
 
-class DevWindow(QMainWindow):
 
+class DevWindow(QMainWindow):
     def __init__(self, stacked_widget, teensy_controller):
         super().__init__()
         self.stacked_widget = stacked_widget
@@ -47,17 +46,33 @@ class DevWindow(QMainWindow):
         self.rc_up_btn = BaseButton(self.centralwidget, geometry=(210, 370, 161, 81))
         self.rc_up_btn.clicked.connect(self.teensy_controller.RC_UP_pressed)
 
-        self.lc_forward_btn = BaseButton(self.centralwidget, geometry=(245, 150, 131, 81))
-        self.lc_forward_btn.clicked.connect(self.teensy_controller.L_CARRIAGE_FORWARD_pressed)
+        self.lc_forward_btn = BaseButton(
+            self.centralwidget, geometry=(245, 150, 131, 81)
+        )
+        self.lc_forward_btn.clicked.connect(
+            self.teensy_controller.L_CARRIAGE_FORWARD_pressed
+        )
 
-        self.lc_backward_btn = BaseButton(self.centralwidget, geometry=(245, 270, 131, 81))
-        self.lc_backward_btn.clicked.connect(self.teensy_controller.L_CARRIAGE_BACKWARD_pressed)
+        self.lc_backward_btn = BaseButton(
+            self.centralwidget, geometry=(245, 270, 131, 81)
+        )
+        self.lc_backward_btn.clicked.connect(
+            self.teensy_controller.L_CARRIAGE_BACKWARD_pressed
+        )
 
-        self.rc_forward_btn = BaseButton(self.centralwidget, geometry=(405, 150, 131, 81))
-        self.rc_forward_btn.clicked.connect(self.teensy_controller.R_CARRIAGE_FORWARD_pressed)
+        self.rc_forward_btn = BaseButton(
+            self.centralwidget, geometry=(405, 150, 131, 81)
+        )
+        self.rc_forward_btn.clicked.connect(
+            self.teensy_controller.R_CARRIAGE_FORWARD_pressed
+        )
 
-        self.rc_backward_btn = BaseButton(self.centralwidget, geometry=(405, 270, 131, 81))
-        self.rc_backward_btn.clicked.connect(self.teensy_controller.R_CARRIAGE_BACKWARD_pressed)
+        self.rc_backward_btn = BaseButton(
+            self.centralwidget, geometry=(405, 270, 131, 81)
+        )
+        self.rc_backward_btn.clicked.connect(
+            self.teensy_controller.R_CARRIAGE_BACKWARD_pressed
+        )
 
         self.menubar = QMenuBar(self)
         self.menubar.setGeometry(QRect(0, 0, 800, 20))

@@ -1,6 +1,7 @@
-uint8 PRESET_HOME    = 0
-uint8 PRESET_RETRACT = 1
-uint8 PRESET_ZERO    = 2
+uint8 PRESET_HOME            = 0
+uint8 PRESET_RETRACT         = 1
+uint8 PRESET_ZERO            = 2
+uint8 PRESET_CUP_STABILIZE   = 3
 
 uint8 preset
 ---

@@ -47,7 +47,7 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 // IMU_Class IMU = IMU_Class(bno);
 EncoderContainer EContr;
 Timer timer;
-CommandParser parser(5000);
+CommandParser parser(60000);
 
 // Initialize RoboClaw Controllers
 RoboClaw roboclaw_carriages(&Serial3, 10000);   // Serial3
@@ -75,6 +75,7 @@ void updateTelemetry() {
 }
 
 // Helper to send telemetry
+// TODO: Eventually all 12 encoders will need to be sent out
 void sendTelemetry() {
     Serial.print("TELEMETRY,");
     Serial.print(millis()); Serial.print(",");
@@ -120,7 +121,7 @@ void loop() {
     // 1. Read Sensors
     EContr.retrieve_readings();
     
-    // Map encoders to motor positions (dummy mappings for now, logic to be adjusted)
+    // TODO @alex : verify map encoders to motor positions (I took a guess, but I'm unsure)
     rc.updateSensorData(EContr.encoderf[3], 0.0f);
     fc.updateSensorData(EContr.encoderf[2], 0.0f);
     ml.updateSensorData(EContr.encoderf[7], 0.0f);

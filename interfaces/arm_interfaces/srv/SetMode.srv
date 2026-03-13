@@ -8,9 +8,8 @@ uint8 MODE_ORDER_DRINK   = 3
 uint8 MODE_DRINKING      = 4
 uint8 MODE_CUP_STABILIZE = 5
 uint8 MODE_MANUAL        = 6
-uint8 MODE_RETRACTING    = 7
-uint8 MODE_HOMING        = 8
-uint8 MODE_ERROR         = 9
+uint8 MODE_PRESET_IN_MOTION  = 7
+uint8 MODE_ERROR             = 8
 
 # Request message
 uint8 mode

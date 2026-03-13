@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QStatusBar,
     QMessageBox,
+    QFrame,
 )
 from PyQt6.QtCore import Qt, QTimer
 
@@ -23,6 +24,9 @@ from ..serial_driver.serial_handler import SerialHandler
 from .plot_widget import PlotWidget
 from .control_panel import ControlPanel
 from .serial_console import SerialConsole
+from .state_indicator import StateIndicator
+from .encoder_overview import EncoderOverview
+from .theme import get_application_stylesheet, THEME
 
 
 class MainWindow(QMainWindow):
@@ -46,6 +50,9 @@ class MainWindow(QMainWindow):
         self._serial_handler.connection_changed.connect(self._on_connection_changed)
         self._serial_handler.error_occurred.connect(self._on_error)
 
+        # Apply Catppuccin theme
+        self.setStyleSheet(get_application_stylesheet())
+
         self._setup_ui()
         self._setup_status_bar()
 
@@ -62,9 +69,15 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
         main_layout = QVBoxLayout(central_widget)
+        main_layout.setSpacing(4)
 
-        # Top bar - connection and joint selection
+        # Top bar - connection, joint selection, and state indicator
         main_layout.addWidget(self._create_top_bar())
+
+        # Encoder overview bar
+        self._encoder_overview = EncoderOverview(self._data_store)
+        self._encoder_overview.joint_selected.connect(self._on_encoder_bar_clicked)
+        main_layout.addWidget(self._encoder_overview)
 
         # Main content area with vertical splitter (plot+console on left, controls on right)
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -159,6 +172,11 @@ class MainWindow(QMainWindow):
 
         layout.addStretch()
 
+        # State indicator (right side of top bar)
+        self._state_indicator = StateIndicator()
+        self._data_store.state_changed.connect(self._state_indicator.set_state)
+        layout.addWidget(self._state_indicator)
+
         return widget
 
     def _setup_status_bar(self):
@@ -246,8 +264,16 @@ class MainWindow(QMainWindow):
         self._data_store.selected_joint = joint_id
         self._update_joint_description()
 
+        # Sync encoder overview selection
+        self._encoder_overview.set_selected_joint(joint_id)
+
         # Clear plot data for new joint
         self._data_store.clear_joint(joint_id)
+
+    def _on_encoder_bar_clicked(self, joint_id: int):
+        """Handle encoder bar click to select joint."""
+        # Update joint combo box (0-indexed)
+        self._joint_combo.setCurrentIndex(joint_id - 1)
 
     def _update_joint_description(self):
         """Update the joint description label."""

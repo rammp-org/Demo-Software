@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QTimer
 
 from ..data.data_store import DataStore
+from .theme import get_plot_colors, THEME
 
 
 class PlotWidget(QWidget):
@@ -125,46 +126,67 @@ class PlotWidget(QWidget):
 
         # Graphics layout for stacked plots
         self._graphics_layout = pg.GraphicsLayoutWidget()
-        self._graphics_layout.setBackground("w")
+        colors = get_plot_colors()
+        self._graphics_layout.setBackground(colors["background"])
         layout.addWidget(self._graphics_layout)
 
     def _setup_plots(self):
         """Set up the three stacked pyqtgraph plots."""
+        colors = get_plot_colors()
+
+        # Common plot styling
+        label_style = {"color": THEME.text, "font-size": "10pt"}
+        title_style = {"color": THEME.text, "size": "11pt"}
+
         # Position plot (top)
         self._pos_plot = self._graphics_layout.addPlot(row=0, col=0)
-        self._pos_plot.setLabel("left", "Position", units="cm")
-        self._pos_plot.setTitle("Position vs Target")
+        self._pos_plot.setLabel("left", "Position", units="cm", **label_style)
+        self._pos_plot.setTitle("Position vs Target", **title_style)
         self._pos_plot.showGrid(x=True, y=True, alpha=0.3)
-        self._pos_plot.addLegend(offset=(10, 10))
+        self._pos_plot.getAxis("left").setPen(pg.mkPen(color=THEME.overlay0))
+        self._pos_plot.getAxis("left").setTextPen(pg.mkPen(color=THEME.text))
+        self._pos_plot.getAxis("bottom").setPen(pg.mkPen(color=THEME.overlay0))
+        self._pos_plot.addLegend(
+            offset=(10, 10), brush=THEME.surface0, pen=THEME.surface1
+        )
 
         # Position curves
         self._position_curve = self._pos_plot.plot(
-            pen=pg.mkPen(color="b", width=2), name="Position"
+            pen=pg.mkPen(color=colors["position"], width=2), name="Position"
         )
         self._target_curve = self._pos_plot.plot(
-            pen=pg.mkPen(color="r", width=2, style=pg.QtCore.Qt.PenStyle.DashLine),
+            pen=pg.mkPen(
+                color=colors["target"], width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+            ),
             name="Target",
         )
 
         # Velocity plot (middle)
         self._vel_plot = self._graphics_layout.addPlot(row=1, col=0)
-        self._vel_plot.setLabel("left", "Velocity", units="cm/s")
-        self._vel_plot.setTitle("Velocity")
+        self._vel_plot.setLabel("left", "Velocity", units="cm/s", **label_style)
+        self._vel_plot.setTitle("Velocity", **title_style)
         self._vel_plot.showGrid(x=True, y=True, alpha=0.3)
+        self._vel_plot.getAxis("left").setPen(pg.mkPen(color=THEME.overlay0))
+        self._vel_plot.getAxis("left").setTextPen(pg.mkPen(color=THEME.text))
+        self._vel_plot.getAxis("bottom").setPen(pg.mkPen(color=THEME.overlay0))
 
         self._velocity_curve = self._vel_plot.plot(
-            pen=pg.mkPen(color=(0, 150, 0), width=2), name="Velocity"
+            pen=pg.mkPen(color=colors["velocity"], width=2), name="Velocity"
         )
 
         # PWM plot (bottom)
         self._pwm_plot = self._graphics_layout.addPlot(row=2, col=0)
-        self._pwm_plot.setLabel("left", "PWM")
-        self._pwm_plot.setLabel("bottom", "Time", units="s")
-        self._pwm_plot.setTitle("PWM Output")
+        self._pwm_plot.setLabel("left", "PWM", **label_style)
+        self._pwm_plot.setLabel("bottom", "Time", units="s", **label_style)
+        self._pwm_plot.setTitle("PWM Output", **title_style)
         self._pwm_plot.showGrid(x=True, y=True, alpha=0.3)
+        self._pwm_plot.getAxis("left").setPen(pg.mkPen(color=THEME.overlay0))
+        self._pwm_plot.getAxis("left").setTextPen(pg.mkPen(color=THEME.text))
+        self._pwm_plot.getAxis("bottom").setPen(pg.mkPen(color=THEME.overlay0))
+        self._pwm_plot.getAxis("bottom").setTextPen(pg.mkPen(color=THEME.text))
 
         self._pwm_curve = self._pwm_plot.plot(
-            pen=pg.mkPen(color=(150, 0, 150), width=2), name="PWM"
+            pen=pg.mkPen(color=colors["pwm"], width=2), name="PWM"
         )
 
         # Link X axes so they scroll together

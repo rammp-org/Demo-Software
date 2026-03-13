@@ -17,6 +17,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QTextCursor, QFont
 
+from .theme import THEME, get_console_stylesheet
+
 
 class SerialConsole(QWidget):
     """
@@ -104,13 +106,7 @@ class SerialConsole(QWidget):
         self._text_edit = QTextEdit()
         self._text_edit.setReadOnly(True)
         self._text_edit.setFont(QFont("Courier New", 9))
-        self._text_edit.setStyleSheet("""
-            QTextEdit {
-                background-color: #1e1e1e;
-                color: #d4d4d4;
-                border: 1px solid #3c3c3c;
-            }
-        """)
+        self._text_edit.setStyleSheet(get_console_stylesheet())
         layout.addWidget(self._text_edit)
 
         # Raw Command Input

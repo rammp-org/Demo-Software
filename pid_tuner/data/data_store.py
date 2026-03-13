@@ -145,10 +145,12 @@ class DataStore(QObject):
     Signals:
         data_updated: Emitted when new data is available
         simulation_changed: Emitted when simulation mode changes
+        state_changed: Emitted when system state changes
     """
 
     data_updated = pyqtSignal(int)  # Emits joint_id that was updated
     simulation_changed = pyqtSignal(bool)  # Emitted when simulation mode changes
+    state_changed = pyqtSignal(int)  # Emitted when system state changes
 
     NUM_JOINTS = 6
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
@@ -162,6 +164,7 @@ class DataStore(QObject):
         ]
         self._selected_joint: int = 1
         self._simulation_mode: bool = False
+        self._current_state: int = 0  # System state from telemetry
 
         # Simulation timer for generating synthetic data points
         self._simulation_timer = QTimer(self)
@@ -200,6 +203,11 @@ class DataStore(QObject):
         if 1 <= joint_id <= self.NUM_JOINTS:
             self._selected_joint = joint_id
 
+    @property
+    def current_state(self) -> int:
+        """Get the current system state."""
+        return self._current_state
+
     def get_joint(self, joint_id: int) -> Optional[JointData]:
         """Get JointData for a specific joint (1-indexed)."""
         if 1 <= joint_id <= self.NUM_JOINTS:
@@ -217,6 +225,12 @@ class DataStore(QObject):
         Args:
             data: Parsed telemetry data from Teensy (positions, velocities, pwms)
         """
+        # Update system state
+        if data.state != self._current_state:
+            self._current_state = data.state
+            self.state_changed.emit(data.state)
+
+        # Update joint data
         for i in range(min(len(data.position_values), self.NUM_JOINTS)):
             position = data.position_values[i]
             velocity = data.velocity_values[i] if i < len(data.velocity_values) else 0.0

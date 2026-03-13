@@ -20,6 +20,7 @@ import math
 
 from ..data.data_store import DataStore
 from ..serial_driver.serial_handler import SerialHandler
+from .theme import THEME
 
 
 class ControlPanel(QWidget):
@@ -211,21 +212,25 @@ class ControlPanel(QWidget):
         # Set Zero button
         self._set_zero_btn = QPushButton("Set Zero")
         self._set_zero_btn.clicked.connect(self._on_set_zero)
-        self._set_zero_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self._set_zero_btn.setStyleSheet(
+            f"background-color: {THEME.green}; color: {THEME.crust};"
+        )
         quick_layout.addWidget(self._set_zero_btn)
 
         # Disable Motors button
         self._disable_motors_btn = QPushButton("ESTOP (z)")
         self._disable_motors_btn.clicked.connect(self._on_disable_motors)
         self._disable_motors_btn.setStyleSheet(
-            "background-color: #f44336; color: white;"
+            f"background-color: {THEME.red}; color: {THEME.crust};"
         )
         quick_layout.addWidget(self._disable_motors_btn)
 
         # Clear ESTOP button
         self._clear_estop_btn = QPushButton("Clear ESTOP (c)")
         self._clear_estop_btn.clicked.connect(self._on_clear_estop)
-        self._clear_estop_btn.setStyleSheet("background-color: #ff9800; color: white;")
+        self._clear_estop_btn.setStyleSheet(
+            f"background-color: {THEME.peach}; color: {THEME.crust};"
+        )
         quick_layout.addWidget(self._clear_estop_btn)
 
         layout.addLayout(quick_layout)

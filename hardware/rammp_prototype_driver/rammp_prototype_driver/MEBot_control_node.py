@@ -8,10 +8,7 @@ import math
 from tf2_msgs.msg import TFMessage
 from sensor_msgs.msg import JointState
 from std_srvs.srv import SetBool
-from interfaces.rammp_prototype_interfaces.msg import encoder
-from interfaces.rammp_prototype_interfaces.msg import loadcell
-from interfaces.rammp_prototype_interfaces.msg import states
-from interfaces.rammp_prototype_interfaces.msg import VelAcc
+from interfaces.rammp_prototype_interfaces.msg import RAMMPPrototypeState
 
 
 class MEBotControlNode(Node):
@@ -111,28 +108,36 @@ class MEBotControlNode(Node):
         self.tf_pubslisher = self.create_publisher(TFMessage, "tf_data", 10)
         self.tf_timer = self.create_timer(self.publish_rate, self.publish_tf_data)
 
-        # publishers and timers for sensor and state data
-        # self.imu_publisher = self.create_publisher(imu_data, "imu_data", 10)
-        # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
-
-        self.encoder_publisher = self.create_publisher(encoder, "encoder_data", 10)
-        self.encoder_timer = self.create_timer(
-            self.publish_rate, self.publish_encoder_data
+        # main publisher
+        self.RAMMPPrototypeState_publisher = self.create_publisher(
+            RAMMPPrototypeState, "rammp_prototype_state", 10
+        )
+        self.RAMMPPrototypeState_timer = self.create_timer(
+            self.publish_rate, self.publish_RAMMPPrototypeState
         )
 
-        self.loadCell_publisher = self.create_publisher(loadcell, "loadcell_data", 10)
-        self.loadCell_timer = self.create_timer(
-            self.publish_rate, self.publish_loadcell_data
-        )
+        # # publishers and timers for sensor and state data
+        # # self.imu_publisher = self.create_publisher(imu_data, "imu_data", 10)
+        # # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
 
-        self.state_publisher = self.create_publisher(states, "state_data", 10)
-        self.state_timer = self.create_timer(self.publish_rate, self.publish_state_data)
+        # self.encoder_publisher = self.create_publisher(encoder, "encoder_data", 10)
+        # self.encoder_timer = self.create_timer(
+        #     self.publish_rate, self.publish_encoder_data
+        # )
+
+        # self.loadCell_publisher = self.create_publisher(loadcell, "loadcell_data", 10)
+        # self.loadCell_timer = self.create_timer(
+        #     self.publish_rate, self.publish_loadcell_data
+        # )
+
+        # self.state_publisher = self.create_publisher(states, "state_data", 10)
+        # self.state_timer = self.create_timer(self.publish_rate, self.publish_state_data)
 
         self.appTime_publisher = self.create_publisher(Float64, "app_time", 10)
         self.appTime_timer = self.create_timer(self.publish_rate, self.publish_appTime)
 
-        self.vel_acc_publisher = self.create_publisher(VelAcc, "vel_acc", 10)
-        self.vel_acc_timer = self.create_timer(self.publish_rate, self.publish_vel_acc)
+        # self.vel_acc_publisher = self.create_publisher(VelAcc, "vel_acc", 10)
+        # self.vel_acc_timer = self.create_timer(self.publish_rate, self.publish_vel_acc)
 
         # self.speed_ML_publisher = self.create_publisher(Float64, "chair_speed_ML", 10)
         # self.speed_ML_timer = self.create_timer(self.publish_rate, self.publish_speed_ML)
@@ -146,12 +151,12 @@ class MEBotControlNode(Node):
         # self.acceleration_MR_publisher = self.create_publisher(Float64, "chair_acceleration_MR", 10)
         # self.acceleration_MR_timer = self.create_timer(self.publish_rate, self.publish_acceleration_MR)
 
-        self.measure_height_publisher = self.create_publisher(
-            Float64, "measure_height", 10
-        )
-        self.measure_height_timer = self.create_timer(
-            self.publish_rate, self.publish_measure_height
-        )
+        # self.measure_height_publisher = self.create_publisher(
+        #     Float64, "measure_height", 10
+        # )
+        # self.measure_height_timer = self.create_timer(
+        #     self.publish_rate, self.publish_measure_height
+        # )
 
         self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
@@ -237,64 +242,55 @@ class MEBotControlNode(Node):
         # msg = TFMessage()
         # transform = TransformStamped()
 
-    def publish_appTime(self):
-        msg = Float64()
-        msg.data = float(self.appTime)
-        self.appTime_publisher.publish(msg)
+    def publish_RAMMPPrototypeState(self):
+        msg = RAMMPPrototypeState()
+        msg.header.stamp = self.get_clock().now().to_msg()
 
-    def publish_vel_acc(self):
-        msg = VelAcc()
-        msg.ML_vel = self.current_speed_ML
-        msg.MR_vel = self.current_speed_MR
-        msg.ML_acc = (
-            self.current_speed_ML - self.prev_speed_ML
-        )  # calculate acceleration using change in speed over time (0.1s between serial data updates)
-        msg.MR_acc = (
-            self.current_speed_MR - self.prev_speed_MR
-        )  # calculate acceleration using change in speed over time (0.1s between serial data updates)
-        self.vel_acc_publisher.publish(msg)
+        msg.IMU_pitch = self.IMU_pitch
+        msg.IMU_roll = self.IMU_roll
+        msg.accel_x = self.accel_x
+        msg.accel_y = self.accel_y
+        msg.accel_z = self.accel_z
+        msg.tilt = math.acos(math.cos(self.IMU_pitch) * math.cos(self.IMU_roll)) * (
+            180 / math.pi
+        )  # calculate tilt in degrees using pitch and roll
 
-    # def publish_imu_data(self):
-    #     msg = imu_data()
-    #     msg.pitch = self.IMU_pitch
-    #     msg.roll = self.IMU_roll
-    #     msg.ax = self.accel_x
-    #     msg.ay = self.accel_y
-    #     msg.az = self.accel_z
-    #     msg.tilt = math.acos(math.cos(self.IMU_pitch) * math.cos(self.IMU_roll)) * (
-    #         180 / math.pi
-    #     )  # calculate tilt in degrees using pitch and roll
-    #     self.imu_publisher.publish(msg)
+        # Encoders
+        msg.FC_enc = self.FC_pos
+        msg.FR_enc = self.RC_pos
+        msg.MR_enc = self.MR_pos
+        msg.ML_enc = self.ML_pos
+        msg.ML_carr_enc = self.ML_carriage_pos
+        msg.MR_carr_enc = self.MR_carriage_pos
+        msg.ML_wheel_enc = self.ML_wheel_pos
+        msg.MR_wheel_enc = self.MR_wheel_pos
 
-    def publish_measure_height(self):
-        msg = Float64()
-        msg.data = float(self.measure_height)
-        self.measure_height_publisher.publish(msg)
+        # loadcells
+        msg.FC_lc = self.FC_loadcell
+        msg.MR_lc = self.MR_loadcell
+        msg.ML_lc = self.ML_loadcell
 
-    def publish_encoder_data(self):
-        msg = encoder()
-        msg.FC = self.FC_pos
-        msg.FR = self.RC_pos
-        msg.MR = self.MR_pos
-        msg.ML = self.ML_pos
-        msg.ML_carr = self.ML_carriage_pos
-        msg.MR_carr = self.MR_carriage_pos
-        msg.ML_wheel = self.ML_wheel_pos
-        msg.MR_wheel = self.MR_wheel_pos
-        self.encoder_publisher.publish(msg)
-
-    def publish_loadcell_data(self):
-        msg = loadcell()
-        msg.FC = self.FC_loadcell
-        msg.MR = self.MR_loadcell
-        msg.ML = self.ML_loadcell
-        self.loadCell_publisher.publish(msg)
-
-    def publish_state_data(self):
-        msg = states()
+        # CA_flag and action
         msg.ca_flag = int(self.CA_flag)
         msg.action = str(self.action)
-        self.state_publisher.publish(msg)
+
+        # app time
+        msg.app_time = float(self.appTime)
+
+        # velocity and acceleration
+        msg.ML_vel = float(self.current_speed_ML)
+        msg.MR_vel = float(self.current_speed_MR)
+        msg.ML_acc = float(
+            self.current_speed_ML - self.prev_speed_ML
+        )  # calculate acceleration using change in speed over time (0.1s between serial data updates)
+        msg.MR_acc = float(
+            self.current_speed_MR - self.prev_speed_MR
+        )  # calculate acceleration using change in speed over time (0.1s between serial data updates)
+
+        # measure height
+        msg.measure_height = float(self.measure_height)
+
+        self.RAMMPPrototypeState_publisher.publish(msg)
 
     def publish_imu_data(self):
         msg = Imu()

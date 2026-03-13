@@ -2,7 +2,6 @@ import rclpy
 from rclpy.node import Node
 import serial
 import ast
-from std_msgs.msg import Float64
 from sensor_msgs.msg import Imu
 import math
 from tf2_msgs.msg import TFMessage
@@ -108,55 +107,13 @@ class MEBotControlNode(Node):
         self.tf_pubslisher = self.create_publisher(TFMessage, "tf_data", 10)
         self.tf_timer = self.create_timer(self.publish_rate, self.publish_tf_data)
 
-        # main publisher
+        # state publisher
         self.RAMMPPrototypeState_publisher = self.create_publisher(
             RAMMPPrototypeState, "rammp_prototype_state", 10
         )
         self.RAMMPPrototypeState_timer = self.create_timer(
             self.publish_rate, self.publish_RAMMPPrototypeState
         )
-
-        # # publishers and timers for sensor and state data
-        # # self.imu_publisher = self.create_publisher(imu_data, "imu_data", 10)
-        # # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
-
-        # self.encoder_publisher = self.create_publisher(encoder, "encoder_data", 10)
-        # self.encoder_timer = self.create_timer(
-        #     self.publish_rate, self.publish_encoder_data
-        # )
-
-        # self.loadCell_publisher = self.create_publisher(loadcell, "loadcell_data", 10)
-        # self.loadCell_timer = self.create_timer(
-        #     self.publish_rate, self.publish_loadcell_data
-        # )
-
-        # self.state_publisher = self.create_publisher(states, "state_data", 10)
-        # self.state_timer = self.create_timer(self.publish_rate, self.publish_state_data)
-
-        self.appTime_publisher = self.create_publisher(Float64, "app_time", 10)
-        self.appTime_timer = self.create_timer(self.publish_rate, self.publish_appTime)
-
-        # self.vel_acc_publisher = self.create_publisher(VelAcc, "vel_acc", 10)
-        # self.vel_acc_timer = self.create_timer(self.publish_rate, self.publish_vel_acc)
-
-        # self.speed_ML_publisher = self.create_publisher(Float64, "chair_speed_ML", 10)
-        # self.speed_ML_timer = self.create_timer(self.publish_rate, self.publish_speed_ML)
-
-        # self.speed_MR_publisher = self.create_publisher(Float64, "chair_speed_MR", 10)
-        # self.speed_MR_timer = self.create_timer(self.publish_rate, self.publish_speed_MR)
-
-        # self.acceleration_ML_publisher = self.create_publisher(Float64, "chair_acceleration_ML", 10)
-        # self.acceleration_ML_timer = self.create_timer(self.publish_rate, self.publish_acceleration_ML)
-
-        # self.acceleration_MR_publisher = self.create_publisher(Float64, "chair_acceleration_MR", 10)
-        # self.acceleration_MR_timer = self.create_timer(self.publish_rate, self.publish_acceleration_MR)
-
-        # self.measure_height_publisher = self.create_publisher(
-        #     Float64, "measure_height", 10
-        # )
-        # self.measure_height_timer = self.create_timer(
-        #     self.publish_rate, self.publish_measure_height
-        # )
 
         self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)

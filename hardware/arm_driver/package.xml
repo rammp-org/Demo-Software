@@ -9,6 +9,10 @@
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
+  <depend>arm_interfaces</depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>python3-pinocchio</exec_depend>
+  <exec_depend>python3-kortex-api</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

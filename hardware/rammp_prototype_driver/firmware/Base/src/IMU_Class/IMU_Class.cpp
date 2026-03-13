@@ -1,4 +1,4 @@
-#include <IMU_Class.h>
+#include "IMU_Class.h"
 
 IMU_Class::IMU_Class(Adafruit_BNO055 &bno_sense) : bno_sensor(bno_sense){};
 

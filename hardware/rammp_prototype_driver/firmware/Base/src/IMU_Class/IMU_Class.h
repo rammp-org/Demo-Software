@@ -3,7 +3,7 @@
 
 #include <Adafruit_BNO055.h>
 #include <Adafruit_Sensor.h>
-#include <Constants.h>
+#include "../Constants/Constants.h"
 
 class IMU_Class {
 public:

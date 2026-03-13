@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QComboBox,
     QLabel,
+    QCheckBox,
 )
 from PyQt6.QtCore import QTimer
 
@@ -19,13 +20,15 @@ from ..data.data_store import DataStore
 
 class PlotWidget(QWidget):
     """
-    Real-time plot widget for displaying encoder position vs target.
+    Real-time plot widget for displaying encoder data.
 
     Features:
-    - Dual traces: actual position (blue) and target (red dashed)
+    - Three stacked plots: Position, Velocity, PWM
+    - Dual traces on position: actual (blue) and target (red dashed)
     - Rolling time window (configurable)
     - Auto-scaling with manual override
     - Pause/Resume functionality
+    - Toggle visibility for each plot
     """
 
     # Time window options in seconds
@@ -41,8 +44,13 @@ class PlotWidget(QWidget):
         self._time_window = self.DEFAULT_TIME_WINDOW
         self._paused = False
 
+        # Visibility flags for each plot
+        self._show_position = True
+        self._show_velocity = True
+        self._show_pwm = True
+
         self._setup_ui()
-        self._setup_plot()
+        self._setup_plots()
         self._setup_timer()
 
         # Connect to data store updates
@@ -64,6 +72,24 @@ class PlotWidget(QWidget):
         self._time_window_combo.setCurrentText(f"{self.DEFAULT_TIME_WINDOW}s")
         self._time_window_combo.currentTextChanged.connect(self._on_time_window_changed)
         control_layout.addWidget(self._time_window_combo)
+
+        # Plot visibility toggles
+        control_layout.addWidget(QLabel("  Show:"))
+
+        self._pos_checkbox = QCheckBox("Position")
+        self._pos_checkbox.setChecked(True)
+        self._pos_checkbox.toggled.connect(self._on_pos_toggled)
+        control_layout.addWidget(self._pos_checkbox)
+
+        self._vel_checkbox = QCheckBox("Velocity")
+        self._vel_checkbox.setChecked(True)
+        self._vel_checkbox.toggled.connect(self._on_vel_toggled)
+        control_layout.addWidget(self._vel_checkbox)
+
+        self._pwm_checkbox = QCheckBox("PWM")
+        self._pwm_checkbox.setChecked(True)
+        self._pwm_checkbox.toggled.connect(self._on_pwm_toggled)
+        control_layout.addWidget(self._pwm_checkbox)
 
         control_layout.addStretch()
 
@@ -97,35 +123,57 @@ class PlotWidget(QWidget):
 
         layout.addLayout(control_layout)
 
-        # Plot widget
-        self._plot_widget = pg.PlotWidget()
-        layout.addWidget(self._plot_widget)
+        # Graphics layout for stacked plots
+        self._graphics_layout = pg.GraphicsLayoutWidget()
+        self._graphics_layout.setBackground("w")
+        layout.addWidget(self._graphics_layout)
 
-    def _setup_plot(self):
-        """Set up the pyqtgraph plot."""
-        self._plot_widget.setBackground("w")
-        self._plot_widget.showGrid(x=True, y=True, alpha=0.3)
-        self._plot_widget.setLabel("left", "Position", units="cm")
-        self._plot_widget.setLabel("bottom", "Time", units="s")
-        self._plot_widget.setTitle("Encoder Position vs Target")
+    def _setup_plots(self):
+        """Set up the three stacked pyqtgraph plots."""
+        # Position plot (top)
+        self._pos_plot = self._graphics_layout.addPlot(row=0, col=0)
+        self._pos_plot.setLabel("left", "Position", units="cm")
+        self._pos_plot.setTitle("Position vs Target")
+        self._pos_plot.showGrid(x=True, y=True, alpha=0.3)
+        self._pos_plot.addLegend(offset=(10, 10))
 
-        # Enable mouse interaction
-        self._plot_widget.setMouseEnabled(x=True, y=True)
-
-        # Create plot items
-        # Actual position - solid blue line
-        self._position_curve = self._plot_widget.plot(
+        # Position curves
+        self._position_curve = self._pos_plot.plot(
             pen=pg.mkPen(color="b", width=2), name="Position"
         )
-
-        # Target position - dashed red line
-        self._target_curve = self._plot_widget.plot(
+        self._target_curve = self._pos_plot.plot(
             pen=pg.mkPen(color="r", width=2, style=pg.QtCore.Qt.PenStyle.DashLine),
             name="Target",
         )
 
-        # Add legend
-        self._plot_widget.addLegend()
+        # Velocity plot (middle)
+        self._vel_plot = self._graphics_layout.addPlot(row=1, col=0)
+        self._vel_plot.setLabel("left", "Velocity", units="cm/s")
+        self._vel_plot.setTitle("Velocity")
+        self._vel_plot.showGrid(x=True, y=True, alpha=0.3)
+
+        self._velocity_curve = self._vel_plot.plot(
+            pen=pg.mkPen(color=(0, 150, 0), width=2), name="Velocity"
+        )
+
+        # PWM plot (bottom)
+        self._pwm_plot = self._graphics_layout.addPlot(row=2, col=0)
+        self._pwm_plot.setLabel("left", "PWM")
+        self._pwm_plot.setLabel("bottom", "Time", units="s")
+        self._pwm_plot.setTitle("PWM Output")
+        self._pwm_plot.showGrid(x=True, y=True, alpha=0.3)
+
+        self._pwm_curve = self._pwm_plot.plot(
+            pen=pg.mkPen(color=(150, 0, 150), width=2), name="PWM"
+        )
+
+        # Link X axes so they scroll together
+        self._vel_plot.setXLink(self._pos_plot)
+        self._pwm_plot.setXLink(self._pos_plot)
+
+        # Hide X labels for top two plots (shared axis)
+        self._pos_plot.hideAxis("bottom")
+        self._vel_plot.hideAxis("bottom")
 
     def _setup_timer(self):
         """Set up the update timer."""
@@ -138,7 +186,7 @@ class PlotWidget(QWidget):
         pass
 
     def _update_plot(self):
-        """Update the plot with current data."""
+        """Update all plots with current data."""
         if self._paused:
             return
 
@@ -155,15 +203,32 @@ class PlotWidget(QWidget):
         # Find data within window
         mask = timestamps >= min_time
         window_times = timestamps[mask]
-        window_positions = positions[mask]
-        window_targets = targets[mask]
 
-        # Update curves
-        self._position_curve.setData(window_times, window_positions)
-        self._target_curve.setData(window_times, window_targets)
+        # Update position plot
+        if self._show_position:
+            window_positions = positions[mask]
+            window_targets = targets[mask]
+            self._position_curve.setData(window_times, window_positions)
+            self._target_curve.setData(window_times, window_targets)
 
-        # Update x-axis range to show rolling window
-        self._plot_widget.setXRange(min_time, current_time, padding=0.02)
+        # Update velocity plot
+        if self._show_velocity:
+            vel_timestamps, velocities = joint_data.get_velocity_data()
+            if len(vel_timestamps) > 0:
+                vel_mask = vel_timestamps >= min_time
+                self._velocity_curve.setData(
+                    vel_timestamps[vel_mask], velocities[vel_mask]
+                )
+
+        # Update PWM plot
+        if self._show_pwm:
+            pwm_timestamps, pwms = joint_data.get_pwm_data()
+            if len(pwm_timestamps) > 0:
+                pwm_mask = pwm_timestamps >= min_time
+                self._pwm_curve.setData(pwm_timestamps[pwm_mask], pwms[pwm_mask])
+
+        # Update x-axis range to show rolling window (only on PWM plot, others are linked)
+        self._pwm_plot.setXRange(min_time, current_time, padding=0.02)
 
     def _on_time_window_changed(self, text: str):
         """Handle time window selection change."""
@@ -171,6 +236,38 @@ class PlotWidget(QWidget):
             self._time_window = int(text.replace("s", ""))
         except ValueError:
             self._time_window = self.DEFAULT_TIME_WINDOW
+
+    def _on_pos_toggled(self, checked: bool):
+        """Handle position plot visibility toggle."""
+        self._show_position = checked
+        self._pos_plot.setVisible(checked)
+        self._update_plot_layout()
+
+    def _on_vel_toggled(self, checked: bool):
+        """Handle velocity plot visibility toggle."""
+        self._show_velocity = checked
+        self._vel_plot.setVisible(checked)
+        self._update_plot_layout()
+
+    def _on_pwm_toggled(self, checked: bool):
+        """Handle PWM plot visibility toggle."""
+        self._show_pwm = checked
+        self._pwm_plot.setVisible(checked)
+        self._update_plot_layout()
+
+    def _update_plot_layout(self):
+        """Update plot layout when visibility changes."""
+        # Show bottom axis on the lowest visible plot
+        self._pos_plot.hideAxis("bottom")
+        self._vel_plot.hideAxis("bottom")
+        self._pwm_plot.hideAxis("bottom")
+
+        if self._show_pwm:
+            self._pwm_plot.showAxis("bottom")
+        elif self._show_velocity:
+            self._vel_plot.showAxis("bottom")
+        elif self._show_position:
+            self._pos_plot.showAxis("bottom")
 
     def _on_pause_toggled(self, checked: bool):
         """Handle pause button toggle."""
@@ -182,10 +279,14 @@ class PlotWidget(QWidget):
         self._data_store.clear_joint(self._data_store.selected_joint)
         self._position_curve.setData([], [])
         self._target_curve.setData([], [])
+        self._velocity_curve.setData([], [])
+        self._pwm_curve.setData([], [])
 
     def _on_autoscale_clicked(self):
         """Handle auto-scale button click."""
-        self._plot_widget.enableAutoRange()
+        self._pos_plot.enableAutoRange()
+        self._vel_plot.enableAutoRange()
+        self._pwm_plot.enableAutoRange()
 
     def _on_simulate_toggled(self, checked: bool):
         """Handle simulate button toggle."""

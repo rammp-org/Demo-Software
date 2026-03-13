@@ -1,3 +1,0 @@
-[submodule "hardware/rammp_ros2_kortex"]
-	path = hardware/rammp_ros2_kortex
-	url = https://github.com/ATDev-Inc/rammp_ros2_kortex.git

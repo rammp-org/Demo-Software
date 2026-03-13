@@ -26,7 +26,7 @@ endif()
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/curb_traverse.action"
   "msg/RAMMPPrototypeState.msg"
-  DEPENDENCIES builtin_interfaces
+  DEPENDENCIES builtin_interfaces std_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)

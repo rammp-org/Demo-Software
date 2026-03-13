@@ -25,7 +25,7 @@ public:
 
   Carriage &carriage;
 
-  Wheel(int, MotorID, Carriage &, signed long &, signed long &);
+  Wheel(int, MotorID, Carriage &, signed long &, signed long &, bool);
   void calculate_main_wheels_positions(float &);
   void proportional_PID(float &, bool &, bool &);
 };

@@ -78,22 +78,22 @@ IMU_Class IMU = IMU_Class(bno);
 
 EncoderContainer EContr;
 
-Caster RC = Caster(RC_LOADCELL_PIN, MOTOR_RC);
-Caster FC = Caster(FC_LOADCELL_PIN, MOTOR_FC);
+Caster RC = Caster(RC_LOADCELL_PIN, MOTOR_RC, false);
+Caster FC = Caster(FC_LOADCELL_PIN, MOTOR_FC, false);
 
 Carriage ML_Carriage = Carriage(MOTOR_ML_CARRIAGE, CARRIAGE_SW1_PIN,
-                                CARRIAGE_SW2_PIN, EContr.encoderf[11]);
+                                CARRIAGE_SW2_PIN, EContr.encoderf[11], true);
 
 // make ML and connect ML Carriage to it
 Wheel ML = Wheel(ML_LOADCELL_PIN, MOTOR_ML, ML_Carriage, EContr.encoderf[7],
-                 EContr.encoder[9]);
+                 EContr.encoder[9], false);
 
 Carriage MR_Carriage = Carriage(MOTOR_MR_CARRIAGE, CARRIAGE_SW3_PIN,
-                                CARRIAGE_SW4_PIN, EContr.encoderf[12]);
+                                CARRIAGE_SW4_PIN, EContr.encoderf[12], true);
 
 // make MR and connect MR Carriage to it
 Wheel MR = Wheel(MR_LOADCELL_PIN, MOTOR_MR, MR_Carriage, EContr.encoderf[5],
-                 EContr.encoderf[10]);
+                 EContr.encoderf[10], true);
 
 Timer timer;
 
@@ -104,9 +104,9 @@ MotorController motor_controller =
     MotorController(RC, FC, MR, ML, timer, self_leveling_on, action, CA_flag);
 
 // Initialize RoboClaw Controllers
-RoboClaw roboclaw_casters(&Serial3, 10000);   // Serial3
-RoboClaw roboclaw_main(&Serial2, 10000);      // Serial4
-RoboClaw roboclaw_carriages(&Serial1, 10000); // Serial5
+RoboClaw roboclaw_carriages(&Serial3, 10000); // Serial3
+RoboClaw roboclaw_casters(&Serial4, 10000);   // Serial4
+RoboClaw roboclaw_main(&Serial5, 10000);      // Serial5
 
 JoyStick js;
 
@@ -265,10 +265,10 @@ bool drive_forward = false;
 
 // Setup routine runs once when you press reset:
 void setup() {
-  Serial.begin(115200); // jetson
-  Serial1.begin(38400); // roboclaw 1
-  Serial2.begin(38400); // roboclaw 2
-  Serial3.begin(38400); // roboclaw 3
+  Serial.begin(115200);  // jetson
+  Serial3.begin(460800); // roboclaw 1
+  Serial4.begin(460800); // roboclaw 2
+  Serial5.begin(460800); // roboclaw 3
 
   set_calculation_constants();
   initialize_digital_pins();
@@ -281,12 +281,12 @@ void setup() {
 
 // Loop routine runs over and over again indefinitely:
 void loop() {
-  //  if (PI_MOTORS.available() > 0)
-  //  {
-  //  // read the string data from the real-sense
-  //    input = PI_MOTORS.readStringUntil('\n');
-  //  }
-  //  Serial.println(input);
+  //    if (PI_MOTORS.available() > 0)
+  //    {
+  //    // read the string data from the real-sense
+  //      input = PI_MOTORS.readStringUntil('\n');
+  //    }
+  //    Serial.println(input);
   timer.updateTime();
 
   // get_GUI_input_from_bluetooth_joystick();
@@ -330,7 +330,7 @@ void loop() {
   motor_controller.carriage_limits_switch();
   motor_controller.set_positions_for_MWs_and_RC();
 
-  displaydata();
+  //  displaydata();
 
   // Reduce delay to increase frequency. Currently set to 8ms
   delay(5);
@@ -341,18 +341,65 @@ void loop() {
  * ***********************************************************
  * ********* below are helper finctions for setup()***********
  */
-void set_calculation_constants() {
-  ML_Carriage.carriage_ticks = 12000;
-  MR_Carriage.carriage_ticks = -12531;
 
-  ML.pos_ticks = -390;
+// void set_joint_target(int joint, float target_cm) {
+//
+//   // Zero out all motors (des = current pos, error = 0, no movement)
+//   RC.des          = RC.pos;
+//   FC.des          = FC.pos;
+//   ML.des          = ML.pos;
+//   MR.des          = MR.pos;
+//   ML.carriage.des = ML.carriage.pos;
+//   MR.carriage.des = MR.carriage.pos;
+//
+//   // Reset accumulated error and acceleration on all motors
+//   // so there's no windup carried over from previous state
+//   RC.cum_err          = 0; RC.Kacc          = 0;
+//   FC.cum_err          = 0; FC.Kacc          = 0;
+//   ML.cum_err          = 0; ML.Kacc          = 0;
+//   MR.cum_err          = 0; MR.Kacc          = 0;
+//   ML.carriage.cum_err = 0; ML.carriage.Kacc = 0;
+//   MR.carriage.cum_err = 0; MR.carriage.Kacc = 0;
+//
+//   // Set target on selected motor only, with safe range clamp
+//   switch (joint) {
+//     case 1: RC.des          = constrain(target_cm, 1.0,  21.0); break;
+//     case 2: FC.des          = constrain(target_cm, 2.0,  15.0); break;
+//     case 3: ML.des          = constrain(target_cm, 3.0,  21.0); break;
+//     case 4: MR.des          = constrain(target_cm, 3.0,  21.0); break;
+//     case 5: ML.carriage.des = constrain(target_cm, 0.0,   1.0); break;
+//     case 6: MR.carriage.des = constrain(target_cm, 0.0,   1.0); break;
+//     default:
+//       Serial.println("ERR: joint must be 1-6");
+//       return;
+//   }
+//
+//   // Confirm back to monitor
+//   Serial.print(">> Joint "); Serial.print(joint);
+//   Serial.print(" target: ");
+//   switch (joint) {
+//     case 1: Serial.print(RC.des);          break;
+//     case 2: Serial.print(FC.des);          break;
+//     case 3: Serial.print(ML.des);          break;
+//     case 4: Serial.print(MR.des);          break;
+//     case 5: Serial.print(ML.carriage.des); break;
+//     case 6: Serial.print(MR.carriage.des); break;
+//   }
+//   Serial.println(" cm");
+// }
+
+void set_calculation_constants() {
+  ML_Carriage.carriage_ticks = 12744;
+  MR_Carriage.carriage_ticks = -12685;
+
+  ML.pos_ticks = -383;
   ML.wheel_pos_ticks = 15212;
-  ML.angle_ticks = -390;
+  ML.angle_ticks = -383;
   ML.eha_norm = 39.4;
 
-  MR.pos_ticks = 380;
+  MR.pos_ticks = 432;
   MR.wheel_pos_ticks = -15212;
-  MR.angle_ticks = 356;
+  MR.angle_ticks = 432;
   MR.eha_norm = 35.47;
 }
 
@@ -406,15 +453,17 @@ void calculate_casters_positions() {
   // GC: DWs: 3cm, RC: 1cm, FC: 5cm (off ground)
   /* Calculation w.r.t bottom of the base */
 
-  RC.pos = (float)EContr.encoderf[3] * -18.4 / 680.0; // 0 - 18.4
+  // RC bottom enc = 680.0, but now 548
+  RC.pos = (float)EContr.encoderf[3] * -18.4 / 548.0; // 0 - 18.4
   // RC.pos = 3.0 + 26.8 * sin((-7.0 + (float)EContr.encoderf[3] * -60 / 710) /
   // DG);
 
   // raw min-max encoder value to limit eha motor movement
   RC.eha = fabs(EContr.encoderf[1]) / 85.62; // actuator stroke 0 - 10.15 cm
 
-  FC.pos = ((float)EContr.encoderf[2]); // max encoder value to z-height
-  FC.pos = 1.0 + ((float)EContr.encoderf[2] * 0.031); // 2.5 to 22.5 cm
+  // FC.pos =  // 2.5 plus 17.78
+  // FC.pos = ((float)EContr.encoderf[2]); // max encoder value to z-height
+  FC.pos = 2.5 + ((float)EContr.encoderf[2] * 17.78 / 609.0); // 2.5 to 20.28 cm
 
   // NOT WORKING PROPERLY
   // raw min-max encoder value to limit eha motor movement
@@ -452,7 +501,6 @@ void get_GUI_input_from_bluetooth() {
   if (PI_BT.available() > 0) {
     String serial_input = PI_BT.readStringUntil('\n');
     action = serial_input.charAt(0);
-    // Serial.println(action);
   }
 }
 
@@ -517,7 +565,7 @@ void select_controller_based_on_model() {
     break;
 
   case 6:
-    motor_controller.manual_features();
+    // motor_controller.manual_features();
     break;
 
   default:
@@ -614,7 +662,6 @@ void set_mode(int num) {
 
 // select_controller_based_on_model helper functions
 void individual_motor_FF() {
-  // Serial.println("I'm here in Individual Motor FF");
   CA_flag = 1;
   // ML UP
   if (action == 'q') {
@@ -1044,7 +1091,7 @@ void get_GUI_input_from_serial() {
   if (Serial.available() > 0) {
     String serial_input = Serial.readStringUntil('\n');
     action = serial_input.charAt(0);
-    //        Serial.println(action);
+    // Serial.println(action);
   }
 }
 

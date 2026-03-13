@@ -14,6 +14,7 @@
 > - [ ] Determine how to recover from ERROR state
 > - [ ] Add safety infrastructure - watchdogs, safety controllers, etc.
 > - [ ] Configure all needed position presets
+> - [ ] Define how conflicting services and messages interact
 
 ______________________________________________________________________
 

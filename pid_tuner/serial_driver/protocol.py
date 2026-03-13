@@ -2,9 +2,11 @@
 Serial protocol definitions for Teensy communication.
 
 Teensy -> PC Protocol:
-    TELEMETRY,<timestamp_ms>,<state>,<pos1>,<pos2>,<pos3>,<pos4>,<pos5>,<pos6>\n
+    TELEMETRY,<timestamp_ms>,<state>,<6 positions>,<6 velocities>,<6 pwms>\n
 
-    Example: TELEMETRY,12345,1,10.5,-5.2,20.0,15.3,0.5,1.2
+    Joint order: RC, FC, ML, MR, ML_Carriage, MR_Carriage (1-6)
+
+    Example: TELEMETRY,12345,1,10.5,-5.2,20.0,15.3,0.5,1.2,0.1,0.2,0.3,0.4,0.5,0.6,100,200,300,400,500,600
 
 PC -> Teensy Protocol:
     Set Target: T<joint_id>:<target_cm>\n
@@ -21,10 +23,11 @@ PC -> Teensy Protocol:
     Stop Sine: X<joint_id>\n
         Example: X1 (stop sine wave on joint 1)
 
+    ESTOP: z\n
     Clear ESTOP: c\n
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List
 import re
 
@@ -35,9 +38,9 @@ class EncoderData:
 
     timestamp_ms: int
     state: int
-    position_values: List[
-        float
-    ]  # 6 position values in cm (indices 0-5 map to joints 1-6)
+    position_values: List[float]  # 6 positions
+    velocity_values: List[float] = field(default_factory=list)  # 6 velocities
+    pwm_values: List[float] = field(default_factory=list)  # 6 pwms
 
     @property
     def num_joints(self) -> int:
@@ -53,8 +56,10 @@ class EncoderData:
 class ProtocolParser:
     """Parse incoming serial data from Teensy."""
 
-    # Matches: TELEMETRY,timestamp,state,pos1,pos2,pos3,pos4,pos5,pos6
+    # Matches: TELEMETRY,timestamp,state,<18 float values>
     ENCODER_PATTERN = re.compile(r"^TELEMETRY,(\d+),(\d+),(.+)$")
+
+    NUM_JOINTS = 6
 
     @classmethod
     def parse_line(cls, line: str) -> Optional[EncoderData]:
@@ -77,9 +82,23 @@ class ProtocolParser:
                 values_str = match.group(3)
                 values = [float(v.strip()) for v in values_str.split(",")]
 
-                if len(values) == 6:
+                # Expect 18 values: 6 positions + 6 velocities + 6 pwms
+                if len(values) == 18:
                     return EncoderData(
-                        timestamp_ms=timestamp, state=state, position_values=values
+                        timestamp_ms=timestamp,
+                        state=state,
+                        position_values=values[0:6],
+                        velocity_values=values[6:12],
+                        pwm_values=values[12:18],
+                    )
+                # Backwards compatibility: 6 values = positions only
+                elif len(values) == 6:
+                    return EncoderData(
+                        timestamp_ms=timestamp,
+                        state=state,
+                        position_values=values,
+                        velocity_values=[0.0] * cls.NUM_JOINTS,
+                        pwm_values=[0.0] * cls.NUM_JOINTS,
                     )
                 else:
                     return None

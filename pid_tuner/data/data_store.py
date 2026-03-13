@@ -22,10 +22,14 @@ class JointData:
     # Rolling buffers
     timestamps: deque = field(default_factory=lambda: deque(maxlen=2000))
     positions: deque = field(default_factory=lambda: deque(maxlen=2000))
+    velocities: deque = field(default_factory=lambda: deque(maxlen=2000))
+    pwms: deque = field(default_factory=lambda: deque(maxlen=2000))
     targets: deque = field(default_factory=lambda: deque(maxlen=2000))
 
     # Current state
     current_position: float = 0.0
+    current_velocity: float = 0.0
+    current_pwm: float = 0.0
     current_target: float = 0.0
 
     # Start time for relative timestamps
@@ -36,12 +40,19 @@ class JointData:
         # Reinitialize deques with correct maxlen after dataclass creation
         self.timestamps = deque(maxlen=self.max_samples)
         self.positions = deque(maxlen=self.max_samples)
+        self.velocities = deque(maxlen=self.max_samples)
+        self.pwms = deque(maxlen=self.max_samples)
         self.targets = deque(maxlen=self.max_samples)
         self._start_time = 0
         self._start_time_real = 0
 
     def add_sample(
-        self, timestamp_ms: int, position: float, target: Optional[float] = None
+        self,
+        timestamp_ms: int,
+        position: float,
+        velocity: float = 0.0,
+        pwm: float = 0.0,
+        target: Optional[float] = None,
     ):
         """Add a new sample to the rolling buffer."""
         # Convert timestamp to seconds from start
@@ -52,7 +63,11 @@ class JointData:
 
         self.timestamps.append(time_s)
         self.positions.append(position)
+        self.velocities.append(velocity)
+        self.pwms.append(pwm)
         self.current_position = position
+        self.current_velocity = velocity
+        self.current_pwm = pwm
 
         # Use provided target or maintain current target
         if target is not None:
@@ -70,8 +85,12 @@ class JointData:
         self.timestamps.append(time_s)
         # In simulation, position follows target (no actual motor)
         self.positions.append(target)
+        self.velocities.append(0.0)
+        self.pwms.append(0.0)
         self.targets.append(target)
         self.current_position = target
+        self.current_velocity = 0.0
+        self.current_pwm = 0.0
         self.current_target = target
 
     def set_target(self, target: float):
@@ -80,7 +99,7 @@ class JointData:
 
     def get_plot_data(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
-        Get data arrays for plotting.
+        Get data arrays for plotting (position data).
 
         Returns:
             Tuple of (timestamps, positions, targets) as numpy arrays
@@ -91,10 +110,30 @@ class JointData:
             np.array(self.targets),
         )
 
+    def get_velocity_data(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get velocity data for plotting.
+
+        Returns:
+            Tuple of (timestamps, velocities) as numpy arrays
+        """
+        return (np.array(self.timestamps), np.array(self.velocities))
+
+    def get_pwm_data(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get PWM data for plotting.
+
+        Returns:
+            Tuple of (timestamps, pwms) as numpy arrays
+        """
+        return (np.array(self.timestamps), np.array(self.pwms))
+
     def clear(self):
         """Clear all stored data."""
         self.timestamps.clear()
         self.positions.clear()
+        self.velocities.clear()
+        self.pwms.clear()
         self.targets.clear()
         self._start_time = 0
 
@@ -173,14 +212,16 @@ class DataStore(QObject):
 
     def process_encoder_data(self, data: EncoderData):
         """
-        Process incoming position data and update all joints.
+        Process incoming telemetry data and update all joints.
 
         Args:
-            data: Parsed position data from Teensy
+            data: Parsed telemetry data from Teensy (positions, velocities, pwms)
         """
-        for i, value in enumerate(data.position_values):
-            joint_id = i + 1
-            self._joints[i].add_sample(data.timestamp_ms, value)
+        for i in range(min(len(data.position_values), self.NUM_JOINTS)):
+            position = data.position_values[i]
+            velocity = data.velocity_values[i] if i < len(data.velocity_values) else 0.0
+            pwm = data.pwm_values[i] if i < len(data.pwm_values) else 0.0
+            self._joints[i].add_sample(data.timestamp_ms, position, velocity, pwm)
 
         self.data_updated.emit(self._selected_joint)
 

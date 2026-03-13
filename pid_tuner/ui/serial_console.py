@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QSpinBox,
     QLineEdit,
+    QComboBox,
 )
 from PyQt6.QtCore import pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QTextCursor, QFont
@@ -26,6 +27,7 @@ class SerialConsole(QWidget):
     - Auto-scroll
     - Pause/Resume
     - Send raw commands
+    - Filter by message type (All, TELEMETRY, DEBUG, etc.)
     - Clear
     - Line limit to prevent memory issues
     """
@@ -34,12 +36,21 @@ class SerialConsole(QWidget):
 
     DEFAULT_MAX_LINES = 500
 
+    # Filter options: (display_name, prefix_to_match_or_None)
+    FILTER_OPTIONS = [
+        ("All", None),
+        ("TELEMETRY", "TELEMETRY"),
+        ("DEBUG", "DEBUG"),
+        ("Exclude TELEMETRY", "!TELEMETRY"),
+    ]
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._paused = False
         self._auto_scroll = True
         self._max_lines = self.DEFAULT_MAX_LINES
         self._line_count = 0
+        self._filter_prefix = None  # None = show all
 
         self._setup_ui()
 
@@ -59,6 +70,14 @@ class SerialConsole(QWidget):
         self._autoscroll_cb.setChecked(True)
         self._autoscroll_cb.toggled.connect(self._on_autoscroll_toggled)
         control_layout.addWidget(self._autoscroll_cb)
+
+        # Filter dropdown
+        control_layout.addWidget(QLabel("Filter:"))
+        self._filter_combo = QComboBox()
+        for display_name, _ in self.FILTER_OPTIONS:
+            self._filter_combo.addItem(display_name)
+        self._filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+        control_layout.addWidget(self._filter_combo)
 
         # Max lines
         control_layout.addWidget(QLabel("Max lines:"))
@@ -118,6 +137,10 @@ class SerialConsole(QWidget):
         if self._paused:
             return
 
+        # Apply filter
+        if not self._should_show_line(line):
+            return
+
         # Remove oldest lines if at limit
         if self._line_count >= self._max_lines:
             self._remove_first_line()
@@ -130,6 +153,19 @@ class SerialConsole(QWidget):
         # Auto-scroll to bottom
         if self._auto_scroll:
             self._text_edit.moveCursor(QTextCursor.MoveOperation.End)
+
+    def _should_show_line(self, line: str) -> bool:
+        """Check if line passes the current filter."""
+        if self._filter_prefix is None:
+            return True
+
+        # Handle exclusion filter (prefix starts with '!')
+        if self._filter_prefix.startswith("!"):
+            exclude_prefix = self._filter_prefix[1:]
+            return not line.startswith(exclude_prefix)
+
+        # Normal inclusion filter
+        return line.startswith(self._filter_prefix)
 
     def _remove_first_line(self):
         """Remove the first line from the text edit."""
@@ -144,6 +180,12 @@ class SerialConsole(QWidget):
     def _on_autoscroll_toggled(self, checked: bool):
         """Handle auto-scroll checkbox toggle."""
         self._auto_scroll = checked
+
+    def _on_filter_changed(self, index: int):
+        """Handle filter dropdown change."""
+        if 0 <= index < len(self.FILTER_OPTIONS):
+            _, prefix = self.FILTER_OPTIONS[index]
+            self._filter_prefix = prefix
 
     def _on_max_lines_changed(self, value: int):
         """Handle max lines change."""

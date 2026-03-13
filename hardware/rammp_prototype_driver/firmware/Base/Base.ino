@@ -20,7 +20,10 @@ enum SystemState {
     INIT,
     IDLE,
     TUNER_MODE,
-    ESTOP
+    ESTOP,
+    SELF_LEVELING,
+    CONFIGURATION,
+    AUTO_CURB_CLIMBING
 };
 
 // Phase 4: System Telemetry
@@ -76,12 +79,27 @@ void sendTelemetry() {
     Serial.print("TELEMETRY,");
     Serial.print(millis()); Serial.print(",");
     Serial.print(telemetry.state); Serial.print(",");
+    // Positions
     Serial.print(telemetry.rc_pos); Serial.print(",");
     Serial.print(telemetry.fc_pos); Serial.print(",");
     Serial.print(telemetry.ml_pos); Serial.print(",");
     Serial.print(telemetry.mr_pos); Serial.print(",");
     Serial.print(telemetry.ml_carriage_pos); Serial.print(",");
-    Serial.print(telemetry.mr_carriage_pos); Serial.println();
+    Serial.print(telemetry.mr_carriage_pos); Serial.print(",");
+    // Velocities
+    Serial.print(telemetry.rc_vel); Serial.print(",");
+    Serial.print(telemetry.fc_vel); Serial.print(",");
+    Serial.print(telemetry.ml_vel); Serial.print(",");
+    Serial.print(telemetry.mr_vel); Serial.print(",");
+    Serial.print(telemetry.ml_carriage_vel); Serial.print(",");
+    Serial.print(telemetry.mr_carriage_vel); Serial.print(",");
+    // PWM Targets
+    Serial.print(rc.target_pwm); Serial.print(",");
+    Serial.print(fc.target_pwm); Serial.print(",");
+    Serial.print(ml.target_pwm); Serial.print(",");
+    Serial.print(mr.target_pwm); Serial.print(",");
+    Serial.print(ml_carriage.target_pwm); Serial.print(",");
+    Serial.print(mr_carriage.target_pwm); Serial.println();
 }
 
 void setup() {

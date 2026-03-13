@@ -60,86 +60,86 @@ void MotorController::move_each_wheel(float height_ML, float height_RC,
 
 // individual_motor_FF helper functions
 void MotorController::ML_UP_1s() {
-  count_ticks(10);
+  count_ticks(100);
   set_motorpwm(0, 100, 0, 0, 0, 0);
   set_motordir(0, 1, 0, 0, 0, 0);
 }
 
 void MotorController::ML_DOWN_1s() {
-  count_ticks(10);
+  count_ticks(100);
   set_motorpwm(0, 100, 0, 0, 0, 0);
   set_motordir(0, 0, 0, 0, 0, 0);
 }
 
 void MotorController::RC_UP_1s() {
-  count_ticks(10);
+  count_ticks(100);
   set_motorpwm(0, 0, 0, 100, 0, 0);
   set_motordir(0, 0, 0, 0, 0, 0);
 }
 
 void MotorController::RC_DOWN_1s() {
-  count_ticks(10);
+  count_ticks(100);
   set_motorpwm(0, 0, 0, 100, 0, 0);
   set_motordir(0, 0, 0, 1, 0, 0);
 }
 
 void MotorController::MR_UP_1s() {
-  count_ticks(10);
+  count_ticks(100);
   set_motorpwm(0, 0, 100, 0, 0, 0);
   set_motordir(0, 0, 1, 0, 0, 0);
 }
 
 void MotorController::MR_DOWN_1s() {
-  count_ticks(10);
+  count_ticks(100);
   set_motorpwm(0, 0, 100, 0, 0, 0);
   set_motordir(0, 0, 0, 0, 0, 0);
 }
 
 void MotorController::FC_UP_1s() {
-  count_ticks(10);
+  count_ticks(100);
   set_motorpwm(100, 0, 0, 0, 0, 0);
   set_motordir(1, 0, 0, 0, 0, 0);
 }
 
 void MotorController::FC_DOWN_1s() {
-  count_ticks(10);
+  count_ticks(100);
   set_motorpwm(100, 0, 0, 0, 0, 0);
   set_motordir(0, 0, 0, 0, 0, 0);
 }
 
 void MotorController::LEFT_CARRIAGE_FORWARD_point4s() {
-  count_ticks(30);
+  count_ticks(300);
   set_motorpwm(0, 0, 0, 0, 100, 0);
   set_motordir(0, 0, 0, 0, 1, 0);
 }
 
 void MotorController::LEFT_CARRIAGE_BACKWARD_point4s() {
-  count_ticks(30);
+  count_ticks(300);
   set_motorpwm(0, 0, 0, 0, 100, 0);
   set_motordir(0, 0, 0, 0, 0, 0);
   // Serial.println("RELAY1 DOWN");
 }
 
 void MotorController::RIGHT_CARRIAGE_FORWARD_point4s() {
-  count_ticks(30);
+  count_ticks(300);
   set_motorpwm(0, 0, 0, 0, 0, 100);
   set_motordir(0, 0, 0, 0, 0, 1);
 }
 
 void MotorController::RIGHT_CARRIAGE_BACKWARD_point4s() {
-  count_ticks(30);
+  count_ticks(300);
   set_motorpwm(0, 0, 0, 0, 0, 100);
   set_motordir(0, 0, 0, 0, 0, 0);
 }
 
 void MotorController::BOTH_CARRIAGE_FORWARD_4s() {
-  count_ticks(30);
+  count_ticks(300);
   set_motorpwm(0, 0, 0, 0, 100, 100);
   set_motordir(0, 0, 0, 0, 0, 1);
 }
 
 void MotorController::BOTH_CARRIAGE_BACKWARD_4s() {
-  count_ticks(30);
+  count_ticks(300);
   set_motorpwm(0, 0, 0, 0, 100, 100);
   set_motordir(0, 0, 0, 0, 1, 0);
 }
@@ -474,19 +474,25 @@ void MotorController::manual_features_proportional() {
   switch (action) {
   case 'q':
     // Serial.println("Elevate");
-    set_motorpwm(0, 100, 100, 100, 0, 0);
-    set_motordir(0, 0, 0, 1, 0, 0);
-    ML.carriage.des = 0.1;
-    MR.carriage.des = 0.1;
+    // set_motorpwm(0, 100, 100, 100, 0, 0);
+    // set_motordir(0, 0, 0, 1, 0, 0);
+    ML.carriage.des = ML.carriage.pos;
+    MR.carriage.des = MR.carriage.pos;
     set_wheels_height(20, 15, 20, 15);
+    ML.des = ML.pos;
+    MR.des = MR.pos;
+    FC.des = FC.pos;
     break;
   case 'a':
     // Serial.println("Lower seat");
-    set_motorpwm(0, 100, 100, 100, 0, 0);
-    set_motordir(0, 1, 1, 0, 0, 0);
-    ML.carriage.des = 0.1;
-    MR.carriage.des = 0.1;
+    // set_motorpwm(0, 100, 100, 100, 0, 0);
+    // set_motordir(0, 1, 1, 0, 0, 0);
+    ML.carriage.des = ML.carriage.pos;
+    MR.carriage.des = MR.carriage.pos;
     set_wheels_height(4, 1, 4, 2);
+    ML.des = ML.pos;
+    MR.des = MR.pos;
+    FC.des = FC.pos;
     break;
   case 'w':
     // Serial.println("Tilt Back");
@@ -599,15 +605,21 @@ void MotorController::manual_features() {
 
   // Elevate chair
   if (action == 'q') {
-    ML.carriage.des = 0.1;
-    MR.carriage.des = 0.1;
-    set_wheels_height(ML.pos + 5.0, ML.pos + 5.0, ML.pos + 5.0, FC.des + 5.0);
+    ML.carriage.des = ML.carriage.pos;
+    MR.carriage.des = MR.carriage.pos;
+    set_wheels_height(ML.pos + 5.0, RC.pos + 5.0, ML.pos + 5.0, FC.des + 5.0);
+    ML.des = ML.pos;
+    MR.des = MR.pos;
+    FC.des = FC.pos;
   }
   // Lower chair
   else if (action == 'a') {
-    ML.carriage.des = 0.1;
-    MR.carriage.des = 0.1;
-    set_wheels_height(ML.pos - 5.0, ML.pos - 5.0, ML.pos - 5.0, FC.des - 5.0);
+    ML.carriage.des = ML.carriage.pos;
+    MR.carriage.des = MR.carriage.pos;
+    set_wheels_height(ML.pos - 5.0, RC.pos - 5.0, ML.pos - 5.0, FC.des - 5.0);
+    ML.des = ML.pos;
+    MR.des = MR.pos;
+    FC.des = FC.pos;
   }
   // Tilt back
   else if (action == 'w') {

@@ -16,6 +16,7 @@ public:
   // const int PWM_PIN;
   // const int DIR_PIN;
   const MotorID MOTOR_ID; // specify which motor this is
+  const bool FWD_IS_POSITIVE = true;
   // Member variables
   float pos = 0.0, err = 0.0, des = 3.0, eha = 0.0;
   float des_pre = 0.0;
@@ -30,8 +31,9 @@ public:
   float Kacc = 0.0;
   float loadcell = 0.0;
   float lc = 0.0;
+  float max_allowed_PWM = 100.0;
 
-  Component(int, MotorID);
+  Component(int, MotorID, bool); // bool is for forward direction flag
   virtual void initialize_pins();
   void move();
   void retrieve_lc_reading();

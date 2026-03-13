@@ -2,8 +2,9 @@
 #include <Component.h>
 #include <Constants.h>
 
-Component::Component(int lc_pin, MotorID motor_id)
-    : LOADCELL_PIN(lc_pin), MOTOR_ID(motor_id){};
+Component::Component(int lc_pin, MotorID motor_id, bool fwd_is_positive)
+    : LOADCELL_PIN(lc_pin), MOTOR_ID(motor_id),
+      FWD_IS_POSITIVE(fwd_is_positive){};
 
 void Component::initialize_pins(){
     // pinMode(DIR_PIN, OUTPUT);
@@ -12,12 +13,21 @@ void Component::initialize_pins(){
 
 void Component::move() {
   motor_PWM = normalize_value(motor_PWM);
+  float clamped_motor_PWM = std::clamp(motor_PWM, 0.0f, max_allowed_PWM);
 
   int duty;
   if (motor_dir == 0) {
-    duty = -int((motor_PWM * 32767) / 255);
+    if (FWD_IS_POSITIVE) {
+      duty = -int((clamped_motor_PWM * 32767) / 255);
+    } else {
+      duty = int((clamped_motor_PWM * 32767) / 255);
+    }
   } else {
-    duty = int((motor_PWM * 32767) / 255);
+    if (FWD_IS_POSITIVE) {
+      duty = int((clamped_motor_PWM * 32767) / 255);
+    } else {
+      duty = -int((clamped_motor_PWM * 32767) / 255);
+    }
   }
 
   switch (MOTOR_ID) {
@@ -43,7 +53,6 @@ void Component::move() {
     break;
   }
 };
-
 // old move function
 // void Component::move() {
 //     motor_PWM = normalize_value(motor_PWM);

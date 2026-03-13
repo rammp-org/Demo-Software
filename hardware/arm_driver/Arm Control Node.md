@@ -64,19 +64,31 @@
 
 ### Subscriber:
 
-| Topic              | Type                    |
-| ------------------ | ----------------------- |
-| /arm/atdev/twist   | geometry_msgs/msg/Twist |
-| /arm/xbox/twist    | geometry_msgs/msg/Twist |
-| /arm/cornell/twist | geometry_msgs/msg/Twist |
-| /arm/cmu/twist     | geometry_msgs/msg/Twist |
-| /estop             | std_msgs/msg/Bool       |
+| Topic                         | Type                                |
+| ----------------------------- | ----------------------------------- |
+| /arm/atdev/twist              | geometry_msgs/msg/Twist             |
+| /arm/atdev/joint_position     | sensor_msgs/msg/JointState          |
+| /arm/atdev/joint_trajectory   | trajectory_msgs/msg/JointTrajectory |
+| /arm/atdev/cartesian_pose     | geometry_msgs/msg/PoseStamped       |
+| /arm/xbox/twist               | geometry_msgs/msg/Twist             |
+| /arm/xbox/joint_position      | sensor_msgs/msg/JointState          |
+| /arm/xbox/joint_trajectory    | trajectory_msgs/msg/JointTrajectory |
+| /arm/xbox/cartesian_pose      | geometry_msgs/msg/PoseStamped       |
+| /arm/cornell/twist            | geometry_msgs/msg/Twist             |
+| /arm/cornell/joint_position   | sensor_msgs/msg/JointState          |
+| /arm/cornell/joint_trajectory | trajectory_msgs/msg/JointTrajectory |
+| /arm/cornell/cartesian_pose   | geometry_msgs/msg/PoseStamped       |
+| /arm/cmu/twist                | geometry_msgs/msg/Twist             |
+| /arm/cmu/joint_position       | sensor_msgs/msg/JointState          |
+| /arm/cmu/joint_trajectory     | trajectory_msgs/msg/JointTrajectory |
+| /arm/cmu/cartesian_pose       | geometry_msgs/msg/PoseStamped       |
+| /estop                        | std_msgs/msg/Bool                   |
 
 ### Service Servers:
 
-| Topic     | Type    |
-| --------- | ------- |
-| /set_mode | ArmMode |
+| Topic     | Type                       |
+| --------- | -------------------------- |
+| /set_mode | arm_interfaces/srv/SetMode |
 
 ### Service Clients:
 
@@ -86,9 +98,9 @@
 
 ### Action Servers:
 
-| Topic        | Type |
-| ------------ | ---- |
-| /arm/retract |      |
+| Topic             | Type                              |
+| ----------------- | --------------------------------- |
+| /arm/reach_preset | arm_interfaces/action/ReachPreset |
 
 ### Action Clients:
 

@@ -25,6 +25,8 @@ RobotCommand CommandParser::parse(Stream& serial) {
 
             if (buffer.charAt(0) == 'z') {
                 cmd.type = CMD_Z;
+            } else if (buffer.charAt(0) == 'c') {
+                cmd.type = CMD_C;
             } else if (buffer.length() > 2) { // Need at least Xid:val
                 char type_char = buffer.charAt(0);
                 int colon_idx = buffer.indexOf(':');
@@ -33,12 +35,16 @@ RobotCommand CommandParser::parse(Stream& serial) {
                     cmd.actuator_id = buffer.substring(1, colon_idx).toInt();
                     cmd.value = buffer.substring(colon_idx + 1).toFloat();
                     
-                    if (type_char == 'T') {
-                        cmd.type = CMD_T;
-                    } else if (type_char == 'S') {
-                        cmd.type = CMD_S;
-                    } else {
-                        cmd.type = CMD_UNKNOWN;
+                    switch(type_char) {
+                        case 'T': cmd.type = CMD_T; break;
+                        case 'M': cmd.type = CMD_M; break;
+                        case 'P': cmd.type = CMD_POS_P; break;
+                        case 'I': cmd.type = CMD_POS_I; break;
+                        case 'D': cmd.type = CMD_POS_D; break;
+                        case 'p': cmd.type = CMD_VEL_P; break;
+                        case 'i': cmd.type = CMD_VEL_I; break;
+                        case 'd': cmd.type = CMD_VEL_D; break;
+                        default: cmd.type = CMD_UNKNOWN; break;
                     }
                 } else {
                     cmd.type = CMD_UNKNOWN;

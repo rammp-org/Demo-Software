@@ -6,7 +6,9 @@ flowchart TD
         parser -- parsed commands --> StateMachine[System State Machine]
         parser -- time since msg --> Watchdog[Watchdog Timer]
         Watchdog -- timeout > 500ms --> ESTOP(ESTOP State)
-        StateMachine -- override --> ESTOP
+        StateMachine -- z (ESTOP) --> ESTOP
+        StateMachine -- c (Clear) --> IDLE(IDLE State)
+        IDLE -- resumes --> Watchdog
         
         Encoders[Hardware Encoders] --> EContr[EncoderContainer]
     end
@@ -17,10 +19,18 @@ flowchart TD
         MotorData --> currPos("current_pos")
         MotorData --> currVel("current_vel")
         
-        StateMachine -- "cmd.value" --> tPos("target_pos")
-        StateMachine -- "cmd.type" --> cMode("ControlMode")
+        StateMachine -- "cmd.value" --> TargetRouter{Target Router}
+        StateMachine -- "cmd.type" --> ParamRouter{Parameter Router}
         
+        ParamRouter -- "CMD_M (0,1,2)" --> cMode("ControlMode")
+        ParamRouter -- "CMD_POS_P/I/D" --> PosPID
+        ParamRouter -- "CMD_VEL_P/i/d" --> VelPID
+
         cMode -- DISABLED --> zero{"Zero Output & Exit"}
+        
+        TargetRouter -- "if mode == POS" --> tPos("target_pos")
+        TargetRouter -- "if mode == VEL" --> tVel("target_vel")
+        TargetRouter -- "if mode == OPEN" --> tPWM("target_pwm")
 
         tPos --> PosPID
         currPos --> PosPID

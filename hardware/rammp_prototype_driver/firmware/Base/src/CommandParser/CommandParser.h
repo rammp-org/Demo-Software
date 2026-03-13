@@ -4,9 +4,16 @@
 #include <Arduino.h>
 
 enum CommandType {
-    CMD_T,       // e.g. T<id>:<val>
-    CMD_S,       // e.g. S<id>:<val>
-    CMD_Z,       // e.g. z
+    CMD_T,       // e.g. T<id>:<val> (Target)
+    CMD_M,       // e.g. M<id>:<val> (Mode)
+    CMD_POS_P,   // e.g. P<id>:<val> (Position Kp)
+    CMD_POS_I,   // e.g. I<id>:<val> (Position Ki)
+    CMD_POS_D,   // e.g. D<id>:<val> (Position Kd)
+    CMD_VEL_P,   // e.g. p<id>:<val> (Velocity Kp)
+    CMD_VEL_I,   // e.g. i<id>:<val> (Velocity Ki)
+    CMD_VEL_D,   // e.g. d<id>:<val> (Velocity Kd)
+    CMD_Z,       // e.g. z (ESTOP)
+    CMD_C,       // e.g. c (Clear ESTOP)
     CMD_UNKNOWN,
     CMD_NONE
 };

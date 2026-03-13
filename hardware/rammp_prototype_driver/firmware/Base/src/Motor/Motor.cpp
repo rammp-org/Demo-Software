@@ -27,6 +27,8 @@ void Motor::disable() {
     target_pwm = 0.0f;
     target_vel = 0.0f;
     target_pos = current_pos; // Prevent jump when re-enabling
+    pos_pid.reset();          // Prevent integral windup explosion
+    vel_pid.reset();          // Prevent integral windup explosion
     setMode(DISABLED);
 }
 

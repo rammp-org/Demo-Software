@@ -118,6 +118,9 @@ void loop() {
 
     if (cmd.type == CMD_Z) {
         current_state = ESTOP;
+    } else if (cmd.type == CMD_C && current_state == ESTOP) {
+        current_state = IDLE;
+        parser.feedWatchdog();
     } else if (cmd.type != CMD_NONE && current_state == IDLE) {
         current_state = TUNER_MODE;
     }
@@ -135,10 +138,24 @@ void loop() {
         }
 
         if (m != nullptr) {
-            if (cmd.type == CMD_T) {
-                m->setTargetPosition(cmd.value);
-            } else if (cmd.type == CMD_S) {
-                m->setMode(Motor::POSITION_CONTROL);
+            switch(cmd.type) {
+                case CMD_M:
+                    if (cmd.value == 0) m->setMode(Motor::OPEN_LOOP);
+                    else if (cmd.value == 1) m->setMode(Motor::VELOCITY_CONTROL);
+                    else if (cmd.value == 2) m->setMode(Motor::POSITION_CONTROL);
+                    break;
+                case CMD_T:
+                    if (m->mode == Motor::OPEN_LOOP) m->setTargetPWM(cmd.value);
+                    else if (m->mode == Motor::VELOCITY_CONTROL) m->setTargetVelocity(cmd.value);
+                    else if (m->mode == Motor::POSITION_CONTROL) m->setTargetPosition(cmd.value);
+                    break;
+                case CMD_POS_P: m->pos_pid.kp = cmd.value; break;
+                case CMD_POS_I: m->pos_pid.ki = cmd.value; break;
+                case CMD_POS_D: m->pos_pid.kd = cmd.value; break;
+                case CMD_VEL_P: m->vel_pid.kp = cmd.value; break;
+                case CMD_VEL_I: m->vel_pid.ki = cmd.value; break;
+                case CMD_VEL_D: m->vel_pid.kd = cmd.value; break;
+                default: break;
             }
         }
     }
@@ -177,8 +194,9 @@ void loop() {
     // 5. Send Telemetry
     updateTelemetry();
     
-    static int loop_counter = 0;
-    if (loop_counter++ % 20 == 0) {
+    static unsigned long last_telem_time = 0;
+    if (millis() - last_telem_time >= 100) { // Fixed 10Hz telemetry
+        last_telem_time = millis();
         sendTelemetry();
     }
 

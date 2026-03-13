@@ -1,32 +1,35 @@
 # Arm Control Node
 
 > **Summary**
-> Main node that controls the Kinova arm. This is the only node that communicates with the arm directly. It publishes `/arm/joint_states` and `/arm/status` to other nodes. Based on the internal state machine, it gates incoming commands to a single authorised source per state.
 >
-> Command sources use two paradigms depending on the state:
+> Main Node that control the arm. This is the only node that communicate with the arm directly. It publishes `/arm/joint_states` and `/arm/status` to other nodes. Based on the internal state machine, it gates incoming commands to a single authorized source per state.
 >
-> - **TWIST states** (`MANUAL`, `CUP_STABILIZE`): authorised source streams velocity commands on `/arm/{source}/twist` at up to 25 Hz. A 200 ms watchdog stops the arm if the stream goes silent.
-> - **POSITION states** (`OPEN_DOOR`, `ORDER_DRINK`, `DRINKING`): authorised source sends fire-and-forget joint position or Cartesian pose commands, or submits a trajectory via the `/arm/{source}/execute_trajectory` action.
+> There are two types of command sources that are accepted, depending on the state:
+>
+> - **TWIST inputs** (`MANUAL`, `CUP_STABILIZE`): authorized source streams velocity commands on `/arm/{source}/twist` at up to 25 Hz.
+> - **POSITION inputs** (`OPEN_DOOR`, `ORDER_DRINK`, `DRINKING`): authorized source sends target joint position or Cartesian pose commands, or submits a trajectory via the `/arm/{source}/execute_trajectory` action.
 
 > **TODO:**
 >
-> - \[ \] Determine how to recover from ERROR state
+> - [ ] Determine how to recover from ERROR state
+> - [ ] Add safety infrastructure - watchdogs, safety controllers, etc.
+> - [ ] Configure all needed position presets
 
 ______________________________________________________________________
 
 ## State Machine
 
-| State              | Authorised Source | Command Mode | Description                                                           |
-| ------------------ | ----------------- | ------------ | --------------------------------------------------------------------- |
-| `RETRACTED`        | —                 | None         | Default standby. Arm in safe retracted position. MEBot can drive.     |
-| `HOME`             | —                 | None         | Arm at home position.                                                 |
-| `PRESET_IN_MOTION` | —                 | None         | Arm moving to a preset via `/arm/reach_preset`. No commands accepted. |
-| `OPEN_DOOR`        | `cmu`             | Position     | CMU controls arm to open a door.                                      |
-| `ORDER_DRINK`      | `cornell`         | Position     | Cornell controls arm to order a drink.                                |
-| `DRINKING`         | `cornell`         | Position     | Cornell controls arm to assist with drinking.                         |
-| `CUP_STABILIZE`    | `atdev`           | Twist        | ATDev streams velocity corrections to stabilize a cup.                |
-| `MANUAL`           | `xbox`            | Twist        | Xbox controller streams velocity commands for manual teleoperation.   |
-| `ERROR`            | —                 | None         | Entered on fault or e-stop. No commands accepted.                     |
+| State              | Authorized Source | Command Mode | Description                                                                 |
+| ------------------ | ----------------- | ------------ | --------------------------------------------------------------------------- |
+| `RETRACTED`        | —                 | None         | Default standby. Arm in safe retracted position. RAMMP Prototype can drive. |
+| `HOME`             | —                 | None         | Arm at home position.                                                       |
+| `PRESET_IN_MOTION` | —                 | None         | Arm moving to a preset via `/arm/reach_preset`. No commands accepted.       |
+| `OPEN_DOOR`        | `cmu`             | Position     | CMU controls arm to open a door.                                            |
+| `ORDER_DRINK`      | `cornell`         | Position     | Cornell controls arm to order a drink.                                      |
+| `DRINKING`         | `cornell`         | Position     | Cornell controls arm to assist with drinking.                               |
+| `CUP_STABILIZE`    | `atdev`           | Twist        | ATDev streams velocity corrections to stabilize a cup.                      |
+| `MANUAL`           | `xbox`            | Twist        | Xbox controller streams velocity commands for manual teleoperation.         |
+| `ERROR`            | —                 | None         | Entered on fault or e-stop. No commands accepted.                           |
 
 State transitions are requested via the `/arm/set_mode` service or triggered automatically by `/arm/reach_preset` actions and the `/estop` topic.
 
@@ -43,7 +46,7 @@ ______________________________________________________________________
 
 ## Subscribers
 
-| Topic                         | Type                            | Authorised State                         |
+| Topic                         | Type                            | Authorized State                         |
 | ----------------------------- | ------------------------------- | ---------------------------------------- |
 | `/arm/atdev/twist`            | `geometry_msgs/msg/Twist`       | `CUP_STABILIZE`                          |
 | `/arm/xbox/twist`             | `geometry_msgs/msg/Twist`       | `MANUAL`                                 |
@@ -61,7 +64,7 @@ ______________________________________________________________________
 
 ## Action Servers
 
-| Topic                             | Type                                      | Authorised State          |
+| Topic                             | Type                                      | Authorized State          |
 | --------------------------------- | ----------------------------------------- | ------------------------- |
 | `/arm/reach_preset`               | `arm_interfaces/action/ReachPreset`       | Any (ungated)             |
 | `/arm/cornell/execute_trajectory` | `arm_interfaces/action/ExecuteTrajectory` | `ORDER_DRINK`, `DRINKING` |

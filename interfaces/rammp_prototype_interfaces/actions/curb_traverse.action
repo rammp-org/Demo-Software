@@ -1,0 +1,11 @@
+uint8 ASCEND          = 1
+uint8 DESCEND         = 0
+
+uint8 direction
+---
+# Result
+bool success
+string message
+---
+# Feedback
+uint8 CA_flag  # add comment for description

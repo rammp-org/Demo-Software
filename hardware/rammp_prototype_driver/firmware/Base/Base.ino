@@ -531,11 +531,11 @@ void displaydata() {
   // IMU
   PIout += String(IMU.pitchf + 3.0) + ',';
   PIout += String(IMU.rollf) + ',';
-  PIout += String(IMU.ax) + ','; 
+  PIout += String(IMU.ax) + ',';
   PIout += String(IMU.ay) + ',';
   PIout += String(IMU.az) + ',';
-  
-  //Encoders
+
+  // Encoders
   PIout += String(FC.pos) + ',';
   PIout += String(RC.pos) + ',';
   PIout += String(MR.pos) + ',';
@@ -545,19 +545,19 @@ void displaydata() {
   PIout += String(ML.wheel_pos) + ',';
   PIout += String(MR.wheel_pos) + ',';
 
-  //loadcell readings
+  // loadcell readings
   PIout += String(FC.loadcell) + ',';
   PIout += String(MR.loadcell) + ',';
   PIout += String(ML.loadcell) + ',';
 
-  //ca_flag
+  // ca_flag
   PIout += String(CA_flag) + ',';
 
-  //apptime
-  PIout += "0,"; //placeholder
-  
-  //velocity
-  PIout += String(ML.speed_drivef) + ','; 
+  // apptime
+  PIout += "0,"; // placeholder
+
+  // velocity
+  PIout += String(ML.speed_drivef) + ',';
   PIout += String(MR.speed_drivef) + ',';
 
   // acceleration will be calculated in sensor_data_pub

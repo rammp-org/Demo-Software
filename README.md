@@ -69,17 +69,17 @@ sudo apt remove python3-scipy python3-matplotlib
 
 ### Installing Dependencies
 
-Use the provided setup script, which handles both rosdep and pip dependencies:
-
-```bash
-cd ~/ros2_ws/src/Demo-Software
-./setup.sh
-```
-
 If this is your first time using `rosdep`, initialize it before running the script:
 
 ```bash
 sudo rosdep init
+```
+
+After `rosdep` is setup, use the provided setup script, which handles both rosdep and pip dependencies:
+
+```bash
+cd ~/ros2_ws/src/Demo-Software
+./setup.sh
 ```
 
 ### Building the Workspace

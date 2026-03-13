@@ -13,6 +13,8 @@
 #include "src/CommandParser/CommandParser.h"
 #include "src/PIDController/PIDController.h"
 
+#define DEBUG_MODE 1
+
 // Phase 4: State Machine
 enum SystemState {
     INIT,
@@ -42,7 +44,7 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 // IMU_Class IMU = IMU_Class(bno);
 EncoderContainer EContr;
 Timer timer;
-CommandParser parser(500);
+CommandParser parser(5000);
 
 // Initialize RoboClaw Controllers
 RoboClaw roboclaw_carriages(&Serial3, 10000);   // Serial3
@@ -72,6 +74,7 @@ void updateTelemetry() {
 // Helper to send telemetry
 void sendTelemetry() {
     Serial.print("TELEMETRY,");
+    Serial.print(millis()); Serial.print(",");
     Serial.print(telemetry.state); Serial.print(",");
     Serial.print(telemetry.rc_pos); Serial.print(",");
     Serial.print(telemetry.fc_pos); Serial.print(",");
@@ -110,6 +113,15 @@ void loop() {
     // 2. Parse Comms
     RobotCommand cmd = parser.parse(Serial);
     
+    if (DEBUG_MODE && cmd.type != CMD_NONE && cmd.type != CMD_UNKNOWN) {
+        Serial.print("DEBUG: Received CMD type=");
+        Serial.print(cmd.type);
+        Serial.print(" id=");
+        Serial.print(cmd.actuator_id);
+        Serial.print(" val=");
+        Serial.println(cmd.value, 4);
+    }
+    
     // 3. Update State Machine
     if (parser.isTimedOut() && current_state != ESTOP) {
         current_state = ESTOP;
@@ -117,12 +129,17 @@ void loop() {
     }
 
     if (cmd.type == CMD_Z) {
-        current_state = ESTOP;
+        if (current_state != ESTOP) {
+            current_state = ESTOP;
+            if (DEBUG_MODE) Serial.println("DEBUG: Manual ESTOP Triggered");
+        }
     } else if (cmd.type == CMD_C && current_state == ESTOP) {
         current_state = IDLE;
         parser.feedWatchdog();
+        if (DEBUG_MODE) Serial.println("DEBUG: ESTOP Cleared, entering IDLE");
     } else if (cmd.type != CMD_NONE && current_state == IDLE) {
         current_state = TUNER_MODE;
+        if (DEBUG_MODE) Serial.println("DEBUG: Entering TUNER_MODE");
     }
 
     // Process specific tuning commands if in TUNER_MODE
@@ -143,18 +160,20 @@ void loop() {
                     if (cmd.value == 0) m->setMode(Motor::OPEN_LOOP);
                     else if (cmd.value == 1) m->setMode(Motor::VELOCITY_CONTROL);
                     else if (cmd.value == 2) m->setMode(Motor::POSITION_CONTROL);
+                    if (DEBUG_MODE) { Serial.print("DEBUG: Set Mode to "); Serial.println(cmd.value); }
                     break;
                 case CMD_T:
                     if (m->mode == Motor::OPEN_LOOP) m->setTargetPWM(cmd.value);
                     else if (m->mode == Motor::VELOCITY_CONTROL) m->setTargetVelocity(cmd.value);
                     else if (m->mode == Motor::POSITION_CONTROL) m->setTargetPosition(cmd.value);
+                    if (DEBUG_MODE) { Serial.print("DEBUG: Set Target to "); Serial.println(cmd.value, 4); }
                     break;
-                case CMD_POS_P: m->pos_pid.kp = cmd.value; break;
-                case CMD_POS_I: m->pos_pid.ki = cmd.value; break;
-                case CMD_POS_D: m->pos_pid.kd = cmd.value; break;
-                case CMD_VEL_P: m->vel_pid.kp = cmd.value; break;
-                case CMD_VEL_I: m->vel_pid.ki = cmd.value; break;
-                case CMD_VEL_D: m->vel_pid.kd = cmd.value; break;
+                case CMD_POS_P: m->pos_pid.kp = cmd.value; if (DEBUG_MODE) Serial.println("DEBUG: Set Pos P"); break;
+                case CMD_POS_I: m->pos_pid.ki = cmd.value; if (DEBUG_MODE) Serial.println("DEBUG: Set Pos I"); break;
+                case CMD_POS_D: m->pos_pid.kd = cmd.value; if (DEBUG_MODE) Serial.println("DEBUG: Set Pos D"); break;
+                case CMD_VEL_P: m->vel_pid.kp = cmd.value; if (DEBUG_MODE) Serial.println("DEBUG: Set Vel P"); break;
+                case CMD_VEL_I: m->vel_pid.ki = cmd.value; if (DEBUG_MODE) Serial.println("DEBUG: Set Vel I"); break;
+                case CMD_VEL_D: m->vel_pid.kd = cmd.value; if (DEBUG_MODE) Serial.println("DEBUG: Set Vel D"); break;
                 default: break;
             }
         }

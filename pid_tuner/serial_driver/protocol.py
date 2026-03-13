@@ -2,22 +2,26 @@
 Serial protocol definitions for Teensy communication.
 
 Teensy -> PC Protocol:
-    ENC:<timestamp_ms>,<pos1>,<pos2>,<pos3>,<pos4>,<pos5>,<pos6>\n
+    TELEMETRY,<timestamp_ms>,<state>,<pos1>,<pos2>,<pos3>,<pos4>,<pos5>,<pos6>\n
 
-    Example: ENC:12345,10.5,-5.2,20.0,15.3,0.5,1.2
+    Example: TELEMETRY,12345,1,10.5,-5.2,20.0,15.3,0.5,1.2
 
 PC -> Teensy Protocol:
     Set Target: T<joint_id>:<target_cm>\n
         Example: T1:15.5
 
-    Step Input: S<joint_id>:<step_cm>\n
-        Example: S1:1.0 (step by +1.0 cm)
+    Set Mode: M<joint_id>:<mode>\n
+        Example: M1:2 (0: OPEN_LOOP, 1: VELOCITY, 2: POSITION)
 
-    Sine Wave: W<joint_id>:<amplitude_cm>,<frequency_hz>,<duration_s>\n
-        Example: W1:5.0,0.5,10.0 (5.0 cm amplitude, 0.5 Hz, 10 seconds)
+    Set PID:
+        P<joint_id>:<val>, I<joint_id>:<val>, D<joint_id>:<val> (Position PID)
+        p<joint_id>:<val>, i<joint_id>:<val>, d<joint_id>:<val> (Velocity PID)
+        Example: P1:0.5
 
     Stop Sine: X<joint_id>\n
         Example: X1 (stop sine wave on joint 1)
+
+    Clear ESTOP: c\n
 """
 
 from dataclasses import dataclass
@@ -30,6 +34,7 @@ class EncoderData:
     """Parsed position data from Teensy."""
 
     timestamp_ms: int
+    state: int
     position_values: List[
         float
     ]  # 6 position values in cm (indices 0-5 map to joints 1-6)
@@ -48,7 +53,8 @@ class EncoderData:
 class ProtocolParser:
     """Parse incoming serial data from Teensy."""
 
-    ENCODER_PATTERN = re.compile(r"^ENC:(\d+),(.+)$")
+    # Matches: TELEMETRY,timestamp,state,pos1,pos2,pos3,pos4,pos5,pos6
+    ENCODER_PATTERN = re.compile(r"^TELEMETRY,(\d+),(\d+),(.+)$")
 
     @classmethod
     def parse_line(cls, line: str) -> Optional[EncoderData]:
@@ -67,11 +73,14 @@ class ProtocolParser:
         if match:
             try:
                 timestamp = int(match.group(1))
-                values_str = match.group(2)
+                state = int(match.group(2))
+                values_str = match.group(3)
                 values = [float(v.strip()) for v in values_str.split(",")]
 
                 if len(values) == 6:
-                    return EncoderData(timestamp_ms=timestamp, position_values=values)
+                    return EncoderData(
+                        timestamp_ms=timestamp, state=state, position_values=values
+                    )
                 else:
                     return None
             except (ValueError, IndexError):
@@ -87,28 +96,31 @@ class ProtocolEncoder:
     def set_target(joint_id: int, target_cm: float) -> bytes:
         """
         Create command to set target position for a joint.
-
-        Args:
-            joint_id: Joint number (1-6)
-            target_cm: Target position in cm
-
-        Returns:
-            Encoded command bytes
         """
         cmd = f"T{joint_id}:{target_cm:.2f}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def set_mode(joint_id: int, mode: int) -> bytes:
+        """
+        Create command to set the control mode of a joint (0: Open Loop, 1: Vel, 2: Pos).
+        """
+        cmd = f"M{joint_id}:{mode}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def set_pid(joint_id: int, param: str, value: float) -> bytes:
+        """
+        Create command to set a PID parameter.
+        param should be 'P', 'I', 'D', 'p', 'i', or 'd'.
+        """
+        cmd = f"{param}{joint_id}:{value:.4f}\n"
         return cmd.encode("ascii")
 
     @staticmethod
     def step_input(joint_id: int, step_cm: float) -> bytes:
         """
         Create command for step input (relative change).
-
-        Args:
-            joint_id: Joint number (1-6)
-            step_cm: Step size in cm (can be negative)
-
-        Returns:
-            Encoded command bytes
         """
         cmd = f"S{joint_id}:{step_cm:.2f}\n"
         return cmd.encode("ascii")
@@ -119,15 +131,6 @@ class ProtocolEncoder:
     ) -> bytes:
         """
         Create command to start sine wave input.
-
-        Args:
-            joint_id: Joint number (1-6)
-            amplitude_cm: Amplitude in cm
-            frequency_hz: Frequency in Hz
-            duration_s: Duration in seconds
-
-        Returns:
-            Encoded command bytes
         """
         cmd = f"W{joint_id}:{amplitude_cm:.2f},{frequency_hz:.3f},{duration_s:.1f}\n"
         return cmd.encode("ascii")
@@ -136,12 +139,6 @@ class ProtocolEncoder:
     def stop_sine_wave(joint_id: int) -> bytes:
         """
         Create command to stop sine wave on a joint.
-
-        Args:
-            joint_id: Joint number (1-6)
-
-        Returns:
-            Encoded command bytes
         """
         cmd = f"X{joint_id}\n"
         return cmd.encode("ascii")
@@ -150,9 +147,14 @@ class ProtocolEncoder:
     def disable_motors() -> bytes:
         """
         Create command to disable all motors (emergency stop / safe mode).
-
-        Returns:
-            Encoded command bytes
         """
         cmd = "z\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def clear_estop() -> bytes:
+        """
+        Create command to clear ESTOP state.
+        """
+        cmd = "c\n"
         return cmd.encode("ascii")

@@ -11,8 +11,9 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QLabel,
     QSpinBox,
+    QLineEdit,
 )
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QTextCursor, QFont
 
 
@@ -24,9 +25,12 @@ class SerialConsole(QWidget):
     - Display incoming serial data
     - Auto-scroll
     - Pause/Resume
+    - Send raw commands
     - Clear
     - Line limit to prevent memory issues
     """
+
+    command_sent = pyqtSignal(str)
 
     DEFAULT_MAX_LINES = 500
 
@@ -90,6 +94,19 @@ class SerialConsole(QWidget):
         """)
         layout.addWidget(self._text_edit)
 
+        # Raw Command Input
+        input_layout = QHBoxLayout()
+        input_layout.addWidget(QLabel("Send:"))
+        self._cmd_input = QLineEdit()
+        self._cmd_input.returnPressed.connect(self._on_send_command)
+        input_layout.addWidget(self._cmd_input)
+
+        self._send_btn = QPushButton("Send")
+        self._send_btn.clicked.connect(self._on_send_command)
+        input_layout.addWidget(self._send_btn)
+
+        layout.addLayout(input_layout)
+
     @pyqtSlot(str)
     def append_line(self, line: str):
         """
@@ -141,3 +158,11 @@ class SerialConsole(QWidget):
         """Handle clear button click."""
         self._text_edit.clear()
         self._line_count = 0
+
+    def _on_send_command(self):
+        cmd = self._cmd_input.text().strip()
+        if cmd:
+            self.command_sent.emit(cmd)
+            # local echo
+            self._text_edit.append(f"> {cmd}")
+            self._cmd_input.clear()

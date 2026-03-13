@@ -140,10 +140,31 @@ class SerialHandler(QObject):
         cmd = ProtocolEncoder.stop_sine_wave(joint_id)
         self.send_command(cmd)
 
+    def set_mode(self, joint_id: int, mode: int):
+        """Set control mode (0: Open Loop, 1: Vel, 2: Pos)."""
+        cmd = ProtocolEncoder.set_mode(joint_id, mode)
+        self.send_command(cmd)
+
+    def set_pid(self, joint_id: int, param: str, value: float):
+        """Set PID parameter ('P', 'I', 'D', 'p', 'i', 'd')."""
+        cmd = ProtocolEncoder.set_pid(joint_id, param, value)
+        self.send_command(cmd)
+
     def disable_motors(self):
-        """Send disable motors command."""
+        """Send disable motors command (ESTOP)."""
         cmd = ProtocolEncoder.disable_motors()
         self.send_command(cmd)
+
+    def clear_estop(self):
+        """Send clear ESTOP command."""
+        cmd = ProtocolEncoder.clear_estop()
+        self.send_command(cmd)
+
+    def send_raw(self, cmd_str: str):
+        """Send raw serial command."""
+        if not cmd_str.endswith("\n"):
+            cmd_str += "\n"
+        self.send_command(cmd_str.encode("ascii"))
 
     def _read_loop(self):
         """Background thread loop for reading serial data."""

@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QSpinBox,
+    QComboBox,
     QDoubleSpinBox,
 )
 from PyQt6.QtCore import pyqtSignal, QTimer
@@ -60,6 +61,9 @@ class ControlPanel(QWidget):
         # Current values display
         layout.addWidget(self._create_status_group())
 
+        # PID Control
+        layout.addWidget(self._create_pid_group())
+
         # Target control
         layout.addWidget(self._create_target_group())
 
@@ -104,6 +108,74 @@ class ControlPanel(QWidget):
 
         return group
 
+    def _create_pid_group(self) -> QGroupBox:
+        group = QGroupBox("Mode & PID Control")
+        layout = QVBoxLayout(group)
+
+        # Mode Selection
+        mode_layout = QHBoxLayout()
+        mode_layout.addWidget(QLabel("Mode:"))
+        self._mode_combo = QComboBox()
+        self._mode_combo.addItems(["Open Loop (0)", "Velocity (1)", "Position (2)"])
+        mode_layout.addWidget(self._mode_combo)
+
+        self._set_mode_btn = QPushButton("Set Mode")
+        self._set_mode_btn.clicked.connect(self._on_set_mode)
+        mode_layout.addWidget(self._set_mode_btn)
+        layout.addLayout(mode_layout)
+
+        # Position PID
+        pos_pid_layout = QHBoxLayout()
+        pos_pid_layout.addWidget(QLabel("Pos PID:"))
+        self._pos_p = QDoubleSpinBox()
+        self._pos_p.setDecimals(4)
+        self._pos_p.setRange(0, 1000)
+        self._pos_i = QDoubleSpinBox()
+        self._pos_i.setDecimals(4)
+        self._pos_i.setRange(0, 1000)
+        self._pos_d = QDoubleSpinBox()
+        self._pos_d.setDecimals(4)
+        self._pos_d.setRange(0, 1000)
+
+        pos_pid_layout.addWidget(QLabel("P:"))
+        pos_pid_layout.addWidget(self._pos_p)
+        pos_pid_layout.addWidget(QLabel("I:"))
+        pos_pid_layout.addWidget(self._pos_i)
+        pos_pid_layout.addWidget(QLabel("D:"))
+        pos_pid_layout.addWidget(self._pos_d)
+
+        self._set_pos_pid_btn = QPushButton("Set")
+        self._set_pos_pid_btn.clicked.connect(self._on_set_pos_pid)
+        pos_pid_layout.addWidget(self._set_pos_pid_btn)
+        layout.addLayout(pos_pid_layout)
+
+        # Velocity PID
+        vel_pid_layout = QHBoxLayout()
+        vel_pid_layout.addWidget(QLabel("Vel PID:"))
+        self._vel_p = QDoubleSpinBox()
+        self._vel_p.setDecimals(4)
+        self._vel_p.setRange(0, 1000)
+        self._vel_i = QDoubleSpinBox()
+        self._vel_i.setDecimals(4)
+        self._vel_i.setRange(0, 1000)
+        self._vel_d = QDoubleSpinBox()
+        self._vel_d.setDecimals(4)
+        self._vel_d.setRange(0, 1000)
+
+        vel_pid_layout.addWidget(QLabel("P:"))
+        vel_pid_layout.addWidget(self._vel_p)
+        vel_pid_layout.addWidget(QLabel("I:"))
+        vel_pid_layout.addWidget(self._vel_i)
+        vel_pid_layout.addWidget(QLabel("D:"))
+        vel_pid_layout.addWidget(self._vel_d)
+
+        self._set_vel_pid_btn = QPushButton("Set")
+        self._set_vel_pid_btn.clicked.connect(self._on_set_vel_pid)
+        vel_pid_layout.addWidget(self._set_vel_pid_btn)
+        layout.addLayout(vel_pid_layout)
+
+        return group
+
     def _create_target_group(self) -> QGroupBox:
         """Create the target control group."""
         group = QGroupBox("Target Control")
@@ -143,12 +215,18 @@ class ControlPanel(QWidget):
         quick_layout.addWidget(self._set_zero_btn)
 
         # Disable Motors button
-        self._disable_motors_btn = QPushButton("Disable Motors")
+        self._disable_motors_btn = QPushButton("ESTOP (z)")
         self._disable_motors_btn.clicked.connect(self._on_disable_motors)
         self._disable_motors_btn.setStyleSheet(
             "background-color: #f44336; color: white;"
         )
         quick_layout.addWidget(self._disable_motors_btn)
+
+        # Clear ESTOP button
+        self._clear_estop_btn = QPushButton("Clear ESTOP (c)")
+        self._clear_estop_btn.clicked.connect(self._on_clear_estop)
+        self._clear_estop_btn.setStyleSheet("background-color: #ff9800; color: white;")
+        quick_layout.addWidget(self._clear_estop_btn)
 
         layout.addLayout(quick_layout)
 
@@ -316,6 +394,30 @@ class ControlPanel(QWidget):
     def _on_disable_motors(self):
         """Send disable motors command."""
         self._serial_handler.disable_motors()
+
+    def _on_clear_estop(self):
+        """Send clear ESTOP command."""
+        self._serial_handler.clear_estop()
+
+    def _on_set_mode(self):
+        """Send mode set command."""
+        joint_id = self._data_store.selected_joint
+        mode = self._mode_combo.currentIndex()
+        self._serial_handler.set_mode(joint_id, mode)
+
+    def _on_set_pos_pid(self):
+        """Send position PID gains."""
+        joint_id = self._data_store.selected_joint
+        self._serial_handler.set_pid(joint_id, "P", self._pos_p.value())
+        self._serial_handler.set_pid(joint_id, "I", self._pos_i.value())
+        self._serial_handler.set_pid(joint_id, "D", self._pos_d.value())
+
+    def _on_set_vel_pid(self):
+        """Send velocity PID gains."""
+        joint_id = self._data_store.selected_joint
+        self._serial_handler.set_pid(joint_id, "p", self._vel_p.value())
+        self._serial_handler.set_pid(joint_id, "i", self._vel_i.value())
+        self._serial_handler.set_pid(joint_id, "d", self._vel_d.value())
 
     def _on_step_positive(self):
         """Handle positive step button click."""

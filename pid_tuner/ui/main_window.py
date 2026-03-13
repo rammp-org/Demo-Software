@@ -78,6 +78,7 @@ class MainWindow(QMainWindow):
 
         # Serial console
         self._serial_console = SerialConsole()
+        self._serial_console.command_sent.connect(self._serial_handler.send_raw)
         left_splitter.addWidget(self._serial_console)
 
         # Set plot to take 70% of vertical space, console 30%

@@ -3,7 +3,8 @@
 #include <Constants.h>
 
 Component::Component(int lc_pin, MotorID motor_id, bool fwd_is_positive)
-    : LOADCELL_PIN(lc_pin), MOTOR_ID(motor_id), FWD_IS_POSITIVE(fwd_is_positive){};
+    : LOADCELL_PIN(lc_pin), MOTOR_ID(motor_id),
+      FWD_IS_POSITIVE(fwd_is_positive){};
 
 void Component::initialize_pins(){
     // pinMode(DIR_PIN, OUTPUT);
@@ -18,18 +19,16 @@ void Component::move() {
   if (motor_dir == 0) {
     if (FWD_IS_POSITIVE) {
       duty = -int((clamped_motor_PWM * 32767) / 255);
-    }
-    else {
+    } else {
       duty = int((clamped_motor_PWM * 32767) / 255);
     }
   } else {
     if (FWD_IS_POSITIVE) {
       duty = int((clamped_motor_PWM * 32767) / 255);
-    }
-    else {
+    } else {
       duty = -int((clamped_motor_PWM * 32767) / 255);
     }
-  } 
+  }
 
   Serial.print("moving dir and duty and motor ID: ");
   Serial.print(motor_dir);
@@ -38,7 +37,7 @@ void Component::move() {
   Serial.print(" ");
   Serial.println(MOTOR_ID);
 
-  // fix forward direction based on motor 
+  // fix forward direction based on motor
 
   // String output = "ID: ";
   // output += MOTOR_ID;

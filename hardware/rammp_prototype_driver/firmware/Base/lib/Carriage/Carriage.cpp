@@ -3,8 +3,8 @@
 
 Carriage::Carriage(MotorID motor_id, int sw_1_pin, int sw_2_pin,
                    signed long &encoder, bool fwd_is_positive)
-    : Component(NO_PIN, motor_id, fwd_is_positive), SW1_PIN(sw_1_pin), SW2_PIN(sw_2_pin),
-      encoder_val(encoder) {
+    : Component(NO_PIN, motor_id, fwd_is_positive), SW1_PIN(sw_1_pin),
+      SW2_PIN(sw_2_pin), encoder_val(encoder) {
   des = 0.0;
 };
 

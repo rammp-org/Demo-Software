@@ -70,11 +70,11 @@ class UnrealRemoteWebsocket:
                     await self._response_queue.put(
                         {"_error": str(e)}
                     )  # Unblock any waiting send_and_wait calls
-                    print(f"Ethernet GUI connection error: {e}")
+                    print(f"GUI connection error: {e}")
             finally:
                 self.ws_client = None
                 if not self.ws_shutdown:
-                    print("Ethernet GUI disconnected.")
+                    print("GUI disconnected.")
                     await asyncio.sleep(3)  # Wait before trying to reconnect
 
     async def register_preset(self):

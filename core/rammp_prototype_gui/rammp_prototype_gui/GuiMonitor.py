@@ -18,11 +18,7 @@ class GuiMonitor(Node):
         print("GuiMonitor node has been started.")
 
         self.ue = UnrealRemoteWebsocket(host="192.168.68.51", preset="RCPS")
-        # ue = UnrealRemote(host="192.168.68.63",http_port=30010)
-        # if not ue.ping():
-        #     print("Connection failed!")
-        #     sys.exit(1)
-        # print("Connected!\n")
+
         # Create shared memory and map it
         self.shm = posix_ipc.SharedMemory(
             "/ros_ue_shm",

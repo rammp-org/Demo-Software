@@ -30,24 +30,6 @@ void Component::move() {
     }
   }
 
-  Serial.print("moving dir and duty and motor ID: ");
-  Serial.print(motor_dir);
-  Serial.print(" ");
-  Serial.print(duty);
-  Serial.print(" ");
-  Serial.println(MOTOR_ID);
-
-  // fix forward direction based on motor
-
-  // String output = "ID: ";
-  // output += MOTOR_ID;
-  // output += " | PWM: ";
-  // output += motor_PWM;
-  // output += " | Dir: ";
-  // output += motor_dir;
-
-  // Serial.println(output);
-
   switch (MOTOR_ID) {
   case MOTOR_RC:
     roboclaw_casters.DutyM1(0x80, duty);

@@ -195,10 +195,6 @@ void MotorController::set_motordir(int dir_1, int dir_2, int dir_3, int dir_4,
 void MotorController::individual_motor_PID_proportional() {
   // RC
   RC.err = RC.pos - RC.des;
-  // Serial.print("RC pos and des: ");
-  // Serial.print(RC.pos);
-  // Serial.print(" ");
-  // Serial.println(RC.des);
 
   if (RC.err > 0.0) {
     RC.Kp = 25.0; // 20.0
@@ -477,7 +473,7 @@ void MotorController::manual_features_proportional() {
 
   switch (action) {
   case 'q':
-    Serial.println("Elevate");
+    // Serial.println("Elevate");
     // set_motorpwm(0, 100, 100, 100, 0, 0);
     // set_motordir(0, 0, 0, 1, 0, 0);
     ML.carriage.des = ML.carriage.pos;
@@ -488,7 +484,7 @@ void MotorController::manual_features_proportional() {
     FC.des = FC.pos;
     break;
   case 'a':
-    Serial.println("Lower seat");
+    // Serial.println("Lower seat");
     // set_motorpwm(0, 100, 100, 100, 0, 0);
     // set_motordir(0, 1, 1, 0, 0, 0);
     ML.carriage.des = ML.carriage.pos;

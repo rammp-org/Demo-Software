@@ -24,7 +24,7 @@ An enum for user inputs from the UI. This Node subscribe the UI exposed porperty
         "Chair/Curb/Ascend"
         "Chair/Curb/Descend"
         "Chair/Curb/Cancel"
-        "ArmControl/main", // enter arm control interface
+        "ArmControl/main" // enter arm control interface
         "Arm/Retract"
         "Arm/Manual"
         "Arm/OpenDoor"
@@ -32,6 +32,7 @@ An enum for user inputs from the UI. This Node subscribe the UI exposed porperty
         "Arm/Drinking"
         "Arm/CupStable"
         "Arm/Cancel"
+        "Reset" // reset from Error mode
     }
 ```
 

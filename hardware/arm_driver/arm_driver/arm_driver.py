@@ -224,9 +224,12 @@ class ArmDriverNode(rclpy.node.Node):
 
         if old_mode != CommandMode.TWIST and new_mode == CommandMode.TWIST:
             self._twist_timer.reset()
+
         elif new_mode != CommandMode.TWIST:
             self._twist_timer.cancel()
+            # Clear the twist cache when leaving a TWIST state so the arm stops if we re-enter a TWIST state without receiving a new command
             self._latest_twist = None
+            self._latest_twist_time = 0.0
 
         self._state = new_state
 

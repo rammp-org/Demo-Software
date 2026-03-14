@@ -293,7 +293,7 @@ class ArmDriverNode(rclpy.node.Node):
             return
 
         now = time.monotonic()
-        if self._latest_twist is not None and now - self._latest_twist_time > 0.2:
+        if now - self._latest_twist_time > 0.2:
             # Watchdog expired — stop the arm and clear the cache
             self._arm.send_twist([0.0, 0.0, 0.0], [0.0, 0.0, 0.0])
             self._latest_twist = None

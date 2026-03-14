@@ -24,7 +24,7 @@ def generate_launch_description():
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(realsense_launch),
                 launch_arguments={
-                    "camera_name": "wrist_camera",
+                    "camera_name": "wrist",
                     "serial_no": LaunchConfiguration("wrist_camera_serial"),
                     "base_frame_id": "wrist_camera_link",
                     "rgb_camera.profile": "640x480x30",

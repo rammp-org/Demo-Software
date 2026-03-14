@@ -278,9 +278,9 @@ class KinovaArm:
         command.twist.linear_x = linear_xyz[0]
         command.twist.linear_y = linear_xyz[1]
         command.twist.linear_z = linear_xyz[2]
-        command.twist.angular_x = angular_xyz[0]
-        command.twist.angular_y = angular_xyz[1]
-        command.twist.angular_z = angular_xyz[2]
+        command.twist.angular_x = math.degrees(angular_xyz[0])
+        command.twist.angular_y = math.degrees(angular_xyz[1])
+        command.twist.angular_z = math.degrees(angular_xyz[2])
         self.base.SendTwistCommand(command)
 
     def set_intermediate_zero_config(self):

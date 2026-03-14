@@ -384,7 +384,7 @@ class ArmDriverNode(rclpy.node.Node):
 
         try:
             arm_fn(blocking=False)
-            feedback = type(goal_handle).get_feedback_type()()
+            feedback = ReachPreset.Feedback()
             while not self._arm.ready():
                 state = self._arm.get_state()
                 feedback.joint_states.header.stamp = self.get_clock().now().to_msg()
@@ -395,13 +395,13 @@ class ArmDriverNode(rclpy.node.Node):
                 time.sleep(FEEDBACK_RATE)
             self._transition_to(final_state)
             goal_handle.succeed()
-            result = type(goal_handle).get_result_type()()
+            result = ReachPreset.Result()
             result.success = True
         except Exception as e:
             self.get_logger().error(f"Action failed: {e}")
             self._transition_to(ArmState.ERROR)
             goal_handle.abort()
-            result = type(goal_handle).get_result_type()()
+            result = ReachPreset.Result()
             result.success = False
             result.message = str(e)
 

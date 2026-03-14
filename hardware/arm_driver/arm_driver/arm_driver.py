@@ -501,7 +501,7 @@ class ArmDriverNode(rclpy.node.Node):
     # -------------------------------------------------------------------------
 
     def _publish_joint_states(self):
-        """Publish current joint states at 10 Hz."""
+        """Publish current joint states at 100 Hz."""
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
         if self._arm:

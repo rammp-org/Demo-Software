@@ -1,15 +1,14 @@
 # Service definition for setting the mode of the arm.
 
 # The arm can be in one of the following modes:
-uint8 MODE_RETRACTED     = 0
-uint8 MODE_HOME          = 1
-uint8 MODE_OPEN_DOOR     = 2
-uint8 MODE_ORDER_DRINK   = 3
-uint8 MODE_DRINKING      = 4
-uint8 MODE_CUP_STABILIZE = 5
-uint8 MODE_MANUAL        = 6
-uint8 MODE_PRESET_IN_MOTION  = 7
-uint8 MODE_ERROR             = 8
+uint8 MODE_IDLE              = 0
+uint8 MODE_OPEN_DOOR         = 1
+uint8 MODE_ORDER_DRINK       = 2
+uint8 MODE_DRINKING          = 3
+uint8 MODE_CUP_STABILIZE     = 4
+uint8 MODE_MANUAL            = 5
+uint8 MODE_PRESET_IN_MOTION  = 6
+uint8 MODE_ERROR             = 7
 
 # Request message
 uint8 mode

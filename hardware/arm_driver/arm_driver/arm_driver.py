@@ -21,8 +21,7 @@ FEEDBACK_RATE = 0.1  # seconds between feedback publishes during action executio
 
 # Build enum matching service definition
 class ArmState(enum.IntEnum):
-    RETRACTED = SetMode.Request.MODE_RETRACTED
-    HOME = SetMode.Request.MODE_HOME
+    IDLE = SetMode.Request.MODE_IDLE
     OPEN_DOOR = SetMode.Request.MODE_OPEN_DOOR
     ORDER_DRINK = SetMode.Request.MODE_ORDER_DRINK
     DRINKING = SetMode.Request.MODE_DRINKING
@@ -39,8 +38,7 @@ AUTHORIZED_SOURCE = {
     ArmState.DRINKING: "cornell",
     ArmState.CUP_STABILIZE: "atdev",
     ArmState.MANUAL: "xbox",
-    ArmState.HOME: None,
-    ArmState.RETRACTED: None,
+    ArmState.IDLE: None,
     ArmState.PRESET_IN_MOTION: None,
     ArmState.ERROR: None,
 }
@@ -60,8 +58,7 @@ COMMAND_MODE = {
     ArmState.DRINKING: CommandMode.POSITION,
     ArmState.CUP_STABILIZE: CommandMode.TWIST,
     ArmState.MANUAL: CommandMode.TWIST,
-    ArmState.HOME: CommandMode.NONE,
-    ArmState.RETRACTED: CommandMode.NONE,
+    ArmState.IDLE: CommandMode.NONE,
     ArmState.PRESET_IN_MOTION: CommandMode.NONE,
     ArmState.ERROR: CommandMode.NONE,
 }
@@ -86,7 +83,7 @@ class ArmDriverNode(rclpy.node.Node):
         """Initialise the node, all pub/sub/service/action interfaces, and the arm connection."""
         super().__init__("arm_driver_node")
 
-        self._state = ArmState.RETRACTED
+        self._state = ArmState.IDLE
         self._arm: KinovaArm | None = None
         self._latest_twist: Twist | None = None
         self._latest_twist_time: float = 0.0
@@ -363,24 +360,20 @@ class ArmDriverNode(rclpy.node.Node):
     # Action handlers
     # -------------------------------------------------------------------------
 
-    def _run_reference_action(
-        self, goal_handle, arm_fn, transitioning_state, final_state
-    ):
-        """Common execution loop for reference actions (home, retract).
+    def _run_reference_action(self, goal_handle, arm_fn):
+        """Common execution loop for reference actions (home, retract, zero, cup_stabilize).
 
         Starts the arm action non-blocking, then streams joint state feedback until
-        the arm signals completion, then transitions to ``final_state``.
+        the arm signals completion, then transitions to IDLE.
 
         Args:
             goal_handle: The action goal handle.
             arm_fn: Callable that starts the arm motion (e.g. ``self._arm.retract``).
-            transitioning_state: ArmState to enter while executing (e.g. RETRACTING).
-            final_state: ArmState to enter on success (e.g. RETRACTED).
 
         Returns:
             The populated action result.
         """
-        self._transition_to(transitioning_state)
+        self._transition_to(ArmState.PRESET_IN_MOTION)
 
         try:
             arm_fn(blocking=False)
@@ -393,7 +386,7 @@ class ArmDriverNode(rclpy.node.Node):
                 feedback.joint_states.effort = state["effort"].tolist()
                 goal_handle.publish_feedback(feedback)
                 time.sleep(FEEDBACK_RATE)
-            self._transition_to(final_state)
+            self._transition_to(ArmState.IDLE)
             goal_handle.succeed()
             result = ReachPreset.Result()
             result.success = True
@@ -420,43 +413,21 @@ class ArmDriverNode(rclpy.node.Node):
             ReachPreset result with success flag and optional message.
         """
         dispatch = {
-            ReachPreset.Goal.PRESET_HOME: (
-                self._arm.home,
-                ArmState.PRESET_IN_MOTION,
-                ArmState.HOME,
-            ),
-            ReachPreset.Goal.PRESET_RETRACT: (
-                self._arm.retract,
-                ArmState.PRESET_IN_MOTION,
-                ArmState.RETRACTED,
-            ),
-            ReachPreset.Goal.PRESET_ZERO: (
-                self._arm.zero,
-                ArmState.PRESET_IN_MOTION,
-                ArmState.RETRACTED,
-            ),
-            ReachPreset.Goal.PRESET_CUP_STABILIZE: (
-                self._arm.cup_stabilize,
-                ArmState.PRESET_IN_MOTION,
-                ArmState.CUP_STABILIZE,
-            ),
+            ReachPreset.Goal.PRESET_HOME: self._arm.home,
+            ReachPreset.Goal.PRESET_RETRACT: self._arm.retract,
+            ReachPreset.Goal.PRESET_ZERO: self._arm.zero,
+            ReachPreset.Goal.PRESET_CUP_STABILIZE: self._arm.cup_stabilize,
         }
 
-        entry = dispatch.get(goal_handle.request.preset)
-        if entry is None:
+        arm_fn = dispatch.get(goal_handle.request.preset)
+        if arm_fn is None:
             result = ReachPreset.Result()
             result.success = False
             result.message = f"Unknown preset: {goal_handle.request.preset}"
             goal_handle.abort()
             return result
 
-        arm_fn, transitioning_state, final_state = entry
-        return self._run_reference_action(
-            goal_handle,
-            arm_fn=arm_fn,
-            transitioning_state=transitioning_state,
-            final_state=final_state,
-        )
+        return self._run_reference_action(goal_handle, arm_fn=arm_fn)
 
     def _on_execute_trajectory(self, source: str, goal_handle):
         """Handle a /arm/{source}/execute_trajectory action goal.

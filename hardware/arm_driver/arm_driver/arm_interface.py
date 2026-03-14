@@ -260,7 +260,7 @@ class KinovaArm:
         self._execute_reference_action("Zero", blocking=blocking)
 
     def cup_stabilize(self, blocking=True):
-        self._execute_reference_action("CupStabilize", blocking=blocking)
+        self._execute_reference_action("Home", blocking=blocking)
 
     def send_twist(self, linear_xyz, angular_xyz):
         """Send a Cartesian twist velocity command (SINGLE_LEVEL_SERVOING).

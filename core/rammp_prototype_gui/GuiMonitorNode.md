@@ -38,11 +38,10 @@ An enum for user inputs from the UI. This Node subscribe the UI exposed porperty
 
 ### Publishers:
 
-| Topic                      | Type              |
-| -------------------------- | ----------------- |
-| /user_input                |                   |
-| /mebot/seat/manual_control |                   |
-| /user_connection           | std_msgs/msg/Bool |
+| Topic            | Type                         |
+| ---------------- | ---------------------------- |
+| /user_input      | gui_interface/msg/UserInputs |
+| /user_connection | std_msgs/msg/Bool            |
 
 ### Subscriber:
 

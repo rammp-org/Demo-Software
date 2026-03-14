@@ -10,9 +10,14 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclpy REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(visualization_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(message_filters REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(neu_navigation_interfaces REQUIRED)
 include_directories(include)
 
 # # Create Cpp executable
@@ -23,14 +28,17 @@ include_directories(include)
 #   cpp_executable
 #   DESTINATION lib/${PROJECT_NAME}
 # )
-
+install(DIRECTORY
+  models
+  DESTINATION share/${PROJECT_NAME}/
+)
 # # Install Python modules
 # ament_python_install_package(${PROJECT_NAME})
-# # Install Python executables
-# install(PROGRAMS
-#   scripts/py_node.py
-#   DESTINATION lib/${PROJECT_NAME}
-# )
+# Install Python executables
+install(PROGRAMS
+  scripts/perception_curb_detection_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

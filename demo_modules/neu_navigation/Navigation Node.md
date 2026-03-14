@@ -10,24 +10,30 @@
 > - \[ \] Do we use a compressed camera stream for this node?
 > - \[ \] What needs to be published to the GUI?
 > - \[ \] What is the `curb_info` format? How does this info display to user.
+> - \[ \] Clean up the code.
 
 ### Publishers:
 
-| Topic          | Type |
-| -------------- | ---- |
-| /nav/curb/info |      |
+| Topic                   | Type                                   |
+| ----------------------- | -------------------------------------- |
+| /nav/curb/info          | neu_navigation_interfaces/msg/CurbInfo |
+| /perception/curb_visual | visualization_msgs/msg/Marker          |
 
 ### Subscriber:
 
-| Topic                 | Type                  |
-| --------------------- | --------------------- |
-| /camera/nav/image_raw | sensor_msgs/msg/Image |
+`# The below topics are not actual, and will change based on what we are publishing on MeBot.`
+
+| Topic                   | Type                       |
+| ----------------------- | -------------------------- |
+| /camera/nav/image_raw   | sensor_msgs/msg/Image      |
+| /camera/nav/depth_raw   | sensor_msgs/msg/Image      |
+| /camera/nav/camera_info | sensor_msgs/msg/CameraInfo |
 
 ### Service Servers:
 
-| Topic | Type |
-| ----- | ---- |
-|       |      |
+| Topic            | Type                                     |
+| ---------------- | ---------------------------------------- |
+| /nav/curb/detect | neu_navigation_interfaces/srv/DetectCurb |
 
 ### Service Clients:
 

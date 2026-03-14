@@ -4,6 +4,8 @@
 > This Node is perform curb detection action based on request.
 > When receive `/navigate_to_curb`, it will perform `curb detection` algorithm and publish `/curb_info`.
 > When finished, `curb_detection` algorithm will stop to release GPU resource.
+> Weights are hosted at -- https://drive.google.com/drive/folders/1AGhQ3uLKEJPdeeedGgDtzoICqgoFGrTw?usp=sharing
+> Demo -- https://youtu.be/ABBS57FzwaM
 
 > **TODO:**
 >
@@ -11,6 +13,7 @@
 > - \[ \] What needs to be published to the GUI?
 > - \[ \] What is the `curb_info` format? How does this info display to user.
 > - \[ \] Clean up the code.
+> - \[ \] Test gpu release.
 
 ### Publishers:
 
@@ -21,7 +24,8 @@
 
 ### Subscriber:
 
-`# The below topics are not actual, and will change based on what we are publishing on MeBot.`
+> \[!NOTE\]
+> The below topics are not actual, and will change based on what we are publishing on MeBot.
 
 | Topic                   | Type                       |
 | ----------------------- | -------------------------- |

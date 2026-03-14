@@ -106,7 +106,7 @@ class PerceptionCurbDetectionNode(Node):
         # Service Server
         self.srv = self.create_service(
             DetectCurb,
-            "detect_curb",
+            "nav/curb/detect",
             self.detect_curb_callback,
             callback_group=self.cb_group,
         )

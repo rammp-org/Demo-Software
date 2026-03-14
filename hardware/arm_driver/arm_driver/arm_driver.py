@@ -84,6 +84,7 @@ class ArmDriverNode(rclpy.node.Node):
         super().__init__("arm_driver_node")
 
         self._state = ArmState.IDLE
+        self._error_reason: str = ""
         self._arm: KinovaArm | None = None
         self._latest_twist: Twist | None = None
         self._latest_twist_time: float = 0.0
@@ -196,6 +197,7 @@ class ArmDriverNode(rclpy.node.Node):
             self.get_logger().info("Arm connected successfully.")
         except Exception as e:
             self.get_logger().error(f"Failed to connect to arm: {e}")
+            self._error_reason = f"Arm connection failed: {e}"
             self._transition_to(ArmState.ERROR)
 
     # -------------------------------------------------------------------------
@@ -320,6 +322,7 @@ class ArmDriverNode(rclpy.node.Node):
         if msg.data:
             self.get_logger().warn("E-stop received.")
             # STUB: self._arm.stop()
+            self._error_reason = "E-stop triggered"
             self._transition_to(ArmState.ERROR)
 
     # -------------------------------------------------------------------------
@@ -379,6 +382,12 @@ class ArmDriverNode(rclpy.node.Node):
             arm_fn(blocking=False)
             feedback = ReachPreset.Feedback()
             while not self._arm.ready():
+                if self._state == ArmState.ERROR:
+                    goal_handle.abort()
+                    result = ReachPreset.Result()
+                    result.success = False
+                    result.message = self._error_reason
+                    return result
                 state = self._arm.get_state()
                 feedback.joint_states.header.stamp = self.get_clock().now().to_msg()
                 feedback.joint_states.position = state["position"].tolist()
@@ -386,17 +395,27 @@ class ArmDriverNode(rclpy.node.Node):
                 feedback.joint_states.effort = state["effort"].tolist()
                 goal_handle.publish_feedback(feedback)
                 time.sleep(FEEDBACK_RATE)
+
+            # Guard against estop firing at the exact moment the arm became ready.
+            if self._state == ArmState.ERROR:
+                goal_handle.abort()
+                result = ReachPreset.Result()
+                result.success = False
+                result.message = "Action aborted: e-stop triggered during execution"
+                return result
+
             self._transition_to(ArmState.IDLE)
             goal_handle.succeed()
             result = ReachPreset.Result()
             result.success = True
         except Exception as e:
             self.get_logger().error(f"Action failed: {e}")
+            self._error_reason = f"Action execution failed: {e}"
             self._transition_to(ArmState.ERROR)
             goal_handle.abort()
             result = ReachPreset.Result()
             result.success = False
-            result.message = str(e)
+            result.message = self._error_reason
 
         return result
 

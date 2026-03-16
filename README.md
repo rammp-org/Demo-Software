@@ -59,21 +59,35 @@ git clone [https://github.com/rammp-org/Demo-Software.git](https://github.com/ra
 
 ```
 
-### Building the Workspace
+### System Packages (Jetson)
 
-If this is your first time using `rosdep`, initialize it:
+On Jetson, the system-installed scipy and matplotlib conflict with the pip versions required by `arm_driver` due to binary incompatibility with newer numpy. Remove them before installing dependencies:
+
+```bash
+sudo apt remove python3-scipy python3-matplotlib
+```
+
+### Installing Dependencies
+
+If this is your first time using `rosdep`, initialize it before running the script:
 
 ```bash
 sudo rosdep init
-rosdep update
 ```
+
+After `rosdep` is setup, use the provided setup script, which handles both rosdep and pip dependencies:
+
+```bash
+cd ~/ros2_ws/src/Demo-Software
+./setup.sh
+```
+
+### Building the Workspace
 
 ```bash
 cd ~/ros2_ws
-rosdep install -i --from-path src --rosdistro humble -r -y
 colcon build --symlink-install
 source install/setup.bash
-
 ```
 
 ## Contributing

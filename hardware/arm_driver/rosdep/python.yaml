@@ -1,0 +1,14 @@
+python3-kortex-api:
+  ubuntu:
+    pip:
+      packages: []
+
+python3-pinocchio:
+  ubuntu:
+    pip:
+      packages: []
+
+python3-scipy:
+  ubuntu:
+    pip:
+      packages: []

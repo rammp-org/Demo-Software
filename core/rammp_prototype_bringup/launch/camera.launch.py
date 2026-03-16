@@ -37,9 +37,9 @@ def generate_launch_description():
                 default_value="",
                 description="Serial number of the RealSense D435i wrist camera.",
             ),
-            # ── Shoulder camera serial (Orbbec Gemini 336L) ───────────────
+            # ── nav camera serial (Orbbec Gemini 336L) ───────────────
             DeclareLaunchArgument(
-                "shoulder_camera_serial",
+                "nav_camera_serial",
                 default_value="",
                 description="Serial number of the Orbbec Gemini 336L navigation camera.",
             ),
@@ -60,7 +60,7 @@ def generate_launch_description():
                 }.items(),
                 condition=UnlessCondition(LaunchConfiguration("disable_realsense")),
             ),
-            # ── Shoulder camera (Orbbec Gemini 336L) ──────────────────────
+            # ── nav camera (Orbbec Gemini 336L) ──────────────────────
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(orbbec_launch),
                 launch_arguments={

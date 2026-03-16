@@ -161,8 +161,7 @@ class SerialConsole(QWidget):
         """
         Append multiple lines to the console in a single batch.
 
-        This is more efficient than appending lines one at a time,
-        as it reduces the number of UI updates.
+        Uses optimized text operations to minimize UI updates and reflows.
 
         Args:
             lines: List of text lines to append
@@ -171,22 +170,40 @@ class SerialConsole(QWidget):
             return
 
         # Filter lines
-        filtered_lines = [line for line in lines if self._should_show_line(line)]
+        filtered_lines = [
+            line.rstrip() for line in lines if self._should_show_line(line)
+        ]
         if not filtered_lines:
             return
 
-        # Disable updates during batch insert for better performance
+        # Calculate how many lines to remove
+        new_count = len(filtered_lines)
+        total_after = self._line_count + new_count
+        lines_to_remove = max(0, total_after - self._max_lines)
+
+        # Disable updates during batch operations for better performance
         self._text_edit.setUpdatesEnabled(False)
         try:
-            for line in filtered_lines:
-                # Remove oldest lines if at limit
-                if self._line_count >= self._max_lines:
-                    self._remove_first_line()
-                else:
-                    self._line_count += 1
+            # Batch remove old lines if needed (much faster than one at a time)
+            if lines_to_remove > 0:
+                self._remove_first_n_lines(lines_to_remove)
+                self._line_count -= lines_to_remove
 
-                # Append the new line
-                self._text_edit.append(line.rstrip())
+            # Join all new lines into a single string and insert at once
+            # This is much faster than multiple append() calls
+            text_to_add = "\n".join(filtered_lines)
+
+            # Move cursor to end and insert text
+            cursor = self._text_edit.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+
+            # Add newline before if there's existing content
+            if self._line_count > 0:
+                cursor.insertText("\n" + text_to_add)
+            else:
+                cursor.insertText(text_to_add)
+
+            self._line_count += new_count
         finally:
             self._text_edit.setUpdatesEnabled(True)
 
@@ -246,13 +263,34 @@ class SerialConsole(QWidget):
 
     def _remove_first_line(self):
         """Remove the first line from the text edit."""
+        self._remove_first_n_lines(1)
+
+    def _remove_first_n_lines(self, n: int):
+        """
+        Remove the first N lines from the text edit efficiently.
+
+        This is much faster than calling _remove_first_line() N times
+        because it only triggers one text layout update.
+        """
+        if n <= 0:
+            return
+
         cursor = self._text_edit.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.Start)
+
+        # Move down N lines, selecting all text along the way
+        for _ in range(n):
+            cursor.movePosition(
+                QTextCursor.MoveOperation.Down, QTextCursor.MoveMode.KeepAnchor
+            )
+
+        # Also select to the start of the current line to get the newline
         cursor.movePosition(
-            QTextCursor.MoveOperation.Down, QTextCursor.MoveMode.KeepAnchor
+            QTextCursor.MoveOperation.StartOfLine, QTextCursor.MoveMode.KeepAnchor
         )
+
+        # Remove all selected text at once
         cursor.removeSelectedText()
-        cursor.deleteChar()  # Remove the newline
 
     def _on_autoscroll_toggled(self, checked: bool):
         """Handle auto-scroll checkbox toggle."""

@@ -36,7 +36,9 @@ class SerialHandler(QObject):
 
     DEFAULT_BAUD_RATE = 115200
     DEFAULT_TIMEOUT = 0.1  # 100ms read timeout
-    BATCH_INTERVAL_MS = 33  # ~30 Hz batch emission rate
+    BATCH_INTERVAL_MS = (
+        50  # 20 Hz batch emission rate (balance responsiveness vs performance)
+    )
 
     def __init__(self, parent=None):
         super().__init__(parent)

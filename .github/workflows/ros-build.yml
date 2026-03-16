@@ -28,7 +28,9 @@ jobs:
           rosdep update
 
       - name: Install dependencies
-        run: rosdep install -i --from-path src --rosdistro humble -r -y
+        run: |
+          sudo apt-get update
+          rosdep install -i --from-path src --rosdistro humble -r -y
 
       - name: Build
         run: |

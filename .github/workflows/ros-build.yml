@@ -20,10 +20,8 @@ jobs:
           path: src/Demo-Software
 
       - name: Install dependencies
-        run: |
-          apt-get update
-          rosdep update
-          rosdep install -i --from-path src --rosdistro humble -r -y
+        shell: bash
+        run: src/Demo-Software/setup.sh
 
       - name: Build
         shell: bash

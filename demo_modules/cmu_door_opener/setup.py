@@ -22,6 +22,9 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "button_detector = cmu_door_opener.button_detector:main",
+            "button_push_controller = cmu_door_opener.button_push_controller:main",
+        ],
     },
 )

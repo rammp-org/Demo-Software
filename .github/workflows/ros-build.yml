@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: src/Demo-Software
+          submodules: recursive
 
       - uses: ros-tooling/setup-ros@v0.7
         with:
@@ -28,7 +29,15 @@ jobs:
           rosdep update
 
       - name: Install dependencies
-        run: rosdep install -i --from-path src --rosdistro humble -r -y --skip-keys="orbbec_camera orbbec_camera_msgs"
+        run: |
+          sudo apt install -y libgflags-dev nlohmann-json3-dev \
+            ros-humble-image-transport ros-humble-image-transport-plugins \
+            ros-humble-compressed-image-transport ros-humble-image-publisher \
+            ros-humble-camera-info-manager ros-humble-diagnostic-updater \
+            ros-humble-diagnostic-msgs ros-humble-statistics-msgs \
+            ros-humble-xacro ros-humble-backward-ros \
+            libdw-dev libssl-dev mesa-utils libgl1
+          rosdep install -i --from-path src --rosdistro humble -r -y
 
       - name: Build
         run: |

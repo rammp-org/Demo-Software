@@ -11,6 +11,8 @@
   <depend>std_msgs</depend>
 
   <exec_depend>realsense2_camera</exec_depend>
+  <exec_depend>realsense2_camera_msgs</exec_depend>
+  <exec_depend>realsense2_description</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>orbbec_camera</exec_depend>

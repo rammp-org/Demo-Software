@@ -56,3 +56,16 @@
 | Topic | Type |
 | ----- | ---- |
 |       |      |
+
+### Installation
+
+```
+cd demo_modules/neu_navigation
+pip3 install -r requirements.txt
+cd $ROS_WS
+colcon build
+source install/setup.bash
+ros2 run neu_navigation perception_curb_detection_node
+# on a second terminal
+ros2 service call /nav/curb/detect neu_navigation_interfaces/srv/DetectCurb "{}"
+```

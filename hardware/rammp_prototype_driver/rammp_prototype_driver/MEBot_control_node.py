@@ -8,6 +8,7 @@ from tf2_msgs.msg import TFMessage
 from sensor_msgs.msg import JointState
 from std_srvs.srv import SetBool
 from interfaces.rammp_prototype_interfaces.msg import RAMMPPrototypeState
+from interfaces.rammp_prototype_interfaces.srv import curb_traverse
 
 
 class MEBotControlNode(Node):
@@ -81,16 +82,24 @@ class MEBotControlNode(Node):
             SetBool, "self_level_enable", self.self_level_enable_callback
         )
 
+        # actions
+        self.curb_traverse_action_service = self.create_service(
+            self, curb_traverse, "curb_traverse", self.curb_traverse_action_callback
+        )
+
         # subscriptions
         self.manual_seat_control_subscription = self.create_subscription(
             bool, "manual_seat_control", self.manual_seat_control_callback, 10
         )  # message type is placeholder
+
         self.curb_ascend_subscription = self.create_subscription(
             bool, "curb_ascend", self.curb_ascend_callback, 10
         )
+
         self.curb_descend_subscription = self.create_subscription(
             bool, "curb_descend", self.curb_descend_callback, 10
         )
+
         self.estop_subscription = self.create_subscription(
             bool, "estop", self.estop_callback, 10
         )
@@ -297,6 +306,18 @@ class MEBotControlNode(Node):
             # content
             pass
 
+    def estop_callback(self, msg):
+        if msg.data:
+            # content
+            pass
+        else:
+            # content
+            pass
+
+    def curb_traverse_action_callback(self, goal, response):
+        # content
+        return response
+
     def drive_enable_callback(self, request, response):
         if request.data:
             # content
@@ -316,14 +337,6 @@ class MEBotControlNode(Node):
             pass
 
         return response
-
-    def estop_callback(self, msg):
-        if msg.data:
-            # content
-            pass
-        else:
-            # content
-            pass
 
 
 def main(args=None):

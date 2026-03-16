@@ -9,16 +9,22 @@ Teensy -> PC Protocol:
     Example: TELEMETRY,12345,1,10.5,-5.2,20.0,15.3,0.5,1.2,0.1,0.2,0.3,0.4,0.5,0.6,100,200,300,400,500,600
 
 PC -> Teensy Protocol:
-    Set Target: T<joint_id>:<target_cm>\n
+    Set Target: T<joint_id>:<target>\n
         Example: T1:15.5
+        Note: Target units depend on control mode (PWM, velocity, or position)
 
     Set Mode: M<joint_id>:<mode>\n
         Example: M1:2 (0: OPEN_LOOP, 1: VELOCITY, 2: POSITION)
 
     Set PID:
         P<joint_id>:<val>, I<joint_id>:<val>, D<joint_id>:<val> (Position PID)
+        F<joint_id>:<val> (Position Feed-Forward)
         p<joint_id>:<val>, i<joint_id>:<val>, d<joint_id>:<val> (Velocity PID)
+        f<joint_id>:<val> (Velocity Feed-Forward)
         Example: P1:0.5
+
+    Reset PID: R<joint_id>\n
+        Example: R1 (clears integrator windup and previous error)
 
     Stop Sine: X<joint_id>\n
         Example: X1 (stop sine wave on joint 1)
@@ -176,4 +182,21 @@ class ProtocolEncoder:
         Create command to clear ESTOP state.
         """
         cmd = "c\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def reset_pid(joint_id: int) -> bytes:
+        """
+        Create command to reset PID state (clear integrator windup).
+        """
+        cmd = f"R{joint_id}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def set_feed_forward(joint_id: int, param: str, value: float) -> bytes:
+        """
+        Create command to set a feed-forward gain.
+        param should be 'F' (position FF) or 'f' (velocity FF).
+        """
+        cmd = f"{param}{joint_id}:{value:.4f}\n"
         return cmd.encode("ascii")

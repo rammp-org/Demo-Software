@@ -1,9 +1,9 @@
 #include "PIDController.h"
 #include <Arduino.h>
 
-PIDController::PIDController(float kp, float ki, float kd, float min_out,
+PIDController::PIDController(float kp, float ki, float kd, float kff, float min_out,
                              float max_out)
-    : kp(kp), ki(ki), kd(kd), min_out(min_out), max_out(max_out),
+    : kp(kp), ki(ki), kd(kd), kff(kff), min_out(min_out), max_out(max_out),
       integral(0.0f), prev_error(0.0f) {}
 
 float PIDController::compute(float setpoint, float measured, float dt) {
@@ -11,6 +11,9 @@ float PIDController::compute(float setpoint, float measured, float dt) {
     return 0.0f;
 
   float error = setpoint - measured;
+
+  // Feed-forward term (direct contribution from setpoint)
+  float ff_out = kff / 10000 * setpoint;
 
   // Proportional term
   float p_out = kp / 10000 * error;
@@ -23,8 +26,8 @@ float PIDController::compute(float setpoint, float measured, float dt) {
   float derivative = (error - prev_error) / dt;
   float d_out = kd / 10000 * derivative;
 
-  // Compute total output
-  float output = p_out + i_out + d_out;
+  // Compute total output (feed-forward + PID)
+  float output = ff_out + p_out + i_out + d_out;
 
   // Apply output limits and anti-windup clamping
   if (output > max_out) {
@@ -38,19 +41,6 @@ float PIDController::compute(float setpoint, float measured, float dt) {
   // Save previous error
   prev_error = error;
 
-  Serial.print("DEBUG: p_out, error, setpoint, measured, dt, output: ");
-  Serial.print(p_out);
-  Serial.print(", ");
-  Serial.print(error);
-  Serial.print(", ");
-  Serial.print(setpoint);
-  Serial.print(", ");
-  Serial.print(measured);
-  Serial.print(", ");
-  Serial.print(dt);
-  Serial.print(", ");
-  Serial.println(output);
-
   return output;
 }
 
@@ -58,6 +48,10 @@ void PIDController::setGains(float kp, float ki, float kd) {
   this->kp = kp;
   this->ki = ki;
   this->kd = kd;
+}
+
+void PIDController::setFeedForward(float kff) {
+  this->kff = kff;
 }
 
 void PIDController::setOutputLimits(float min_out, float max_out) {

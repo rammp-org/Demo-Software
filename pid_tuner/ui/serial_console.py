@@ -1,5 +1,12 @@
 """
 Serial console widget for displaying raw serial data.
+
+Supports custom text filtering with the following syntax:
+    - Empty string: show all messages
+    - "text": show lines containing "text" (case-insensitive substring match)
+    - "^PREFIX": show lines starting with "PREFIX"
+    - "!text": hide lines containing "text"
+    - "!^PREFIX": hide lines starting with "PREFIX"
 """
 
 from PyQt6.QtWidgets import (
@@ -29,7 +36,10 @@ class SerialConsole(QWidget):
     - Auto-scroll
     - Pause/Resume
     - Send raw commands
-    - Filter by message type (All, TELEMETRY, DEBUG, etc.)
+    - Custom text filter with support for:
+        - Substring match (default)
+        - Prefix match (^PREFIX)
+        - Exclusion (!text or !^PREFIX)
     - Clear
     - Line limit to prevent memory issues
     """
@@ -38,12 +48,12 @@ class SerialConsole(QWidget):
 
     DEFAULT_MAX_LINES = 500
 
-    # Filter options: (display_name, prefix_to_match_or_None)
-    FILTER_OPTIONS = [
-        ("All", None),
-        ("TELEMETRY", "TELEMETRY"),
-        ("DEBUG", "DEBUG"),
-        ("Exclude TELEMETRY", "!TELEMETRY"),
+    # Quick filter presets for the dropdown
+    FILTER_PRESETS = [
+        ("All", ""),
+        ("Exclude TELEMETRY", "!^TELEMETRY"),
+        ("DEBUG only", "^DEBUG"),
+        ("TELEMETRY only", "^TELEMETRY"),
     ]
 
     def __init__(self, parent=None):
@@ -52,7 +62,7 @@ class SerialConsole(QWidget):
         self._auto_scroll = True
         self._max_lines = self.DEFAULT_MAX_LINES
         self._line_count = 0
-        self._filter_prefix = None  # None = show all
+        self._filter_text = ""  # Empty = show all
 
         self._setup_ui()
 
@@ -73,20 +83,44 @@ class SerialConsole(QWidget):
         self._autoscroll_cb.toggled.connect(self._on_autoscroll_toggled)
         control_layout.addWidget(self._autoscroll_cb)
 
-        # Filter dropdown
+        # Filter presets dropdown
+        control_layout.addWidget(QLabel("Presets:"))
+        self._filter_preset_combo = QComboBox()
+        for display_name, _ in self.FILTER_PRESETS:
+            self._filter_preset_combo.addItem(display_name)
+        self._filter_preset_combo.currentIndexChanged.connect(self._on_preset_changed)
+        self._filter_preset_combo.setMaximumWidth(150)
+        control_layout.addWidget(self._filter_preset_combo)
+
+        # Custom filter text input
         control_layout.addWidget(QLabel("Filter:"))
-        self._filter_combo = QComboBox()
-        for display_name, _ in self.FILTER_OPTIONS:
-            self._filter_combo.addItem(display_name)
-        self._filter_combo.currentIndexChanged.connect(self._on_filter_changed)
-        control_layout.addWidget(self._filter_combo)
+        self._filter_input = QLineEdit()
+        self._filter_input.setPlaceholderText("e.g. 'mc debug' or '!^TELEMETRY'")
+        self._filter_input.setToolTip(
+            "Filter syntax:\n"
+            "  text - show lines containing 'text'\n"
+            "  ^PREFIX - show lines starting with 'PREFIX'\n"
+            "  !text - hide lines containing 'text'\n"
+            "  !^PREFIX - hide lines starting with 'PREFIX'"
+        )
+        self._filter_input.textChanged.connect(self._on_filter_text_changed)
+        self._filter_input.setMaximumWidth(200)
+        control_layout.addWidget(self._filter_input)
+
+        # Clear filter button
+        self._clear_filter_btn = QPushButton("X")
+        self._clear_filter_btn.setMaximumWidth(25)
+        self._clear_filter_btn.setToolTip("Clear filter")
+        self._clear_filter_btn.clicked.connect(self._on_clear_filter)
+        control_layout.addWidget(self._clear_filter_btn)
 
         # Max lines
-        control_layout.addWidget(QLabel("Max lines:"))
+        control_layout.addWidget(QLabel("Max:"))
         self._max_lines_spin = QSpinBox()
         self._max_lines_spin.setRange(100, 10000)
         self._max_lines_spin.setValue(self.DEFAULT_MAX_LINES)
         self._max_lines_spin.valueChanged.connect(self._on_max_lines_changed)
+        self._max_lines_spin.setMaximumWidth(70)
         control_layout.addWidget(self._max_lines_spin)
 
         # Pause button
@@ -151,17 +185,42 @@ class SerialConsole(QWidget):
             self._text_edit.moveCursor(QTextCursor.MoveOperation.End)
 
     def _should_show_line(self, line: str) -> bool:
-        """Check if line passes the current filter."""
-        if self._filter_prefix is None:
+        """
+        Check if line passes the current filter.
+
+        Filter syntax:
+            - Empty string: show all
+            - "text": show lines containing "text" (case-insensitive)
+            - "^PREFIX": show lines starting with "PREFIX" (case-sensitive)
+            - "!text": hide lines containing "text"
+            - "!^PREFIX": hide lines starting with "PREFIX"
+        """
+        if not self._filter_text:
             return True
 
-        # Handle exclusion filter (prefix starts with '!')
-        if self._filter_prefix.startswith("!"):
-            exclude_prefix = self._filter_prefix[1:]
-            return not line.startswith(exclude_prefix)
+        filter_str = self._filter_text.strip()
+        if not filter_str:
+            return True
 
-        # Normal inclusion filter
-        return line.startswith(self._filter_prefix)
+        # Check for exclusion mode
+        exclude_mode = filter_str.startswith("!")
+        if exclude_mode:
+            filter_str = filter_str[1:]
+
+        # Check for prefix mode
+        prefix_mode = filter_str.startswith("^")
+        if prefix_mode:
+            filter_str = filter_str[1:]
+
+        # Apply filter
+        if prefix_mode:
+            matches = line.startswith(filter_str)
+        else:
+            # Case-insensitive substring match
+            matches = filter_str.lower() in line.lower()
+
+        # Return based on exclusion mode
+        return not matches if exclude_mode else matches
 
     def _remove_first_line(self):
         """Remove the first line from the text edit."""
@@ -177,11 +236,22 @@ class SerialConsole(QWidget):
         """Handle auto-scroll checkbox toggle."""
         self._auto_scroll = checked
 
-    def _on_filter_changed(self, index: int):
-        """Handle filter dropdown change."""
-        if 0 <= index < len(self.FILTER_OPTIONS):
-            _, prefix = self.FILTER_OPTIONS[index]
-            self._filter_prefix = prefix
+    def _on_preset_changed(self, index: int):
+        """Handle filter preset dropdown change."""
+        if 0 <= index < len(self.FILTER_PRESETS):
+            _, filter_text = self.FILTER_PRESETS[index]
+            self._filter_input.setText(filter_text)
+            self._filter_text = filter_text
+
+    def _on_filter_text_changed(self, text: str):
+        """Handle custom filter text change."""
+        self._filter_text = text
+
+    def _on_clear_filter(self):
+        """Clear the filter text."""
+        self._filter_input.clear()
+        self._filter_text = ""
+        self._filter_preset_combo.setCurrentIndex(0)  # Reset to "All"
 
     def _on_max_lines_changed(self, value: int):
         """Handle max lines change."""

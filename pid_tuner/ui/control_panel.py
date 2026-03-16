@@ -16,11 +16,32 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
 )
 from PyQt6.QtCore import pyqtSignal, QTimer
+from PyQt6.QtGui import QDoubleValidator
 import math
+import numpy as np
 
 from ..data.data_store import DataStore
 from ..serial_driver.serial_handler import SerialHandler
 from .theme import THEME
+
+
+# Control mode constants
+MODE_OPEN_LOOP = 0
+MODE_VELOCITY = 1
+MODE_POSITION = 2
+
+# Unit labels for each mode
+MODE_UNITS = {
+    MODE_OPEN_LOOP: "PWM",
+    MODE_VELOCITY: "units/s",
+    MODE_POSITION: "ticks",
+}
+
+MODE_NAMES = {
+    MODE_OPEN_LOOP: "Open Loop",
+    MODE_VELOCITY: "Velocity",
+    MODE_POSITION: "Position",
+}
 
 
 class ControlPanel(QWidget):
@@ -31,10 +52,11 @@ class ControlPanel(QWidget):
     - Set absolute target position
     - Step inputs (positive/negative)
     - Sine wave inputs with configurable amplitude, frequency, duration
+    - Oscillation analysis metrics
     """
 
     # Default step sizes
-    DEFAULT_STEP_SIZES = [0.5, 1.0, 2.0, 5.0, 10.0]
+    DEFAULT_STEP_SIZES = [10, 50, 100, 500, 1000]
 
     def __init__(
         self, data_store: DataStore, serial_handler: SerialHandler, parent=None
@@ -42,6 +64,9 @@ class ControlPanel(QWidget):
         super().__init__(parent)
         self._data_store = data_store
         self._serial_handler = serial_handler
+
+        # Current control mode (tracked locally)
+        self._current_mode = MODE_OPEN_LOOP
 
         # Sine wave state
         self._sine_active = False
@@ -62,6 +87,9 @@ class ControlPanel(QWidget):
         # Current values display
         layout.addWidget(self._create_status_group())
 
+        # Oscillation analysis
+        layout.addWidget(self._create_analysis_group())
+
         # PID Control
         layout.addWidget(self._create_pid_group())
 
@@ -81,26 +109,55 @@ class ControlPanel(QWidget):
         group = QGroupBox("Current Values")
         layout = QGridLayout(group)
 
+        # Mode indicator
+        layout.addWidget(QLabel("Mode:"), 0, 0)
+        self._mode_indicator_label = QLabel("Open Loop")
+        self._mode_indicator_label.setStyleSheet(
+            "font-weight: bold; font-size: 14px; color: cyan;"
+        )
+        layout.addWidget(self._mode_indicator_label, 0, 1)
+        self._mode_unit_label = QLabel("")  # Placeholder, units shown elsewhere
+        layout.addWidget(self._mode_unit_label, 0, 2)
+
         # Position
-        layout.addWidget(QLabel("Position:"), 0, 0)
+        layout.addWidget(QLabel("Position:"), 1, 0)
         self._position_label = QLabel("---")
         self._position_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(self._position_label, 0, 1)
-        layout.addWidget(QLabel("cm"), 0, 2)
+        layout.addWidget(self._position_label, 1, 1)
+        self._position_unit_label = QLabel("ticks")
+        layout.addWidget(self._position_unit_label, 1, 2)
 
-        # Target
-        layout.addWidget(QLabel("Target:"), 1, 0)
+        # Velocity
+        layout.addWidget(QLabel("Velocity:"), 2, 0)
+        self._velocity_label = QLabel("---")
+        self._velocity_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        layout.addWidget(self._velocity_label, 2, 1)
+        layout.addWidget(QLabel("units/s"), 2, 2)
+
+        # PWM
+        layout.addWidget(QLabel("PWM:"), 3, 0)
+        self._pwm_label = QLabel("---")
+        self._pwm_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        layout.addWidget(self._pwm_label, 3, 1)
+        self._pwm_percent_label = QLabel("(0%)")
+        layout.addWidget(self._pwm_percent_label, 3, 2)
+
+        # Target (label changes based on mode)
+        self._target_row_label = QLabel("Target:")
+        layout.addWidget(self._target_row_label, 4, 0)
         self._target_label = QLabel("---")
         self._target_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(self._target_label, 1, 1)
-        layout.addWidget(QLabel("cm"), 1, 2)
+        layout.addWidget(self._target_label, 4, 1)
+        self._target_unit_label = QLabel("PWM")
+        layout.addWidget(self._target_unit_label, 4, 2)
 
         # Error
-        layout.addWidget(QLabel("Error:"), 2, 0)
+        layout.addWidget(QLabel("Error:"), 5, 0)
         self._error_label = QLabel("---")
         self._error_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(self._error_label, 2, 1)
-        layout.addWidget(QLabel("cm"), 2, 2)
+        layout.addWidget(self._error_label, 5, 1)
+        self._error_unit_label = QLabel("")
+        layout.addWidget(self._error_unit_label, 5, 2)
 
         # Update timer
         self._status_timer = QTimer(self)
@@ -109,34 +166,91 @@ class ControlPanel(QWidget):
 
         return group
 
+    def _create_analysis_group(self) -> QGroupBox:
+        """Create oscillation analysis metrics group."""
+        group = QGroupBox("Performance Analysis")
+        layout = QGridLayout(group)
+
+        # RMS Error
+        layout.addWidget(QLabel("RMS Error:"), 0, 0)
+        self._rms_error_label = QLabel("---")
+        self._rms_error_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self._rms_error_label, 0, 1)
+
+        # Peak-to-Peak oscillation
+        layout.addWidget(QLabel("Peak-Peak:"), 0, 2)
+        self._peak_peak_label = QLabel("---")
+        self._peak_peak_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self._peak_peak_label, 0, 3)
+
+        # Settling indicator (based on recent error variance)
+        layout.addWidget(QLabel("Settled:"), 1, 0)
+        self._settled_label = QLabel("---")
+        self._settled_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self._settled_label, 1, 1)
+
+        # Zero crossings (oscillation frequency indicator)
+        layout.addWidget(QLabel("Oscillations:"), 1, 2)
+        self._oscillation_label = QLabel("---")
+        self._oscillation_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self._oscillation_label, 1, 3)
+
+        # Analysis window info
+        self._analysis_window_label = QLabel("Window: 2s")
+        self._analysis_window_label.setStyleSheet("color: gray; font-size: 10px;")
+        layout.addWidget(self._analysis_window_label, 2, 0, 1, 2)
+
+        # Reset analysis button
+        self._reset_analysis_btn = QPushButton("Reset")
+        self._reset_analysis_btn.clicked.connect(self._on_reset_analysis)
+        layout.addWidget(self._reset_analysis_btn, 2, 2, 1, 2)
+
+        return group
+
     def _create_pid_group(self) -> QGroupBox:
         group = QGroupBox("Mode & PID Control")
         layout = QVBoxLayout(group)
 
-        # Mode Selection
+        # Mode Selection row
         mode_layout = QHBoxLayout()
         mode_layout.addWidget(QLabel("Mode:"))
         self._mode_combo = QComboBox()
         self._mode_combo.addItems(["Open Loop (0)", "Velocity (1)", "Position (2)"])
+        self._mode_combo.currentIndexChanged.connect(self._on_mode_combo_changed)
         mode_layout.addWidget(self._mode_combo)
 
         self._set_mode_btn = QPushButton("Set Mode")
         self._set_mode_btn.clicked.connect(self._on_set_mode)
         mode_layout.addWidget(self._set_mode_btn)
+
+        # Clear PID button (resets integrator windup)
+        self._clear_pid_btn = QPushButton("Clear PID")
+        self._clear_pid_btn.setToolTip("Reset integrator windup and previous error")
+        self._clear_pid_btn.clicked.connect(self._on_clear_pid)
+        self._clear_pid_btn.setStyleSheet(
+            f"background-color: {THEME.yellow}; color: {THEME.crust};"
+        )
+        mode_layout.addWidget(self._clear_pid_btn)
+
         layout.addLayout(mode_layout)
 
-        # Position PID
+        # Position PID row (P, I, D, FF)
         pos_pid_layout = QHBoxLayout()
-        pos_pid_layout.addWidget(QLabel("Pos PID:"))
-        self._pos_p = QDoubleSpinBox()
-        self._pos_p.setDecimals(4)
-        self._pos_p.setRange(0, 1000)
-        self._pos_i = QDoubleSpinBox()
-        self._pos_i.setDecimals(4)
-        self._pos_i.setRange(0, 1000)
-        self._pos_d = QDoubleSpinBox()
-        self._pos_d.setDecimals(4)
-        self._pos_d.setRange(0, 1000)
+        pos_pid_layout.addWidget(QLabel("Pos:"))
+
+        # Use QLineEdit for unlimited input
+        self._pos_p = QLineEdit("0")
+        self._pos_p.setValidator(QDoubleValidator())
+        self._pos_p.setMaximumWidth(70)
+        self._pos_i = QLineEdit("0")
+        self._pos_i.setValidator(QDoubleValidator())
+        self._pos_i.setMaximumWidth(70)
+        self._pos_d = QLineEdit("0")
+        self._pos_d.setValidator(QDoubleValidator())
+        self._pos_d.setMaximumWidth(70)
+        self._pos_ff = QLineEdit("0")
+        self._pos_ff.setValidator(QDoubleValidator())
+        self._pos_ff.setMaximumWidth(70)
 
         pos_pid_layout.addWidget(QLabel("P:"))
         pos_pid_layout.addWidget(self._pos_p)
@@ -144,24 +258,30 @@ class ControlPanel(QWidget):
         pos_pid_layout.addWidget(self._pos_i)
         pos_pid_layout.addWidget(QLabel("D:"))
         pos_pid_layout.addWidget(self._pos_d)
+        pos_pid_layout.addWidget(QLabel("FF:"))
+        pos_pid_layout.addWidget(self._pos_ff)
 
         self._set_pos_pid_btn = QPushButton("Set")
         self._set_pos_pid_btn.clicked.connect(self._on_set_pos_pid)
         pos_pid_layout.addWidget(self._set_pos_pid_btn)
         layout.addLayout(pos_pid_layout)
 
-        # Velocity PID
+        # Velocity PID row (P, I, D, FF)
         vel_pid_layout = QHBoxLayout()
-        vel_pid_layout.addWidget(QLabel("Vel PID:"))
-        self._vel_p = QDoubleSpinBox()
-        self._vel_p.setDecimals(4)
-        self._vel_p.setRange(0, 1000)
-        self._vel_i = QDoubleSpinBox()
-        self._vel_i.setDecimals(4)
-        self._vel_i.setRange(0, 1000)
-        self._vel_d = QDoubleSpinBox()
-        self._vel_d.setDecimals(4)
-        self._vel_d.setRange(0, 1000)
+        vel_pid_layout.addWidget(QLabel("Vel:"))
+
+        self._vel_p = QLineEdit("0")
+        self._vel_p.setValidator(QDoubleValidator())
+        self._vel_p.setMaximumWidth(70)
+        self._vel_i = QLineEdit("0")
+        self._vel_i.setValidator(QDoubleValidator())
+        self._vel_i.setMaximumWidth(70)
+        self._vel_d = QLineEdit("0")
+        self._vel_d.setValidator(QDoubleValidator())
+        self._vel_d.setMaximumWidth(70)
+        self._vel_ff = QLineEdit("0")
+        self._vel_ff.setValidator(QDoubleValidator())
+        self._vel_ff.setMaximumWidth(70)
 
         vel_pid_layout.addWidget(QLabel("P:"))
         vel_pid_layout.addWidget(self._vel_p)
@@ -169,6 +289,8 @@ class ControlPanel(QWidget):
         vel_pid_layout.addWidget(self._vel_i)
         vel_pid_layout.addWidget(QLabel("D:"))
         vel_pid_layout.addWidget(self._vel_d)
+        vel_pid_layout.addWidget(QLabel("FF:"))
+        vel_pid_layout.addWidget(self._vel_ff)
 
         self._set_vel_pid_btn = QPushButton("Set")
         self._set_vel_pid_btn.clicked.connect(self._on_set_vel_pid)
@@ -182,18 +304,18 @@ class ControlPanel(QWidget):
         group = QGroupBox("Target Control")
         layout = QVBoxLayout(group)
 
-        # Target input row
+        # Target input row - use QLineEdit for unlimited range
         input_layout = QHBoxLayout()
         input_layout.addWidget(QLabel("Target:"))
 
-        self._target_input = QDoubleSpinBox()
-        self._target_input.setRange(-1000.0, 1000.0)
-        self._target_input.setSingleStep(0.5)
-        self._target_input.setDecimals(2)
-        self._target_input.setValue(0.0)
+        self._target_input = QLineEdit("0")
+        self._target_input.setValidator(QDoubleValidator())
+        self._target_input.setMaximumWidth(120)
         input_layout.addWidget(self._target_input)
 
-        input_layout.addWidget(QLabel("cm"))
+        # Dynamic unit label (changes with mode)
+        self._target_input_unit_label = QLabel("PWM")
+        input_layout.addWidget(self._target_input_unit_label)
 
         self._set_target_btn = QPushButton("Set Target")
         self._set_target_btn.clicked.connect(self._on_set_target)
@@ -242,18 +364,18 @@ class ControlPanel(QWidget):
         group = QGroupBox("Step Input")
         layout = QVBoxLayout(group)
 
-        # Step size input
+        # Step size input - use QLineEdit for unlimited range
         step_size_layout = QHBoxLayout()
         step_size_layout.addWidget(QLabel("Step Size:"))
 
-        self._step_size_input = QDoubleSpinBox()
-        self._step_size_input.setRange(0.1, 1000.0)
-        self._step_size_input.setSingleStep(0.5)
-        self._step_size_input.setDecimals(1)
-        self._step_size_input.setValue(1.0)
+        self._step_size_input = QLineEdit("100")
+        self._step_size_input.setValidator(QDoubleValidator())
+        self._step_size_input.setMaximumWidth(100)
         step_size_layout.addWidget(self._step_size_input)
 
-        step_size_layout.addWidget(QLabel("cm"))
+        # Dynamic unit label
+        self._step_unit_label = QLabel("PWM")
+        step_size_layout.addWidget(self._step_unit_label)
         step_size_layout.addStretch()
         layout.addLayout(step_size_layout)
 
@@ -286,36 +408,31 @@ class ControlPanel(QWidget):
         group = QGroupBox("Sine Wave Input")
         layout = QVBoxLayout(group)
 
-        # Parameters grid
+        # Parameters grid - use QLineEdit for unlimited range
         params_layout = QGridLayout()
 
         # Amplitude
         params_layout.addWidget(QLabel("Amplitude:"), 0, 0)
-        self._sine_amplitude_input = QDoubleSpinBox()
-        self._sine_amplitude_input.setRange(0.1, 100.0)
-        self._sine_amplitude_input.setSingleStep(0.5)
-        self._sine_amplitude_input.setDecimals(1)
-        self._sine_amplitude_input.setValue(5.0)
+        self._sine_amplitude_input = QLineEdit("500")
+        self._sine_amplitude_input.setValidator(QDoubleValidator())
+        self._sine_amplitude_input.setMaximumWidth(100)
         params_layout.addWidget(self._sine_amplitude_input, 0, 1)
-        params_layout.addWidget(QLabel("cm"), 0, 2)
+        self._sine_amplitude_unit_label = QLabel("PWM")
+        params_layout.addWidget(self._sine_amplitude_unit_label, 0, 2)
 
         # Frequency
         params_layout.addWidget(QLabel("Frequency:"), 1, 0)
-        self._sine_frequency_input = QDoubleSpinBox()
-        self._sine_frequency_input.setRange(0.01, 10.0)
-        self._sine_frequency_input.setSingleStep(0.1)
-        self._sine_frequency_input.setValue(0.5)
-        self._sine_frequency_input.setDecimals(2)
+        self._sine_frequency_input = QLineEdit("0.5")
+        self._sine_frequency_input.setValidator(QDoubleValidator())
+        self._sine_frequency_input.setMaximumWidth(100)
         params_layout.addWidget(self._sine_frequency_input, 1, 1)
         params_layout.addWidget(QLabel("Hz"), 1, 2)
 
         # Duration
         params_layout.addWidget(QLabel("Duration:"), 2, 0)
-        self._sine_duration_input = QDoubleSpinBox()
-        self._sine_duration_input.setRange(1.0, 120.0)
-        self._sine_duration_input.setSingleStep(1.0)
-        self._sine_duration_input.setValue(10.0)
-        self._sine_duration_input.setDecimals(1)
+        self._sine_duration_input = QLineEdit("10")
+        self._sine_duration_input.setValidator(QDoubleValidator())
+        self._sine_duration_input.setMaximumWidth(100)
         params_layout.addWidget(self._sine_duration_input, 2, 1)
         params_layout.addWidget(QLabel("seconds"), 2, 2)
 
@@ -346,12 +463,25 @@ class ControlPanel(QWidget):
         joint_data = self._data_store.get_selected_joint_data()
 
         position = joint_data.current_position
+        velocity = joint_data.current_velocity
+        pwm = joint_data.current_pwm
         target = joint_data.current_target
-        error = position - target
 
-        self._position_label.setText(f"{position}")
-        self._target_label.setText(f"{target}")
-        self._error_label.setText(f"{error}")
+        # Calculate error based on mode
+        if self._current_mode == MODE_POSITION:
+            error = position - target
+        elif self._current_mode == MODE_VELOCITY:
+            error = velocity - target
+        else:  # Open loop - no meaningful error
+            error = 0
+
+        # Update labels
+        self._position_label.setText(f"{position:.2f}")
+        self._velocity_label.setText(f"{velocity:.2f}")
+        self._pwm_label.setText(f"{pwm:.2f}")
+        self._pwm_percent_label.setText(f"({abs(pwm) / 32767 * 100:.1f}%)")
+        self._target_label.setText(f"{target:.2f}")
+        self._error_label.setText(f"{error:.2f}")
 
         # Color the error label based on magnitude
         if abs(error) < 10:
@@ -367,9 +497,110 @@ class ControlPanel(QWidget):
                 "font-weight: bold; font-size: 14px; color: red;"
             )
 
+        # Update oscillation analysis
+        self._update_analysis(joint_data)
+
+    def _update_analysis(self, joint_data):
+        """Update oscillation analysis metrics."""
+        # Get recent data (last 2 seconds at ~10Hz = ~20 samples)
+        positions = np.array(joint_data.positions)
+        targets = np.array(joint_data.targets)
+        timestamps = np.array(joint_data.timestamps)
+
+        if len(positions) < 10:
+            return  # Not enough data
+
+        # Use last 2 seconds of data
+        if len(timestamps) > 0:
+            recent_mask = timestamps >= (timestamps[-1] - 2.0)
+            recent_positions = positions[recent_mask]
+            recent_targets = targets[recent_mask]
+        else:
+            return
+
+        if len(recent_positions) < 5:
+            return
+
+        # Calculate error
+        recent_errors = recent_positions - recent_targets
+
+        # RMS Error
+        rms_error = np.sqrt(np.mean(recent_errors**2))
+        self._rms_error_label.setText(f"{rms_error:.2f}")
+
+        # Peak-to-Peak
+        peak_peak = np.max(recent_errors) - np.min(recent_errors)
+        self._peak_peak_label.setText(f"{peak_peak:.2f}")
+
+        # Settled check (variance-based)
+        variance = np.var(recent_errors)
+        if variance < 100:  # Threshold for "settled"
+            self._settled_label.setText("Yes")
+            self._settled_label.setStyleSheet("font-weight: bold; color: green;")
+        else:
+            self._settled_label.setText("No")
+            self._settled_label.setStyleSheet("font-weight: bold; color: orange;")
+
+        # Zero crossings (oscillation detection)
+        if len(recent_errors) > 2:
+            zero_crossings = np.sum(np.diff(np.sign(recent_errors)) != 0)
+            # Estimate frequency: crossings / 2 / time_window
+            time_window = (
+                timestamps[recent_mask][-1] - timestamps[recent_mask][0]
+                if len(timestamps[recent_mask]) > 1
+                else 1
+            )
+            osc_freq = zero_crossings / 2 / max(time_window, 0.1)
+            self._oscillation_label.setText(f"{zero_crossings} ({osc_freq:.1f}Hz)")
+        else:
+            self._oscillation_label.setText("---")
+
+    def _on_reset_analysis(self):
+        """Reset analysis by clearing joint data."""
+        joint_id = self._data_store.selected_joint
+        self._data_store.clear_joint(joint_id)
+        self._rms_error_label.setText("---")
+        self._peak_peak_label.setText("---")
+        self._settled_label.setText("---")
+        self._oscillation_label.setText("---")
+
+    def _on_mode_combo_changed(self, index: int):
+        """Handle mode combo box change - update unit labels."""
+        self._current_mode = index
+        unit = MODE_UNITS.get(index, "")
+
+        # Update all unit labels based on mode
+        self._target_unit_label.setText(unit)
+        self._target_input_unit_label.setText(unit)
+        self._step_unit_label.setText(unit)
+        self._sine_amplitude_unit_label.setText(unit)
+        self._mode_indicator_label.setText(MODE_NAMES.get(index, "Unknown"))
+
+        # Update error unit based on mode
+        if index == MODE_POSITION:
+            self._error_unit_label.setText("ticks")
+        elif index == MODE_VELOCITY:
+            self._error_unit_label.setText("units/s")
+        else:
+            self._error_unit_label.setText("")
+
+    def _on_clear_pid(self):
+        """Send reset PID command to clear integrator windup."""
+        joint_id = self._data_store.selected_joint
+        self._serial_handler.reset_pid(joint_id)
+
+    def _get_float_from_lineedit(
+        self, line_edit: QLineEdit, default: float = 0.0
+    ) -> float:
+        """Safely get float value from QLineEdit."""
+        try:
+            return float(line_edit.text())
+        except ValueError:
+            return default
+
     def _on_set_target(self):
         """Handle set target button click."""
-        target = self._target_input.value()
+        target = self._get_float_from_lineedit(self._target_input)
         joint_id = self._data_store.selected_joint
 
         # Update data store
@@ -379,9 +610,12 @@ class ControlPanel(QWidget):
         self._serial_handler.set_target(joint_id, target)
 
     def _on_use_current(self):
-        """Set target input to current position."""
+        """Set target input to current position/velocity based on mode."""
         joint_data = self._data_store.get_selected_joint_data()
-        self._target_input.setValue(joint_data.current_position)
+        if self._current_mode == MODE_VELOCITY:
+            self._target_input.setText(str(joint_data.current_velocity))
+        else:
+            self._target_input.setText(str(joint_data.current_position))
 
     def _on_set_zero(self):
         """Set target to zero."""
@@ -391,7 +625,7 @@ class ControlPanel(QWidget):
         self._data_store.set_target(joint_id, 0)
 
         # Update input field
-        self._target_input.setValue(0)
+        self._target_input.setText("0")
 
         # Send to Teensy
         self._serial_handler.set_target(joint_id, 0)
@@ -411,27 +645,45 @@ class ControlPanel(QWidget):
         self._serial_handler.set_mode(joint_id, mode)
 
     def _on_set_pos_pid(self):
-        """Send position PID gains."""
+        """Send position PID gains and feed-forward."""
         joint_id = self._data_store.selected_joint
-        self._serial_handler.set_pid(joint_id, "P", self._pos_p.value())
-        self._serial_handler.set_pid(joint_id, "I", self._pos_i.value())
-        self._serial_handler.set_pid(joint_id, "D", self._pos_d.value())
+        self._serial_handler.set_pid(
+            joint_id, "P", self._get_float_from_lineedit(self._pos_p)
+        )
+        self._serial_handler.set_pid(
+            joint_id, "I", self._get_float_from_lineedit(self._pos_i)
+        )
+        self._serial_handler.set_pid(
+            joint_id, "D", self._get_float_from_lineedit(self._pos_d)
+        )
+        self._serial_handler.set_feed_forward(
+            joint_id, "F", self._get_float_from_lineedit(self._pos_ff)
+        )
 
     def _on_set_vel_pid(self):
-        """Send velocity PID gains."""
+        """Send velocity PID gains and feed-forward."""
         joint_id = self._data_store.selected_joint
-        self._serial_handler.set_pid(joint_id, "p", self._vel_p.value())
-        self._serial_handler.set_pid(joint_id, "i", self._vel_i.value())
-        self._serial_handler.set_pid(joint_id, "d", self._vel_d.value())
+        self._serial_handler.set_pid(
+            joint_id, "p", self._get_float_from_lineedit(self._vel_p)
+        )
+        self._serial_handler.set_pid(
+            joint_id, "i", self._get_float_from_lineedit(self._vel_i)
+        )
+        self._serial_handler.set_pid(
+            joint_id, "d", self._get_float_from_lineedit(self._vel_d)
+        )
+        self._serial_handler.set_feed_forward(
+            joint_id, "f", self._get_float_from_lineedit(self._vel_ff)
+        )
 
     def _on_step_positive(self):
         """Handle positive step button click."""
-        step = self._step_size_input.value()
+        step = self._get_float_from_lineedit(self._step_size_input, 100.0)
         self._apply_step(step)
 
     def _on_step_negative(self):
         """Handle negative step button click."""
-        step = -self._step_size_input.value()
+        step = -self._get_float_from_lineedit(self._step_size_input, 100.0)
         self._apply_step(step)
 
     def _on_quick_step(self, step: float):
@@ -449,7 +701,7 @@ class ControlPanel(QWidget):
         self._data_store.set_target(joint_id, new_target)
 
         # Update input field
-        self._target_input.setValue(new_target)
+        self._target_input.setText(str(new_target))
 
         # Send to Teensy
         self._serial_handler.set_target(joint_id, new_target)
@@ -461,9 +713,15 @@ class ControlPanel(QWidget):
 
         joint_data = self._data_store.get_selected_joint_data()
 
-        self._sine_amplitude = self._sine_amplitude_input.value()
-        self._sine_frequency = self._sine_frequency_input.value()
-        self._sine_duration = self._sine_duration_input.value()
+        self._sine_amplitude = self._get_float_from_lineedit(
+            self._sine_amplitude_input, 500.0
+        )
+        self._sine_frequency = self._get_float_from_lineedit(
+            self._sine_frequency_input, 0.5
+        )
+        self._sine_duration = self._get_float_from_lineedit(
+            self._sine_duration_input, 10.0
+        )
         self._sine_center = joint_data.current_target
         self._sine_start_time = 0
         self._sine_active = True
@@ -492,7 +750,7 @@ class ControlPanel(QWidget):
         joint_id = self._data_store.selected_joint
         self._data_store.set_target(joint_id, self._sine_center)
         self._serial_handler.set_target(joint_id, self._sine_center)
-        self._target_input.setValue(self._sine_center)
+        self._target_input.setText(str(self._sine_center))
 
     def _update_sine_wave(self):
         """Update sine wave target position."""

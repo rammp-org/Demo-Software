@@ -160,6 +160,16 @@ class SerialHandler(QObject):
         cmd = ProtocolEncoder.clear_estop()
         self.send_command(cmd)
 
+    def reset_pid(self, joint_id: int):
+        """Send reset PID command (clear integrator windup)."""
+        cmd = ProtocolEncoder.reset_pid(joint_id)
+        self.send_command(cmd)
+
+    def set_feed_forward(self, joint_id: int, param: str, value: float):
+        """Set feed-forward gain ('F' for position, 'f' for velocity)."""
+        cmd = ProtocolEncoder.set_feed_forward(joint_id, param, value)
+        self.send_command(cmd)
+
     def send_raw(self, cmd_str: str):
         """Send raw serial command."""
         if not cmd_str.endswith("\n"):

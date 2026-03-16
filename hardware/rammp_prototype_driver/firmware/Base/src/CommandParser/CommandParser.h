@@ -9,9 +9,12 @@ enum CommandType {
     CMD_POS_P,   // e.g. P<id>:<val> (Position Kp)
     CMD_POS_I,   // e.g. I<id>:<val> (Position Ki)
     CMD_POS_D,   // e.g. D<id>:<val> (Position Kd)
+    CMD_POS_FF,  // e.g. F<id>:<val> (Position Feed-Forward)
     CMD_VEL_P,   // e.g. p<id>:<val> (Velocity Kp)
     CMD_VEL_I,   // e.g. i<id>:<val> (Velocity Ki)
     CMD_VEL_D,   // e.g. d<id>:<val> (Velocity Kd)
+    CMD_VEL_FF,  // e.g. f<id>:<val> (Velocity Feed-Forward)
+    CMD_R,       // e.g. R<id> (Reset PID state - clear integrator windup)
     CMD_Z,       // e.g. z (ESTOP)
     CMD_C,       // e.g. c (Clear ESTOP)
     CMD_UNKNOWN,

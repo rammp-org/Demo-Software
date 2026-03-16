@@ -27,11 +27,18 @@ RobotCommand CommandParser::parse(Stream& serial) {
                 cmd.type = CMD_Z;
             } else if (buffer.charAt(0) == 'c') {
                 cmd.type = CMD_C;
-            } else if (buffer.length() > 2) { // Need at least Xid:val
+            } else if (buffer.length() >= 2) { // Need at least R<id> or X<id>:<val>
                 char type_char = buffer.charAt(0);
                 int colon_idx = buffer.indexOf(':');
                 
-                if (colon_idx > 1) {
+                // Commands without value (e.g., R1 for reset)
+                if (type_char == 'R' && colon_idx == -1) {
+                    cmd.actuator_id = buffer.substring(1).toInt();
+                    cmd.value = 0.0f;
+                    cmd.type = CMD_R;
+                }
+                // Commands with value (e.g., T1:0.5)
+                else if (colon_idx > 1) {
                     cmd.actuator_id = buffer.substring(1, colon_idx).toInt();
                     cmd.value = buffer.substring(colon_idx + 1).toFloat();
                     
@@ -41,9 +48,11 @@ RobotCommand CommandParser::parse(Stream& serial) {
                         case 'P': cmd.type = CMD_POS_P; break;
                         case 'I': cmd.type = CMD_POS_I; break;
                         case 'D': cmd.type = CMD_POS_D; break;
+                        case 'F': cmd.type = CMD_POS_FF; break;
                         case 'p': cmd.type = CMD_VEL_P; break;
                         case 'i': cmd.type = CMD_VEL_I; break;
                         case 'd': cmd.type = CMD_VEL_D; break;
+                        case 'f': cmd.type = CMD_VEL_FF; break;
                         default: cmd.type = CMD_UNKNOWN; break;
                     }
                 } else {

@@ -262,6 +262,11 @@ void loop() {
         if (DEBUG_MODE)
           Serial.println("DEBUG: Set Pos D");
         break;
+      case CMD_POS_FF:
+        m->pos_pid.setFeedForward(cmd.value);
+        if (DEBUG_MODE)
+          Serial.println("DEBUG: Set Pos FF");
+        break;
       case CMD_VEL_P:
         m->vel_pid.kp = cmd.value;
         if (DEBUG_MODE)
@@ -276,6 +281,17 @@ void loop() {
         m->vel_pid.kd = cmd.value;
         if (DEBUG_MODE)
           Serial.println("DEBUG: Set Vel D");
+        break;
+      case CMD_VEL_FF:
+        m->vel_pid.setFeedForward(cmd.value);
+        if (DEBUG_MODE)
+          Serial.println("DEBUG: Set Vel FF");
+        break;
+      case CMD_R:
+        m->pos_pid.reset();
+        m->vel_pid.reset();
+        if (DEBUG_MODE)
+          Serial.println("DEBUG: Reset PID state (cleared integrator)");
         break;
       default:
         break;

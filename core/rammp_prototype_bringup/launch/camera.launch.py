@@ -1,10 +1,11 @@
 import os
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.conditions import UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch.conditions import UnlessCondition
 
 
 def generate_launch_description():
@@ -44,21 +45,29 @@ def generate_launch_description():
                 description="Serial number of the Orbbec Gemini 336L navigation camera.",
             ),
             # ── Wrist camera (RealSense D435i) ────────────────────────────
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(realsense_launch),
-                launch_arguments={
-                    "camera_name": "wrist",
-                    "serial_no": LaunchConfiguration("wrist_camera_serial"),
-                    "base_frame_id": "wrist_camera_link",
-                    "rgb_camera.profile": "640x480x30",
-                    "depth_module.profile": "640x480x30",
-                    "align_depth.enable": "true",
-                    "enable_gyro": "true",
-                    "enable_accel": "true",
-                    "unite_imu_method": "2",
-                    "pointcloud.enable": "false",
-                }.items(),
-                condition=UnlessCondition(LaunchConfiguration("disable_realsense")),
+            TimerAction(
+                period=8.0,
+                actions=[
+                    IncludeLaunchDescription(
+                        PythonLaunchDescriptionSource(realsense_launch),
+                        launch_arguments={
+                            "camera_name": "wrist",
+                            "serial_no": LaunchConfiguration("wrist_camera_serial"),
+                            "base_frame_id": "wrist_camera_link",
+                            "rgb_camera.profile": "640x480x30",
+                            "depth_module.profile": "640x480x30",
+                            "align_depth.enable": "true",
+                            "enable_gyro": "true",
+                            "enable_accel": "true",
+                            "unite_imu_method": "2",
+                            "pointcloud.enable": "false",
+                            "log_level": "warn",
+                        }.items(),
+                        condition=UnlessCondition(
+                            LaunchConfiguration("disable_realsense")
+                        ),
+                    )
+                ],
             ),
             # ── nav camera (Orbbec Gemini 336L) ──────────────────────
             IncludeLaunchDescription(

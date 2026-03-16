@@ -14,13 +14,27 @@ def generate_launch_description():
         "rs_launch.py",
     )
 
+    orbbec_launch = os.path.join(
+        get_package_share_directory("orbbec_camera"),
+        "launch",
+        "gemini_330_series.launch.py",
+    )
+
     return LaunchDescription(
         [
+            # ── Wrist camera serial (RealSense D435i) ─────────────────────
             DeclareLaunchArgument(
                 "wrist_camera_serial",
                 default_value="",
                 description="Serial number of the RealSense D435i wrist camera.",
             ),
+            # ── Shoulder camera serial (Orbbec Gemini 336L) ───────────────
+            DeclareLaunchArgument(
+                "shoulder_camera_serial",
+                default_value="",
+                description="Serial number of the Orbbec Gemini 336L shoulder camera.",
+            ),
+            # ── Wrist camera (RealSense D435i) ────────────────────────────
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(realsense_launch),
                 launch_arguments={
@@ -34,6 +48,29 @@ def generate_launch_description():
                     "enable_accel": "true",
                     "unite_imu_method": "2",
                     "pointcloud.enable": "false",
+                }.items(),
+            ),
+            # ── Shoulder camera (Orbbec Gemini 336L) ──────────────────────
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(orbbec_launch),
+                launch_arguments={
+                    "camera_name": "shoulder",
+                    "serial_number": LaunchConfiguration("shoulder_camera_serial"),
+                    "base_frame_id": "shoulder_camera_link",
+                    "enable_color": "true",
+                    "color_width": "1280",
+                    "color_height": "800",
+                    "color_fps": "30",
+                    "color_format": "MJPG",
+                    "enable_depth": "true",
+                    "depth_width": "848",
+                    "depth_height": "480",
+                    "depth_fps": "30",
+                    "depth_registration": "true",
+                    "enable_point_cloud": "true",
+                    "enable_colored_point_cloud": "true",
+                    "enable_ir": "false",
+                    "enable_ir2": "false",
                 }.items(),
             ),
         ]

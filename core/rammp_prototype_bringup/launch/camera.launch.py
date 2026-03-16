@@ -64,9 +64,9 @@ def generate_launch_description():
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(orbbec_launch),
                 launch_arguments={
-                    "camera_name": "shoulder",
-                    "serial_number": LaunchConfiguration("shoulder_camera_serial"),
-                    "base_frame_id": "shoulder_camera_link",
+                    "camera_name": "nav",
+                    "serial_number": LaunchConfiguration("nav_camera_serial"),
+                    "base_frame_id": "nav_camera_link",
                     "enable_point_cloud": "true",
                     "enable_hole_filling_filter": "false",
                     "hole_filling_filter_mode": "NEAREST_NEIGHBOR_MAX",

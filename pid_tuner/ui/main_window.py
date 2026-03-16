@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
 
         # Connect serial signals
         self._serial_handler.data_received.connect(self._on_data_received)
-        self._serial_handler.raw_line_received.connect(self._on_raw_line_received)
+        self._serial_handler.raw_lines_received.connect(self._on_raw_lines_received)
         self._serial_handler.connection_changed.connect(self._on_connection_changed)
         self._serial_handler.error_occurred.connect(self._on_error)
 
@@ -250,9 +250,9 @@ class MainWindow(QMainWindow):
         self._data_store.process_encoder_data(data)
         self._data_count += 1
 
-    def _on_raw_line_received(self, line: str):
-        """Handle raw serial line for console display."""
-        self._serial_console.append_line(line)
+    def _on_raw_lines_received(self, lines: list):
+        """Handle batched raw serial lines for console display."""
+        self._serial_console.append_lines(lines)
 
     def _on_error(self, error_msg: str):
         """Handle serial error."""

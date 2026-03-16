@@ -2,6 +2,7 @@
 Serial communication handler for Teensy communication.
 
 Runs in a separate thread to avoid blocking the UI.
+Uses batched emission to prevent GUI overload from fast serial data.
 """
 
 import threading
@@ -11,7 +12,7 @@ from queue import Queue, Empty
 
 import serial
 import serial.tools.list_ports
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 
 from .protocol import ProtocolParser, ProtocolEncoder, EncoderData
 
@@ -21,19 +22,21 @@ class SerialHandler(QObject):
     Handles serial communication with Teensy in a background thread.
 
     Signals:
-        data_received: Emitted when valid encoder data is received
+        data_received: Emitted when valid encoder data is received (latest only per batch)
+        raw_lines_received: Emitted with batched raw lines for console display
         connection_changed: Emitted when connection state changes
         error_occurred: Emitted when an error occurs
     """
 
     # Qt Signals for thread-safe UI updates
     data_received = pyqtSignal(EncoderData)
-    raw_line_received = pyqtSignal(str)  # Raw serial line for console display
+    raw_lines_received = pyqtSignal(list)  # Batched raw lines for console display
     connection_changed = pyqtSignal(bool)  # True = connected, False = disconnected
     error_occurred = pyqtSignal(str)
 
     DEFAULT_BAUD_RATE = 115200
     DEFAULT_TIMEOUT = 0.1  # 100ms read timeout
+    BATCH_INTERVAL_MS = 33  # ~30 Hz batch emission rate
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -42,6 +45,15 @@ class SerialHandler(QObject):
         self._thread: Optional[threading.Thread] = None
         self._command_queue: Queue = Queue()
         self._lock = threading.Lock()
+
+        # Batching for high-frequency data
+        self._line_buffer: List[str] = []
+        self._line_buffer_lock = threading.Lock()
+
+        # Timer for batched emission (runs in main/GUI thread)
+        self._batch_timer = QTimer(self)
+        self._batch_timer.timeout.connect(self._emit_batched_data)
+        self._batch_timer.start(self.BATCH_INTERVAL_MS)
 
     @property
     def is_connected(self) -> bool:
@@ -226,11 +238,34 @@ class SerialHandler(QObject):
                 self.error_occurred.emit(f"Failed to send command: {e}")
 
     def _process_line(self, line: str):
-        """Process a complete line of serial data."""
-        # Emit raw line for console display
-        self.raw_line_received.emit(line)
+        """Buffer a complete line of serial data for batched emission."""
+        # Buffer the line instead of emitting immediately
+        with self._line_buffer_lock:
+            self._line_buffer.append(line)
 
-        # Parse and emit structured data
-        data = ProtocolParser.parse_line(line)
-        if data is not None:
-            self.data_received.emit(data)
+    def _emit_batched_data(self):
+        """
+        Emit batched data at a controlled rate.
+
+        Called by QTimer in the main/GUI thread to prevent overwhelming the UI.
+        Emits all buffered raw lines for console display, but only the latest
+        telemetry data for plotting (stale telemetry is irrelevant).
+        """
+        # Swap out the buffer atomically
+        with self._line_buffer_lock:
+            lines = self._line_buffer
+            self._line_buffer = []
+
+        if not lines:
+            return
+
+        # Emit all raw lines as a batch for console display
+        self.raw_lines_received.emit(lines)
+
+        # Parse and emit only the latest telemetry data
+        # (no point processing stale data for real-time plotting)
+        for line in reversed(lines):
+            data = ProtocolParser.parse_line(line)
+            if data is not None:
+                self.data_received.emit(data)
+                break  # Only emit the latest valid data

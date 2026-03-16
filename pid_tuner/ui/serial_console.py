@@ -156,33 +156,55 @@ class SerialConsole(QWidget):
 
         layout.addLayout(input_layout)
 
+    @pyqtSlot(list)
+    def append_lines(self, lines: list):
+        """
+        Append multiple lines to the console in a single batch.
+
+        This is more efficient than appending lines one at a time,
+        as it reduces the number of UI updates.
+
+        Args:
+            lines: List of text lines to append
+        """
+        if self._paused or not lines:
+            return
+
+        # Filter lines
+        filtered_lines = [line for line in lines if self._should_show_line(line)]
+        if not filtered_lines:
+            return
+
+        # Disable updates during batch insert for better performance
+        self._text_edit.setUpdatesEnabled(False)
+        try:
+            for line in filtered_lines:
+                # Remove oldest lines if at limit
+                if self._line_count >= self._max_lines:
+                    self._remove_first_line()
+                else:
+                    self._line_count += 1
+
+                # Append the new line
+                self._text_edit.append(line.rstrip())
+        finally:
+            self._text_edit.setUpdatesEnabled(True)
+
+        # Auto-scroll to bottom (once, after all lines added)
+        if self._auto_scroll:
+            self._text_edit.moveCursor(QTextCursor.MoveOperation.End)
+
     @pyqtSlot(str)
     def append_line(self, line: str):
         """
-        Append a line to the console.
+        Append a single line to the console.
+
+        Convenience method that wraps append_lines for single-line use.
 
         Args:
             line: Text line to append
         """
-        if self._paused:
-            return
-
-        # Apply filter
-        if not self._should_show_line(line):
-            return
-
-        # Remove oldest lines if at limit
-        if self._line_count >= self._max_lines:
-            self._remove_first_line()
-        else:
-            self._line_count += 1
-
-        # Append the new line
-        self._text_edit.append(line.rstrip())
-
-        # Auto-scroll to bottom
-        if self._auto_scroll:
-            self._text_edit.moveCursor(QTextCursor.MoveOperation.End)
+        self.append_lines([line])
 
     def _should_show_line(self, line: str) -> bool:
         """

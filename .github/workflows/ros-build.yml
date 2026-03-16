@@ -28,7 +28,7 @@ jobs:
           rosdep update
 
       - name: Install dependencies
-        run: rosdep install -i --from-path src --rosdistro humble -r -y
+        run: rosdep install -i --from-path src --rosdistro humble -r -y --skip-keys="orbbec_camera orbbec_camera_msgs"
 
       - name: Build
         run: |

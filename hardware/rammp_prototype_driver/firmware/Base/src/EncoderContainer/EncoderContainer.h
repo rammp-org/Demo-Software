@@ -6,9 +6,10 @@
 class EncoderContainer {
 public:
   // Position sensors pin selection
-  float K_sensors = 0.1;
+  // TODO: find out what this does
+  float K_sensors = 1;
   // TODO: switch enc1 and enc2 once they are switched back
-  Encoder Enc2 = Encoder(1, 0);    // RC bottom         (1,0) 
+  Encoder Enc2 = Encoder(1, 0);    // RC bottom         (1,0)
   Encoder Enc1 = Encoder(3, 2);    // RC top            (3,2)
   Encoder Enc3 = Encoder(5, 4);    // FC top            (5,4)
   Encoder Enc4 = Encoder(7, 6);    // FC bottom         (7,6)

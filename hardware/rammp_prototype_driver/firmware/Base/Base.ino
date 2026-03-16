@@ -136,7 +136,7 @@ void sendTelemetry() {
 }
 
 void setup() {
-  Serial.begin(115200);  // jetson
+  Serial.begin(460800);  // jetson
   Serial3.begin(460800); // roboclaw 1
   Serial4.begin(460800); // roboclaw 2
   Serial5.begin(460800); // roboclaw 3
@@ -283,7 +283,7 @@ void loop() {
           Serial.println("DEBUG: Set Vel D");
         break;
       case CMD_VEL_FF:
-        m->vel_pid.setFeedForward(cmd.value);
+        m->vel_pid.setFeedForward(cmd.value / 10000);
         if (DEBUG_MODE)
           Serial.println("DEBUG: Set Vel FF");
         break;
@@ -323,32 +323,32 @@ void loop() {
   // scaled_ml_pwm = (int16_t)constrain(ml_pwm * PWM_SCALE, -32767, 32767);
   // Serial.print("DEBUG: scaled_ml_pwm = ");
   // Serial.println(scaled_ml_pwm);
-  roboclaw_main.DutyM1(0x80, ml_pwm);
+  roboclaw_main.DutyM1(0x80, (int16_t)ml_pwm);
 
   // scaled_mr_pwm = (int16_t)constrain(mr_pwm * PWM_SCALE, -32767, 32767);
   // Serial.print("DEBUG: scaled_mr_pwm = ");
   // Serial.println(scaled_mr_pwm);
-  roboclaw_main.DutyM2(0x80, mr_pwm);
+  roboclaw_main.DutyM2(0x80, (int16_t)mr_pwm);
 
   // roboclaw_casters: M1 = Rear Caster, M2 = Front Caster
-  roboclaw_casters.DutyM1(0x80, (int16_t)constrain(rc_pwm, -32767, 32767));
-  roboclaw_casters.DutyM2(0x80, (int16_t)constrain(fc_pwm, -32767, 32767));
+  roboclaw_casters.DutyM1(0x80, (int16_t)rc_pwm);
+  roboclaw_casters.DutyM2(0x80, (int16_t)fc_pwm);
 
-  // roboclaw_carriages: M1 = Left Carriage, M2 = Right Carriage
-  // Serial.print("DEBUG: mlc_pwm = ");
-  // Serial.print(mlc_pwm);
-  // Serial.print("; mrc_pwm = ");
-  // Serial.println(mrc_pwm);
+  //   roboclaw_carriages: M1 = Left Carriage, M2 = Right Carriage
+  //   Serial.print("DEBUG: mlc_pwm = ");
+  //   Serial.print(mlc_pwm);
+  //   Serial.print("; mrc_pwm = ");
+  //   Serial.println(mrc_pwm);
 
   // scaled_mlc_pwm = (int16_t)constrain(mlc_pwm * PWM_SCALE, -32767, 32767);
   Serial.print("DEBUG: scaled_mlc_pwm = ");
   Serial.println(mlc_pwm);
-  roboclaw_carriages.DutyM1(0x80, mlc_pwm);
+  roboclaw_carriages.DutyM1(0x80, (int16_t)mlc_pwm);
 
   // scaled_mrc_pwm = (int16_t)constrain(mrc_pwm * PWM_SCALE, -32767, 32767);
-  Serial.print("DEBUG: scaled_mr_pwm = ");
+  Serial.print("DEBUG: scaled_mrc_pwm = ");
   Serial.println(mrc_pwm);
-  roboclaw_carriages.DutyM2(0x80, mrc_pwm);
+  roboclaw_carriages.DutyM2(0x80, (int16_t)mrc_pwm);
 
   // 5. Send Telemetry
   updateTelemetry();
@@ -359,5 +359,6 @@ void loop() {
     sendTelemetry();
   }
 
-  // delay(5);
+  // TODO: Stabilize timing loop
+  delayMicroseconds(5000);
 }

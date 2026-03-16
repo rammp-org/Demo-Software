@@ -1,10 +1,11 @@
 #include "Motor.h"
 #include <Arduino.h>
 
+// TODO: decide how to handle max velocities of position PID output
 Motor::Motor()
     : current_pos(0.0f), current_vel(0.0f), target_pos(0.0f), target_vel(0.0f),
-      target_pwm(0.0f), pos_pid(0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f),
-      vel_pid(0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f), mode(DISABLED) {}
+      target_pwm(0.0f), pos_pid(0.0f, 0.0f, 0.0f, 0.0f, -10000.0f, 10000.0f, 1),
+      vel_pid(0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 10000), mode(DISABLED) {}
 
 void Motor::initPIDs(float p_kp, float p_ki, float p_kd, float p_min,
                      float p_max, float v_kp, float v_ki, float v_kd,

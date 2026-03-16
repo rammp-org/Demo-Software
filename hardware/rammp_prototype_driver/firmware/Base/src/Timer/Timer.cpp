@@ -1,8 +1,13 @@
 #include "Timer.h"
+#include <Arduino.h>
 
 // TODO: consider switching off of millis
 void Timer::updateTime() {
   previous_time = current_time;
-  current_time = millis();
-  elapsed_time = (current_time - previous_time) / 1000;
+  current_time = micros();
+  elapsed_time = (current_time - previous_time) / 1000000.0f;
+  Serial.print("elapsed time in micros and sec= ");
+  Serial.print((current_time - previous_time));
+  Serial.print(", ");
+  Serial.println(elapsed_time);
 }

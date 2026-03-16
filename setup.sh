@@ -12,6 +12,9 @@ fi
 ROSDEP_SOURCE="/etc/ros/rosdep/sources.list.d/50-rammp-custom.list"
 ROSDEP_YAML="file://${REPO_ROOT}/hardware/arm_driver/rosdep/python.yaml"
 
+echo "=== Updating apt ==="
+$SUDO apt-get update -q
+
 echo "=== Registering custom rosdep sources ==="
 echo "yaml ${ROSDEP_YAML}" | $SUDO tee "${ROSDEP_SOURCE}"
 

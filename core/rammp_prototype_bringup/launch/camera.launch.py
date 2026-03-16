@@ -1,10 +1,10 @@
 import os
-
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch.conditions import UnlessCondition
 
 
 def generate_launch_description():
@@ -19,9 +19,18 @@ def generate_launch_description():
         "launch",
         "gemini_330_series.launch.py",
     )
-
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                "disable_realsense",
+                default_value="false",
+                description="Set to true to disable realsense",
+            ),
+            DeclareLaunchArgument(
+                "disable_orbbec",
+                default_value="false",
+                description="Set to true to disable orbbec",
+            ),
             # ── Wrist camera serial (RealSense D435i) ─────────────────────
             DeclareLaunchArgument(
                 "wrist_camera_serial",
@@ -32,7 +41,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "shoulder_camera_serial",
                 default_value="",
-                description="Serial number of the Orbbec Gemini 336L shoulder camera.",
+                description="Serial number of the Orbbec Gemini 336L navigation camera.",
             ),
             # ── Wrist camera (RealSense D435i) ────────────────────────────
             IncludeLaunchDescription(
@@ -49,6 +58,7 @@ def generate_launch_description():
                     "unite_imu_method": "2",
                     "pointcloud.enable": "false",
                 }.items(),
+                condition=UnlessCondition(LaunchConfiguration("disable_realsense")),
             ),
             # ── Shoulder camera (Orbbec Gemini 336L) ──────────────────────
             IncludeLaunchDescription(
@@ -57,21 +67,37 @@ def generate_launch_description():
                     "camera_name": "shoulder",
                     "serial_number": LaunchConfiguration("shoulder_camera_serial"),
                     "base_frame_id": "shoulder_camera_link",
-                    "enable_color": "true",
-                    "color_width": "1280",
-                    "color_height": "800",
-                    "color_fps": "30",
-                    "color_format": "MJPG",
-                    "enable_depth": "true",
-                    "depth_width": "848",
-                    "depth_height": "480",
+                    "enable_point_cloud": "true",
+                    "enable_hole_filling_filter": "false",
+                    "hole_filling_filter_mode": "NEAREST_NEIGHBOR_MAX",
+                    "enable_spatial_filter": "true",
+                    "spatial_filter_magnitude": "1",
+                    "spatial_filter_alpha": "0.5",
+                    "spatial_filter_diff_threshold": "25",
+                    "enable_temporal_filter": "true",
+                    "temporal_filter_diff_threshold": "0.3",
+                    "temporal_filter_weight": "0.4",
+                    "enable_noise_removal_filter": "true",
+                    "noise_removal_filter_min_diff": "128",
+                    "noise_removal_filter_max_size": "100",
+                    "enable_threshold_filter": "false",
+                    "threshold_filter_min": "100",
+                    "threshold_filter_max": "10000",
+                    "enable_hdr_merge": "true",
+                    "depth_width": "640",
+                    "depth_height": "400",
                     "depth_fps": "30",
                     "depth_registration": "true",
-                    "enable_point_cloud": "true",
-                    "enable_colored_point_cloud": "true",
-                    "enable_ir": "false",
-                    "enable_ir2": "false",
+                    "color_width": "640",
+                    "color_height": "400",
+                    "enable_accel": "true",
+                    "enable_gyro": "true",
+                    "color_fps": "30",
+                    "exposure_range_mode": "ultimate",
+                    "laser_energy_level": "4",
+                    "enable_ir_auto_exposure": "true",
                 }.items(),
+                condition=UnlessCondition(LaunchConfiguration("disable_orbbec")),
             ),
         ]
     )

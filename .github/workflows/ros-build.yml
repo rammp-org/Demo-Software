@@ -26,6 +26,7 @@ jobs:
           rosdep install -i --from-path src --rosdistro humble -r -y
 
       - name: Build
+        shell: bash
         run: |
           source /opt/ros/humble/setup.bash
           colcon build --symlink-install --event-handlers console_cohesion+

@@ -134,6 +134,10 @@ def main():
             rclpy.spin_once(
                 subscribers_node, timeout_sec=0.1
             )  # process incoming ROS2 messages
+
+            # Print raw blackboard values before ticking
+            print(py_trees.display.unicode_blackboard())
+
             tree.tick()  # tick the tree
 
             # Print tree status every tick

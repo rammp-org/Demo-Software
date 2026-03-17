@@ -110,13 +110,13 @@ def create_tree():
     )
     chair_control_selector.add_children([self_level_on(), self_level_off()])
 
-    root = py_trees.composites.Selector(name="root selector", memory=True)
-    root.add_children(
-        [
-            chair_control(),  # check user input first
-            chair_control_selector,  # then execute the right action
-        ]
+    chair_control_sequence = py_trees.composites.Sequence(
+        name="chair control sequence", memory=True
     )
+    chair_control_sequence.add_children([chair_control(), chair_control_selector])
+
+    root = py_trees.composites.Selector(name="root selector", memory=False)
+    root.add_children([chair_control_sequence])
 
     return py_trees.trees.BehaviourTree(root)
 

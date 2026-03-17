@@ -12,7 +12,7 @@ class TestPub(Node):  # MODIFY NAME
 
     def publish_user_input(self):
         msg = String()
-        msg.data = "self level on"  # Change this to test different inputs
+        msg.data = "self level off"  # Change this to test different inputs
         self.user_input_pub.publish(msg)
 
 

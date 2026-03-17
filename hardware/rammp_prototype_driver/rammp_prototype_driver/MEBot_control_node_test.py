@@ -6,7 +6,7 @@ from sensor_msgs.msg import Imu
 import math
 from tf2_msgs.msg import TFMessage
 from sensor_msgs.msg import JointState
-from interfaces.rammp_prototype_interfaces.msg import RAMMPPrototypeState
+from rammp_prototype_interfaces.msg import RAMMPPrototypeState
 
 
 class MEBotControlNode(Node):
@@ -202,29 +202,29 @@ class MEBotControlNode(Node):
         msg = RAMMPPrototypeState()
         msg.header.stamp = self.get_clock().now().to_msg()
 
-        msg.IMU_pitch = self.IMU_pitch
-        msg.IMU_roll = self.IMU_roll
-        msg.accel_x = self.accel_x
-        msg.accel_y = self.accel_y
-        msg.accel_z = self.accel_z
+        msg.pitch = self.IMU_pitch
+        msg.roll = self.IMU_roll
+        msg.ax = self.accel_x
+        msg.ay = self.accel_y
+        msg.az = self.accel_z
         msg.tilt = math.acos(math.cos(self.IMU_pitch) * math.cos(self.IMU_roll)) * (
             180 / math.pi
         )  # calculate tilt in degrees using pitch and roll
 
         # Encoders
-        msg.FC_enc = self.FC_pos
-        msg.FR_enc = self.RC_pos
-        msg.MR_enc = self.MR_pos
-        msg.ML_enc = self.ML_pos
-        msg.ML_carr_enc = self.ML_carriage_pos
-        msg.MR_carr_enc = self.MR_carriage_pos
-        msg.ML_wheel_enc = self.ML_wheel_pos
-        msg.MR_wheel_enc = self.MR_wheel_pos
+        msg.fc_enc = self.FC_pos
+        msg.fr_enc = self.RC_pos
+        msg.mr_enc = self.MR_pos
+        msg.ml_enc = self.ML_pos
+        msg.ml_carr_enc = self.ML_carriage_pos
+        msg.mr_carr_enc = self.MR_carriage_pos
+        msg.ml_wheel_enc = self.ML_wheel_pos
+        msg.mr_wheel_enc = self.MR_wheel_pos
 
         # loadcells
-        msg.FC_lc = self.FC_loadcell
-        msg.MR_lc = self.MR_loadcell
-        msg.ML_lc = self.ML_loadcell
+        msg.fc_lc = self.FC_loadcell
+        msg.mr_lc = self.MR_loadcell
+        msg.ml_lc = self.ML_loadcell
 
         # CA_flag and action
         msg.ca_flag = int(self.CA_flag)
@@ -234,12 +234,12 @@ class MEBotControlNode(Node):
         msg.app_time = float(self.appTime)
 
         # velocity and acceleration
-        msg.ML_vel = float(self.current_speed_ML)
-        msg.MR_vel = float(self.current_speed_MR)
-        msg.ML_acc = float(
+        msg.ml_vel = float(self.current_speed_ML)
+        msg.mr_vel = float(self.current_speed_MR)
+        msg.ml_acc = float(
             self.current_speed_ML - self.prev_speed_ML
         )  # calculate acceleration using change in speed over time (0.1s between serial data updates)
-        msg.MR_acc = float(
+        msg.mr_acc = float(
             self.current_speed_MR - self.prev_speed_MR
         )  # calculate acceleration using change in speed over time (0.1s between serial data updates)
 

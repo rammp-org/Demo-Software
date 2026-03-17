@@ -1,36 +1,39 @@
+#header
+std_msgs/Header header
+
 #encoders
-Float64 FC_enc
-Float64 FR_enc
-Float64 MR_enc
-Float64 ML_enc
-Float64 ML_carr_enc
-Float64 MR_carr_enc
-Float64 ML_wheel_enc
-Float64 MR_wheel_enc
+float64 fc_enc
+float64 fr_enc
+float64 mr_enc
+float64 ml_enc
+float64 ml_carr_enc
+float64 mr_carr_enc
+float64 ml_wheel_enc
+float64 mr_wheel_enc
 
 #loacells
-Float64 FC_lc
-Float64 MR_lc
-Float64 ML_lc
+float64 fc_lc
+float64 mr_lc
+float64 ml_lc
 
 #states
-Int64 ca_flag
-String action
+int64 ca_flag
+string action
 
 #VelAcc
-Float64 ML_vel
-Float64 MR_vel
-Float64 ML_acc
-Float64 MR_acc
+float64 ml_vel
+float64 mr_vel
+float64 ml_acc
+float64 mr_acc
 
 #IMU
-Float64 pitch
-Float64 roll
-Float64 ax
-Float64 ay
-Float64 az
-Float64 tilt
+float64 pitch
+float64 roll
+float64 ax
+float64 ay
+float64 az
+float64 tilt
 
 #other
-Float64 app_time
-Float64 measure_height
+float64 app_time
+float64 measure_height

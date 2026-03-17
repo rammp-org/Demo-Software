@@ -7,6 +7,8 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from std_msgs.msg import Bool
 from .unreal_remote_websocket import UnrealRemoteWebsocket
+from gui_interfaces.msg import UserInputs
+from sensor_msgs.msg import JointState
 
 
 class GuiMonitor(Node):
@@ -17,7 +19,7 @@ class GuiMonitor(Node):
         GuiMonitor.instance = self
         print("GuiMonitor node has been started.")
 
-        self.ue = UnrealRemoteWebsocket(host="192.168.68.51", preset="RCPS")
+        self.ue = UnrealRemoteWebsocket(host="192.168.12.10", preset="RCPS")
 
         # Create shared memory and map it
         self.shm = posix_ipc.SharedMemory(
@@ -37,33 +39,43 @@ class GuiMonitor(Node):
             1.0, self.publish_connection_status
         )
         self.test_ue_counter = 0
-        self.test_ue_timer = self.create_timer(1.0, self.test_ue)
+        self.test_ue_timer = self.create_timer(0.1, self.test_ue)
 
         # make publisher for user input, message should be string
-        self.input_publisher = self.create_publisher(String, "user_input", 10)
-
-        # make publisher for manual set control, message should be string
-        self.manual_control_publisher = self.create_publisher(
-            String, "mebot/seat/manual_control", 10
-        )
+        self.input_publisher = self.create_publisher(UserInputs, "user_input", 10)
 
         # make subscriber for system state, message should be string
         self.system_state_subscriber = self.create_subscription(
             String, "state", self.system_state_callback, 10
         )
+        # make subscriber for arm joint state,
+        self.joint_state_subscriber = self.create_subscription(
+            JointState, "/arm/joint_states", self.joint_state_callback, 10
+        )
+        self.arm_joints = [10.0] * 7  # Initialize with 7 joints
+
+    def joint_state_callback(self, msg):
+        self.arm_joints = msg.position
 
     def test_ue(self):
         if self.ue.is_connected():
             self.test_ue_counter += 1
-            if self.test_ue_counter == 3:
-                print("UE connection test successful, calling Mebot function...")
-                self.ue.call_function("Mebot", {})
-            if self.test_ue_counter == 5:
-                print("get UE preset functions and properties...")
-                self.ue.get_preset_functions_porperties()
-
+            # if self.test_ue_counter == 5:
+            #     print("UE connection test successful, calling Mebot function...")
+            #     self.ue.call_function("setJoints", {'Values': [10, 10, 10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10]})
+            # if self.test_ue_counter == 3:
+            #     print("get UE preset functions and properties...")
+            #     self.ue.get_preset_functions_porperties()
+            self.set_ui_joints()
         else:
             self.test_ue_counter = 0
+
+    def set_ui_joints(self):
+        arr = [0.0] * 53
+        index = 46  # index for link 0
+        for i in range(7):
+            arr[index + i] = self.arm_joints[i]
+        self.ue.call_function("setJoints", {"Values": arr})
 
     def publish_connection_status(self):
         msg = Bool()

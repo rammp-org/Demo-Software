@@ -41,6 +41,7 @@ class UnrealRemoteWebsocket:
         self._response_queue = Queue()  # 1 response per request
         self._value_change_queue = Queue()  # For unsolicited value changes from UE
         self._send_lock = Lock()  # serialize sends
+        self.ws_client = None
 
         t = threading.Thread(target=self.start_async_loop, daemon=True)
         t.start()

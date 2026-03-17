@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QStatusBar,
     QMessageBox,
     QFrame,
+    QSizePolicy,
 )
 from PyQt6.QtCore import Qt, QTimer
 
@@ -27,6 +28,7 @@ from .serial_console import SerialConsole
 from .state_indicator import StateIndicator
 from .encoder_overview import EncoderOverview
 from .theme import get_application_stylesheet, THEME
+from .scaling import SIZES, scaled
 
 
 class MainWindow(QMainWindow):
@@ -62,14 +64,21 @@ class MainWindow(QMainWindow):
     def _setup_ui(self):
         """Set up the main window UI."""
         self.setWindowTitle("PID Tuner for MEBot/RAMMP")
-        self.setMinimumSize(1200, 800)
+        # Use scaled minimum size for better laptop support
+        self.setMinimumSize(SIZES["window_min_width"], SIZES["window_min_height"])
 
         # Central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setSpacing(4)
+        main_layout.setSpacing(SIZES["spacing_small"])
+        main_layout.setContentsMargins(
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+        )
 
         # Top bar - connection, joint selection, and state indicator
         main_layout.addWidget(self._create_top_bar())
@@ -94,18 +103,24 @@ class MainWindow(QMainWindow):
         self._serial_console.command_sent.connect(self._serial_handler.send_raw)
         left_splitter.addWidget(self._serial_console)
 
-        # Set plot to take 70% of vertical space, console 30%
-        left_splitter.setSizes([500, 200])
+        # Set plot to take 75% of vertical space, console 25%
+        left_splitter.setSizes([450, 150])
 
         main_splitter.addWidget(left_splitter)
 
-        # Right side - Control panel
+        # Right side - Control panel (with flexible sizing)
         self._control_panel = ControlPanel(self._data_store, self._serial_handler)
-        self._control_panel.setMaximumWidth(400)
+        self._control_panel.setMinimumWidth(SIZES["control_panel_min_width"])
+        self._control_panel.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+        )
         main_splitter.addWidget(self._control_panel)
 
-        # Set initial splitter sizes (70% left, 30% controls)
-        main_splitter.setSizes([700, 300])
+        # Set initial splitter sizes - give more to plot area
+        # These are relative weights, will be adjusted based on actual window size
+        main_splitter.setSizes([600, SIZES["control_panel_preferred_width"]])
+        main_splitter.setStretchFactor(0, 2)  # Plot area stretches more
+        main_splitter.setStretchFactor(1, 1)  # Control panel stretches less
 
         main_layout.addWidget(main_splitter)
 
@@ -114,15 +129,20 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         layout = QHBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(SIZES["spacing_medium"])
 
         # Serial connection group
         serial_group = QGroupBox("Serial Connection")
         serial_layout = QHBoxLayout(serial_group)
+        serial_layout.setSpacing(SIZES["spacing_small"])
 
         # Port selection
         serial_layout.addWidget(QLabel("Port:"))
         self._port_combo = QComboBox()
-        self._port_combo.setMinimumWidth(150)
+        self._port_combo.setMinimumWidth(scaled(120))
+        self._port_combo.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         serial_layout.addWidget(self._port_combo)
 
         # Refresh button
@@ -153,18 +173,24 @@ class MainWindow(QMainWindow):
         # Joint selection group
         joint_group = QGroupBox("Joint Selection")
         joint_layout = QHBoxLayout(joint_group)
+        joint_layout.setSpacing(SIZES["spacing_small"])
 
         joint_layout.addWidget(QLabel("Joint:"))
         self._joint_combo = QComboBox()
         for name in get_joint_names():
             self._joint_combo.addItem(name)
         self._joint_combo.currentIndexChanged.connect(self._on_joint_changed)
-        self._joint_combo.setMinimumWidth(200)
+        self._joint_combo.setMinimumWidth(scaled(150))
+        self._joint_combo.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         joint_layout.addWidget(self._joint_combo)
 
         # Joint description
         self._joint_desc_label = QLabel("")
-        self._joint_desc_label.setStyleSheet("color: gray; font-style: italic;")
+        self._joint_desc_label.setStyleSheet(
+            f"color: gray; font-style: italic; font-size: {SIZES['font_small']}pt;"
+        )
         joint_layout.addWidget(self._joint_desc_label)
         self._update_joint_description()
 

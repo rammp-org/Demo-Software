@@ -14,8 +14,11 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QComboBox,
     QDoubleSpinBox,
+    QScrollArea,
+    QSizePolicy,
+    QFrame,
 )
-from PyQt6.QtCore import pyqtSignal, QTimer
+from PyQt6.QtCore import pyqtSignal, QTimer, Qt
 from PyQt6.QtGui import QDoubleValidator
 import math
 import numpy as np
@@ -23,6 +26,7 @@ import numpy as np
 from ..data.data_store import DataStore
 from ..serial_driver.serial_handler import SerialHandler
 from .theme import THEME
+from .scaling import SIZES, scaled
 
 
 # Control mode constants
@@ -81,8 +85,29 @@ class ControlPanel(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
-        """Set up the control panel layout."""
-        layout = QVBoxLayout(self)
+        """Set up the control panel layout with scroll area."""
+        # Main layout for this widget
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
+
+        # Create scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+
+        # Container widget for scroll area content
+        scroll_content = QWidget()
+        layout = QVBoxLayout(scroll_content)
+        layout.setContentsMargins(
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+        )
+        layout.setSpacing(SIZES["spacing_medium"])
 
         # Current values display
         layout.addWidget(self._create_status_group())
@@ -104,17 +129,24 @@ class ControlPanel(QWidget):
 
         layout.addStretch()
 
+        # Set scroll content and add to outer layout
+        scroll_area.setWidget(scroll_content)
+        outer_layout.addWidget(scroll_area)
+
     def _create_status_group(self) -> QGroupBox:
         """Create the current values display group."""
         group = QGroupBox("Current Values")
         layout = QGridLayout(group)
+        layout.setSpacing(SIZES["spacing_small"])
+
+        # Dynamic font size for value labels
+        value_font_size = SIZES["font_medium"]
+        value_style = f"font-weight: bold; font-size: {value_font_size}pt;"
 
         # Mode indicator
         layout.addWidget(QLabel("Mode:"), 0, 0)
         self._mode_indicator_label = QLabel("Open Loop")
-        self._mode_indicator_label.setStyleSheet(
-            "font-weight: bold; font-size: 14px; color: cyan;"
-        )
+        self._mode_indicator_label.setStyleSheet(f"{value_style} color: cyan;")
         layout.addWidget(self._mode_indicator_label, 0, 1)
         self._mode_unit_label = QLabel("")  # Placeholder, units shown elsewhere
         layout.addWidget(self._mode_unit_label, 0, 2)
@@ -122,7 +154,7 @@ class ControlPanel(QWidget):
         # Position
         layout.addWidget(QLabel("Position:"), 1, 0)
         self._position_label = QLabel("---")
-        self._position_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self._position_label.setStyleSheet(value_style)
         layout.addWidget(self._position_label, 1, 1)
         self._position_unit_label = QLabel("ticks")
         layout.addWidget(self._position_unit_label, 1, 2)
@@ -130,14 +162,14 @@ class ControlPanel(QWidget):
         # Velocity
         layout.addWidget(QLabel("Velocity:"), 2, 0)
         self._velocity_label = QLabel("---")
-        self._velocity_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self._velocity_label.setStyleSheet(value_style)
         layout.addWidget(self._velocity_label, 2, 1)
         layout.addWidget(QLabel("units/s"), 2, 2)
 
         # PWM
         layout.addWidget(QLabel("PWM:"), 3, 0)
         self._pwm_label = QLabel("---")
-        self._pwm_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self._pwm_label.setStyleSheet(value_style)
         layout.addWidget(self._pwm_label, 3, 1)
         self._pwm_percent_label = QLabel("(0%)")
         layout.addWidget(self._pwm_percent_label, 3, 2)
@@ -146,7 +178,7 @@ class ControlPanel(QWidget):
         self._target_row_label = QLabel("Target:")
         layout.addWidget(self._target_row_label, 4, 0)
         self._target_label = QLabel("---")
-        self._target_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self._target_label.setStyleSheet(value_style)
         layout.addWidget(self._target_label, 4, 1)
         self._target_unit_label = QLabel("PWM")
         layout.addWidget(self._target_unit_label, 4, 2)
@@ -154,10 +186,13 @@ class ControlPanel(QWidget):
         # Error
         layout.addWidget(QLabel("Error:"), 5, 0)
         self._error_label = QLabel("---")
-        self._error_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self._error_label.setStyleSheet(value_style)
         layout.addWidget(self._error_label, 5, 1)
         self._error_unit_label = QLabel("")
         layout.addWidget(self._error_unit_label, 5, 2)
+
+        # Store value style for dynamic updates
+        self._value_style = value_style
 
         # Update timer
         self._status_timer = QTimer(self)
@@ -170,6 +205,7 @@ class ControlPanel(QWidget):
         """Create oscillation analysis metrics group."""
         group = QGroupBox("Performance Analysis")
         layout = QGridLayout(group)
+        layout.setSpacing(SIZES["spacing_small"])
 
         # RMS Error
         layout.addWidget(QLabel("RMS Error:"), 0, 0)
@@ -197,7 +233,10 @@ class ControlPanel(QWidget):
 
         # Analysis window info
         self._analysis_window_label = QLabel("Window: 2s")
-        self._analysis_window_label.setStyleSheet("color: gray; font-size: 10px;")
+        small_font = SIZES["font_small"]
+        self._analysis_window_label.setStyleSheet(
+            f"color: gray; font-size: {small_font}pt;"
+        )
         layout.addWidget(self._analysis_window_label, 2, 0, 1, 2)
 
         # Reset analysis button
@@ -210,13 +249,21 @@ class ControlPanel(QWidget):
     def _create_pid_group(self) -> QGroupBox:
         group = QGroupBox("Mode & PID Control")
         layout = QVBoxLayout(group)
+        layout.setSpacing(SIZES["spacing_medium"])
+
+        # Get scaled input width
+        pid_input_width = SIZES["input_min_width"]
 
         # Mode Selection row
         mode_layout = QHBoxLayout()
+        mode_layout.setSpacing(SIZES["spacing_small"])
         mode_layout.addWidget(QLabel("Mode:"))
         self._mode_combo = QComboBox()
         self._mode_combo.addItems(["Open Loop (0)", "Velocity (1)", "Position (2)"])
         self._mode_combo.currentIndexChanged.connect(self._on_mode_combo_changed)
+        self._mode_combo.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         mode_layout.addWidget(self._mode_combo)
 
         self._set_mode_btn = QPushButton("Set Mode")
@@ -236,21 +283,34 @@ class ControlPanel(QWidget):
 
         # Position PID row (P, I, D, FF)
         pos_pid_layout = QHBoxLayout()
+        pos_pid_layout.setSpacing(SIZES["spacing_small"])
         pos_pid_layout.addWidget(QLabel("Pos:"))
 
-        # Use QLineEdit for unlimited input
+        # Use QLineEdit for unlimited input with flexible sizing
         self._pos_p = QLineEdit("0")
         self._pos_p.setValidator(QDoubleValidator())
-        self._pos_p.setMaximumWidth(70)
+        self._pos_p.setMinimumWidth(pid_input_width)
+        self._pos_p.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self._pos_i = QLineEdit("0")
         self._pos_i.setValidator(QDoubleValidator())
-        self._pos_i.setMaximumWidth(70)
+        self._pos_i.setMinimumWidth(pid_input_width)
+        self._pos_i.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self._pos_d = QLineEdit("0")
         self._pos_d.setValidator(QDoubleValidator())
-        self._pos_d.setMaximumWidth(70)
+        self._pos_d.setMinimumWidth(pid_input_width)
+        self._pos_d.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self._pos_ff = QLineEdit("0")
         self._pos_ff.setValidator(QDoubleValidator())
-        self._pos_ff.setMaximumWidth(70)
+        self._pos_ff.setMinimumWidth(pid_input_width)
+        self._pos_ff.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
 
         pos_pid_layout.addWidget(QLabel("P:"))
         pos_pid_layout.addWidget(self._pos_p)
@@ -268,20 +328,33 @@ class ControlPanel(QWidget):
 
         # Velocity PID row (P, I, D, FF)
         vel_pid_layout = QHBoxLayout()
+        vel_pid_layout.setSpacing(SIZES["spacing_small"])
         vel_pid_layout.addWidget(QLabel("Vel:"))
 
         self._vel_p = QLineEdit("0")
         self._vel_p.setValidator(QDoubleValidator())
-        self._vel_p.setMaximumWidth(70)
+        self._vel_p.setMinimumWidth(pid_input_width)
+        self._vel_p.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self._vel_i = QLineEdit("0")
         self._vel_i.setValidator(QDoubleValidator())
-        self._vel_i.setMaximumWidth(70)
+        self._vel_i.setMinimumWidth(pid_input_width)
+        self._vel_i.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self._vel_d = QLineEdit("0")
         self._vel_d.setValidator(QDoubleValidator())
-        self._vel_d.setMaximumWidth(70)
+        self._vel_d.setMinimumWidth(pid_input_width)
+        self._vel_d.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self._vel_ff = QLineEdit("0")
         self._vel_ff.setValidator(QDoubleValidator())
-        self._vel_ff.setMaximumWidth(70)
+        self._vel_ff.setMinimumWidth(pid_input_width)
+        self._vel_ff.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
 
         vel_pid_layout.addWidget(QLabel("P:"))
         vel_pid_layout.addWidget(self._vel_p)
@@ -303,14 +376,19 @@ class ControlPanel(QWidget):
         """Create the target control group."""
         group = QGroupBox("Target Control")
         layout = QVBoxLayout(group)
+        layout.setSpacing(SIZES["spacing_medium"])
 
         # Target input row - use QLineEdit for unlimited range
         input_layout = QHBoxLayout()
+        input_layout.setSpacing(SIZES["spacing_small"])
         input_layout.addWidget(QLabel("Target:"))
 
         self._target_input = QLineEdit("0")
         self._target_input.setValidator(QDoubleValidator())
-        self._target_input.setMaximumWidth(120)
+        self._target_input.setMinimumWidth(SIZES["input_preferred_width"])
+        self._target_input.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         input_layout.addWidget(self._target_input)
 
         # Dynamic unit label (changes with mode)
@@ -325,6 +403,7 @@ class ControlPanel(QWidget):
 
         # Quick target buttons row
         quick_layout = QHBoxLayout()
+        quick_layout.setSpacing(SIZES["spacing_small"])
 
         # Set to current button
         self._set_current_btn = QPushButton("Use Current")
@@ -339,13 +418,19 @@ class ControlPanel(QWidget):
         )
         quick_layout.addWidget(self._set_zero_btn)
 
+        layout.addLayout(quick_layout)
+
+        # Safety buttons row (separate for emphasis)
+        safety_layout = QHBoxLayout()
+        safety_layout.setSpacing(SIZES["spacing_small"])
+
         # Disable Motors button
         self._disable_motors_btn = QPushButton("ESTOP (z)")
         self._disable_motors_btn.clicked.connect(self._on_disable_motors)
         self._disable_motors_btn.setStyleSheet(
             f"background-color: {THEME.red}; color: {THEME.crust};"
         )
-        quick_layout.addWidget(self._disable_motors_btn)
+        safety_layout.addWidget(self._disable_motors_btn)
 
         # Clear ESTOP button
         self._clear_estop_btn = QPushButton("Clear ESTOP (c)")
@@ -353,9 +438,9 @@ class ControlPanel(QWidget):
         self._clear_estop_btn.setStyleSheet(
             f"background-color: {THEME.peach}; color: {THEME.crust};"
         )
-        quick_layout.addWidget(self._clear_estop_btn)
+        safety_layout.addWidget(self._clear_estop_btn)
 
-        layout.addLayout(quick_layout)
+        layout.addLayout(safety_layout)
 
         return group
 
@@ -363,37 +448,39 @@ class ControlPanel(QWidget):
         """Create the step input group."""
         group = QGroupBox("Step Input")
         layout = QVBoxLayout(group)
+        layout.setSpacing(SIZES["spacing_medium"])
 
         # Step size input - use QLineEdit for unlimited range
         step_size_layout = QHBoxLayout()
+        step_size_layout.setSpacing(SIZES["spacing_small"])
         step_size_layout.addWidget(QLabel("Step Size:"))
 
         self._step_size_input = QLineEdit("100")
         self._step_size_input.setValidator(QDoubleValidator())
-        self._step_size_input.setMaximumWidth(100)
+        self._step_size_input.setMinimumWidth(SIZES["input_min_width"])
+        self._step_size_input.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         step_size_layout.addWidget(self._step_size_input)
 
         # Dynamic unit label
         self._step_unit_label = QLabel("PWM")
         step_size_layout.addWidget(self._step_unit_label)
-        step_size_layout.addStretch()
-        layout.addLayout(step_size_layout)
 
-        # Step buttons
-        btn_layout = QHBoxLayout()
-
+        # Step buttons inline
         self._step_neg_btn = QPushButton("Step -")
         self._step_neg_btn.clicked.connect(self._on_step_negative)
-        btn_layout.addWidget(self._step_neg_btn)
+        step_size_layout.addWidget(self._step_neg_btn)
 
         self._step_pos_btn = QPushButton("Step +")
         self._step_pos_btn.clicked.connect(self._on_step_positive)
-        btn_layout.addWidget(self._step_pos_btn)
+        step_size_layout.addWidget(self._step_pos_btn)
 
-        layout.addLayout(btn_layout)
+        layout.addLayout(step_size_layout)
 
         # Quick step buttons
         quick_layout = QHBoxLayout()
+        quick_layout.setSpacing(SIZES["spacing_small"])
         quick_layout.addWidget(QLabel("Quick:"))
         for size in self.DEFAULT_STEP_SIZES:
             btn = QPushButton(f"+{size}")
@@ -407,15 +494,20 @@ class ControlPanel(QWidget):
         """Create the sine wave input group."""
         group = QGroupBox("Sine Wave Input")
         layout = QVBoxLayout(group)
+        layout.setSpacing(SIZES["spacing_medium"])
 
         # Parameters grid - use QLineEdit for unlimited range
         params_layout = QGridLayout()
+        params_layout.setSpacing(SIZES["spacing_small"])
 
         # Amplitude
         params_layout.addWidget(QLabel("Amplitude:"), 0, 0)
         self._sine_amplitude_input = QLineEdit("500")
         self._sine_amplitude_input.setValidator(QDoubleValidator())
-        self._sine_amplitude_input.setMaximumWidth(100)
+        self._sine_amplitude_input.setMinimumWidth(SIZES["input_min_width"])
+        self._sine_amplitude_input.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         params_layout.addWidget(self._sine_amplitude_input, 0, 1)
         self._sine_amplitude_unit_label = QLabel("PWM")
         params_layout.addWidget(self._sine_amplitude_unit_label, 0, 2)
@@ -424,7 +516,10 @@ class ControlPanel(QWidget):
         params_layout.addWidget(QLabel("Frequency:"), 1, 0)
         self._sine_frequency_input = QLineEdit("0.5")
         self._sine_frequency_input.setValidator(QDoubleValidator())
-        self._sine_frequency_input.setMaximumWidth(100)
+        self._sine_frequency_input.setMinimumWidth(SIZES["input_min_width"])
+        self._sine_frequency_input.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         params_layout.addWidget(self._sine_frequency_input, 1, 1)
         params_layout.addWidget(QLabel("Hz"), 1, 2)
 
@@ -432,7 +527,10 @@ class ControlPanel(QWidget):
         params_layout.addWidget(QLabel("Duration:"), 2, 0)
         self._sine_duration_input = QLineEdit("10")
         self._sine_duration_input.setValidator(QDoubleValidator())
-        self._sine_duration_input.setMaximumWidth(100)
+        self._sine_duration_input.setMinimumWidth(SIZES["input_min_width"])
+        self._sine_duration_input.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         params_layout.addWidget(self._sine_duration_input, 2, 1)
         params_layout.addWidget(QLabel("seconds"), 2, 2)
 
@@ -440,6 +538,7 @@ class ControlPanel(QWidget):
 
         # Control buttons
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(SIZES["spacing_small"])
 
         self._start_sine_btn = QPushButton("Start Sine")
         self._start_sine_btn.clicked.connect(self._on_start_sine)
@@ -484,17 +583,18 @@ class ControlPanel(QWidget):
         self._error_label.setText(f"{error:.2f}")
 
         # Color the error label based on magnitude
+        value_font_size = SIZES["font_medium"]
         if abs(error) < 10:
             self._error_label.setStyleSheet(
-                "font-weight: bold; font-size: 14px; color: green;"
+                f"font-weight: bold; font-size: {value_font_size}pt; color: green;"
             )
         elif abs(error) < 100:
             self._error_label.setStyleSheet(
-                "font-weight: bold; font-size: 14px; color: orange;"
+                f"font-weight: bold; font-size: {value_font_size}pt; color: orange;"
             )
         else:
             self._error_label.setStyleSheet(
-                "font-weight: bold; font-size: 14px; color: red;"
+                f"font-weight: bold; font-size: {value_font_size}pt; color: red;"
             )
 
         # Update oscillation analysis

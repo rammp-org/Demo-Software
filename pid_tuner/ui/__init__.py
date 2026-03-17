@@ -7,6 +7,7 @@ from .serial_console import SerialConsole
 from .state_indicator import StateIndicator
 from .encoder_overview import EncoderOverview
 from .theme import THEME, get_application_stylesheet
+from .scaling import SIZES, scaled, get_scale_factor, refresh_sizes
 
 __all__ = [
     "MainWindow",
@@ -17,4 +18,8 @@ __all__ = [
     "EncoderOverview",
     "THEME",
     "get_application_stylesheet",
+    "SIZES",
+    "scaled",
+    "get_scale_factor",
+    "refresh_sizes",
 ]

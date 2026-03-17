@@ -14,6 +14,7 @@ from PyQt6.QtCore import pyqtSlot, pyqtSignal, Qt, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont
 
 from .theme import THEME, JOINT_COLORS
+from .scaling import SIZES, scaled, scaled_font_size
 from ..data.data_store import DataStore
 from ..data.joint_config import JOINTS
 
@@ -37,8 +38,9 @@ class EncoderBar(QWidget):
         self._max_val = self.DEFAULT_MAX
         self._selected = False
 
-        self.setMinimumHeight(28)
-        self.setMaximumHeight(32)
+        # Use scaled heights
+        self.setMinimumHeight(SIZES["encoder_bar_height"])
+        self.setMaximumHeight(SIZES["encoder_bar_max_height"])
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -69,23 +71,23 @@ class EncoderBar(QWidget):
 
         width = self.width()
         height = self.height()
-        margin = 2
+        margin = scaled(2)
         bar_height = height - 2 * margin
-        label_width = 45
-        value_width = 60
-        bar_left = label_width + 5
-        bar_width = width - bar_left - value_width - 10
+        label_width = scaled(40)
+        value_width = scaled(55)
+        bar_left = label_width + scaled(4)
+        bar_width = width - bar_left - value_width - scaled(8)
 
         # Draw selection highlight
         if self._selected:
             painter.setPen(QPen(QColor(THEME.blue), 2))
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(0, 0, width - 1, height - 1, 4, 4)
+            painter.drawRoundedRect(0, 0, width - 1, height - 1, scaled(4), scaled(4))
 
         # Draw joint label
         painter.setPen(QColor(THEME.subtext1))
         font = QFont()
-        font.setPointSize(9)
+        font.setPointSize(SIZES["font_small"])
         font.setBold(True)
         painter.setFont(font)
         painter.drawText(
@@ -99,12 +101,14 @@ class EncoderBar(QWidget):
 
         # Draw bar background
         bar_rect_x = bar_left
-        bar_rect_y = margin + 2
-        bar_rect_h = bar_height - 4
+        bar_rect_y = margin + scaled(2)
+        bar_rect_h = bar_height - scaled(4)
 
         painter.setPen(QPen(QColor(THEME.surface1), 1))
         painter.setBrush(QBrush(QColor(THEME.surface0)))
-        painter.drawRoundedRect(bar_rect_x, bar_rect_y, bar_width, bar_rect_h, 3, 3)
+        painter.drawRoundedRect(
+            bar_rect_x, bar_rect_y, bar_width, bar_rect_h, scaled(3), scaled(3)
+        )
 
         # Calculate fill position
         # The bar shows position relative to range, with 0 in the middle
@@ -127,7 +131,12 @@ class EncoderBar(QWidget):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(self._color))
             painter.drawRoundedRect(
-                int(fill_x), bar_rect_y + 1, int(fill_width), bar_rect_h - 2, 2, 2
+                int(fill_x),
+                bar_rect_y + 1,
+                int(fill_width),
+                bar_rect_h - 2,
+                scaled(2),
+                scaled(2),
             )
 
             # Draw center line
@@ -180,13 +189,20 @@ class EncoderOverview(QWidget):
     def _setup_ui(self):
         """Set up the widget layout."""
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(8)
+        layout.setContentsMargins(
+            SIZES["margin_medium"],
+            SIZES["margin_small"],
+            SIZES["margin_medium"],
+            SIZES["margin_small"],
+        )
+        layout.setSpacing(SIZES["spacing_medium"])
 
         # Title label
         title = QLabel("Encoders:")
-        title.setStyleSheet(f"color: {THEME.subtext1}; font-weight: bold;")
-        title.setFixedWidth(70)
+        title.setStyleSheet(
+            f"color: {THEME.subtext1}; font-weight: bold; font-size: {SIZES['font_small']}pt;"
+        )
+        title.setFixedWidth(scaled(60))
         layout.addWidget(title)
 
         # Create bars for each joint

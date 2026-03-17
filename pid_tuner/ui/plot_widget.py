@@ -17,6 +17,7 @@ from PyQt6.QtCore import QTimer
 
 from ..data.data_store import DataStore
 from .theme import get_plot_colors, THEME
+from .scaling import SIZES, scaled
 
 
 class PlotWidget(QWidget):
@@ -60,13 +61,20 @@ class PlotWidget(QWidget):
     def _setup_ui(self):
         """Set up the widget layout."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            0,
+        )
+        layout.setSpacing(SIZES["spacing_small"])
 
         # Control bar
         control_layout = QHBoxLayout()
+        control_layout.setSpacing(SIZES["spacing_small"])
 
         # Time window selector
-        control_layout.addWidget(QLabel("Time Window:"))
+        control_layout.addWidget(QLabel("Time:"))
         self._time_window_combo = QComboBox()
         for window in self.TIME_WINDOWS:
             self._time_window_combo.addItem(f"{window}s")
@@ -75,14 +83,14 @@ class PlotWidget(QWidget):
         control_layout.addWidget(self._time_window_combo)
 
         # Plot visibility toggles
-        control_layout.addWidget(QLabel("  Show:"))
+        control_layout.addWidget(QLabel("Show:"))
 
-        self._pos_checkbox = QCheckBox("Position")
+        self._pos_checkbox = QCheckBox("Pos")
         self._pos_checkbox.setChecked(True)
         self._pos_checkbox.toggled.connect(self._on_pos_toggled)
         control_layout.addWidget(self._pos_checkbox)
 
-        self._vel_checkbox = QCheckBox("Velocity")
+        self._vel_checkbox = QCheckBox("Vel")
         self._vel_checkbox.setChecked(True)
         self._vel_checkbox.toggled.connect(self._on_vel_toggled)
         control_layout.addWidget(self._vel_checkbox)
@@ -95,7 +103,7 @@ class PlotWidget(QWidget):
         control_layout.addStretch()
 
         # Simulate button - allows plotting targets without serial connection
-        self._simulate_btn = QPushButton("Simulate")
+        self._simulate_btn = QPushButton("Sim")
         self._simulate_btn.setCheckable(True)
         self._simulate_btn.setToolTip(
             "Enable simulation mode to preview target signals without Teensy connected"
@@ -118,7 +126,8 @@ class PlotWidget(QWidget):
         control_layout.addWidget(self._clear_btn)
 
         # Auto-scale button
-        self._autoscale_btn = QPushButton("Auto Scale")
+        self._autoscale_btn = QPushButton("Auto")
+        self._autoscale_btn.setToolTip("Auto Scale")
         self._autoscale_btn.clicked.connect(self._on_autoscale_clicked)
         control_layout.addWidget(self._autoscale_btn)
 
@@ -134,9 +143,11 @@ class PlotWidget(QWidget):
         """Set up the three stacked pyqtgraph plots."""
         colors = get_plot_colors()
 
-        # Common plot styling
-        label_style = {"color": THEME.text, "font-size": "10pt"}
-        title_style = {"color": THEME.text, "size": "11pt"}
+        # Common plot styling with scaled fonts
+        font_size = SIZES["font_normal"]
+        title_size = SIZES["font_medium"]
+        label_style = {"color": THEME.text, "font-size": f"{font_size}pt"}
+        title_style = {"color": THEME.text, "size": f"{title_size}pt"}
 
         # Position plot (top)
         self._pos_plot = self._graphics_layout.addPlot(row=0, col=0)

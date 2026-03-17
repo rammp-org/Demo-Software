@@ -8,6 +8,8 @@ https://github.com/catppuccin/catppuccin
 from dataclasses import dataclass
 from typing import Dict
 
+from .scaling import SIZES, scaled, scaled_font_size
+
 
 @dataclass
 class CatppuccinPalette:
@@ -116,35 +118,52 @@ STATE_NAMES = {
 
 
 def get_application_stylesheet() -> str:
-    """Generate the main application stylesheet."""
+    """Generate the main application stylesheet with DPI-aware scaling."""
+    # Get scaled sizes
+    font_small = SIZES["font_small"]
+    font_normal = SIZES["font_normal"]
+    font_medium = SIZES["font_medium"]
+    margin_small = SIZES["margin_small"]
+    margin_medium = SIZES["margin_medium"]
+    spacing_small = SIZES["spacing_small"]
+    button_min_width = SIZES["button_min_width"]
+    button_padding_h = SIZES["button_padding_h"]
+    button_padding_v = SIZES["button_padding_v"]
+    combo_min_width = SIZES["combo_min_width"]
+    input_min_width = SIZES["input_min_width"]
+
     return f"""
         /* Main Window */
         QMainWindow, QWidget {{
             background-color: {THEME.base};
             color: {THEME.text};
+            font-size: {font_normal}pt;
         }}
 
         /* Labels */
         QLabel {{
             color: {THEME.text};
+            font-size: {font_normal}pt;
         }}
 
         /* Group Boxes */
         QGroupBox {{
             background-color: {THEME.surface0};
             border: 1px solid {THEME.surface1};
-            border-radius: 6px;
-            margin-top: 8px;
-            padding-top: 8px;
+            border-radius: {scaled(6)}px;
+            margin-top: {margin_medium}px;
+            padding: {margin_medium}px {margin_small}px {margin_small}px {margin_small}px;
             font-weight: bold;
+            font-size: {font_normal}pt;
             color: {THEME.text};
         }}
         QGroupBox::title {{
             subcontrol-origin: margin;
             subcontrol-position: top left;
-            left: 10px;
-            padding: 0 5px;
+            left: {scaled(8)}px;
+            padding: 0 {margin_small}px;
             color: {THEME.subtext1};
+            font-size: {font_small}pt;
         }}
 
         /* Buttons */
@@ -152,9 +171,10 @@ def get_application_stylesheet() -> str:
             background-color: {THEME.surface1};
             color: {THEME.text};
             border: 1px solid {THEME.surface2};
-            border-radius: 4px;
-            padding: 5px 12px;
-            min-width: 60px;
+            border-radius: {scaled(4)}px;
+            padding: {button_padding_v}px {button_padding_h}px;
+            min-width: {button_min_width}px;
+            font-size: {font_normal}pt;
         }}
         QPushButton:hover {{
             background-color: {THEME.surface2};
@@ -209,23 +229,24 @@ def get_application_stylesheet() -> str:
             background-color: {THEME.surface0};
             color: {THEME.text};
             border: 1px solid {THEME.surface2};
-            border-radius: 4px;
-            padding: 4px 8px;
-            min-width: 80px;
+            border-radius: {scaled(4)}px;
+            padding: {margin_small}px {margin_medium}px;
+            min-width: {combo_min_width}px;
+            font-size: {font_normal}pt;
         }}
         QComboBox:hover {{
             border-color: {THEME.overlay0};
         }}
         QComboBox::drop-down {{
             border: none;
-            width: 20px;
+            width: {scaled(20)}px;
         }}
         QComboBox::down-arrow {{
             image: none;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 6px solid {THEME.text};
-            margin-right: 5px;
+            border-left: {scaled(4)}px solid transparent;
+            border-right: {scaled(4)}px solid transparent;
+            border-top: {scaled(6)}px solid {THEME.text};
+            margin-right: {margin_small}px;
         }}
         QComboBox QAbstractItemView {{
             background-color: {THEME.surface0};
@@ -233,6 +254,7 @@ def get_application_stylesheet() -> str:
             selection-background-color: {THEME.surface2};
             selection-color: {THEME.text};
             border: 1px solid {THEME.surface2};
+            font-size: {font_normal}pt;
         }}
 
         /* Spin Boxes */
@@ -240,8 +262,9 @@ def get_application_stylesheet() -> str:
             background-color: {THEME.surface0};
             color: {THEME.text};
             border: 1px solid {THEME.surface2};
-            border-radius: 4px;
-            padding: 4px;
+            border-radius: {scaled(4)}px;
+            padding: {margin_small}px;
+            font-size: {font_normal}pt;
         }}
         QSpinBox:hover, QDoubleSpinBox:hover {{
             border-color: {THEME.overlay0};
@@ -250,7 +273,7 @@ def get_application_stylesheet() -> str:
         QSpinBox::down-button, QDoubleSpinBox::down-button {{
             background-color: {THEME.surface1};
             border: none;
-            width: 16px;
+            width: {scaled(16)}px;
         }}
         QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
         QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
@@ -262,8 +285,10 @@ def get_application_stylesheet() -> str:
             background-color: {THEME.surface0};
             color: {THEME.text};
             border: 1px solid {THEME.surface2};
-            border-radius: 4px;
-            padding: 4px 8px;
+            border-radius: {scaled(4)}px;
+            padding: {margin_small}px {margin_medium}px;
+            min-width: {input_min_width}px;
+            font-size: {font_normal}pt;
         }}
         QLineEdit:hover {{
             border-color: {THEME.overlay0};
@@ -277,19 +302,21 @@ def get_application_stylesheet() -> str:
             background-color: {THEME.mantle};
             color: {THEME.text};
             border: 1px solid {THEME.surface0};
-            border-radius: 4px;
+            border-radius: {scaled(4)}px;
+            font-size: {font_normal}pt;
         }}
 
         /* Check Boxes */
         QCheckBox {{
             color: {THEME.text};
-            spacing: 6px;
+            spacing: {spacing_small}px;
+            font-size: {font_normal}pt;
         }}
         QCheckBox::indicator {{
-            width: 16px;
-            height: 16px;
+            width: {scaled(16)}px;
+            height: {scaled(16)}px;
             border: 1px solid {THEME.surface2};
-            border-radius: 3px;
+            border-radius: {scaled(3)}px;
             background-color: {THEME.surface0};
         }}
         QCheckBox::indicator:hover {{
@@ -305,10 +332,10 @@ def get_application_stylesheet() -> str:
             background-color: {THEME.surface1};
         }}
         QSplitter::handle:horizontal {{
-            width: 2px;
+            width: {scaled(3)}px;
         }}
         QSplitter::handle:vertical {{
-            height: 2px;
+            height: {scaled(3)}px;
         }}
         QSplitter::handle:hover {{
             background-color: {THEME.blue};
@@ -319,19 +346,20 @@ def get_application_stylesheet() -> str:
             background-color: {THEME.mantle};
             color: {THEME.subtext1};
             border-top: 1px solid {THEME.surface0};
+            font-size: {font_small}pt;
         }}
 
         /* Scroll Bars */
         QScrollBar:vertical {{
             background-color: {THEME.mantle};
-            width: 12px;
+            width: {scaled(12)}px;
             margin: 0;
         }}
         QScrollBar::handle:vertical {{
             background-color: {THEME.surface2};
-            border-radius: 4px;
-            min-height: 20px;
-            margin: 2px;
+            border-radius: {scaled(4)}px;
+            min-height: {scaled(20)}px;
+            margin: {scaled(2)}px;
         }}
         QScrollBar::handle:vertical:hover {{
             background-color: {THEME.overlay0};
@@ -341,14 +369,14 @@ def get_application_stylesheet() -> str:
         }}
         QScrollBar:horizontal {{
             background-color: {THEME.mantle};
-            height: 12px;
+            height: {scaled(12)}px;
             margin: 0;
         }}
         QScrollBar::handle:horizontal {{
             background-color: {THEME.surface2};
-            border-radius: 4px;
-            min-width: 20px;
-            margin: 2px;
+            border-radius: {scaled(4)}px;
+            min-width: {scaled(20)}px;
+            margin: {scaled(2)}px;
         }}
         QScrollBar::handle:horizontal:hover {{
             background-color: {THEME.overlay0};
@@ -357,17 +385,27 @@ def get_application_stylesheet() -> str:
             width: 0;
         }}
 
+        /* Scroll Area */
+        QScrollArea {{
+            background-color: transparent;
+            border: none;
+        }}
+        QScrollArea > QWidget > QWidget {{
+            background-color: transparent;
+        }}
+
         /* Progress Bars */
         QProgressBar {{
             background-color: {THEME.surface0};
             border: 1px solid {THEME.surface1};
-            border-radius: 4px;
+            border-radius: {scaled(4)}px;
             text-align: center;
             color: {THEME.text};
+            font-size: {font_small}pt;
         }}
         QProgressBar::chunk {{
             background-color: {THEME.blue};
-            border-radius: 3px;
+            border-radius: {scaled(3)}px;
         }}
 
         /* Tool Tips */
@@ -375,8 +413,9 @@ def get_application_stylesheet() -> str:
             background-color: {THEME.surface0};
             color: {THEME.text};
             border: 1px solid {THEME.surface2};
-            border-radius: 4px;
-            padding: 4px;
+            border-radius: {scaled(4)}px;
+            padding: {margin_small}px;
+            font-size: {font_small}pt;
         }}
     """
 
@@ -396,12 +435,13 @@ def get_plot_colors() -> Dict[str, str]:
 
 def get_console_stylesheet() -> str:
     """Get stylesheet for the serial console."""
+    font_size = SIZES["font_small"]
     return f"""
         QTextEdit {{
             background-color: {THEME.crust};
             color: {THEME.text};
             border: 1px solid {THEME.surface0};
             font-family: 'Courier New', monospace;
-            font-size: 9pt;
+            font-size: {font_size}pt;
         }}
     """

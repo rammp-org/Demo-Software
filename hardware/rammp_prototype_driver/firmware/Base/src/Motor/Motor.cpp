@@ -1,5 +1,4 @@
 #include "Motor.h"
-#include <Arduino.h>
 
 // TODO: decide how to handle max velocities of position PID output
 Motor::Motor()

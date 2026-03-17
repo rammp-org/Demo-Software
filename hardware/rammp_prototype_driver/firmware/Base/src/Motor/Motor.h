@@ -2,6 +2,7 @@
 #define MOTOR_H
 
 #include "../PIDController/PIDController.h"
+#include <Arduino.h>
 
 class Motor {
 public:

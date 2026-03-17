@@ -8,7 +8,7 @@ from tf2_msgs.msg import TFMessage
 from sensor_msgs.msg import JointState
 from std_srvs.srv import SetBool
 from interfaces.rammp_prototype_interfaces.msg import RAMMPPrototypeState
-from interfaces.rammp_prototype_interfaces.srv import curb_traverse
+from interfaces.rammp_prototype_interfaces.action import CurbTraverse
 
 
 class MEBotControlNode(Node):
@@ -84,7 +84,7 @@ class MEBotControlNode(Node):
 
         # actions
         self.curb_traverse_action_service = self.create_service(
-            self, curb_traverse, "curb_traverse", self.curb_traverse_action_callback
+            self, CurbTraverse, "curb_traverse", self.curb_traverse_action_callback
         )
 
         # subscriptions

@@ -330,7 +330,7 @@ void loop() {
   motor_controller.carriage_limits_switch();
   motor_controller.set_positions_for_MWs_and_RC();
 
-  //  displaydata();
+  displaydata();
 
   // Reduce delay to increase frequency. Currently set to 8ms
   delay(5);

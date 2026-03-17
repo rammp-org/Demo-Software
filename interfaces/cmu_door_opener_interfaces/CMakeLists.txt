@@ -8,11 +8,13 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(builtin_interfaces REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "action/OpenDoor.action"
-  DEPENDENCIES builtin_interfaces
+  "msg/ButtonInfo.msg"
+  "action/DoorOpen.action"
+  DEPENDENCIES builtin_interfaces sensor_msgs
 )
 
 if(BUILD_TESTING)

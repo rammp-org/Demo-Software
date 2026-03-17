@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Button push controller for Demo-Software.
+Button push controller for CMU door opener.
 
-Exposes the /arm/door/open action server. When the action is called
-(by the behavior tree), it:
-  1. Waits for a stable target pose from button_detector
-  2. Commands the arm to push the button via /arm/cmu/cartesian_pose
-  3. Monitors /arm/ee_force — stops on contact via zero twist
+Exposes the /arm/door/open action server (DoorOpen).
+When called, it takes the **latest** ButtonInfo from the detector and:
+  1. Commands the arm to push the button via /arm/cmu/cartesian_pose
+  2. Monitors /arm/ee_force — stops on contact via zero twist
+  3. Publishes feedback with distance_to_button
   4. Retracts the arm via /arm/reach_preset
 
 The behavior tree sets the arm to OPEN_DOOR mode before calling this action.
@@ -19,15 +19,15 @@ from rclpy.node import Node
 from rclpy.action import ActionServer, ActionClient
 from rclpy.callback_group import ReentrantCallbackGroup
 from geometry_msgs.msg import PoseStamped, Twist, Vector3
-from sensor_msgs.msg import JointState
-from cmu_door_opener_interfaces.action import OpenDoor
+from scipy.spatial.transform import Rotation
+
+from cmu_door_opener_interfaces.action import DoorOpen
+from cmu_door_opener_interfaces.msg import ButtonInfo
 from arm_interfaces.action import ReachPreset
 
 
 # Button push parameters
-POSE_STABILITY_THRESHOLD = 0.01  # meters — pose must settle within this
 PUSH_EXTRA = 0.02                # meters to overshoot past the button surface
-POSE_SETTLE_TIMEOUT = 10.0       # seconds to wait for a stable pose
 FORCE_THRESHOLD = 20.0           # Newtons — contact detection threshold
 PUSH_TIMEOUT = 10.0              # seconds — max time for push motion
 FORCE_CHECK_RATE = 0.02          # seconds between force checks
@@ -39,10 +39,10 @@ class ButtonPushController(Node):
 
         self._cb_group = ReentrantCallbackGroup()
 
-        # Latest target pose from vision node
-        self.latest_pose = None
+        # Latest ButtonInfo from detector
+        self.latest_button_info = None
         self.create_subscription(
-            PoseStamped, '/button/target_pose', self._cb_target_pose, 10
+            ButtonInfo, '/arm/door/button_info', self._cb_button_info, 10
         )
 
         # End-effector force from arm_driver
@@ -69,15 +69,15 @@ class ButtonPushController(Node):
 
         # Action server: /arm/door/open
         self._action_server = ActionServer(
-            self, OpenDoor, '/arm/door/open',
+            self, DoorOpen, '/arm/door/open',
             self._execute_open_door,
             callback_group=self._cb_group
         )
 
         self.get_logger().info('ButtonPushController ready — waiting for /arm/door/open')
 
-    def _cb_target_pose(self, msg: PoseStamped):
-        self.latest_pose = msg
+    def _cb_button_info(self, msg: ButtonInfo):
+        self.latest_button_info = msg
 
     def _cb_ee_force(self, msg: Vector3):
         self.latest_ee_force = np.array([msg.x, msg.y, msg.z])
@@ -91,55 +91,106 @@ class ButtonPushController(Node):
         zero_twist = Twist()
         self.twist_pub.publish(zero_twist)
 
+    def _button_info_to_pose(self, info: ButtonInfo) -> PoseStamped:
+        """Convert ButtonInfo pose_xyzrpy to a PoseStamped for arm command."""
+        pose = PoseStamped()
+        pose.header.stamp = self.get_clock().now().to_msg()
+        pose.header.frame_id = 'base_link'
+
+        x, y, z = info.pose_xyzrpy[0], info.pose_xyzrpy[1], info.pose_xyzrpy[2]
+        roll, pitch, yaw = info.pose_xyzrpy[3], info.pose_xyzrpy[4], info.pose_xyzrpy[5]
+
+        pose.pose.position.x = x
+        pose.pose.position.y = y
+        pose.pose.position.z = z
+
+        rot = Rotation.from_euler('xyz', [roll, pitch, yaw])
+        quat = rot.as_quat()  # [x, y, z, w]
+        pose.pose.orientation.x = float(quat[0])
+        pose.pose.orientation.y = float(quat[1])
+        pose.pose.orientation.z = float(quat[2])
+        pose.pose.orientation.w = float(quat[3])
+
+        return pose
+
     def _execute_open_door(self, goal_handle):
         """Action callback — runs the full button push sequence."""
-        feedback = OpenDoor.Feedback()
-        result = OpenDoor.Result()
+        feedback = DoorOpen.Feedback()
+        result = DoorOpen.Result()
 
-        # --- 1. Wait for stable pose ---
-        feedback.status = 'Waiting for stable button pose...'
-        goal_handle.publish_feedback(feedback)
-        self.get_logger().info(feedback.status)
-
-        prev_xyz = None
-        stable_pose = None
-        start_t = time.time()
-        while rclpy.ok() and (time.time() - start_t) < POSE_SETTLE_TIMEOUT:
-            if self.latest_pose is not None:
-                p = self.latest_pose.pose.position
-                xyz = np.array([p.x, p.y, p.z])
-                if prev_xyz is not None and np.linalg.norm(xyz - prev_xyz) < POSE_STABILITY_THRESHOLD:
-                    stable_pose = self.latest_pose
-                    break
-                prev_xyz = xyz
-            time.sleep(0.1)
-
-        if stable_pose is None:
+        # --- 1. Grab the latest ButtonInfo ---
+        info = self.latest_button_info
+        if info is None:
             result.success = False
-            result.message = 'Timed out waiting for stable /button/target_pose'
+            result.message = 'No ButtonInfo received — is the detector running?'
             self.get_logger().error(result.message)
             goal_handle.abort()
             return result
 
-        p = stable_pose.pose.position
-        self.get_logger().info(f'Stable pose: [{p.x:.4f}, {p.y:.4f}, {p.z:.4f}]')
+        # Check which state the ButtonInfo is in:
+        #   State 1: no button found (confidence == 0, pose all -1)
+        #   State 2: button detected but not pressable (confidence > 0, pose all -1)
+        #   State 3: button detected and pressable (confidence > 0, valid pose)
+        pose_arr = np.array(info.pose_xyzrpy)
+        pose_invalid = np.allclose(pose_arr, -1.0)
+
+        if info.confidence == 0.0 and pose_invalid:
+            result.success = False
+            result.message = 'No button detected by the detector'
+            self.get_logger().error(result.message)
+            goal_handle.abort()
+            return result
+
+        if pose_invalid:
+            result.success = False
+            result.message = (
+                f'Button detected (confidence={info.confidence:.2f}) '
+                'but pose is invalid — button may be too far or depth/TF failed'
+            )
+            self.get_logger().error(result.message)
+            goal_handle.abort()
+            return result
+
+        if not info.is_pressable:
+            result.success = False
+            result.message = (
+                f'Button detected (confidence={info.confidence:.2f}) '
+                'but is not pressable (IK not solvable)'
+            )
+            self.get_logger().error(result.message)
+            goal_handle.abort()
+            return result
+
+        target_pose = self._button_info_to_pose(info)
+        target_xyz = np.array([
+            target_pose.pose.position.x,
+            target_pose.pose.position.y,
+            target_pose.pose.position.z,
+        ])
+
+        self.get_logger().info(
+            f'Target pose: [{target_xyz[0]:.4f}, {target_xyz[1]:.4f}, {target_xyz[2]:.4f}]'
+        )
 
         # --- 2. Push the button ---
-        feedback.status = 'Pushing button...'
-        goal_handle.publish_feedback(feedback)
-
         push_pose = PoseStamped()
-        push_pose.header = stable_pose.header
-        push_pose.pose = stable_pose.pose
+        push_pose.header = target_pose.header
+        push_pose.pose = target_pose.pose
+        # Overshoot along the approach direction (x for now, same as before)
         push_pose.pose.position.x += PUSH_EXTRA
 
         self.pose_pub.publish(push_pose)
 
-        # --- 3. Monitor force — stop on contact ---
+        # --- 3. Monitor force — stop on contact, publish distance feedback ---
         contact = False
         start_t = time.time()
         while rclpy.ok() and (time.time() - start_t) < PUSH_TIMEOUT:
             force_mag = self.get_ee_force_magnitude()
+
+            # Publish distance feedback (approximate — from target, not live EE pos)
+            feedback.distance_to_button = float(PUSH_EXTRA)  # simplified; refine with live EE
+            goal_handle.publish_feedback(feedback)
+
             if force_mag > FORCE_THRESHOLD:
                 self.get_logger().info(f'Contact! Force: {force_mag:.1f} N')
                 self.stop_arm()
@@ -152,9 +203,7 @@ class ButtonPushController(Node):
             self.stop_arm()
 
         # --- 4. Retract ---
-        feedback.status = 'Retracting arm...'
-        goal_handle.publish_feedback(feedback)
-        self.get_logger().info(feedback.status)
+        self.get_logger().info('Retracting arm...')
 
         if not self._reach_preset_client.wait_for_server(timeout_sec=5.0):
             result.success = False

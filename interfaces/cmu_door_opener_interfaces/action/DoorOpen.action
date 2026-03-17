@@ -5,4 +5,4 @@ bool success
 string message
 ---
 # Feedback
-string status
+float32 distance_to_button

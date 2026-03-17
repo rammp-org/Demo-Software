@@ -54,6 +54,18 @@ class subscribers(Node):
         self.blackboard.userConnection_status = msg.data
 
 
+class estop_check(py_trees.behaviour.Behaviour):
+    def __init__(self, name="estop check"):
+        super().__init__(name)
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        self.blackboard.register_key("estop_status", access=py_trees.common.Access.READ)
+
+    def update(self):
+        if self.blackboard.estop_status:
+            return py_trees.common.Status.FAILURE
+        return py_trees.common.Status.SUCCESS
+
+
 class chair_control(py_trees.behaviour.Behaviour):
     def __init__(self, name="chair control"):
         super().__init__(name)
@@ -92,6 +104,43 @@ class self_level_off(py_trees.behaviour.Behaviour):  # service client
         return py_trees.common.Status.FAILURE
 
 
+class navigation(py_trees.behaviour.Behaviour):
+    def __init__(self, name="navigation"):
+        super().__init__(name)
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        self.blackboard.register_key("user_input", access=py_trees.common.Access.READ)
+
+    def update(self):
+        if (
+            self.blackboard.user_input == "CA" or self.blackboard.user_input == "CD"
+        ):  # curb ascending or descending
+            # maybe split into sequence
+
+            # send service request: mebot/drive/enable = true
+            # send action request: /nav/curb/navigate
+            # send service request: mebot/drive/enable = false after navigation completes
+            # send action request: mebot/curb/traverse
+            # go back to default/idle state?
+            return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.FAILURE
+
+
+class arm_movement(py_trees.behaviour.Behaviour):
+    def __init__(self, name="arm movement"):
+        super().__init__(name)
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        self.blackboard.register_key("user_input", access=py_trees.common.Access.READ)
+
+    def update(self):
+        if (
+            self.blackboard.user_input == "arm up"
+            or self.blackboard.user_input == "arm down"
+        ):
+            # send service request: mebot/arm/move
+            return py_trees.common.Status.SUCCESS
+        return py_trees.common.Status.FAILURE
+
+
 def create_tree():
     client = py_trees.blackboard.Client(name="init")
     client.register_key("user_input", access=py_trees.common.Access.WRITE)
@@ -115,8 +164,16 @@ def create_tree():
     )
     chair_control_sequence.add_children([chair_control(), chair_control_selector])
 
-    root = py_trees.composites.Selector(name="root selector", memory=False)
-    root.add_children([chair_control_sequence])
+    navigation_sequence = py_trees.composites.Sequence(
+        name="navigation sequence", memory=True
+    )
+    navigation_sequence.add_children([navigation()])
+
+    check_state = py_trees.composites.Sequence(name="check state sequence", memory=True)
+    check_state.add_children([chair_control_sequence, navigation_sequence])
+
+    root = py_trees.composites.Sequence(name="root selector", memory=False)
+    root.add_children([estop_check(), check_state])  # add more behaviors as needed
 
     return py_trees.trees.BehaviourTree(root)
 

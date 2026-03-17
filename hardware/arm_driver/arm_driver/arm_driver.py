@@ -7,7 +7,7 @@ import rclpy.node
 from arm_interfaces.action import ExecuteTrajectory, ReachPreset
 from arm_interfaces.srv import SetMode
 from diagnostic_msgs.msg import DiagnosticStatus
-from geometry_msgs.msg import PoseStamped, Twist
+from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -111,6 +111,7 @@ class ArmDriverNode(rclpy.node.Node):
         )
         self._imu_pub = self.create_publisher(Imu, "/arm/imu", 10)
         self._status_pub = self.create_publisher(DiagnosticStatus, "/arm/status", 10)
+        self._ee_force_pub = self.create_publisher(Vector3Stamped, "/arm/ee_force", 10)
         self._robot_description_pub = self.create_publisher(
             String, "/robot_description", 10
         )
@@ -501,15 +502,27 @@ class ArmDriverNode(rclpy.node.Node):
     # -------------------------------------------------------------------------
 
     def _publish_joint_states(self):
-        """Publish current joint states at 100 Hz."""
-        msg = JointState()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        """Publish current joint states and end-effector force at 100 Hz."""
+        stamp = self.get_clock().now().to_msg()
+
+        joint_msg = JointState()
+        joint_msg.header.stamp = stamp
+        force_msg = Vector3Stamped()
+        force_msg.header.stamp = stamp
+
         if self._arm:
             state = self._arm.get_state()
-            msg.position = state["position"].tolist()
-            msg.velocity = state["velocity"].tolist()
-            msg.effort = state["effort"].tolist()
-        self._joint_state_pub.publish(msg)
+            joint_msg.position = state["position"].tolist()
+            joint_msg.velocity = state["velocity"].tolist()
+            joint_msg.effort = state["effort"].tolist()
+
+            force = self._arm.get_ee_force()
+            force_msg.vector.x = force[0]
+            force_msg.vector.y = force[1]
+            force_msg.vector.z = force[2]
+
+        self._joint_state_pub.publish(joint_msg)
+        self._ee_force_pub.publish(force_msg)
 
     def _publish_status(self):
         """Publish the node's diagnostic status at 1 Hz."""

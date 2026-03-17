@@ -22,6 +22,9 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "test_pub = rammp_prototype_behavior.test_pub:main",
+            "bt_test = rammp_prototype_behavior.draft_bt:main",
+        ],
     },
 )

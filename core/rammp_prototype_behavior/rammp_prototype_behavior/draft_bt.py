@@ -26,7 +26,7 @@ class subscribers(Node):
             String, "user_input", self.user_input_callback, 10
         )
         self.arm_status_sub = self.create_subscription(
-            String, "arm status", self.arm_status_callback, 10
+            String, "arm_status", self.arm_status_callback, 10
         )
         self.estop_sub = self.create_subscription(
             Bool, "estop", self.estop_status_callback, 10
@@ -54,7 +54,7 @@ class subscribers(Node):
         self.blackboard.userConnection_status = msg.data
 
 
-class chair_control(py_trees.behaviours.Behaviour):
+class chair_control(py_trees.behaviour.Behaviour):
     def __init__(self, name="chair control"):
         super().__init__(name)
         self.blackboard = self.attach_blackboard_client(name=self.name)
@@ -66,7 +66,7 @@ class chair_control(py_trees.behaviours.Behaviour):
         return py_trees.common.Status.FAILURE
 
 
-class self_level_on(py_trees.behaviours.Behaviour):  # service client
+class self_level_on(py_trees.behaviour.Behaviour):  # service client
     def __init__(self, name="self level on"):
         super().__init__(name)
         self.blackboard = self.attach_blackboard_client(name=self.name)
@@ -79,7 +79,7 @@ class self_level_on(py_trees.behaviours.Behaviour):  # service client
         return py_trees.common.Status.FAILURE
 
 
-class self_level_off(py_trees.behaviours.Behaviour):  # service client
+class self_level_off(py_trees.behaviour.Behaviour):  # service client
     def __init__(self, name="self level off"):
         super().__init__(name)
         self.blackboard = self.attach_blackboard_client(name=self.name)
@@ -110,7 +110,7 @@ def create_tree():
     )
     chair_control_selector.add_children([self_level_on(), self_level_off()])
 
-    root = py_trees.composites.Sequence(name="root sequence", memory=True)
+    root = py_trees.composites.Selector(name="root selector", memory=True)
     root.add_children(
         [
             chair_control(),  # check user input first

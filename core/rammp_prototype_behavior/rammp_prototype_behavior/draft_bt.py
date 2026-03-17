@@ -132,11 +132,15 @@ class arm_movement(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("user_input", access=py_trees.common.Access.READ)
 
     def update(self):
-        if (
-            self.blackboard.user_input == "arm up"
-            or self.blackboard.user_input == "arm down"
-        ):
-            # send service request: mebot/arm/move
+        if self.blackboard.user_input == "arm enabled":
+            # could be broken into multiple behaviors for a sequence
+
+            # send service request: mebot/drive/enable= false
+            # send service request: /set_mode
+            # select arm mode to send action request?
+            # send action request: /arm/retract
+            # go back to default/idle state?
+
             return py_trees.common.Status.SUCCESS
         return py_trees.common.Status.FAILURE
 
@@ -169,8 +173,15 @@ def create_tree():
     )
     navigation_sequence.add_children([navigation()])
 
+    arm_movement_sequence = py_trees.composites.Sequence(
+        name="arm movement sequence", memory=True
+    )
+    arm_movement_sequence.add_children([arm_movement()])
+
     check_state = py_trees.composites.Selector(name="check state selector", memory=True)
-    check_state.add_children([chair_control_sequence, navigation_sequence])
+    check_state.add_children(
+        [chair_control_sequence, navigation_sequence, arm_movement_sequence]
+    )
 
     root = py_trees.composites.Sequence(name="root sequence", memory=False)
     root.add_children([estop_check(), check_state])  # add more behaviors as needed

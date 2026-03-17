@@ -62,6 +62,7 @@ class estop_check(py_trees.behaviour.Behaviour):
 
     def update(self):
         if self.blackboard.estop_status:
+            # some function here to request mebot and arm stop all movement
             return py_trees.common.Status.FAILURE
         return py_trees.common.Status.SUCCESS
 
@@ -184,7 +185,7 @@ def create_tree():
     )
 
     root = py_trees.composites.Sequence(name="root sequence", memory=False)
-    root.add_children([estop_check(), check_state])  # add more behaviors as needed
+    root.add_children([estop_check(), check_state])
 
     return py_trees.trees.BehaviourTree(root)
 

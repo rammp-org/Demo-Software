@@ -141,6 +141,12 @@ void setup() {
   Serial4.begin(460800); // roboclaw 2
   Serial5.begin(460800); // roboclaw 3
 
+  // set up limit switches
+  pinMode(CARRIAGE_SW1_PIN, INPUT_PULLUP);
+  pinMode(CARRIAGE_SW2_PIN, INPUT_PULLUP);
+  pinMode(CARRIAGE_SW3_PIN, INPUT_PULLUP);
+  pinMode(CARRIAGE_SW4_PIN, INPUT_PULLUP);
+
   delay(1000);
 
   current_state = IDLE;
@@ -316,6 +322,28 @@ void loop() {
   float mr_pwm = mr.update(dt);
   float mlc_pwm = ml_carriage.update(dt);
   float mrc_pwm = mr_carriage.update(dt);
+
+  // read limit switches
+  bool ml_front_limit_hit = !digitalRead(CARRIAGE_SW1_PIN);
+  bool ml_back_limit_hit = !digitalRead(CARRIAGE_SW2_PIN);
+  bool mr_front_limit_hit = !digitalRead(CARRIAGE_SW3_PIN);
+  bool mr_back_limit_hit = !digitalRead(CARRIAGE_SW4_PIN);
+
+  if (ml_front_limit_hit && mlc_pwm > 0) {
+    mlc_pwm = 0;
+  }
+
+  if (ml_back_limit_hit && mlc_pwm < 0) {
+    mlc_pwm = 0;
+  }
+
+  if (mr_front_limit_hit && mrc_pwm > 0) {
+    mrc_pwm = 0;
+  }
+
+  if (mr_back_limit_hit && mrc_pwm < 0) {
+    mrc_pwm = 0;
+  }
 
   // Write PWM to RoboClaws (constrained strictly to 16-bit signed int +/-
   // 32767) roboclaw_main: M1 = Main Left, M2 = Main Right

@@ -7,6 +7,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from std_msgs.msg import Bool
 from .unreal_remote_websocket import UnrealRemoteWebsocket
+from .streaming.sender import StreamSender
 from gui_interfaces.msg import UserInputs
 from sensor_msgs.msg import JointState
 
@@ -20,6 +21,8 @@ class GuiMonitor(Node):
         print("GuiMonitor node has been started.")
 
         self.ue = UnrealRemoteWebsocket(host="192.168.12.10", preset="RCPS")
+        self.stream_sender = StreamSender(host="192.168.12.10", port=30030)
+        self.stream_sender.connect()
 
         # Create shared memory and map it
         self.shm = posix_ipc.SharedMemory(

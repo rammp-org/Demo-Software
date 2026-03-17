@@ -186,6 +186,121 @@ class JointData:
         self._cached_targets = np.array([])
 
 
+@dataclass
+class IMUData:
+    """Data for IMU with rolling buffer for graphing."""
+
+    max_samples: int = 2000  # ~10 seconds at 200Hz
+
+    # Rolling buffers
+    timestamps: deque = field(default_factory=lambda: deque(maxlen=2000))
+    pitch: deque = field(default_factory=lambda: deque(maxlen=2000))
+    roll: deque = field(default_factory=lambda: deque(maxlen=2000))
+    yaw: deque = field(default_factory=lambda: deque(maxlen=2000))
+    ax: deque = field(default_factory=lambda: deque(maxlen=2000))
+    ay: deque = field(default_factory=lambda: deque(maxlen=2000))
+    az: deque = field(default_factory=lambda: deque(maxlen=2000))
+
+    # Start time for relative timestamps
+    _start_time: int = 0
+
+    # Cached numpy arrays
+    _cache_dirty: bool = True
+    _cached_timestamps: np.ndarray = field(default_factory=lambda: np.array([]))
+    _cached_pitch: np.ndarray = field(default_factory=lambda: np.array([]))
+    _cached_roll: np.ndarray = field(default_factory=lambda: np.array([]))
+    _cached_yaw: np.ndarray = field(default_factory=lambda: np.array([]))
+    _cached_ax: np.ndarray = field(default_factory=lambda: np.array([]))
+    _cached_ay: np.ndarray = field(default_factory=lambda: np.array([]))
+    _cached_az: np.ndarray = field(default_factory=lambda: np.array([]))
+
+    def __post_init__(self):
+        # Reinitialize deques with correct maxlen after dataclass creation
+        self.timestamps = deque(maxlen=self.max_samples)
+        self.pitch = deque(maxlen=self.max_samples)
+        self.roll = deque(maxlen=self.max_samples)
+        self.yaw = deque(maxlen=self.max_samples)
+        self.ax = deque(maxlen=self.max_samples)
+        self.ay = deque(maxlen=self.max_samples)
+        self.az = deque(maxlen=self.max_samples)
+        self._start_time = 0
+        self._cache_dirty = True
+
+    def add_sample(
+        self,
+        timestamp_ms: int,
+        pitch: float,
+        roll: float,
+        yaw: float,
+        ax: float,
+        ay: float,
+        az: float,
+    ):
+        """Add a new IMU sample to the rolling buffer."""
+        if len(self.timestamps) == 0:
+            self._start_time = timestamp_ms
+
+        time_s = (timestamp_ms - self._start_time) / 1000.0
+
+        self.timestamps.append(time_s)
+        self.pitch.append(pitch)
+        self.roll.append(roll)
+        self.yaw.append(yaw)
+        self.ax.append(ax)
+        self.ay.append(ay)
+        self.az.append(az)
+
+        self._cache_dirty = True
+
+    def _rebuild_cache(self):
+        """Rebuild the cached numpy arrays from deques."""
+        if not self._cache_dirty:
+            return
+
+        self._cached_timestamps = np.array(self.timestamps)
+        self._cached_pitch = np.array(self.pitch)
+        self._cached_roll = np.array(self.roll)
+        self._cached_yaw = np.array(self.yaw)
+        self._cached_ax = np.array(self.ax)
+        self._cached_ay = np.array(self.ay)
+        self._cached_az = np.array(self.az)
+        self._cache_dirty = False
+
+    def get_orientation_data(
+        self,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Get orientation data for plotting (timestamps, pitch, roll, yaw)."""
+        self._rebuild_cache()
+        return (
+            self._cached_timestamps,
+            self._cached_pitch,
+            self._cached_roll,
+            self._cached_yaw,
+        )
+
+    def get_accel_data(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Get acceleration data for plotting (timestamps, ax, ay, az)."""
+        self._rebuild_cache()
+        return (
+            self._cached_timestamps,
+            self._cached_ax,
+            self._cached_ay,
+            self._cached_az,
+        )
+
+    def clear(self):
+        """Clear all stored data."""
+        self.timestamps.clear()
+        self.pitch.clear()
+        self.roll.clear()
+        self.yaw.clear()
+        self.ax.clear()
+        self.ay.clear()
+        self.az.clear()
+        self._start_time = 0
+        self._cache_dirty = True
+
+
 class DataStore(QObject):
     """
     Central data store for all joint encoder data.
@@ -194,11 +309,17 @@ class DataStore(QObject):
         data_updated: Emitted when new data is available (throttled to max 20Hz)
         simulation_changed: Emitted when simulation mode changes
         state_changed: Emitted when system state changes
+        imu_updated: Emitted when IMU data is updated
+        limits_updated: Emitted when limit switch data is updated
+        directions_updated: Emitted when motor direction data is updated
     """
 
     data_updated = pyqtSignal(int)  # Emits joint_id that was updated
     simulation_changed = pyqtSignal(bool)  # Emitted when simulation mode changes
     state_changed = pyqtSignal(int)  # Emitted when system state changes
+    imu_updated = pyqtSignal()  # Emitted when IMU data is updated
+    limits_updated = pyqtSignal()  # Emitted when limit switch data is updated
+    directions_updated = pyqtSignal()  # Emitted when motor direction data is updated
 
     NUM_JOINTS = 6
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
@@ -214,6 +335,23 @@ class DataStore(QObject):
         self._selected_joint: int = 1
         self._simulation_mode: bool = False
         self._current_state: int = 0  # System state from telemetry
+
+        # IMU data
+        self._imu_pitch: float = 0.0
+        self._imu_roll: float = 0.0
+        self._imu_yaw: float = 0.0
+        self._imu_ax: float = 0.0
+        self._imu_ay: float = 0.0
+        self._imu_az: float = 0.0
+
+        # Motor directions (6 motors)
+        self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1]
+
+        # Limit switches (4: ML_fwd, ML_bwd, MR_fwd, MR_bwd)
+        self._limit_switches: List[bool] = [False, False, False, False]
+
+        # IMU data history for graphing
+        self._imu_data: IMUData = IMUData(max_samples=max_samples)
 
         # Throttling for data_updated signal
         self._pending_update_joint: Optional[int] = None
@@ -283,6 +421,51 @@ class DataStore(QObject):
         """Get the current system state."""
         return self._current_state
 
+    @property
+    def imu_pitch(self) -> float:
+        """Get IMU pitch angle."""
+        return self._imu_pitch
+
+    @property
+    def imu_roll(self) -> float:
+        """Get IMU roll angle."""
+        return self._imu_roll
+
+    @property
+    def imu_yaw(self) -> float:
+        """Get IMU yaw angle."""
+        return self._imu_yaw
+
+    @property
+    def imu_ax(self) -> float:
+        """Get IMU X acceleration."""
+        return self._imu_ax
+
+    @property
+    def imu_ay(self) -> float:
+        """Get IMU Y acceleration."""
+        return self._imu_ay
+
+    @property
+    def imu_az(self) -> float:
+        """Get IMU Z acceleration."""
+        return self._imu_az
+
+    @property
+    def motor_directions(self) -> List[int]:
+        """Get motor directions (1 or -1 for each of 6 motors)."""
+        return self._motor_directions
+
+    @property
+    def limit_switches(self) -> List[bool]:
+        """Get limit switch states [ML_fwd, ML_bwd, MR_fwd, MR_bwd]."""
+        return self._limit_switches
+
+    @property
+    def imu_data(self) -> IMUData:
+        """Get IMU data object for graphing."""
+        return self._imu_data
+
     def get_joint(self, joint_id: int) -> Optional[JointData]:
         """Get JointData for a specific joint (1-indexed)."""
         if 1 <= joint_id <= self.NUM_JOINTS:
@@ -311,6 +494,36 @@ class DataStore(QObject):
             velocity = data.velocity_values[i] if i < len(data.velocity_values) else 0.0
             pwm = data.pwm_values[i] if i < len(data.pwm_values) else 0.0
             self._joints[i].add_sample(data.timestamp_ms, position, velocity, pwm)
+
+        # Store IMU data
+        self._imu_pitch = data.imu_pitch
+        self._imu_roll = data.imu_roll
+        self._imu_yaw = data.imu_yaw
+        self._imu_ax = data.imu_ax
+        self._imu_ay = data.imu_ay
+        self._imu_az = data.imu_az
+
+        # Add IMU sample to history for graphing
+        self._imu_data.add_sample(
+            data.timestamp_ms,
+            data.imu_pitch,
+            data.imu_roll,
+            data.imu_yaw,
+            data.imu_ax,
+            data.imu_ay,
+            data.imu_az,
+        )
+        self.imu_updated.emit()
+
+        # Store motor directions
+        if data.direction_values:
+            self._motor_directions = data.direction_values
+            self.directions_updated.emit()
+
+        # Store limit switches
+        if data.limit_switches:
+            self._limit_switches = data.limit_switches
+            self.limits_updated.emit()
 
         # Use throttled emission to prevent UI overload
         self._throttled_data_updated(self._selected_joint)

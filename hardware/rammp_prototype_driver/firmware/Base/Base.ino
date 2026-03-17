@@ -2,6 +2,7 @@
 #include "src/Constants/Constants.h"
 #include "src/EncoderContainer/EncoderContainer.h"
 #include "src/IMU_Class/IMU_Class.h"
+#include "src/ConfigStorage/ConfigStorage.h"
 #include <SD.h>
 #include <SPI.h>
 #include "src/Timer/Timer.h"
@@ -44,10 +45,16 @@ SystemTelemetry telemetry;
 
 // Hardware Objects
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
-// IMU_Class IMU = IMU_Class(bno);
+IMU_Class IMU = IMU_Class(bno);
 EncoderContainer EContr;
 Timer timer;
 CommandParser parser(60000);
+
+// Limit switch states (global for telemetry)
+bool ml_fwd_limit = false;
+bool ml_bwd_limit = false;
+bool mr_fwd_limit = false;
+bool mr_bwd_limit = false;
 
 // Initialize RoboClaw Controllers
 RoboClaw roboclaw_carriages(&Serial3, 10000); // Serial3
@@ -87,14 +94,14 @@ void updateTelemetry() {
 }
 
 // Helper to send telemetry
-// TODO: Eventually all 12 encoders will need to be sent out
+// Extended format: 36 values (18 original + 6 dirs + 4 limits + 6 imu)
 void sendTelemetry() {
   Serial.print("TELEMETRY,");
   Serial.print(millis());
   Serial.print(",");
   Serial.print(telemetry.state);
   Serial.print(",");
-  // Positions
+  // Positions (6)
   Serial.print(telemetry.rc_pos);
   Serial.print(",");
   Serial.print(telemetry.fc_pos);
@@ -107,7 +114,7 @@ void sendTelemetry() {
   Serial.print(",");
   Serial.print(telemetry.mr_carriage_pos);
   Serial.print(",");
-  // Velocities
+  // Velocities (6)
   Serial.print(telemetry.rc_vel);
   Serial.print(",");
   Serial.print(telemetry.fc_vel);
@@ -120,7 +127,7 @@ void sendTelemetry() {
   Serial.print(",");
   Serial.print(telemetry.mr_carriage_vel);
   Serial.print(",");
-  // PWM Targets
+  // PWM Targets (6)
   Serial.print(rc.target_pwm);
   Serial.print(",");
   Serial.print(fc.target_pwm);
@@ -132,7 +139,41 @@ void sendTelemetry() {
   Serial.print(ml_carriage.target_pwm);
   Serial.print(",");
   Serial.print(mr_carriage.target_pwm);
-  Serial.println();
+  Serial.print(",");
+  // Motor directions (6)
+  Serial.print(rc.getDirection());
+  Serial.print(",");
+  Serial.print(fc.getDirection());
+  Serial.print(",");
+  Serial.print(ml.getDirection());
+  Serial.print(",");
+  Serial.print(mr.getDirection());
+  Serial.print(",");
+  Serial.print(ml_carriage.getDirection());
+  Serial.print(",");
+  Serial.print(mr_carriage.getDirection());
+  Serial.print(",");
+  // Limit switches (4)
+  Serial.print(ml_fwd_limit ? 1 : 0);
+  Serial.print(",");
+  Serial.print(ml_bwd_limit ? 1 : 0);
+  Serial.print(",");
+  Serial.print(mr_fwd_limit ? 1 : 0);
+  Serial.print(",");
+  Serial.print(mr_bwd_limit ? 1 : 0);
+  Serial.print(",");
+  // IMU data (6)
+  Serial.print(IMU.pitchf, 2);
+  Serial.print(",");
+  Serial.print(IMU.rollf, 2);
+  Serial.print(",");
+  Serial.print(IMU.yaw, 2);
+  Serial.print(",");
+  Serial.print(IMU.ax, 3);
+  Serial.print(",");
+  Serial.print(IMU.ay, 3);
+  Serial.print(",");
+  Serial.println(IMU.az, 3);
 }
 
 void setup() {
@@ -148,6 +189,25 @@ void setup() {
   pinMode(CARRIAGE_SW4_PIN, INPUT_PULLUP);
 
   delay(1000);
+  
+  // Initialize IMU
+  if (!bno.begin()) {
+    Serial.println("ERROR: BNO055 not detected!");
+  } else {
+    IMU.initialize_BNO055_sensor();
+    Serial.println("IMU initialized");
+  }
+  
+  // Initialize ConfigStorage and load saved motor directions
+  ConfigStorage::begin();
+  int8_t dirs[6];
+  ConfigStorage::loadAllDirections(dirs);
+  rc.setDirection(dirs[0]);
+  fc.setDirection(dirs[1]);
+  ml.setDirection(dirs[2]);
+  mr.setDirection(dirs[3]);
+  ml_carriage.setDirection(dirs[4]);
+  mr_carriage.setDirection(dirs[5]);
 
   current_state = IDLE;
 }
@@ -158,6 +218,7 @@ void loop() {
 
   // 1. Read Sensors
   EContr.retrieve_readings();
+  IMU.retrieve_readings();
 
   // TODO @alex : verify map encoders to motor positions (I took a guess, but
   // I'm unsure)
@@ -299,6 +360,40 @@ void loop() {
         if (DEBUG_MODE)
           Serial.println("DEBUG: Reset PID state (cleared integrator)");
         break;
+      case CMD_HOME: {
+        // Zero encoder for this joint
+        // Map joint ID to encoder index based on updateSensorData mapping
+        int enc_idx = 0;
+        switch (cmd.actuator_id) {
+          case 1: enc_idx = 3; break;  // rc -> encoderf[3]
+          case 2: enc_idx = 2; break;  // fc -> encoderf[2]
+          case 3: enc_idx = 7; break;  // ml -> encoderf[7]
+          case 4: enc_idx = 5; break;  // mr -> encoderf[5]
+          case 5: enc_idx = 11; break; // ml_carriage -> encoderf[11]
+          case 6: enc_idx = 12; break; // mr_carriage -> encoderf[12]
+        }
+        EContr.zeroEncoder(enc_idx);
+        m->pos_pid.reset();
+        m->vel_pid.reset();
+        m->target_pos = 0;  // Set target to new zero
+        if (DEBUG_MODE) {
+          Serial.print("DEBUG: Homed encoder for joint ");
+          Serial.println(cmd.actuator_id);
+        }
+        break;
+      }
+      case CMD_DIR: {
+        // Toggle motor direction and save to EEPROM
+        m->toggleDirection();
+        ConfigStorage::saveMotorDirection(cmd.actuator_id, m->getDirection());
+        if (DEBUG_MODE) {
+          Serial.print("DEBUG: Toggled direction for motor ");
+          Serial.print(cmd.actuator_id);
+          Serial.print(" to ");
+          Serial.println(m->getDirection());
+        }
+        break;
+      }
       default:
         break;
       }
@@ -323,25 +418,26 @@ void loop() {
   float mlc_pwm = ml_carriage.update(dt);
   float mrc_pwm = mr_carriage.update(dt);
 
-  // read limit switches
-  bool ml_front_limit_hit = !digitalRead(CARRIAGE_SW1_PIN);
-  bool ml_back_limit_hit = !digitalRead(CARRIAGE_SW2_PIN);
-  bool mr_front_limit_hit = !digitalRead(CARRIAGE_SW3_PIN);
-  bool mr_back_limit_hit = !digitalRead(CARRIAGE_SW4_PIN);
+  // read limit switches (store in globals for telemetry)
+  ml_fwd_limit = !digitalRead(CARRIAGE_SW1_PIN);  // Active low
+  ml_bwd_limit = !digitalRead(CARRIAGE_SW2_PIN);
+  mr_fwd_limit = !digitalRead(CARRIAGE_SW3_PIN);
+  mr_bwd_limit = !digitalRead(CARRIAGE_SW4_PIN);
 
-  if (ml_front_limit_hit && mlc_pwm > 0) {
+  // Stop carriages if limit is hit
+  if (ml_fwd_limit && mlc_pwm > 0) {
     mlc_pwm = 0;
   }
 
-  if (ml_back_limit_hit && mlc_pwm < 0) {
+  if (ml_bwd_limit && mlc_pwm < 0) {
     mlc_pwm = 0;
   }
 
-  if (mr_front_limit_hit && mrc_pwm > 0) {
+  if (mr_fwd_limit && mrc_pwm > 0) {
     mrc_pwm = 0;
   }
 
-  if (mr_back_limit_hit && mrc_pwm < 0) {
+  if (mr_bwd_limit && mrc_pwm < 0) {
     mrc_pwm = 0;
   }
 

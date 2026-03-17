@@ -40,6 +40,18 @@ void Motor::setTargetVelocity(float vel) { target_vel = vel; }
 
 void Motor::setTargetPWM(float pwm) { target_pwm = pwm; }
 
+void Motor::setDirection(int8_t dir) {
+  direction = (dir >= 0) ? 1 : -1;
+}
+
+void Motor::toggleDirection() {
+  direction = -direction;
+}
+
+int8_t Motor::getDirection() const {
+  return direction;
+}
+
 void Motor::updateSensorData(float current_pos, float dt) {
   if (dt > 0.0f) {
     float raw_vel = (current_pos - this->prev_pos) / dt;
@@ -72,8 +84,9 @@ float Motor::update(float dt) {
 
   case OPEN_LOOP:
   default:
+    // Apply direction multiplier to final PWM output
     scaled_target_pwm =
-        (int16_t)constrain(target_pwm * this->PWM_SCALE, -32767, 32767);
+        (int16_t)constrain(target_pwm * direction * this->PWM_SCALE, -32767, 32767);
     return scaled_target_pwm;
   }
 }

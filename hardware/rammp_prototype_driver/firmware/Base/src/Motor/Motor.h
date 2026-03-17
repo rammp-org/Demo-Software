@@ -28,6 +28,11 @@ public:
 
   // Compute cascaded control, returns PWM required
   float update(float dt);
+  
+  // Motor direction control
+  void setDirection(int8_t dir);
+  void toggleDirection();
+  int8_t getDirection() const;
 
   float current_pos;
   float current_vel;
@@ -41,6 +46,9 @@ public:
   float lpf_vel_alpha = 0.5;
 
   const float PWM_SCALE = 32767;
+  
+  // Motor direction: 1 = normal, -1 = inverted
+  int8_t direction = 1;
 
   PIDController pos_pid;
   PIDController vel_pid;

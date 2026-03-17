@@ -27,6 +27,7 @@ from ..data.data_store import DataStore
 from ..serial_driver.serial_handler import SerialHandler
 from .theme import THEME
 from .scaling import SIZES, scaled
+from .imu_display import IMUDisplay
 
 
 # Control mode constants
@@ -82,7 +83,15 @@ class ControlPanel(QWidget):
         self._sine_duration = 0
         self._sine_center = 0
 
+        # Timed step state
+        self._step_timer = QTimer(self)
+        self._step_timer.setSingleShot(True)
+        self._step_timer.timeout.connect(self._on_step_complete)
+
         self._setup_ui()
+
+        # Connect to direction updates
+        self._data_store.directions_updated.connect(self._update_direction_indicator)
 
     def _setup_ui(self):
         """Set up the control panel layout with scroll area."""
@@ -126,6 +135,10 @@ class ControlPanel(QWidget):
 
         # Sine wave inputs
         layout.addWidget(self._create_sine_group())
+
+        # IMU Display
+        self._imu_display = IMUDisplay(self._data_store)
+        layout.addWidget(self._imu_display)
 
         layout.addStretch()
 
@@ -420,6 +433,34 @@ class ControlPanel(QWidget):
 
         layout.addLayout(quick_layout)
 
+        # Motor config row (Home and Direction)
+        motor_config_layout = QHBoxLayout()
+        motor_config_layout.setSpacing(SIZES["spacing_small"])
+
+        # Home Position button
+        self._home_btn = QPushButton("Home Position")
+        self._home_btn.setToolTip("Zero encoder position for selected joint")
+        self._home_btn.clicked.connect(self._on_home_position)
+        self._home_btn.setStyleSheet(
+            f"background-color: {THEME.blue}; color: {THEME.crust};"
+        )
+        motor_config_layout.addWidget(self._home_btn)
+
+        # Direction toggle with indicator
+        motor_config_layout.addWidget(QLabel("Dir:"))
+        self._dir_indicator = QLabel("->")
+        self._dir_indicator.setStyleSheet(
+            f"font-size: {SIZES['font_medium']}pt; font-weight: bold; color: {THEME.green};"
+        )
+        motor_config_layout.addWidget(self._dir_indicator)
+
+        self._dir_btn = QPushButton("Flip")
+        self._dir_btn.setToolTip("Flip motor direction (saved to EEPROM)")
+        self._dir_btn.clicked.connect(self._on_toggle_direction)
+        motor_config_layout.addWidget(self._dir_btn)
+
+        layout.addLayout(motor_config_layout)
+
         # Safety buttons row (separate for emphasis)
         safety_layout = QHBoxLayout()
         safety_layout.setSpacing(SIZES["spacing_small"])
@@ -445,46 +486,59 @@ class ControlPanel(QWidget):
         return group
 
     def _create_step_group(self) -> QGroupBox:
-        """Create the step input group."""
-        group = QGroupBox("Step Input")
+        """Create the step/jog input group with timed step support."""
+        group = QGroupBox("Step/Jog Input")
         layout = QVBoxLayout(group)
         layout.setSpacing(SIZES["spacing_medium"])
 
-        # Step size input - use QLineEdit for unlimited range
-        step_size_layout = QHBoxLayout()
-        step_size_layout.setSpacing(SIZES["spacing_small"])
-        step_size_layout.addWidget(QLabel("Step Size:"))
+        # Amplitude and Duration inputs
+        params_layout = QGridLayout()
+        params_layout.setSpacing(SIZES["spacing_small"])
 
-        self._step_size_input = QLineEdit("100")
-        self._step_size_input.setValidator(QDoubleValidator())
-        self._step_size_input.setMinimumWidth(SIZES["input_min_width"])
-        self._step_size_input.setSizePolicy(
+        params_layout.addWidget(QLabel("Amplitude:"), 0, 0)
+        self._step_amplitude = QLineEdit("100")
+        self._step_amplitude.setValidator(QDoubleValidator())
+        self._step_amplitude.setMinimumWidth(SIZES["input_min_width"])
+        self._step_amplitude.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
-        step_size_layout.addWidget(self._step_size_input)
-
-        # Dynamic unit label
+        params_layout.addWidget(self._step_amplitude, 0, 1)
         self._step_unit_label = QLabel("PWM")
-        step_size_layout.addWidget(self._step_unit_label)
+        params_layout.addWidget(self._step_unit_label, 0, 2)
 
-        # Step buttons inline
+        params_layout.addWidget(QLabel("Duration:"), 1, 0)
+        self._step_duration = QLineEdit("0.5")
+        self._step_duration.setValidator(QDoubleValidator())
+        self._step_duration.setMinimumWidth(SIZES["input_min_width"])
+        self._step_duration.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        params_layout.addWidget(self._step_duration, 1, 1)
+        params_layout.addWidget(QLabel("sec"), 1, 2)
+
+        layout.addLayout(params_layout)
+
+        # Step buttons row
+        step_btn_layout = QHBoxLayout()
+        step_btn_layout.setSpacing(SIZES["spacing_small"])
+
         self._step_neg_btn = QPushButton("Step -")
         self._step_neg_btn.clicked.connect(self._on_step_negative)
-        step_size_layout.addWidget(self._step_neg_btn)
+        step_btn_layout.addWidget(self._step_neg_btn)
 
         self._step_pos_btn = QPushButton("Step +")
         self._step_pos_btn.clicked.connect(self._on_step_positive)
-        step_size_layout.addWidget(self._step_pos_btn)
+        step_btn_layout.addWidget(self._step_pos_btn)
 
-        layout.addLayout(step_size_layout)
+        layout.addLayout(step_btn_layout)
 
-        # Quick step buttons
+        # Quick step buttons (percentages of amplitude)
         quick_layout = QHBoxLayout()
         quick_layout.setSpacing(SIZES["spacing_small"])
         quick_layout.addWidget(QLabel("Quick:"))
-        for size in self.DEFAULT_STEP_SIZES:
-            btn = QPushButton(f"+{size}")
-            btn.clicked.connect(lambda checked, s=size: self._on_quick_step(s))
+        for pct in [-100, -50, 50, 100, 200]:
+            btn = QPushButton(f"{pct:+}%")
+            btn.clicked.connect(lambda checked, p=pct: self._on_quick_step_percent(p))
             quick_layout.addWidget(btn)
         layout.addLayout(quick_layout)
 
@@ -738,6 +792,36 @@ class ControlPanel(QWidget):
         """Send clear ESTOP command."""
         self._serial_handler.clear_estop()
 
+    def _on_home_position(self):
+        """Send home/zero position command."""
+        joint_id = self._data_store.selected_joint
+        self._serial_handler.home_position(joint_id)
+        # Also reset target input to 0
+        self._target_input.setText("0")
+        self._data_store.set_target(joint_id, 0)
+
+    def _on_toggle_direction(self):
+        """Toggle motor direction for selected joint."""
+        joint_id = self._data_store.selected_joint
+        self._serial_handler.toggle_direction(joint_id)
+
+    def _update_direction_indicator(self):
+        """Update the direction indicator based on current motor direction."""
+        joint_id = self._data_store.selected_joint
+        directions = self._data_store.motor_directions
+        if joint_id <= len(directions):
+            direction = directions[joint_id - 1]
+            if direction >= 0:
+                self._dir_indicator.setText("->")
+                self._dir_indicator.setStyleSheet(
+                    f"font-size: {SIZES['font_medium']}pt; font-weight: bold; color: {THEME.green};"
+                )
+            else:
+                self._dir_indicator.setText("<-")
+                self._dir_indicator.setStyleSheet(
+                    f"font-size: {SIZES['font_medium']}pt; font-weight: bold; color: {THEME.yellow};"
+                )
+
     def _on_set_mode(self):
         """Send mode set command."""
         joint_id = self._data_store.selected_joint
@@ -777,34 +861,40 @@ class ControlPanel(QWidget):
         )
 
     def _on_step_positive(self):
-        """Handle positive step button click."""
-        step = self._get_float_from_lineedit(self._step_size_input, 100.0)
-        self._apply_step(step)
+        """Handle positive step button click - timed step."""
+        amplitude = self._get_float_from_lineedit(self._step_amplitude, 100.0)
+        self._execute_timed_step(amplitude)
 
     def _on_step_negative(self):
-        """Handle negative step button click."""
-        step = -self._get_float_from_lineedit(self._step_size_input, 100.0)
-        self._apply_step(step)
+        """Handle negative step button click - timed step."""
+        amplitude = -self._get_float_from_lineedit(self._step_amplitude, 100.0)
+        self._execute_timed_step(amplitude)
 
-    def _on_quick_step(self, step: float):
-        """Handle quick step button click."""
-        self._apply_step(step)
+    def _on_quick_step_percent(self, percent: int):
+        """Handle quick step button click (percentage of amplitude)."""
+        base_amplitude = self._get_float_from_lineedit(self._step_amplitude, 100.0)
+        actual_amplitude = base_amplitude * percent / 100
+        self._execute_timed_step(actual_amplitude)
 
-    def _apply_step(self, step: float):
-        """Apply a step to the current target."""
+    def _execute_timed_step(self, amplitude: float):
+        """Execute a timed step: send target, wait duration, return to zero."""
+        duration = self._get_float_from_lineedit(self._step_duration, 0.5)
         joint_id = self._data_store.selected_joint
-        joint_data = self._data_store.get_selected_joint_data()
 
-        new_target = joint_data.current_target + step
+        # Send step command
+        self._serial_handler.set_target(joint_id, amplitude)
+        self._target_input.setText(str(amplitude))
+        self._data_store.set_target(joint_id, amplitude)
 
-        # Update data store
-        self._data_store.set_target(joint_id, new_target)
+        # Start timer to return to zero
+        self._step_timer.start(int(duration * 1000))
 
-        # Update input field
-        self._target_input.setText(str(new_target))
-
-        # Send to Teensy
-        self._serial_handler.set_target(joint_id, new_target)
+    def _on_step_complete(self):
+        """Handle step completion - return to zero."""
+        joint_id = self._data_store.selected_joint
+        self._serial_handler.set_target(joint_id, 0)
+        self._target_input.setText("0")
+        self._data_store.set_target(joint_id, 0)
 
     def _on_start_sine(self):
         """Start sine wave input."""

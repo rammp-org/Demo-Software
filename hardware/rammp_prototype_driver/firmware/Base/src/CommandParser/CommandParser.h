@@ -15,6 +15,8 @@ enum CommandType {
     CMD_VEL_D,   // e.g. d<id>:<val> (Velocity Kd)
     CMD_VEL_FF,  // e.g. f<id>:<val> (Velocity Feed-Forward)
     CMD_R,       // e.g. R<id> (Reset PID state - clear integrator windup)
+    CMD_HOME,    // e.g. H<id> (Home/zero encoder position)
+    CMD_DIR,     // e.g. V<id> (Toggle motor direction - V for inVert)
     CMD_Z,       // e.g. z (ESTOP)
     CMD_C,       // e.g. c (Clear ESTOP)
     CMD_UNKNOWN,

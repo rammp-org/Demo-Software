@@ -40,13 +40,27 @@ import re
 
 @dataclass
 class EncoderData:
-    """Parsed position data from Teensy."""
+    """Parsed telemetry data from Teensy."""
 
     timestamp_ms: int
     state: int
     position_values: List[float]  # 6 positions
     velocity_values: List[float] = field(default_factory=list)  # 6 velocities
     pwm_values: List[float] = field(default_factory=list)  # 6 pwms
+
+    # New fields for motor config
+    direction_values: List[int] = field(default_factory=list)  # 6 directions (1 or -1)
+    limit_switches: List[bool] = field(
+        default_factory=list
+    )  # 4 switches [ML_fwd, ML_bwd, MR_fwd, MR_bwd]
+
+    # New fields for IMU
+    imu_pitch: float = 0.0
+    imu_roll: float = 0.0
+    imu_yaw: float = 0.0
+    imu_ax: float = 0.0
+    imu_ay: float = 0.0
+    imu_az: float = 0.0
 
     @property
     def num_joints(self) -> int:
@@ -88,8 +102,25 @@ class ProtocolParser:
                 values_str = match.group(3)
                 values = [float(v.strip()) for v in values_str.split(",")]
 
-                # Expect 18 values: 6 positions + 6 velocities + 6 pwms
-                if len(values) == 18:
+                # New format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
+                if len(values) == 34:
+                    return EncoderData(
+                        timestamp_ms=timestamp,
+                        state=state,
+                        position_values=values[0:6],
+                        velocity_values=values[6:12],
+                        pwm_values=values[12:18],
+                        direction_values=[int(v) for v in values[18:24]],
+                        limit_switches=[bool(v) for v in values[24:28]],
+                        imu_pitch=values[28],
+                        imu_roll=values[29],
+                        imu_yaw=values[30],
+                        imu_ax=values[31],
+                        imu_ay=values[32],
+                        imu_az=values[33],
+                    )
+                # Backwards compatibility: 18 values (original format)
+                elif len(values) == 18:
                     return EncoderData(
                         timestamp_ms=timestamp,
                         state=state,
@@ -97,7 +128,7 @@ class ProtocolParser:
                         velocity_values=values[6:12],
                         pwm_values=values[12:18],
                     )
-                # Backwards compatibility: 6 values = positions only
+                # Backwards compatibility: 6 values (oldest format)
                 elif len(values) == 6:
                     return EncoderData(
                         timestamp_ms=timestamp,
@@ -199,4 +230,20 @@ class ProtocolEncoder:
         param should be 'F' (position FF) or 'f' (velocity FF).
         """
         cmd = f"{param}{joint_id}:{value:.4f}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def home_position(joint_id: int) -> bytes:
+        """
+        Create command to home/zero encoder position.
+        """
+        cmd = f"H{joint_id}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def toggle_direction(joint_id: int) -> bytes:
+        """
+        Create command to toggle motor direction.
+        """
+        cmd = f"V{joint_id}\n"
         return cmd.encode("ascii")

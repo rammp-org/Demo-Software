@@ -50,6 +50,7 @@ class PlotWidget(QWidget):
         self._show_position = True
         self._show_velocity = True
         self._show_pwm = True
+        self._show_imu = False  # IMU plot hidden by default
 
         self._setup_ui()
         self._setup_plots()
@@ -99,6 +100,11 @@ class PlotWidget(QWidget):
         self._pwm_checkbox.setChecked(True)
         self._pwm_checkbox.toggled.connect(self._on_pwm_toggled)
         control_layout.addWidget(self._pwm_checkbox)
+
+        self._imu_checkbox = QCheckBox("IMU")
+        self._imu_checkbox.setChecked(False)
+        self._imu_checkbox.toggled.connect(self._on_imu_toggled)
+        control_layout.addWidget(self._imu_checkbox)
 
         control_layout.addStretch()
 
@@ -200,13 +206,42 @@ class PlotWidget(QWidget):
             pen=pg.mkPen(color=colors["pwm"], width=2), name="PWM"
         )
 
+        # IMU plot (bottom, hidden by default)
+        self._imu_plot = self._graphics_layout.addPlot(row=3, col=0)
+        self._imu_plot.setLabel("left", "Angle", units="deg", **label_style)
+        self._imu_plot.setLabel("bottom", "Time", units="s", **label_style)
+        self._imu_plot.setTitle("IMU Orientation", **title_style)
+        self._imu_plot.showGrid(x=True, y=True, alpha=0.3)
+        self._imu_plot.getAxis("left").setPen(pg.mkPen(color=THEME.overlay0))
+        self._imu_plot.getAxis("left").setTextPen(pg.mkPen(color=THEME.text))
+        self._imu_plot.getAxis("bottom").setPen(pg.mkPen(color=THEME.overlay0))
+        self._imu_plot.getAxis("bottom").setTextPen(pg.mkPen(color=THEME.text))
+        self._imu_plot.addLegend(
+            offset=(10, 10), brush=THEME.surface0, pen=THEME.surface1
+        )
+
+        # IMU curves (pitch=red, roll=green, yaw=blue)
+        self._pitch_curve = self._imu_plot.plot(
+            pen=pg.mkPen(color=THEME.red, width=2), name="Pitch"
+        )
+        self._roll_curve = self._imu_plot.plot(
+            pen=pg.mkPen(color=THEME.green, width=2), name="Roll"
+        )
+        self._yaw_curve = self._imu_plot.plot(
+            pen=pg.mkPen(color=THEME.blue, width=2), name="Yaw"
+        )
+
         # Link X axes so they scroll together
         self._vel_plot.setXLink(self._pos_plot)
         self._pwm_plot.setXLink(self._pos_plot)
+        self._imu_plot.setXLink(self._pos_plot)
 
-        # Hide X labels for top two plots (shared axis)
+        # Hide X labels for top plots (shared axis)
         self._pos_plot.hideAxis("bottom")
         self._vel_plot.hideAxis("bottom")
+
+        # Hide IMU plot by default
+        self._imu_plot.setVisible(False)
 
     def _setup_timer(self):
         """Set up the update timer."""
@@ -260,8 +295,21 @@ class PlotWidget(QWidget):
                 pwm_mask = pwm_timestamps >= min_time
                 self._pwm_curve.setData(pwm_timestamps[pwm_mask], pwms[pwm_mask])
 
-        # Update x-axis range to show rolling window (only on PWM plot, others are linked)
-        self._pwm_plot.setXRange(min_time, current_time, padding=0.02)
+        # Update IMU plot
+        if self._show_imu:
+            imu_data = self._data_store.imu_data
+            imu_timestamps, pitch, roll, yaw = imu_data.get_orientation_data()
+            if len(imu_timestamps) > 0:
+                imu_mask = imu_timestamps >= min_time
+                self._pitch_curve.setData(imu_timestamps[imu_mask], pitch[imu_mask])
+                self._roll_curve.setData(imu_timestamps[imu_mask], roll[imu_mask])
+                self._yaw_curve.setData(imu_timestamps[imu_mask], yaw[imu_mask])
+
+        # Update x-axis range to show rolling window (on lowest visible plot)
+        if self._show_imu:
+            self._imu_plot.setXRange(min_time, current_time, padding=0.02)
+        else:
+            self._pwm_plot.setXRange(min_time, current_time, padding=0.02)
 
     def _on_time_window_changed(self, text: str):
         """Handle time window selection change."""
@@ -288,14 +336,23 @@ class PlotWidget(QWidget):
         self._pwm_plot.setVisible(checked)
         self._update_plot_layout()
 
+    def _on_imu_toggled(self, checked: bool):
+        """Handle IMU plot visibility toggle."""
+        self._show_imu = checked
+        self._imu_plot.setVisible(checked)
+        self._update_plot_layout()
+
     def _update_plot_layout(self):
         """Update plot layout when visibility changes."""
         # Show bottom axis on the lowest visible plot
         self._pos_plot.hideAxis("bottom")
         self._vel_plot.hideAxis("bottom")
         self._pwm_plot.hideAxis("bottom")
+        self._imu_plot.hideAxis("bottom")
 
-        if self._show_pwm:
+        if self._show_imu:
+            self._imu_plot.showAxis("bottom")
+        elif self._show_pwm:
             self._pwm_plot.showAxis("bottom")
         elif self._show_velocity:
             self._vel_plot.showAxis("bottom")
@@ -314,12 +371,16 @@ class PlotWidget(QWidget):
         self._target_curve.setData([], [])
         self._velocity_curve.setData([], [])
         self._pwm_curve.setData([], [])
+        self._pitch_curve.setData([], [])
+        self._roll_curve.setData([], [])
+        self._yaw_curve.setData([], [])
 
     def _on_autoscale_clicked(self):
         """Handle auto-scale button click."""
         self._pos_plot.enableAutoRange()
         self._vel_plot.enableAutoRange()
         self._pwm_plot.enableAutoRange()
+        self._imu_plot.enableAutoRange()
 
     def _on_simulate_toggled(self, checked: bool):
         """Handle simulate button toggle."""

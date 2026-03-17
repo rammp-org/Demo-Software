@@ -31,11 +31,16 @@ RobotCommand CommandParser::parse(Stream& serial) {
                 char type_char = buffer.charAt(0);
                 int colon_idx = buffer.indexOf(':');
                 
-                // Commands without value (e.g., R1 for reset)
-                if (type_char == 'R' && colon_idx == -1) {
+                // Commands without value (e.g., R1 for reset, H1 for home, V1 for direction)
+                if (colon_idx == -1) {
                     cmd.actuator_id = buffer.substring(1).toInt();
                     cmd.value = 0.0f;
-                    cmd.type = CMD_R;
+                    switch(type_char) {
+                        case 'R': cmd.type = CMD_R; break;
+                        case 'H': cmd.type = CMD_HOME; break;
+                        case 'V': cmd.type = CMD_DIR; break;
+                        default: cmd.type = CMD_UNKNOWN; break;
+                    }
                 }
                 // Commands with value (e.g., T1:0.5)
                 else if (colon_idx > 1) {

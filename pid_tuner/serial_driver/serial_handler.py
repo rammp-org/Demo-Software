@@ -184,6 +184,16 @@ class SerialHandler(QObject):
         cmd = ProtocolEncoder.set_feed_forward(joint_id, param, value)
         self.send_command(cmd)
 
+    def home_position(self, joint_id: int):
+        """Send home/zero position command."""
+        cmd = ProtocolEncoder.home_position(joint_id)
+        self.send_command(cmd)
+
+    def toggle_direction(self, joint_id: int):
+        """Toggle motor direction."""
+        cmd = ProtocolEncoder.toggle_direction(joint_id)
+        self.send_command(cmd)
+
     def send_raw(self, cmd_str: str):
         """Send raw serial command."""
         if not cmd_str.endswith("\n"):

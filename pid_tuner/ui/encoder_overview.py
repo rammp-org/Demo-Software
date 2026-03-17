@@ -38,6 +38,11 @@ class EncoderBar(QWidget):
         self._max_val = self.DEFAULT_MAX
         self._selected = False
 
+        # Limit switch indicators (only for carriage joints 5 and 6)
+        self._fwd_limit = False
+        self._bwd_limit = False
+        self._show_limits = joint_id in [5, 6]
+
         # Use scaled heights
         self.setMinimumHeight(SIZES["encoder_bar_height"])
         self.setMaximumHeight(SIZES["encoder_bar_max_height"])
@@ -58,6 +63,12 @@ class EncoderBar(QWidget):
     def set_selected(self, selected: bool):
         """Set whether this bar is selected."""
         self._selected = selected
+        self.update()
+
+    def set_limits(self, fwd: bool, bwd: bool):
+        """Set limit switch states for this bar."""
+        self._fwd_limit = fwd
+        self._bwd_limit = bwd
         self.update()
 
     def mousePressEvent(self, event):
@@ -159,6 +170,32 @@ class EncoderBar(QWidget):
             value_text,
         )
 
+        # Draw limit switch indicators if applicable (for carriage bars)
+        if self._show_limits:
+            indicator_size = scaled(8)
+            y_center = height // 2
+
+            # Backward limit indicator (left side)
+            bwd_color = QColor(THEME.red) if self._bwd_limit else QColor(THEME.green)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(bwd_color))
+            painter.drawEllipse(
+                bar_left + scaled(2),
+                y_center - indicator_size // 2,
+                indicator_size,
+                indicator_size,
+            )
+
+            # Forward limit indicator (right side)
+            fwd_color = QColor(THEME.red) if self._fwd_limit else QColor(THEME.green)
+            painter.setBrush(QBrush(fwd_color))
+            painter.drawEllipse(
+                bar_left + bar_width - indicator_size - scaled(2),
+                y_center - indicator_size // 2,
+                indicator_size,
+                indicator_size,
+            )
+
         painter.end()
 
 
@@ -185,6 +222,9 @@ class EncoderOverview(QWidget):
 
         self._setup_ui()
         self._setup_timer()
+
+        # Connect to limit switch updates
+        self._data_store.limits_updated.connect(self._update_limits)
 
     def _setup_ui(self):
         """Set up the widget layout."""
@@ -254,3 +294,14 @@ class EncoderOverview(QWidget):
         """Set the display range for all bars."""
         for bar in self._bars:
             bar.set_range(min_val, max_val)
+
+    def _update_limits(self):
+        """Update limit switch indicators on carriage bars."""
+        limits = self._data_store.limit_switches
+        if len(limits) >= 4:
+            # ML carriage (joint 5, index 4): limits[0]=fwd, limits[1]=bwd
+            if len(self._bars) > 4:
+                self._bars[4].set_limits(limits[0], limits[1])
+            # MR carriage (joint 6, index 5): limits[2]=fwd, limits[3]=bwd
+            if len(self._bars) > 5:
+                self._bars[5].set_limits(limits[2], limits[3])

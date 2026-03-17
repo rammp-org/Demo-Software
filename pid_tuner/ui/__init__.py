@@ -6,6 +6,7 @@ from .control_panel import ControlPanel
 from .serial_console import SerialConsole
 from .state_indicator import StateIndicator
 from .encoder_overview import EncoderOverview
+from .imu_display import IMUDisplay
 from .theme import THEME, get_application_stylesheet
 from .scaling import SIZES, scaled, get_scale_factor, refresh_sizes
 
@@ -16,6 +17,7 @@ __all__ = [
     "SerialConsole",
     "StateIndicator",
     "EncoderOverview",
+    "IMUDisplay",
     "THEME",
     "get_application_stylesheet",
     "SIZES",

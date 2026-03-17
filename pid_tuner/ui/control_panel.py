@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QFrame,
+    QCheckBox,
 )
 from PyQt6.QtCore import pyqtSignal, QTimer, Qt
 from PyQt6.QtGui import QDoubleValidator
@@ -394,25 +395,54 @@ class ControlPanel(QWidget):
         # Target input row - use QLineEdit for unlimited range
         input_layout = QHBoxLayout()
         input_layout.setSpacing(SIZES["spacing_small"])
-        input_layout.addWidget(QLabel("Target:"))
 
+        target_grid = QGridLayout()
+        target_grid.setSpacing(SIZES["spacing_small"])
+
+        # Primary target
+        target_grid.addWidget(QLabel("Primary:"), 0, 0)
         self._target_input = QLineEdit("0")
         self._target_input.setValidator(QDoubleValidator())
         self._target_input.setMinimumWidth(SIZES["input_preferred_width"])
         self._target_input.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
-        input_layout.addWidget(self._target_input)
+        target_grid.addWidget(self._target_input, 0, 1)
 
         # Dynamic unit label (changes with mode)
         self._target_input_unit_label = QLabel("PWM")
-        input_layout.addWidget(self._target_input_unit_label)
+        target_grid.addWidget(self._target_input_unit_label, 0, 2)
 
-        self._set_target_btn = QPushButton("Set Target")
+        # Linked target (Optional)
+        self._linked_target_label = QLabel("Linked:")
+        target_grid.addWidget(self._linked_target_label, 1, 0)
+        self._linked_target_input = QLineEdit("0")
+        self._linked_target_input.setValidator(QDoubleValidator())
+        self._linked_target_input.setMinimumWidth(SIZES["input_preferred_width"])
+        self._linked_target_input.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        target_grid.addWidget(self._linked_target_input, 1, 1)
+        self._linked_target_unit_label = QLabel("PWM")
+        target_grid.addWidget(self._linked_target_unit_label, 1, 2)
+
+        layout.addLayout(target_grid)
+
+        # Invert linked checkbox and Set button
+        action_layout = QHBoxLayout()
+        self._invert_linked_cb = QCheckBox("Invert Linked")
+        self._invert_linked_cb.setToolTip("Invert the target sent to the linked joint")
+        action_layout.addWidget(self._invert_linked_cb)
+
+        self._set_target_btn = QPushButton("Set Target(s)")
         self._set_target_btn.clicked.connect(self._on_set_target)
-        input_layout.addWidget(self._set_target_btn)
+        action_layout.addWidget(self._set_target_btn)
 
-        layout.addLayout(input_layout)
+        layout.addLayout(action_layout)
+
+        # Listen to linked joint changes to show/hide the secondary input
+        self._data_store.linked_joint_changed.connect(self._on_linked_joint_changed)
+        self._on_linked_joint_changed(self._data_store.linked_joint)
 
         # Quick target buttons row
         quick_layout = QHBoxLayout()
@@ -721,11 +751,13 @@ class ControlPanel(QWidget):
     def _on_mode_combo_changed(self, index: int):
         """Handle mode combo box change - update unit labels."""
         self._current_mode = index
+        self._data_store.control_mode = index
         unit = MODE_UNITS.get(index, "")
 
         # Update all unit labels based on mode
         self._target_unit_label.setText(unit)
         self._target_input_unit_label.setText(unit)
+        self._linked_target_unit_label.setText(unit)
         self._step_unit_label.setText(unit)
         self._sine_amplitude_unit_label.setText(unit)
         self._mode_indicator_label.setText(MODE_NAMES.get(index, "Unknown"))
@@ -738,10 +770,20 @@ class ControlPanel(QWidget):
         else:
             self._error_unit_label.setText("")
 
+    def _on_linked_joint_changed(self, linked_joint_id: int):
+        """Update UI based on whether a linked joint is active."""
+        has_linked = linked_joint_id != 0
+        self._linked_target_label.setVisible(has_linked)
+        self._linked_target_input.setVisible(has_linked)
+        self._linked_target_unit_label.setVisible(has_linked)
+        self._invert_linked_cb.setVisible(has_linked)
+
     def _on_clear_pid(self):
         """Send reset PID command to clear integrator windup."""
         joint_id = self._data_store.selected_joint
         self._serial_handler.reset_pid(joint_id)
+        if self._data_store.linked_joint != 0:
+            self._serial_handler.reset_pid(self._data_store.linked_joint)
 
     def _get_float_from_lineedit(
         self, line_edit: QLineEdit, default: float = 0.0
@@ -759,9 +801,22 @@ class ControlPanel(QWidget):
 
         # Update data store
         self._data_store.set_target(joint_id, target)
-
         # Send to Teensy
         self._serial_handler.set_target(joint_id, target)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            # If the user typed something into the linked input, use it.
+            # Otherwise use the primary target, potentially inverted.
+            linked_text = self._linked_target_input.text().strip()
+
+            # Simple check: if the user actually wrote a different value specifically in the linked box
+            # we should respect it. However, keeping them synced when using step inputs is usually desired.
+            # Let's read whatever is currently in the linked_target_input field.
+            linked_target = self._get_float_from_lineedit(self._linked_target_input)
+
+            self._data_store.set_target(linked_joint_id, linked_target)
+            self._serial_handler.set_target(linked_joint_id, linked_target)
 
     def _on_use_current(self):
         """Set target input to current position/velocity based on mode."""
@@ -771,18 +826,31 @@ class ControlPanel(QWidget):
         else:
             self._target_input.setText(str(joint_data.current_position))
 
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            linked_data = self._data_store.get_joint(linked_joint_id)
+            if linked_data is not None:
+                if self._current_mode == MODE_VELOCITY:
+                    self._linked_target_input.setText(str(linked_data.current_velocity))
+                else:
+                    self._linked_target_input.setText(str(linked_data.current_position))
+
     def _on_set_zero(self):
         """Set target to zero."""
         joint_id = self._data_store.selected_joint
 
         # Update data store
         self._data_store.set_target(joint_id, 0)
-
         # Update input field
         self._target_input.setText("0")
-
         # Send to Teensy
         self._serial_handler.set_target(joint_id, 0)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._data_store.set_target(linked_joint_id, 0)
+            self._linked_target_input.setText("0")
+            self._serial_handler.set_target(linked_joint_id, 0)
 
     def _on_disable_motors(self):
         """Send disable motors command."""
@@ -800,10 +868,20 @@ class ControlPanel(QWidget):
         self._target_input.setText("0")
         self._data_store.set_target(joint_id, 0)
 
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.home_position(linked_joint_id)
+            self._linked_target_input.setText("0")
+            self._data_store.set_target(linked_joint_id, 0)
+
     def _on_toggle_direction(self):
         """Toggle motor direction for selected joint."""
         joint_id = self._data_store.selected_joint
         self._serial_handler.toggle_direction(joint_id)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.toggle_direction(linked_joint_id)
 
     def _update_direction_indicator(self):
         """Update the direction indicator based on current motor direction."""
@@ -827,38 +905,48 @@ class ControlPanel(QWidget):
         joint_id = self._data_store.selected_joint
         mode = self._mode_combo.currentIndex()
         self._serial_handler.set_mode(joint_id, mode)
+        if self._data_store.linked_joint != 0:
+            self._serial_handler.set_mode(self._data_store.linked_joint, mode)
 
     def _on_set_pos_pid(self):
         """Send position PID gains and feed-forward."""
         joint_id = self._data_store.selected_joint
-        self._serial_handler.set_pid(
-            joint_id, "P", self._get_float_from_lineedit(self._pos_p)
-        )
-        self._serial_handler.set_pid(
-            joint_id, "I", self._get_float_from_lineedit(self._pos_i)
-        )
-        self._serial_handler.set_pid(
-            joint_id, "D", self._get_float_from_lineedit(self._pos_d)
-        )
-        self._serial_handler.set_feed_forward(
-            joint_id, "F", self._get_float_from_lineedit(self._pos_ff)
-        )
+        p = self._get_float_from_lineedit(self._pos_p)
+        i = self._get_float_from_lineedit(self._pos_i)
+        d = self._get_float_from_lineedit(self._pos_d)
+        ff = self._get_float_from_lineedit(self._pos_ff)
+
+        self._serial_handler.set_pid(joint_id, "P", p)
+        self._serial_handler.set_pid(joint_id, "I", i)
+        self._serial_handler.set_pid(joint_id, "D", d)
+        self._serial_handler.set_feed_forward(joint_id, "F", ff)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.set_pid(linked_joint_id, "P", p)
+            self._serial_handler.set_pid(linked_joint_id, "I", i)
+            self._serial_handler.set_pid(linked_joint_id, "D", d)
+            self._serial_handler.set_feed_forward(linked_joint_id, "F", ff)
 
     def _on_set_vel_pid(self):
         """Send velocity PID gains and feed-forward."""
         joint_id = self._data_store.selected_joint
-        self._serial_handler.set_pid(
-            joint_id, "p", self._get_float_from_lineedit(self._vel_p)
-        )
-        self._serial_handler.set_pid(
-            joint_id, "i", self._get_float_from_lineedit(self._vel_i)
-        )
-        self._serial_handler.set_pid(
-            joint_id, "d", self._get_float_from_lineedit(self._vel_d)
-        )
-        self._serial_handler.set_feed_forward(
-            joint_id, "f", self._get_float_from_lineedit(self._vel_ff)
-        )
+        p = self._get_float_from_lineedit(self._vel_p)
+        i = self._get_float_from_lineedit(self._vel_i)
+        d = self._get_float_from_lineedit(self._vel_d)
+        ff = self._get_float_from_lineedit(self._vel_ff)
+
+        self._serial_handler.set_pid(joint_id, "p", p)
+        self._serial_handler.set_pid(joint_id, "i", i)
+        self._serial_handler.set_pid(joint_id, "d", d)
+        self._serial_handler.set_feed_forward(joint_id, "f", ff)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.set_pid(linked_joint_id, "p", p)
+            self._serial_handler.set_pid(linked_joint_id, "i", i)
+            self._serial_handler.set_pid(linked_joint_id, "d", d)
+            self._serial_handler.set_feed_forward(linked_joint_id, "f", ff)
 
     def _on_step_positive(self):
         """Handle positive step button click - timed step."""
@@ -880,11 +968,22 @@ class ControlPanel(QWidget):
         """Execute a timed step: send target, wait duration, return to zero."""
         duration = self._get_float_from_lineedit(self._step_duration, 0.5)
         joint_id = self._data_store.selected_joint
+        linked_joint_id = self._data_store.linked_joint
+        invert = self._invert_linked_cb.isChecked()
 
-        # Send step command
-        self._serial_handler.set_target(joint_id, amplitude)
+        # Update primary target input display to match step
         self._target_input.setText(str(amplitude))
+
+        # Send step command primary
+        self._serial_handler.set_target(joint_id, amplitude)
         self._data_store.set_target(joint_id, amplitude)
+
+        # Send to linked if active
+        if linked_joint_id != 0:
+            linked_amp = -amplitude if invert else amplitude
+            self._linked_target_input.setText(str(linked_amp))
+            self._serial_handler.set_target(linked_joint_id, linked_amp)
+            self._data_store.set_target(linked_joint_id, linked_amp)
 
         # Start timer to return to zero
         self._step_timer.start(int(duration * 1000))
@@ -895,6 +994,12 @@ class ControlPanel(QWidget):
         self._serial_handler.set_target(joint_id, 0)
         self._target_input.setText("0")
         self._data_store.set_target(joint_id, 0)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.set_target(linked_joint_id, 0)
+            self._linked_target_input.setText("0")
+            self._data_store.set_target(linked_joint_id, 0)
 
     def _on_start_sine(self):
         """Start sine wave input."""
@@ -913,6 +1018,15 @@ class ControlPanel(QWidget):
             self._sine_duration_input, 10.0
         )
         self._sine_center = joint_data.current_target
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            linked_data = self._data_store.get_joint(linked_joint_id)
+            if linked_data is not None:
+                self._sine_linked_center = linked_data.current_target
+            else:
+                self._sine_linked_center = 0.0
+
         self._sine_start_time = 0
         self._sine_active = True
 
@@ -942,6 +1056,12 @@ class ControlPanel(QWidget):
         self._serial_handler.set_target(joint_id, self._sine_center)
         self._target_input.setText(str(self._sine_center))
 
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._data_store.set_target(linked_joint_id, self._sine_linked_center)
+            self._serial_handler.set_target(linked_joint_id, self._sine_linked_center)
+            self._linked_target_input.setText(str(self._sine_linked_center))
+
     def _update_sine_wave(self):
         """Update sine wave target position."""
         if not self._sine_active:
@@ -963,6 +1083,14 @@ class ControlPanel(QWidget):
         joint_id = self._data_store.selected_joint
         self._data_store.set_target(joint_id, target)
         self._serial_handler.set_target(joint_id, target)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            invert = self._invert_linked_cb.isChecked()
+            linked_val = -value if invert else value
+            linked_target = self._sine_linked_center + linked_val
+            self._data_store.set_target(linked_joint_id, linked_target)
+            self._serial_handler.set_target(linked_joint_id, linked_target)
 
         # Update time remaining
         remaining = self._sine_duration - self._sine_start_time

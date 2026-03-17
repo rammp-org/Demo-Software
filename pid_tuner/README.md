@@ -4,19 +4,72 @@ A PyQt6-based GUI application for tuning PID controllers running on Teensy 4.1 m
 
 ## Features
 
-- **Real-time plotting** of encoder position vs target position
-- **Joint selection** dropdown for all 12 joints
-- **Target controls**: Set absolute targets, step inputs (+/-), quick step buttons
+- **Real-time plotting** of encoder position, velocity, and PWM vs target
+- **Dual-motor control**: Control two motors simultaneously with individual targets
+- **Target controls**: Set absolute targets, timed step inputs (+/-), quick step buttons
 - **Sine wave generator**: Configurable amplitude, frequency, and duration for testing
+- **IMU tracking**: Live readouts and plots of Pitch, Roll, Yaw, and Acceleration
 - **Simulation mode**: Preview target signals without hardware connected
 - **Serial console**: View raw serial data stream
-- **Rolling time window**: Configurable 5-60 second display window
+
+## Architecture
+
+The application is structured to decouple serial communication from the UI using Qt signals and a central `DataStore`.
+
+```mermaid
+graph TD
+    subgraph "Teensy 4.1"
+        F[Firmware]
+    end
+
+    subgraph "PC Application"
+        SH[SerialHandler]
+        DS[DataStore]
+        
+        subgraph "UI Widgets"
+            MW[MainWindow]
+            PW[PlotWidget]
+            CP[ControlPanel]
+            EO[EncoderOverview]
+            ID[IMUDisplay]
+            SC[SerialConsole]
+        end
+    end
+
+    F <-->|Serial Comms| SH
+    SH -->|Parsed EncoderData| DS
+    DS -->|data_updated signal| PW
+    DS -->|data_updated signal| EO
+    DS -->|imu_updated signal| ID
+    CP -->|Send commands| SH
+    CP -->|Update targets| DS
+    SH -->|raw_lines signal| SC
+    MW -->|Joint Selection| DS
+```
 
 ## Installation
 
+We recommend using [uv](https://github.com/astral-sh/uv) for fast, reliable Python environment management.
+
+### Install uv (if not already installed)
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Or with Homebrew
+brew install uv
+```
+
+### Set up the project
+
 ```bash
 cd pid_tuner
-pip install -r requirements.txt
+
+# Create a virtual environment and install dependencies
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -r requirements.txt
 ```
 
 ### Dependencies
@@ -32,7 +85,16 @@ pip install -r requirements.txt
 ### Running the Application
 
 ```bash
+# Make sure your venv is activated
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
 python run.py
+```
+
+Or run directly with uv (no activation needed):
+
+```bash
+uv run python run.py
 ```
 
 ### Connecting to Teensy
@@ -53,153 +115,36 @@ To preview target signals before connecting to hardware:
 
 | Control | Description |
 |---------|-------------|
-| **Set Target** | Send an absolute target position (in encoder ticks) |
+| **Set Target** | Send absolute target(s) for the primary and (optional) linked joint |
 | **Use Current** | Copy current encoder position to target input |
 | **Set Zero** | Set target to 0 |
-| **Disable Motors** | Send 'z' command to disable all motors |
-| **Step +/-** | Add/subtract step size from current target |
-| **Quick Steps** | One-click buttons for common step sizes (+10, +50, +100, +500, +1000) |
+| **Home Position** | Send 'H' command to zero the encoder |
+| **Flip Dir** | Send 'V' command to flip motor direction (saved to EEPROM) |
+| **Disable Motors** | Send 'z' command to disable all motors (ESTOP) |
+| **Step +/-** | Execute a timed step of configured amplitude and duration |
+| **Quick Steps** | One-click buttons for quick percentage-based steps |
 | **Start Sine** | Begin sine wave oscillation around current target |
 | **Stop Sine** | Stop sine wave and return to center position |
 
-### Plot Controls
-
-| Button | Description |
-|--------|-------------|
-| **Simulate** | Enable simulation mode for offline target preview |
-| **Pause/Resume** | Freeze/unfreeze the plot display |
-| **Clear** | Clear all plotted data for selected joint |
-| **Auto Scale** | Reset zoom to fit all data |
-| **Time Window** | Select rolling window size (5s, 10s, 20s, 30s, 60s) |
-
-## Joint Mapping
-
-| Joint ID | Name | Description |
-|----------|------|-------------|
-| 1 | RC Top | Right Calf Top |
-| 2 | FC Bottom | Front Calf Bottom |
-| 3 | RC Bottom | Right Calf Bottom |
-| 4 | FC Top | Front Calf Top |
-| 5 | MR Back | Middle Right Back |
-| 6 | ML Front | Middle Left Front |
-| 7 | ML Back | Middle Left Back |
-| 8 | MR Front | Middle Right Front |
-| 9 | ML Drive | Middle Left Drive Wheel |
-| 10 | MR Drive | Middle Right Drive Wheel |
-| 11 | ML Carriage | Middle Left Carriage |
-| 12 | MR Carriage | Middle Right Carriage |
-
-## Serial Protocol / Teensy Firmware Requirements
-
-The Teensy firmware (Base.ino) must be modified to communicate with this tuner. See [TEENSY_PROTOCOL.md](TEENSY_PROTOCOL.md) for complete implementation details.
-
-### Serial Configuration
-
-- **Baud Rate:** 115200
-- **Line Ending:** `\n` (newline)
-- **Encoding:** ASCII
+## Serial Protocol
 
 ### Teensy -> PC: Encoder Data
 
-The Teensy must output encoder data at ~200Hz in this format:
+The Teensy outputs telemetry data at ~10Hz or higher in this format (34 values):
 
 ```
-ENC:<timestamp_ms>,<enc1>,<enc2>,<enc3>,<enc4>,<enc5>,<enc6>,<enc7>,<enc8>,<enc9>,<enc10>,<enc11>,<enc12>\n
-```
-
-**Example:**
-```
-ENC:12345,100,-50,320,0,1500,-1200,800,900,15000,-15200,12000,-12500
-```
-
-**Fields:**
-| Field | Description |
-|-------|-------------|
-| `timestamp_ms` | Milliseconds since boot (`millis()`) |
-| `enc1-enc12` | Raw encoder ticks for joints 1-12 (signed long) |
-
-**Arduino Implementation:**
-```cpp
-void displaydata() {
-  Serial.print("ENC:");
-  Serial.print(millis());
-  for (int i = 1; i <= 12; i++) {
-    Serial.print(",");
-    Serial.print(EContr.encoder[i]);
-  }
-  Serial.println();
-}
+TELEMETRY,<timestamp_ms>,<state>,<6 pos>,<6 vel>,<6 pwm>,<6 dirs>,<4 limits>,<6 imu>\n
 ```
 
 ### PC -> Teensy: Commands
 
 | Command | Format | Example | Description |
 |---------|--------|---------|-------------|
-| Set Target | `T<joint>:<ticks>\n` | `T7:1500` | Set joint 7 target to 1500 ticks |
-| Step Input | `S<joint>:<step>\n` | `S7:-100` | Add -100 ticks to joint 7 target |
-| Disable Motors | `z\n` | `z` | Emergency stop (existing command) |
-
-**Arduino Implementation (add to command parser):**
-```cpp
-void parse_command() {
-  if (Serial.available() > 0) {
-    String input = Serial.readStringUntil('\n');
-    input.trim();
-    
-    if (input.length() < 1) return;
-    char cmd = input.charAt(0);
-    
-    if (cmd == 'T') {
-      // Set Target: T<joint>:<ticks>
-      int colonIdx = input.indexOf(':');
-      if (colonIdx > 1) {
-        int joint = input.substring(1, colonIdx).toInt();
-        long target = input.substring(colonIdx + 1).toInt();
-        if (joint >= 1 && joint <= 12) {
-          // Apply target to your motor controller
-          set_joint_target(joint, target);
-        }
-      }
-    } else {
-      // Fall back to existing single-char commands
-      action = cmd;
-    }
-  }
-}
-```
-
-### Important Notes
-
-1. **Raw Ticks Only:** All values are raw encoder ticks (signed long) - no unit conversion
-2. **Output Rate:** Call `displaydata()` every loop (~200Hz with 5ms delay)
-3. **Backward Compatible:** Single-character commands ('z', '1', '2', etc.) still work
-
-## File Structure
-
-```
-pid_tuner/
-├── run.py                  # Entry point
-├── requirements.txt        # Python dependencies
-├── README.md               # This file
-├── TEENSY_PROTOCOL.md      # Firmware protocol specification
-├── main.py                 # Application initialization
-├── data/
-│   ├── data_store.py       # Rolling buffer data storage
-│   └── joint_config.py     # Joint names and descriptions
-├── serial/
-│   ├── protocol.py         # Message parsing/encoding
-│   └── serial_handler.py   # Serial thread with Qt signals
-└── ui/
-    ├── main_window.py      # Main application window
-    ├── plot_widget.py      # Real-time pyqtgraph plot
-    ├── control_panel.py    # Target/step/sine controls
-    └── serial_console.py   # Raw serial data display
-```
-
-## Troubleshooting
-
-**No serial ports found**: Ensure Teensy is connected and drivers are installed. On macOS, the port typically appears as `/dev/cu.usbmodemXXXX`.
-
-**No data appearing**: Verify the Teensy firmware is outputting data in the expected `ENC:` format. Check the serial console to see raw data.
-
-**Plot not updating**: Ensure simulation mode is enabled (if not connected) or that valid encoder data is being received.
+| Target | `T<id>:<val>\n` | `T1:1500` | Set target for joint 1 |
+| Mode | `M<id>:<val>\n` | `M1:2` | Set mode (0:Open Loop, 1:Vel, 2:Pos) |
+| PID Config | `P<id>:<val>\n` | `P1:0.5` | Set Pos KP (`P`, `I`, `D`, `F`) or Vel KP (`p`, `i`, `d`, `f`) |
+| Home | `H<id>\n` | `H1` | Zero the encoder |
+| Direction | `V<id>\n` | `V1` | Toggle motor direction |
+| Reset | `R<id>\n` | `R1` | Clear integrator windup |
+| Disable | `z\n` | `z` | Emergency stop (disable all) |
+| Clear | `c\n` | `c` | Clear emergency stop |

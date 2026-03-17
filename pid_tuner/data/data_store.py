@@ -320,6 +320,12 @@ class DataStore(QObject):
     imu_updated = pyqtSignal()  # Emitted when IMU data is updated
     limits_updated = pyqtSignal()  # Emitted when limit switch data is updated
     directions_updated = pyqtSignal()  # Emitted when motor direction data is updated
+    mode_changed = pyqtSignal(
+        int
+    )  # Emitted when control mode changes (0: Open, 1: Vel, 2: Pos)
+    linked_joint_changed = pyqtSignal(
+        int
+    )  # Emitted when linked joint changes (0 for none)
 
     NUM_JOINTS = 6
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
@@ -333,6 +339,8 @@ class DataStore(QObject):
             for i in range(self.NUM_JOINTS)
         ]
         self._selected_joint: int = 1
+        self._linked_joint: int = 0  # 0 means none
+        self._control_mode: int = 0  # 0: Open, 1: Vel, 2: Pos
         self._simulation_mode: bool = False
         self._current_state: int = 0  # System state from telemetry
 
@@ -415,6 +423,31 @@ class DataStore(QObject):
         """Set the currently selected joint (1-indexed)."""
         if 1 <= joint_id <= self.NUM_JOINTS:
             self._selected_joint = joint_id
+
+    @property
+    def linked_joint(self) -> int:
+        """Get the currently linked joint (0 for none, or 1-indexed)."""
+        return self._linked_joint
+
+    @linked_joint.setter
+    def linked_joint(self, joint_id: int):
+        """Set the currently linked joint (0 for none, or 1-indexed)."""
+        if 0 <= joint_id <= self.NUM_JOINTS:
+            if self._linked_joint != joint_id:
+                self._linked_joint = joint_id
+                self.linked_joint_changed.emit(joint_id)
+
+    @property
+    def control_mode(self) -> int:
+        """Get the current control mode."""
+        return self._control_mode
+
+    @control_mode.setter
+    def control_mode(self, mode: int):
+        """Set the current control mode."""
+        if self._control_mode != mode:
+            self._control_mode = mode
+            self.mode_changed.emit(mode)
 
     @property
     def current_state(self) -> int:

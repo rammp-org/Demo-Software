@@ -158,7 +158,7 @@ class PlotWidget(QWidget):
         # Position plot (top)
         self._pos_plot = self._graphics_layout.addPlot(row=0, col=0)
         self._pos_plot.setLabel("left", "Position", units="cm", **label_style)
-        self._pos_plot.setTitle("Position vs Target", **title_style)
+        self._pos_plot.setTitle("Position", **title_style)
         self._pos_plot.showGrid(x=True, y=True, alpha=0.3)
         self._pos_plot.getAxis("left").setPen(pg.mkPen(color=THEME.overlay0))
         self._pos_plot.getAxis("left").setTextPen(pg.mkPen(color=THEME.text))
@@ -169,13 +169,22 @@ class PlotWidget(QWidget):
 
         # Position curves
         self._position_curve = self._pos_plot.plot(
-            pen=pg.mkPen(color=colors["position"], width=2), name="Position"
+            pen=pg.mkPen(color=colors["position"], width=2), name="Pos"
         )
         self._target_curve = self._pos_plot.plot(
             pen=pg.mkPen(
                 color=colors["target"], width=2, style=pg.QtCore.Qt.PenStyle.DashLine
             ),
             name="Target",
+        )
+        self._linked_position_curve = self._pos_plot.plot(
+            pen=pg.mkPen(color=THEME.yellow, width=2), name="Linked Pos"
+        )
+        self._linked_target_curve = self._pos_plot.plot(
+            pen=pg.mkPen(
+                color=THEME.peach, width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+            ),
+            name="Linked Target",
         )
 
         # Velocity plot (middle)
@@ -186,9 +195,27 @@ class PlotWidget(QWidget):
         self._vel_plot.getAxis("left").setPen(pg.mkPen(color=THEME.overlay0))
         self._vel_plot.getAxis("left").setTextPen(pg.mkPen(color=THEME.text))
         self._vel_plot.getAxis("bottom").setPen(pg.mkPen(color=THEME.overlay0))
+        self._vel_plot.addLegend(
+            offset=(10, 10), brush=THEME.surface0, pen=THEME.surface1
+        )
 
         self._velocity_curve = self._vel_plot.plot(
-            pen=pg.mkPen(color=colors["velocity"], width=2), name="Velocity"
+            pen=pg.mkPen(color=colors["velocity"], width=2), name="Vel"
+        )
+        self._vel_target_curve = self._vel_plot.plot(
+            pen=pg.mkPen(
+                color=colors["target"], width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+            ),
+            name="Target",
+        )
+        self._linked_velocity_curve = self._vel_plot.plot(
+            pen=pg.mkPen(color=THEME.yellow, width=2), name="Linked Vel"
+        )
+        self._linked_vel_target_curve = self._vel_plot.plot(
+            pen=pg.mkPen(
+                color=THEME.peach, width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+            ),
+            name="Linked Target",
         )
 
         # PWM plot (bottom)
@@ -201,9 +228,27 @@ class PlotWidget(QWidget):
         self._pwm_plot.getAxis("left").setTextPen(pg.mkPen(color=THEME.text))
         self._pwm_plot.getAxis("bottom").setPen(pg.mkPen(color=THEME.overlay0))
         self._pwm_plot.getAxis("bottom").setTextPen(pg.mkPen(color=THEME.text))
+        self._pwm_plot.addLegend(
+            offset=(10, 10), brush=THEME.surface0, pen=THEME.surface1
+        )
 
         self._pwm_curve = self._pwm_plot.plot(
             pen=pg.mkPen(color=colors["pwm"], width=2), name="PWM"
+        )
+        self._pwm_target_curve = self._pwm_plot.plot(
+            pen=pg.mkPen(
+                color=colors["target"], width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+            ),
+            name="Target",
+        )
+        self._linked_pwm_curve = self._pwm_plot.plot(
+            pen=pg.mkPen(color=THEME.yellow, width=2), name="Linked PWM"
+        )
+        self._linked_pwm_target_curve = self._pwm_plot.plot(
+            pen=pg.mkPen(
+                color=THEME.peach, width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+            ),
+            name="Linked Target",
         )
 
         # IMU plot (bottom, hidden by default)
@@ -272,12 +317,52 @@ class PlotWidget(QWidget):
         mask = timestamps >= min_time
         window_times = timestamps[mask]
 
+        control_mode = self._data_store.control_mode
+        linked_joint_id = self._data_store.linked_joint
+        has_linked = False
+
+        linked_data = None
+        linked_window_times = np.array([])
+        linked_pos = np.array([])
+        linked_targets = np.array([])
+        linked_mask = np.array([], dtype=bool)
+
+        if linked_joint_id != 0:
+            linked_data = self._data_store.get_joint(linked_joint_id)
+            if linked_data is not None:
+                linked_times, l_pos, l_targets = linked_data.get_plot_data()
+                if len(linked_times) > 0:
+                    has_linked = True
+                    linked_mask = linked_times >= min_time
+                    linked_window_times = linked_times[linked_mask]
+                    linked_pos = l_pos
+                    linked_targets = l_targets
+
+        # Clear target curves so they don't stick around in wrong plots
+        self._target_curve.setData([], [])
+        self._vel_target_curve.setData([], [])
+        self._pwm_target_curve.setData([], [])
+        self._linked_target_curve.setData([], [])
+        self._linked_vel_target_curve.setData([], [])
+        self._linked_pwm_target_curve.setData([], [])
+
         # Update position plot
         if self._show_position:
             window_positions = positions[mask]
-            window_targets = targets[mask]
             self._position_curve.setData(window_times, window_positions)
-            self._target_curve.setData(window_times, window_targets)
+            if control_mode == 2:  # POSITION
+                self._target_curve.setData(window_times, targets[mask])
+
+            if has_linked:
+                self._linked_position_curve.setData(
+                    linked_window_times, linked_pos[linked_mask]
+                )
+                if control_mode == 2:
+                    self._linked_target_curve.setData(
+                        linked_window_times, linked_targets[linked_mask]
+                    )
+            else:
+                self._linked_position_curve.setData([], [])
 
         # Update velocity plot
         if self._show_velocity:
@@ -287,6 +372,23 @@ class PlotWidget(QWidget):
                 self._velocity_curve.setData(
                     vel_timestamps[vel_mask], velocities[vel_mask]
                 )
+                if control_mode == 1:  # VELOCITY
+                    # Targets array has the target velocity if in velocity mode
+                    self._vel_target_curve.setData(window_times, targets[mask])
+
+            if has_linked and linked_data is not None:
+                l_vel_times, l_vels = linked_data.get_velocity_data()
+                if len(l_vel_times) > 0:
+                    l_v_mask = l_vel_times >= min_time
+                    self._linked_velocity_curve.setData(
+                        l_vel_times[l_v_mask], l_vels[l_v_mask]
+                    )
+                    if control_mode == 1:
+                        self._linked_vel_target_curve.setData(
+                            linked_window_times, linked_targets[linked_mask]
+                        )
+            else:
+                self._linked_velocity_curve.setData([], [])
 
         # Update PWM plot
         if self._show_pwm:
@@ -294,6 +396,22 @@ class PlotWidget(QWidget):
             if len(pwm_timestamps) > 0:
                 pwm_mask = pwm_timestamps >= min_time
                 self._pwm_curve.setData(pwm_timestamps[pwm_mask], pwms[pwm_mask])
+                if control_mode == 0:  # OPEN LOOP (PWM)
+                    self._pwm_target_curve.setData(window_times, targets[mask])
+
+            if has_linked and linked_data is not None:
+                l_pwm_times, l_pwms = linked_data.get_pwm_data()
+                if len(l_pwm_times) > 0:
+                    l_p_mask = l_pwm_times >= min_time
+                    self._linked_pwm_curve.setData(
+                        l_pwm_times[l_p_mask], l_pwms[l_p_mask]
+                    )
+                    if control_mode == 0:
+                        self._linked_pwm_target_curve.setData(
+                            linked_window_times, linked_targets[linked_mask]
+                        )
+            else:
+                self._linked_pwm_curve.setData([], [])
 
         # Update IMU plot
         if self._show_imu:

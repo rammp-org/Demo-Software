@@ -180,11 +180,24 @@ class MainWindow(QMainWindow):
         for name in get_joint_names():
             self._joint_combo.addItem(name)
         self._joint_combo.currentIndexChanged.connect(self._on_joint_changed)
-        self._joint_combo.setMinimumWidth(scaled(150))
+        self._joint_combo.setMinimumWidth(scaled(120))
         self._joint_combo.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
         joint_layout.addWidget(self._joint_combo)
+
+        # Linked joint selection
+        joint_layout.addWidget(QLabel("Linked:"))
+        self._linked_combo = QComboBox()
+        self._linked_combo.addItem("None")
+        for name in get_joint_names():
+            self._linked_combo.addItem(name)
+        self._linked_combo.currentIndexChanged.connect(self._on_linked_changed)
+        self._linked_combo.setMinimumWidth(scaled(120))
+        self._linked_combo.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        joint_layout.addWidget(self._linked_combo)
 
         # Joint description
         self._joint_desc_label = QLabel("")
@@ -295,6 +308,16 @@ class MainWindow(QMainWindow):
 
         # Clear plot data for new joint
         self._data_store.clear_joint(joint_id)
+
+    def _on_linked_changed(self, index: int):
+        """Handle linked joint selection change."""
+        # Index 0 is "None", indices 1-12 are joints 1-12
+        if index == 0:
+            self._data_store.linked_joint = 0
+        else:
+            joint_id = get_joint_id_from_index(index - 1)
+            self._data_store.linked_joint = joint_id
+            self._data_store.clear_joint(joint_id)
 
     def _on_encoder_bar_clicked(self, joint_id: int):
         """Handle encoder bar click to select joint."""

@@ -27,8 +27,8 @@ public:
     static int8_t loadMotorDirection(int motor_id);
     
     // Save/load all motor directions at once
-    static void saveAllDirections(int8_t dirs[NUM_MOTORS]);
-    static void loadAllDirections(int8_t dirs[NUM_MOTORS]);
+    static void saveAllDirections(int8_t* dirs);
+    static void loadAllDirections(int8_t* dirs);
     
     // Check if EEPROM has valid data
     static bool isValid();

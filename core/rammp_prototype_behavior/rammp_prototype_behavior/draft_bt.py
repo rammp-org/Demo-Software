@@ -155,7 +155,7 @@ def create_tree():
     client.userConnection_status = False
 
     chair_control_selector = py_trees.composites.Selector(
-        name="chair control selector", memory=True
+        name="chair control selector", memory=False
     )
     chair_control_selector.add_children([self_level_on(), self_level_off()])
 
@@ -169,10 +169,10 @@ def create_tree():
     )
     navigation_sequence.add_children([navigation()])
 
-    check_state = py_trees.composites.Sequence(name="check state sequence", memory=True)
+    check_state = py_trees.composites.Selector(name="check state selector", memory=True)
     check_state.add_children([chair_control_sequence, navigation_sequence])
 
-    root = py_trees.composites.Sequence(name="root selector", memory=False)
+    root = py_trees.composites.Sequence(name="root sequence", memory=False)
     root.add_children([estop_check(), check_state])  # add more behaviors as needed
 
     return py_trees.trees.BehaviourTree(root)

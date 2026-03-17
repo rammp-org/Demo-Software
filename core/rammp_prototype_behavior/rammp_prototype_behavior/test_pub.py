@@ -10,10 +10,18 @@ class TestPub(Node):  # MODIFY NAME
         self.user_input_pub = self.create_publisher(String, "user_input", 10)
         self.timer = self.create_timer(1.0, self.publish_user_input)
 
+        self.estop_pub = self.create_publisher(String, "estop", 10)
+        self.estop_timer = self.create_timer(1.0, self.publish_estop)
+
     def publish_user_input(self):
         msg = String()
         msg.data = "self level off"  # Change this to test different inputs
         self.user_input_pub.publish(msg)
+
+    def publish_estop(self):
+        msg = String()
+        msg.data = "False"  # Change this to test different inputs
+        self.estop_pub.publish(msg)
 
 
 def main(args=None):

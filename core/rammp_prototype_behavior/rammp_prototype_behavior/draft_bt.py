@@ -126,12 +126,23 @@ def main():
     tree = create_tree()
     subscribers_node = subscribers()
 
+    # Print tree structure once at start
+    print(py_trees.display.unicode_tree(tree.root))
+
     try:
         while rclpy.ok():
             rclpy.spin_once(
                 subscribers_node, timeout_sec=0.1
             )  # process incoming ROS2 messages
             tree.tick()  # tick the tree
+
+            # Print tree status every tick
+            print(py_trees.display.unicode_tree(tree.root, show_status=True))
+
+            # Print feedback from each node
+            for node in tree.root.iterate():
+                if node.feedback_message:
+                    print(f"  [{node.name}] {node.feedback_message}")
     finally:
         tree.shutdown()
         rclpy.shutdown()

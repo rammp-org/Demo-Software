@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.action import ActionServer
 import serial
 import ast
 from sensor_msgs.msg import Imu
@@ -7,8 +8,9 @@ import math
 from tf2_msgs.msg import TFMessage
 from sensor_msgs.msg import JointState
 from std_srvs.srv import SetBool
-from interfaces.rammp_prototype_interfaces.msg import RAMMPPrototypeState
-from interfaces.rammp_prototype_interfaces.action import CurbTraverse
+from rammp_prototype_interfaces.msg import RAMMPPrototypeState
+from rammp_prototype_interfaces.action import CurbTraverse
+from std_msgs.msg import Bool
 
 
 class MEBotControlNode(Node):
@@ -83,25 +85,25 @@ class MEBotControlNode(Node):
         )
 
         # actions
-        self.curb_traverse_action_service = self.create_service(
+        self.curb_traverse_action = ActionServer(
             self, CurbTraverse, "curb_traverse", self.curb_traverse_action_callback
         )
 
         # subscriptions
         self.manual_seat_control_subscription = self.create_subscription(
-            bool, "manual_seat_control", self.manual_seat_control_callback, 10
+            Bool, "manual_seat_control", self.manual_seat_control_callback, 10
         )  # message type is placeholder
 
         self.curb_ascend_subscription = self.create_subscription(
-            bool, "curb_ascend", self.curb_ascend_callback, 10
+            Bool, "curb_ascend", self.curb_ascend_callback, 10
         )
 
         self.curb_descend_subscription = self.create_subscription(
-            bool, "curb_descend", self.curb_descend_callback, 10
+            Bool, "curb_descend", self.curb_descend_callback, 10
         )
 
         self.estop_subscription = self.create_subscription(
-            bool, "estop", self.estop_callback, 10
+            Bool, "estop", self.estop_callback, 10
         )
 
         # joint state publisher

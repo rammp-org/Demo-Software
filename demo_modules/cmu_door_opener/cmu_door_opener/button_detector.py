@@ -26,7 +26,7 @@ from rclpy.qos import (
     QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 )
 from visualization_msgs.msg import Marker
-from std_msgs.msg import ColorRGBA
+from std_msgs.msg import ColorRGBA, String
 from std_srvs.srv import SetBool
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, CameraInfo
@@ -40,6 +40,7 @@ import open3d as o3d
 from scipy.spatial.transform import Rotation
 
 from cmu_door_opener_interfaces.msg import ButtonInfo
+from cmu_door_opener.reachability_checker import ReachabilityChecker
 
 # Default invalid pose — signals "no valid detection this cycle"
 INVALID_POSE = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
@@ -241,6 +242,19 @@ class ButtonPressVisionNode(Node):
             cv2.resizeWindow("button_viz", int(1400 * self.window_scale), int(700 * self.window_scale))
             print("[INIT] OpenCV window enabled (press 'q' to quit).", flush=True)
 
+        # ---- IK reachability checker (initialised lazily from /robot_description) ----
+        self._reachability_checker: ReachabilityChecker | None = None
+        qos_latched = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self.create_subscription(
+            String, '/robot_description', self._cb_robot_description, qos_latched
+        )
+        print("[INIT] Waiting for /robot_description to init IK checker.", flush=True)
+
         rate = float(self.get_parameter('process_rate_hz').value)
         period = 1.0 / max(rate, 0.1)
         self.create_timer(period, self.process_once)
@@ -327,6 +341,16 @@ class ButtonPressVisionNode(Node):
         return response
 
     # ---- Callbacks ----
+    def _cb_robot_description(self, msg: String):
+        """Initialise the IK reachability checker from the URDF string."""
+        if self._reachability_checker is not None:
+            return  # already initialised
+        try:
+            self._reachability_checker = ReachabilityChecker(urdf_string=msg.data)
+            print("[IK] Reachability checker initialised from /robot_description.", flush=True)
+        except Exception as e:
+            print(f"[IK] Failed to init reachability checker: {e}", flush=True)
+
     def cb_color_info(self, msg: CameraInfo):
         self.color_info = msg
         if msg.header.frame_id:
@@ -805,8 +829,13 @@ class ButtonPressVisionNode(Node):
             float(filtered_xyz[0]), float(filtered_xyz[1]), float(filtered_xyz[2]),
             float(filtered_rpy[0]), float(filtered_rpy[1]), float(filtered_rpy[2]),
         ]
-        # TODO: Yucheng to provide Swap the exact IK method/function
-        msg.is_pressable = True
+        if self._reachability_checker is not None:
+            msg.is_pressable = self._reachability_checker.is_reachable(
+                target_pos=[filtered_xyz[0], filtered_xyz[1], filtered_xyz[2]],
+            )
+        else:
+            # URDF not yet received — assume pressable to avoid blocking.
+            msg.is_pressable = True
         self.button_info_pub.publish(msg)
 
     # ---- Main loop ----

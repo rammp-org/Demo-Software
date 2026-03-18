@@ -20,6 +20,7 @@ The `cmu_door_opener` package contains two ROS 2 nodes that work together to det
 |---|---|
 | `cmu_door_opener/button_detector.py` | Detector node source |
 | `cmu_door_opener/button_push_controller.py` | Push controller node source |
+| `cmu_door_opener/reachability_checker.py` | PyBullet-based IK reachability checker |
 | `cmu_door_opener/button_yolo_weights.pt` | YOLO segmentation model (6.5 MB) |
 | `launch/cmu_door_opener.launch.py` | Launch file for both nodes |
 | `package.xml` | ROS 2 package manifest |
@@ -40,7 +41,7 @@ The `cmu_door_opener` package contains two ROS 2 nodes that work together to det
 | `bounding_box` | `int32[4]` | Pixel coords `[x_min, y_min, x_max, y_max]` from YOLO |
 | `confidence` | `float32` | YOLO detection confidence `[0.0 - 1.0]` |
 | `pose_xyzrpy` | `float64[6]` | `[x, y, z, roll, pitch, yaw]` in `base_link` frame. Position in meters, orientation in radians (xyz euler). |
-| `is_pressable` | `bool` | Whether the arm can reach this button (IK solvable). **TODO: currently hardcoded `true` on success — Yucheng to provide Swap the exact IK function.** |
+| `is_pressable` | `bool` | Whether the arm can reach this button (IK solvable via PyBullet). Falls back to `true` if the URDF has not yet been received from `/robot_description`. |
 
 ### ButtonInfo States
 
@@ -87,9 +88,10 @@ __init__():
   4. Create all publishers
   5. Create /arm/door/detection/enable service server (SetBool)
   6. Create all subscribers (camera topics — always active, data is buffered)
-  7. self.yolo = None   *** YOLO IS NOT LOADED — GPU memory preserved ***
-  8. Optionally open OpenCV visualization window
-  9. Create timer at process_rate_hz (default 5 Hz) → process_once()
+  7. Subscribe to /robot_description (transient-local) for IK checker init
+  8. self.yolo = None   *** YOLO IS NOT LOADED — GPU memory preserved ***
+  9. Optionally open OpenCV visualization window
+  10. Create timer at process_rate_hz (default 5 Hz) → process_once()
   |
   v
 rclpy.spin(node)   ← node alive, timer fires every 200ms
@@ -146,6 +148,7 @@ process_once() returns immediately again (detection disabled)
 | `/camera/wrist/color/camera_info` | `sensor_msgs/CameraInfo` | Reliable, depth=10 | `cb_color_info` | Stores as `self.color_info`. Extracts `header.frame_id` → `self.color_frame_id`. |
 | `/camera/wrist/depth/camera_info` | `sensor_msgs/CameraInfo` | Reliable, depth=10 | `cb_depth_info` | Stores as `self.depth_info` (depth intrinsics). |
 | `/camera/wrist/extrinsics/depth_to_color` | `realsense2_camera_msgs/Extrinsics` | Reliable, TRANSIENT_LOCAL, depth=1 | `cb_extrinsics` | Stores rotation (3x3) + translation (3x1) → `self.depth_to_color_extr`. |
+| `/robot_description` | `std_msgs/String` | Reliable, TRANSIENT_LOCAL, depth=1 | `_cb_robot_description` | URDF XML string. Used once to initialise the `ReachabilityChecker` for `is_pressable`. |
 
 These are always subscribed so that data is buffered and ready the instant detection is enabled — no startup delay.
 
@@ -212,10 +215,12 @@ process_once()
   |     Filter not stable yet (count < min_samples)?
   |       → publish STATE 2 (detected, not pressable), return
   |
-  +-- Step 6: Publish STATE 3 (detected and pressable)
+  +-- Step 6: IK reachability check + Publish
         _publish_detected_pressable(filtered_xyz, filtered_rpy, mask, bbox, confidence)
         - pose_xyzrpy = filtered values (valid)
-        - is_pressable = True (TODO: IK check)
+        - is_pressable = ReachabilityChecker.is_reachable(filtered_xyz)
+          Uses PyBullet IK (headless DIRECT mode) with random seed restarts.
+          Falls back to True if /robot_description URDF not yet received.
         - mask, bbox, confidence = raw values from this frame's YOLO
 ```
 
@@ -267,6 +272,13 @@ Press `q` to shut down the node.
 - `update(xyz, rpy)`: First call seeds. Subsequent: `new = alpha * raw + (1-alpha) * prev`.
 - `is_stable`: True when `count >= min_samples`.
 - `reset()`: Called on enable/disable. Zeroes state and count.
+
+**`ReachabilityChecker`** (`reachability_checker.py`) — Headless PyBullet IK solver for reachability queries.
+- Initialised lazily when the URDF string arrives on `/robot_description`.
+- Loads the URDF into a `p.DIRECT` (headless) physics server — no GUI, no rendering overhead.
+- `is_reachable(target_pos, target_orn=None, n_seeds=5)`: Attempts IK from `n_seeds` random joint configs. For each seed, iteratively calls `p.calculateInverseKinematics`, applies the result, and validates with FK (`p.getLinkState`). Returns `True` if any seed converges within `pos_tol` (default 1 cm).
+- ~5 ms per query (5 seeds × 50 max iters). Fast enough for the 5 Hz detection loop.
+- `destroy()`: Disconnects PyBullet and removes the temp URDF file.
 
 ---
 
@@ -475,6 +487,7 @@ Push timeout does NOT abort — proceeds to retract and returns success.
 | `/camera/wrist/color/camera_info` | `CameraInfo` | button_detector | Reliable | RGB intrinsics |
 | `/camera/wrist/depth/camera_info` | `CameraInfo` | button_detector | Reliable | Depth intrinsics |
 | `/camera/wrist/extrinsics/depth_to_color` | `Extrinsics` | button_detector | Reliable+TRANSIENT_LOCAL | Depth→color registration |
+| `/robot_description` | `String` | button_detector | Reliable+TRANSIENT_LOCAL | URDF for IK reachability checker |
 | `/arm/door/button_info` | `ButtonInfo` | button_push_controller | Reliable | From detector |
 | `/arm/ee_force` | `Vector3` | button_push_controller | Reliable | From arm_driver |
 
@@ -504,6 +517,6 @@ Push timeout does NOT abort — proceeds to retract and returns success.
 
 ## TODO
 
-- [ ] **Yucheng → Swap:** Provide exact IK solver function for `is_pressable` field. Currently hardcoded `True` on success in `button_detector.py:745`.
+- [x] ~~**IK reachability check for `is_pressable`**~~ — Implemented via `ReachabilityChecker` (PyBullet headless IK). Subscribes to `/robot_description` for the URDF.
 - [ ] Refine `distance_to_button` feedback — currently static `PUSH_EXTRA`. Could use live EE position + FK.
 - [ ] Push overshoot is hardcoded +x. Should follow surface normal approach direction.

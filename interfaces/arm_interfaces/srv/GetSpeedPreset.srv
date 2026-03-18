@@ -1,0 +1,5 @@
+# Service definition for reading the current arm speed preset.
+# No request fields.
+---
+# Response message
+string preset

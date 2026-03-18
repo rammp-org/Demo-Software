@@ -5,7 +5,7 @@ import rclpy
 import rclpy.action
 import rclpy.node
 from arm_interfaces.action import ExecuteTrajectory, ReachPreset
-from arm_interfaces.srv import SetMode, SetSpeedPreset
+from arm_interfaces.srv import GetSpeedPreset, SetMode, SetSpeedPreset
 from diagnostic_msgs.msg import DiagnosticStatus
 from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped
 from rclpy.action import ActionServer
@@ -163,6 +163,9 @@ class ArmDriverNode(rclpy.node.Node):
         )
         self._set_speed_preset_srv = self.create_service(
             SetSpeedPreset, "/arm/set_speed_preset", self._on_set_speed_preset
+        )
+        self._get_speed_preset_srv = self.create_service(
+            GetSpeedPreset, "/arm/get_speed_preset", self._on_get_speed_preset
         )
         self._open_gripper_srv = self.create_service(
             Trigger, "/arm/open_gripper", self._on_open_gripper
@@ -401,6 +404,19 @@ class ArmDriverNode(rclpy.node.Node):
         self.get_logger().info(f"Speed preset set to '{request.preset}'.")
         response.success = True
         response.message = f"Speed preset set to '{request.preset}'"
+        return response
+
+    def _on_get_speed_preset(self, request, response):
+        """Handle a /arm/get_speed_preset service request.
+
+        Args:
+            request: Empty request.
+            response: Service response with ``response.preset`` (string).
+
+        Returns:
+            The populated service response.
+        """
+        response.preset = self._arm.get_speed_preset() if self._arm else "unknown"
         return response
 
     def _on_open_gripper(self, request, response):

@@ -196,8 +196,17 @@ void runSelfLeveling(float dt) {
   float current_roll = IMU.rollf;   // Degrees
 
   // Calculate error against targets (in radians)
-  float dpitchrd = 1.0f * ((target_pitch - current_pitch) / DG);
-  float drollrd  = 1.0f * ((target_roll - current_roll) / DG);
+  // Use shortest path distance to avoid +/- 180 discontinuity jumps
+  float pitch_error = target_pitch - current_pitch;
+  while (pitch_error > 180.0f) pitch_error -= 360.0f;
+  while (pitch_error < -180.0f) pitch_error += 360.0f;
+  
+  float roll_error = target_roll - current_roll;
+  while (roll_error > 180.0f) roll_error -= 360.0f;
+  while (roll_error < -180.0f) roll_error += 360.0f;
+
+  float dpitchrd = 1.0f * (pitch_error / DG);
+  float drollrd  = 1.0f * (roll_error / DG);
 
   // Deadband to prevent jitter
   if (fabs(dpitchrd) < 0.001) dpitchrd = 0.0;

@@ -674,6 +674,11 @@ class ControlPanel(QWidget):
         params_layout.addWidget(self._target_roll_input, 1, 1)
         params_layout.addWidget(QLabel("deg"), 1, 2)
 
+        self._use_current_imu_btn = QPushButton("Use Current")
+        self._use_current_imu_btn.setToolTip("Set Target to current IMU Pitch & Roll")
+        self._use_current_imu_btn.clicked.connect(self._on_use_current_imu)
+        params_layout.addWidget(self._use_current_imu_btn, 0, 3, 2, 1)  # span 2 rows
+
         layout.addLayout(params_layout)
 
         # Start/Stop Buttons
@@ -710,6 +715,17 @@ class ControlPanel(QWidget):
     def _on_stop_leveling(self):
         """Disable self leveling mode."""
         self._serial_handler.set_self_leveling(False)
+
+    def _on_use_current_imu(self):
+        """Set IMU targets to current IMU orientation."""
+        pitch = self._data_store.imu_pitch
+        roll = self._data_store.imu_roll
+        self._target_pitch_input.setText(f"{pitch:.2f}")
+        self._target_roll_input.setText(f"{roll:.2f}")
+
+        # If currently leveling, update targets immediately
+        if self._data_store.current_state == 4:  # SELF_LEVELING
+            self._on_start_leveling()
 
     def _update_status(self):
         """Update the status display with current values."""

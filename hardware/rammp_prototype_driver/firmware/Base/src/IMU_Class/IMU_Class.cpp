@@ -11,6 +11,13 @@ void IMU_Class::initialize_BNO055_sensor() {
     while (1)
       ;
   }
+  
+  delay(100);
+  
+  // Remap axes for upside-down mounting (IC facing floor)
+  // P4 configuration flips the Z and Y axes to match an inverted orientation.
+  bno_sensor.setAxisRemap(Adafruit_BNO055::REMAP_CONFIG_P4);
+  bno_sensor.setAxisSign(Adafruit_BNO055::REMAP_SIGN_P4);
 }
 
 void IMU_Class::retrieve_readings() {
@@ -57,9 +64,20 @@ void IMU_Class::retrieve_readings() {
   roll = raw_roll + 1.5;
   yaw = raw_yaw;
 
-  // Apply low pass filter
-  pitchf = pitchf + K * (pitch - pitchf);
-  rollf = rollf + K * (roll - rollf);
+  // Apply low pass filter using shortest path for continuous angles
+  double diff_pitch = pitch - pitchf;
+  while (diff_pitch > 180.0) diff_pitch -= 360.0;
+  while (diff_pitch < -180.0) diff_pitch += 360.0;
+  pitchf = pitchf + K * diff_pitch;
+  while (pitchf > 180.0) pitchf -= 360.0;
+  while (pitchf < -180.0) pitchf += 360.0;
+
+  double diff_roll = roll - rollf;
+  while (diff_roll > 180.0) diff_roll -= 360.0;
+  while (diff_roll < -180.0) diff_roll += 360.0;
+  rollf = rollf + K * diff_roll;
+  while (rollf > 180.0) rollf -= 360.0;
+  while (rollf < -180.0) rollf += 360.0;
 
   pitchrd = pitchf * (PI / 180.0);
   rollrd = -1.0 * rollf * (PI / 180.0);

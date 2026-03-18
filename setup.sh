@@ -29,7 +29,7 @@ pip3 install -r "${REPO_ROOT}/hardware/arm_driver/requirements.txt"
 
 echo "=== Installing ROS dependencies ==="
 rosdep install \
-  --from-paths "${REPO_ROOT}/core" "${REPO_ROOT}/hardware/arm_driver" "${REPO_ROOT}/interfaces" \
+  --from-paths "${REPO_ROOT}" \
   --ignore-src -r -y \
   --skip-keys "python3-kortex-api python3-pinocchio python3-scipy"
 

@@ -194,6 +194,16 @@ class SerialHandler(QObject):
         cmd = ProtocolEncoder.toggle_direction(joint_id)
         self.send_command(cmd)
 
+    def set_self_leveling(self, enable: bool):
+        """Enable or disable self-leveling mode."""
+        cmd = ProtocolEncoder.set_self_leveling(enable)
+        self.send_command(cmd)
+
+    def set_imu_target(self, pitch: float, roll: float):
+        """Set target pitch and roll for self-leveling."""
+        cmd = ProtocolEncoder.set_imu_target(pitch, roll)
+        self.send_command(cmd)
+
     def send_raw(self, cmd_str: str):
         """Send raw serial command."""
         if not cmd_str.endswith("\n"):

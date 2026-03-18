@@ -247,3 +247,21 @@ class ProtocolEncoder:
         """
         cmd = f"V{joint_id}\n"
         return cmd.encode("ascii")
+
+    @staticmethod
+    def set_self_leveling(enable: bool) -> bytes:
+        """
+        Enable or disable self-leveling mode.
+        """
+        val = 1 if enable else 0
+        cmd = f"L1:{val}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def set_imu_target(pitch: float, roll: float) -> bytes:
+        """
+        Set target pitch and roll for self-leveling.
+        """
+        # We send two commands back to back
+        cmd = f"A1:{pitch:.2f}\nA2:{roll:.2f}\n"
+        return cmd.encode("ascii")

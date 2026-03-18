@@ -43,6 +43,10 @@ struct SystemTelemetry {
 SystemState current_state = INIT;
 SystemTelemetry telemetry;
 
+// Self Leveling Targets
+float target_pitch = 0.0f;
+float target_roll = 0.0f;
+
 // Hardware Objects
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
 IMU_Class IMU = IMU_Class(bno);
@@ -176,6 +180,88 @@ void sendTelemetry() {
   Serial.println(IMU.az, 3);
 }
 
+// --- Self Leveling Kinematics ---
+// Ported from legacy Base_old_self_leveling.ino
+void runSelfLeveling(float dt) {
+  // Set all actively controlled motors to POSITION_CONTROL mode
+  rc.setMode(Motor::POSITION_CONTROL);
+  ml.setMode(Motor::POSITION_CONTROL);
+  mr.setMode(Motor::POSITION_CONTROL);
+  ml_carriage.setMode(Motor::POSITION_CONTROL);
+  mr_carriage.setMode(Motor::POSITION_CONTROL);
+  fc.setMode(Motor::POSITION_CONTROL);
+
+  // Read current IMU angles
+  float current_pitch = IMU.pitchf; // Degrees
+  float current_roll = IMU.rollf;   // Degrees
+
+  // Calculate error against targets (in radians)
+  float dpitchrd = 1.0f * ((target_pitch - current_pitch) / DG);
+  float drollrd  = 1.0f * ((target_roll - current_roll) / DG);
+
+  // Deadband to prevent jitter
+  if (fabs(dpitchrd) < 0.001) dpitchrd = 0.0;
+  if (fabs(drollrd) < 0.001) drollrd = 0.0;
+
+  // Build rotation matrix (combining pitch and roll)
+  double rotm[4][4] = {0};
+  rotm[0][0] = cos(dpitchrd);
+  rotm[0][1] = 0.0;
+  rotm[0][2] = sin(dpitchrd);
+  rotm[0][3] = 0.0;
+  
+  rotm[1][0] = sin(drollrd) * sin(dpitchrd);
+  rotm[1][1] = cos(drollrd);
+  rotm[1][2] = -1 * sin(drollrd) * cos(dpitchrd);
+  rotm[1][3] = 0.0;
+  
+  rotm[2][0] = -1 * cos(drollrd) * sin(dpitchrd);
+  rotm[2][1] = sin(drollrd);
+  rotm[2][2] = cos(drollrd) * cos(dpitchrd);
+  rotm[2][3] = 9.5; // Baseline Z height (cm)
+  
+  rotm[3][0] = 0.0;
+  rotm[3][1] = 0.0;
+  rotm[3][2] = 0.0;
+  rotm[3][3] = 1.0;
+
+  // Chassis geometry matrix (mebot)
+  // Columns: ML, RC_L, RC_R, MR
+  double mebot[4][4] = {
+      {-34, 34, 34, -34}, // X 
+      {-31, -11, 11, 31}, // Y
+      {0, 0, 0, 0},       // Z
+      {1, 1, 1, 1}        // Homogeneous
+  };
+
+  // Multiply rotm * mebot to get new coordinates
+  double newmebot[4][4] = {0};
+  for (int row = 0; row < 4; row++) {
+      for (int col = 0; col < 4; col++) {
+          for (int inner = 0; inner < 4; inner++) {
+              newmebot[row][col] += rotm[row][inner] * mebot[inner][col];
+          }
+      }
+  }
+
+  // Extract Z-heights for each actuator (row 2)
+  float z_target_ml = newmebot[2][0];
+  float z_target_rc = (newmebot[2][1] + newmebot[2][2]) / 2.0; // Average left/right caster height
+  float z_target_mr = newmebot[2][3];
+
+  // Dispatch targets in ticks
+  ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
+  mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
+  rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
+  
+  // Hold carriages steady
+  ml_carriage.setTargetPosition(0.1f * CARRIAGE_CM_TO_TICKS);
+  mr_carriage.setTargetPosition(0.1f * CARRIAGE_CM_TO_TICKS);
+  
+  // FC is hardcoded to top of range
+  fc.setTargetPosition(FC_MAX_TICKS);
+}
+
 void setup() {
   Serial.begin(460800);  // jetson
   Serial3.begin(460800); // roboclaw 1
@@ -258,6 +344,20 @@ void loop() {
     parser.feedWatchdog();
     if (DEBUG_MODE)
       Serial.println("DEBUG: ESTOP Cleared, entering IDLE");
+  } else if (cmd.type == CMD_LEVEL_MODE) {
+    if (cmd.value > 0.5) {
+      current_state = SELF_LEVELING;
+      if (DEBUG_MODE) Serial.println("DEBUG: Entering SELF_LEVELING mode");
+    } else {
+      current_state = IDLE; // Fall back to IDLE so next cmd kicks to TUNER_MODE
+      if (DEBUG_MODE) Serial.println("DEBUG: Exiting SELF_LEVELING mode");
+    }
+  } else if (cmd.type == CMD_LEVEL_PITCH) {
+    target_pitch = cmd.value;
+    if (DEBUG_MODE) Serial.print("DEBUG: Set target pitch: "); Serial.println(target_pitch);
+  } else if (cmd.type == CMD_LEVEL_ROLL) {
+    target_roll = cmd.value;
+    if (DEBUG_MODE) Serial.print("DEBUG: Set target roll: "); Serial.println(target_roll);
   } else if (cmd.type != CMD_NONE && current_state == IDLE) {
     current_state = TUNER_MODE;
     if (DEBUG_MODE)
@@ -409,6 +509,8 @@ void loop() {
     mr.disable();
     ml_carriage.disable();
     mr_carriage.disable();
+  } else if (current_state == SELF_LEVELING) {
+    runSelfLeveling(dt);
   }
 
   float rc_pwm = rc.update(dt);

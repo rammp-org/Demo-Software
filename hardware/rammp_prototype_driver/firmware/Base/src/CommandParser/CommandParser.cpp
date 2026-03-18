@@ -58,6 +58,12 @@ RobotCommand CommandParser::parse(Stream& serial) {
                         case 'i': cmd.type = CMD_VEL_I; break;
                         case 'd': cmd.type = CMD_VEL_D; break;
                         case 'f': cmd.type = CMD_VEL_FF; break;
+                        case 'L': cmd.type = CMD_LEVEL_MODE; break;
+                        case 'A': 
+                            if (cmd.actuator_id == 1) cmd.type = CMD_LEVEL_PITCH;
+                            else if (cmd.actuator_id == 2) cmd.type = CMD_LEVEL_ROLL;
+                            else cmd.type = CMD_UNKNOWN;
+                            break;
                         default: cmd.type = CMD_UNKNOWN; break;
                     }
                 } else {

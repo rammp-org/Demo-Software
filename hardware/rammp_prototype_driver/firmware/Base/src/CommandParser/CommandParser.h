@@ -19,6 +19,9 @@ enum CommandType {
     CMD_DIR,     // e.g. V<id> (Toggle motor direction - V for inVert)
     CMD_Z,       // e.g. z (ESTOP)
     CMD_C,       // e.g. c (Clear ESTOP)
+    CMD_LEVEL_MODE, // e.g. L1:1 (On), L1:0 (Off)
+    CMD_LEVEL_PITCH, // e.g. A1:<pitch>
+    CMD_LEVEL_ROLL,  // e.g. A2:<roll>
     CMD_UNKNOWN,
     CMD_NONE
 };

@@ -269,8 +269,20 @@ class PlotWidget(QWidget):
         self._pitch_curve = self._imu_plot.plot(
             pen=pg.mkPen(color=THEME.red, width=2), name="Pitch"
         )
+        self._pitch_target_curve = self._imu_plot.plot(
+            pen=pg.mkPen(
+                color=THEME.red, width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+            ),
+            name="T.Pitch",
+        )
         self._roll_curve = self._imu_plot.plot(
             pen=pg.mkPen(color=THEME.green, width=2), name="Roll"
+        )
+        self._roll_target_curve = self._imu_plot.plot(
+            pen=pg.mkPen(
+                color=THEME.green, width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+            ),
+            name="T.Roll",
         )
         self._yaw_curve = self._imu_plot.plot(
             pen=pg.mkPen(color=THEME.blue, width=2), name="Yaw"
@@ -345,6 +357,8 @@ class PlotWidget(QWidget):
         self._linked_target_curve.setData([], [])
         self._linked_vel_target_curve.setData([], [])
         self._linked_pwm_target_curve.setData([], [])
+        self._pitch_target_curve.setData([], [])
+        self._roll_target_curve.setData([], [])
 
         # Update position plot
         if self._show_position:
@@ -422,6 +436,24 @@ class PlotWidget(QWidget):
                 self._pitch_curve.setData(imu_timestamps[imu_mask], pitch[imu_mask])
                 self._roll_curve.setData(imu_timestamps[imu_mask], roll[imu_mask])
                 self._yaw_curve.setData(imu_timestamps[imu_mask], yaw[imu_mask])
+
+                # Plot IMU targets if in self leveling mode (state == 4)
+                if self._data_store.current_state == 4:
+                    target_pitch = np.full(
+                        len(imu_timestamps[imu_mask]), self._data_store.imu_target_pitch
+                    )
+                    target_roll = np.full(
+                        len(imu_timestamps[imu_mask]), self._data_store.imu_target_roll
+                    )
+                    self._pitch_target_curve.setData(
+                        imu_timestamps[imu_mask], target_pitch
+                    )
+                    self._roll_target_curve.setData(
+                        imu_timestamps[imu_mask], target_roll
+                    )
+                else:
+                    self._pitch_target_curve.setData([], [])
+                    self._roll_target_curve.setData([], [])
 
         # Update x-axis range to show rolling window (on lowest visible plot)
         if self._show_imu:

@@ -137,6 +137,9 @@ class ControlPanel(QWidget):
         # Sine wave inputs
         layout.addWidget(self._create_sine_group())
 
+        # Self Leveling inputs
+        layout.addWidget(self._create_self_leveling_group())
+
         # IMU Display
         self._imu_display = IMUDisplay(self._data_store)
         layout.addWidget(self._imu_display)
@@ -640,6 +643,73 @@ class ControlPanel(QWidget):
         layout.addWidget(self._sine_status_label)
 
         return group
+
+    def _create_self_leveling_group(self) -> QGroupBox:
+        """Create the self-leveling group."""
+        group = QGroupBox("Self Leveling")
+        layout = QVBoxLayout(group)
+        layout.setSpacing(SIZES["spacing_medium"])
+
+        # Parameter grid
+        params_layout = QGridLayout()
+        params_layout.setSpacing(SIZES["spacing_small"])
+
+        params_layout.addWidget(QLabel("Target Pitch:"), 0, 0)
+        self._target_pitch_input = QLineEdit("0.0")
+        self._target_pitch_input.setValidator(QDoubleValidator())
+        self._target_pitch_input.setMinimumWidth(SIZES["input_min_width"])
+        self._target_pitch_input.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        params_layout.addWidget(self._target_pitch_input, 0, 1)
+        params_layout.addWidget(QLabel("deg"), 0, 2)
+
+        params_layout.addWidget(QLabel("Target Roll:"), 1, 0)
+        self._target_roll_input = QLineEdit("0.0")
+        self._target_roll_input.setValidator(QDoubleValidator())
+        self._target_roll_input.setMinimumWidth(SIZES["input_min_width"])
+        self._target_roll_input.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        params_layout.addWidget(self._target_roll_input, 1, 1)
+        params_layout.addWidget(QLabel("deg"), 1, 2)
+
+        layout.addLayout(params_layout)
+
+        # Start/Stop Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(SIZES["spacing_small"])
+
+        self._start_leveling_btn = QPushButton("Start Leveling")
+        self._start_leveling_btn.setStyleSheet(
+            f"background-color: {THEME.teal}; color: {THEME.crust};"
+        )
+        self._start_leveling_btn.clicked.connect(self._on_start_leveling)
+        btn_layout.addWidget(self._start_leveling_btn)
+
+        self._stop_leveling_btn = QPushButton("Stop Leveling")
+        self._stop_leveling_btn.clicked.connect(self._on_stop_leveling)
+        btn_layout.addWidget(self._stop_leveling_btn)
+
+        layout.addLayout(btn_layout)
+
+        return group
+
+    def _on_start_leveling(self):
+        """Enable self leveling mode."""
+        pitch = self._get_float_from_lineedit(self._target_pitch_input, 0.0)
+        roll = self._get_float_from_lineedit(self._target_roll_input, 0.0)
+
+        # Save targets to data store so plot can read them
+        self._data_store.imu_target_pitch = pitch
+        self._data_store.imu_target_roll = roll
+
+        self._serial_handler.set_imu_target(pitch, roll)
+        self._serial_handler.set_self_leveling(True)
+
+    def _on_stop_leveling(self):
+        """Disable self leveling mode."""
+        self._serial_handler.set_self_leveling(False)
 
     def _update_status(self):
         """Update the status display with current values."""

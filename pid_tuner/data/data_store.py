@@ -352,6 +352,9 @@ class DataStore(QObject):
         self._imu_ay: float = 0.0
         self._imu_az: float = 0.0
 
+        self._imu_target_pitch: float = 0.0
+        self._imu_target_roll: float = 0.0
+
         # Motor directions (6 motors)
         self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1]
 
@@ -483,6 +486,26 @@ class DataStore(QObject):
     def imu_az(self) -> float:
         """Get IMU Z acceleration."""
         return self._imu_az
+
+    @property
+    def imu_target_pitch(self) -> float:
+        """Get IMU target pitch angle."""
+        return self._imu_target_pitch
+
+    @imu_target_pitch.setter
+    def imu_target_pitch(self, pitch: float):
+        self._imu_target_pitch = pitch
+        self.imu_updated.emit()
+
+    @property
+    def imu_target_roll(self) -> float:
+        """Get IMU target roll angle."""
+        return self._imu_target_roll
+
+    @imu_target_roll.setter
+    def imu_target_roll(self, roll: float):
+        self._imu_target_roll = roll
+        self.imu_updated.emit()
 
     @property
     def motor_directions(self) -> List[int]:

@@ -173,6 +173,15 @@ def create_tree():
         name="navigation sequence", memory=True
     )
     navigation_sequence.add_children([navigation()])
+    # navigation_sequence.add_children(
+    #     [
+    #         requestNavigation(),
+    #         waitCurbDetected(),
+    #         waitUserConfirm(),
+    #         traverse(),
+    #         waitFinish(),
+    #     ]
+    # )
 
     arm_movement_sequence = py_trees.composites.Sequence(
         name="arm movement sequence", memory=True

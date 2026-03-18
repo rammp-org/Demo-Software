@@ -5,16 +5,17 @@ import rclpy
 import rclpy.action
 import rclpy.node
 from arm_interfaces.action import ExecuteTrajectory, ReachPreset
-from arm_interfaces.srv import SetMode
+from arm_interfaces.srv import GetSpeedPreset, SetMode, SetSpeedPreset
 from diagnostic_msgs.msg import DiagnosticStatus
-from geometry_msgs.msg import PoseStamped, Twist
+from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool, String
+from std_srvs.srv import Trigger
 
-from arm_driver.arm_interface import KinovaArm
+from arm_driver.arm_interface import KinovaArm, SpeedPreset
 
 FEEDBACK_RATE = 0.1  # seconds between feedback publishes during action execution
 
@@ -89,9 +90,11 @@ class ArmDriverNode(rclpy.node.Node):
         self._latest_twist: Twist | None = None
         self._latest_twist_time: float = 0.0
 
-        # ReentrantCallbackGroup allows action callbacks to run concurrently with
-        # the rest of the node (timers, subscribers) on the MultiThreadedExecutor.
+        # ReentrantCallbackGroup allows action/service callbacks to run concurrently
+        # with the rest of the node (timers, subscribers) on the MultiThreadedExecutor,
+        # so that blocking service/action handlers don't starve the joint_states timer.
         self._action_group = ReentrantCallbackGroup()
+        self._service_group = ReentrantCallbackGroup()
 
         self._init_publishers()
         self._init_subscribers()
@@ -111,6 +114,7 @@ class ArmDriverNode(rclpy.node.Node):
         )
         self._imu_pub = self.create_publisher(Imu, "/arm/imu", 10)
         self._status_pub = self.create_publisher(DiagnosticStatus, "/arm/status", 10)
+        self._ee_force_pub = self.create_publisher(Vector3Stamped, "/arm/ee_force", 10)
         self._robot_description_pub = self.create_publisher(
             String, "/robot_description", 10
         )
@@ -157,7 +161,34 @@ class ArmDriverNode(rclpy.node.Node):
     def _init_services(self):
         """Create all ROS service servers."""
         self._set_mode_srv = self.create_service(
-            SetMode, "/arm/set_mode", self._on_set_mode
+            SetMode,
+            "/arm/set_mode",
+            self._on_set_mode,
+            callback_group=self._service_group,
+        )
+        self._set_speed_preset_srv = self.create_service(
+            SetSpeedPreset,
+            "/arm/set_speed_preset",
+            self._on_set_speed_preset,
+            callback_group=self._service_group,
+        )
+        self._get_speed_preset_srv = self.create_service(
+            GetSpeedPreset,
+            "/arm/get_speed_preset",
+            self._on_get_speed_preset,
+            callback_group=self._service_group,
+        )
+        self._open_gripper_srv = self.create_service(
+            Trigger,
+            "/arm/open_gripper",
+            self._on_open_gripper,
+            callback_group=self._service_group,
+        )
+        self._close_gripper_srv = self.create_service(
+            Trigger,
+            "/arm/close_gripper",
+            self._on_close_gripper,
+            callback_group=self._service_group,
         )
 
     def _init_actions(self):
@@ -359,6 +390,122 @@ class ArmDriverNode(rclpy.node.Node):
         response.success = True
         return response
 
+    def _on_set_speed_preset(self, request, response):
+        """Handle a /arm/set_speed_preset service request.
+
+        Args:
+            request: Service request containing ``request.preset`` (uint8).
+            response: Service response with ``response.success`` (bool).
+
+        Returns:
+            The populated service response.
+        """
+        try:
+            preset = SpeedPreset(request.preset)
+        except ValueError:
+            response.success = False
+            response.message = f"Unknown preset '{request.preset}'"
+            return response
+
+        if preset in (SpeedPreset.DEFAULT, SpeedPreset.MAX):
+            response.success = False
+            response.message = (
+                "Cannot set DEFAULT or MAX preset directly. Choose LOW, MEDIUM, HIGH."
+            )
+            return response
+
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected"
+            return response
+
+        self._arm.choose_from_speed_presets(preset)
+        self.get_logger().info(f"Speed preset set to '{preset.name}'.")
+        response.success = True
+        response.message = f"Speed preset set to '{preset.name}'"
+        return response
+
+    def _on_get_speed_preset(self, request, response):
+        """Handle a /arm/get_speed_preset service request.
+
+        Args:
+            request: Empty request.
+            response: Service response with ``response.preset`` (uint8).
+
+        Returns:
+            The populated service response.
+        """
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected"
+            return response
+
+        response.success = True
+        response.preset = int(self._arm.get_speed_preset())
+        return response
+
+    def _on_open_gripper(self, request, response):
+        """Handle a /arm/open_gripper service request.
+
+        Args:
+            request: Empty Trigger request.
+            response: Service response with ``response.success`` (bool).
+
+        Returns:
+            The populated service response.
+        """
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected"
+            return response
+
+        if self._state in (ArmState.IDLE, ArmState.ERROR):
+            response.success = False
+            response.message = (
+                f"Gripper commands not allowed in state {self._state.name}"
+            )
+            return response
+
+        try:
+            self._arm.open_gripper()
+            response.success = True
+            response.message = "Gripper opened"
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
+        return response
+
+    def _on_close_gripper(self, request, response):
+        """Handle a /arm/close_gripper service request.
+
+        Args:
+            request: Empty Trigger request.
+            response: Service response with ``response.success`` (bool).
+
+        Returns:
+            The populated service response.
+        """
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected"
+            return response
+
+        if self._state in (ArmState.IDLE, ArmState.ERROR):
+            response.success = False
+            response.message = (
+                f"Gripper commands not allowed in state {self._state.name}"
+            )
+            return response
+
+        try:
+            self._arm.close_gripper()
+            response.success = True
+            response.message = "Gripper closed"
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
+        return response
+
     # -------------------------------------------------------------------------
     # Action handlers
     # -------------------------------------------------------------------------
@@ -501,15 +648,27 @@ class ArmDriverNode(rclpy.node.Node):
     # -------------------------------------------------------------------------
 
     def _publish_joint_states(self):
-        """Publish current joint states at 100 Hz."""
-        msg = JointState()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        """Publish current joint states and end-effector force at 100 Hz."""
+        stamp = self.get_clock().now().to_msg()
+
+        joint_msg = JointState()
+        joint_msg.header.stamp = stamp
+        force_msg = Vector3Stamped()
+        force_msg.header.stamp = stamp
+
         if self._arm:
             state = self._arm.get_state()
-            msg.position = state["position"].tolist()
-            msg.velocity = state["velocity"].tolist()
-            msg.effort = state["effort"].tolist()
-        self._joint_state_pub.publish(msg)
+            joint_msg.position = state["position"].tolist() + [state["gripper_pos"]]
+            joint_msg.velocity = state["velocity"].tolist() + [0.0]
+            joint_msg.effort = state["effort"].tolist() + [0.0]
+
+            force = self._arm.get_ee_force()
+            force_msg.vector.x = force[0]
+            force_msg.vector.y = force[1]
+            force_msg.vector.z = force[2]
+
+        self._joint_state_pub.publish(joint_msg)
+        self._ee_force_pub.publish(force_msg)
 
     def _publish_status(self):
         """Publish the node's diagnostic status at 1 Hz."""

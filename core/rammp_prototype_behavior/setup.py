@@ -22,6 +22,8 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "system_control = rammp_prototype_behavior.SystemControl:main",
+        ],
     },
 )

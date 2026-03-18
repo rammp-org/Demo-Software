@@ -36,13 +36,13 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, Optional
 
-from ramms_tools.streaming.protocol import (
+from .protocol import (
     Compression,
     MessageType,
     StreamHeader,
     StreamMessage,
 )
-from ramms_tools.streaming.compression import decompress_payload
+from .compression import decompress_payload
 
 logger = logging.getLogger(__name__)
 

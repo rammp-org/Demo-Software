@@ -11,7 +11,7 @@ import logging
 import struct
 from typing import Optional
 
-from ramms_tools.streaming.protocol import Compression
+from .protocol import Compression
 
 logger = logging.getLogger(__name__)
 

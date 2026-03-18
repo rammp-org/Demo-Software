@@ -5,16 +5,16 @@ sending data to UE, plus the low-level protocol module for
 message framing and compression utilities.
 """
 
-from ramms_tools.streaming.protocol import (
+from .protocol import (
     HEADER_SIZE,
     MessageType,
     Compression,
     StreamHeader,
     StreamMessage,
 )
-from ramms_tools.streaming.client import StreamClient, ChannelStats
-from ramms_tools.streaming.sender import StreamSender
-from ramms_tools.streaming.compression import (
+from .client import StreamClient, ChannelStats
+from .sender import StreamSender
+from .compression import (
     has_jpeg,
     has_lz4,
     decompress_payload,

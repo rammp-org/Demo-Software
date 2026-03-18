@@ -18,11 +18,14 @@ class GuiMonitor(Node):
     def __init__(self, shm_size=1024 * 1024):
         super().__init__("GuiMonitor")
         GuiMonitor.instance = self
+        self.host = (
+            "192.168.1.21"  # TODO: make it configurable or load from config file
+        )
         print("GuiMonitor node has been started.")
 
-        self.ue = UnrealRemoteWebsocket(host="192.168.12.10", preset="RCPS")
-        self.stream_sender = StreamSender(host="192.168.12.10", port=30030)
-        self.stream_sender.connect()
+        self.ue = UnrealRemoteWebsocket(host=self.host, preset="RCPS")
+        self.stream_sender = StreamSender(host=self.host, port=30030)
+        self.stream_timer = self.create_timer(0.1, self.send_stream_data)
 
         # Create shared memory and map it
         self.shm = posix_ipc.SharedMemory(
@@ -36,8 +39,6 @@ class GuiMonitor(Node):
 
         # make publisher for user connected or not, message should be boolen
         self.connection_publisher = self.create_publisher(Bool, "user_connection", 1)
-        self.ethernet_gui_connected = False
-        self.wifi_gui_connected = False
         self.connection_publisher_timer = self.create_timer(
             1.0, self.publish_connection_status
         )
@@ -56,6 +57,19 @@ class GuiMonitor(Node):
             JointState, "/arm/joint_states", self.joint_state_callback, 10
         )
         self.arm_joints = [10.0] * 7  # Initialize with 7 joints
+
+    def send_stream_data(self):
+        # check UE connection and connect/disconnect StreamSender accordingly
+        if self.ue.is_connected() and not self.stream_sender.is_connected():
+            try:
+                self.stream_sender.connect()
+            except Exception as e:
+                self.get_logger().error(f"Failed to connect StreamSender: {e}")
+        elif not self.ue.is_connected() and self.stream_sender.is_connected():
+            self.stream_sender.disconnect()
+
+        # if self.stream_sender.is_connected():
+        #     print ("StreamSender is connected, sending stream data...")
 
     def joint_state_callback(self, msg):
         self.arm_joints = msg.position

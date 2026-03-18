@@ -37,7 +37,7 @@ import time
 from pathlib import Path
 from typing import Optional, Union
 
-from ramms_tools.streaming.protocol import (
+from .protocol import (
     Compression,
     MessageType,
     StreamHeader,
@@ -68,6 +68,9 @@ class StreamSender:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2 * 1024 * 1024)
         self._sock = sock
         logger.info("StreamSender connected to %s:%d", self.host, self.port)
+
+    def is_connected(self) -> bool:
+        return self._sock is not None
 
     def disconnect(self) -> None:
         if self._sock:

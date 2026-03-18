@@ -434,6 +434,13 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = "Arm not connected"
             return response
 
+        if self._state in (ArmState.IDLE, ArmState.ERROR):
+            response.success = False
+            response.message = (
+                f"Gripper commands not allowed in state {self._state.name}"
+            )
+            return response
+
         try:
             self._arm.open_gripper()
             response.success = True
@@ -456,6 +463,13 @@ class ArmDriverNode(rclpy.node.Node):
         if not self._arm:
             response.success = False
             response.message = "Arm not connected"
+            return response
+
+        if self._state in (ArmState.IDLE, ArmState.ERROR):
+            response.success = False
+            response.message = (
+                f"Gripper commands not allowed in state {self._state.name}"
+            )
             return response
 
         try:

@@ -5,7 +5,7 @@ import rclpy
 import rclpy.action
 import rclpy.node
 from arm_interfaces.action import ExecuteTrajectory, ReachPreset
-from arm_interfaces.srv import SetMode
+from arm_interfaces.srv import SetMode, SetSpeedPreset
 from diagnostic_msgs.msg import DiagnosticStatus
 from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped
 from rclpy.action import ActionServer
@@ -159,6 +159,9 @@ class ArmDriverNode(rclpy.node.Node):
         """Create all ROS service servers."""
         self._set_mode_srv = self.create_service(
             SetMode, "/arm/set_mode", self._on_set_mode
+        )
+        self._set_speed_preset_srv = self.create_service(
+            SetSpeedPreset, "/arm/set_speed_preset", self._on_set_speed_preset
         )
 
     def _init_actions(self):
@@ -358,6 +361,39 @@ class ArmDriverNode(rclpy.node.Node):
 
         self._transition_to(new_state)
         response.success = True
+        return response
+
+    def _on_set_speed_preset(self, request, response):
+        """Handle a /arm/set_speed_preset service request.
+
+        Args:
+            request: Service request containing ``request.preset`` (string: "low", "medium", "high").
+            response: Service response with ``response.success`` (bool).
+
+        Returns:
+            The populated service response.
+        """
+        valid_presets = [
+            SetSpeedPreset.Request.PRESET_LOW,
+            SetSpeedPreset.Request.PRESET_MEDIUM,
+            SetSpeedPreset.Request.PRESET_HIGH,
+        ]
+        if request.preset not in valid_presets:
+            response.success = False
+            response.message = (
+                f"Unknown preset '{request.preset}'. Valid options: {valid_presets}"
+            )
+            return response
+
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected"
+            return response
+
+        self._arm.choose_from_speed_presets(request.preset)
+        self.get_logger().info(f"Speed preset set to '{request.preset}'.")
+        response.success = True
+        response.message = f"Speed preset set to '{request.preset}'"
         return response
 
     # -------------------------------------------------------------------------

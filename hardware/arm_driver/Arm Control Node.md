@@ -41,6 +41,7 @@ ______________________________________________________________________
 | Topic                | Type                                   | Rate   |
 | -------------------- | -------------------------------------- | ------ |
 | `/arm/joint_states`  | `sensor_msgs/msg/JointState`           | 100 Hz |
+| `/arm/ee_force`      | `geometry_msgs/msg/Vector3Stamped`     | 100 Hz |
 | `/arm/imu`           | `sensor_msgs/msg/Imu`                  | —      |
 | `/arm/status`        | `diagnostic_msgs/msg/DiagnosticStatus` | 1 Hz   |
 | `/robot_description` | `std_msgs/msg/String`                  | —      |
@@ -59,9 +60,10 @@ ______________________________________________________________________
 
 ## Service Servers
 
-| Topic           | Type                         |
-| --------------- | ---------------------------- |
-| `/arm/set_mode` | `arm_interfaces/srv/SetMode` |
+| Topic                   | Type                                |
+| ----------------------- | ----------------------------------- |
+| `/arm/set_mode`         | `arm_interfaces/srv/SetMode`        |
+| `/arm/set_speed_preset` | `arm_interfaces/srv/SetSpeedPreset` |
 
 ## Action Servers
 

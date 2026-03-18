@@ -603,9 +603,9 @@ class ArmDriverNode(rclpy.node.Node):
 
         if self._arm:
             state = self._arm.get_state()
-            joint_msg.position = state["position"].tolist()
-            joint_msg.velocity = state["velocity"].tolist()
-            joint_msg.effort = state["effort"].tolist()
+            joint_msg.position = state["position"].tolist() + [state["gripper_pos"]]
+            joint_msg.velocity = state["velocity"].tolist() + [0.0]
+            joint_msg.effort = state["effort"].tolist() + [0.0]
 
             force = self._arm.get_ee_force()
             force_msg.vector.x = force[0]

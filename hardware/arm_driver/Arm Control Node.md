@@ -38,13 +38,13 @@ ______________________________________________________________________
 
 ## Publishers
 
-| Topic                | Type                                   | Rate   |
-| -------------------- | -------------------------------------- | ------ |
-| `/arm/joint_states`  | `sensor_msgs/msg/JointState`           | 100 Hz |
-| `/arm/ee_force`      | `geometry_msgs/msg/Vector3Stamped`     | 100 Hz |
-| `/arm/imu`           | `sensor_msgs/msg/Imu`                  | —      |
-| `/arm/status`        | `diagnostic_msgs/msg/DiagnosticStatus` | 1 Hz   |
-| `/robot_description` | `std_msgs/msg/String`                  | —      |
+| Topic                | Type                                   | Rate   | Notes                                                                                                |
+| -------------------- | -------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------- |
+| `/arm/joint_states`  | `sensor_msgs/msg/JointState`           | 100 Hz | Gripper position appended as last element (normalized 0–1); gripper velocity and effort are always 0 |
+| `/arm/ee_force`      | `geometry_msgs/msg/Vector3Stamped`     | 100 Hz |                                                                                                      |
+| `/arm/imu`           | `sensor_msgs/msg/Imu`                  | —      |                                                                                                      |
+| `/arm/status`        | `diagnostic_msgs/msg/DiagnosticStatus` | 1 Hz   |                                                                                                      |
+| `/robot_description` | `std_msgs/msg/String`                  | —      |                                                                                                      |
 
 ## Subscribers
 

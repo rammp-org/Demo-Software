@@ -184,6 +184,7 @@ class KinovaArm:
 
         # Tracks speed presets
         self.speed_preset = "medium"
+        self.set_speed_preset(self.speed_preset)
 
         # Action topic notifications
         self.end_or_abort_event = threading.Event()
@@ -507,7 +508,6 @@ class KinovaArm:
         acceleration_limits=(80, 80, 80, 80, 80, 80, 80),
         cartesian=False,
     ):
-        self.speed_preset = "custom"
         if cartesian:
             joint_speed_soft_limits = ControlConfig_pb2.JointSpeedSoftLimits()
             joint_speed_soft_limits.control_mode = (
@@ -534,7 +534,8 @@ class KinovaArm:
             )
 
     def choose_from_speed_presets(self, speed_preset):
-        assert speed_preset in ["low", "medium", "high"], "Invalid speed preset"
+        if speed_preset not in ["low", "medium", "high"]:
+            raise ValueError("Invalid speed preset")
 
         self.speed_preset = speed_preset
         if speed_preset == "low":
@@ -546,6 +547,7 @@ class KinovaArm:
         else:
             speed_limits = [50, 50, 50, 50, 50, 50, 50]
             acceleration_limits = [100, 100, 100, 100, 100, 100, 100]
+
         self.set_joint_limits(speed_limits, acceleration_limits)
 
     def get_speed_preset(self):

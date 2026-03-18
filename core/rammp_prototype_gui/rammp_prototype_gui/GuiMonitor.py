@@ -75,9 +75,15 @@ class GuiMonitor(Node):
 
     def set_ui_joints(self):
         arr = [0.0] * 53
-        index = 46  # index for link 0
+        arm_joint_index_offset = 46  # index for link 0
         for i in range(7):
-            arr[index + i] = self.arm_joints[i]
+            arr[arm_joint_index_offset + i] = (
+                self.arm_joints[i] * 180.0 / 3.14159
+            )  # Convert radians to degrees
+        arr[arm_joint_index_offset + 0] = -arr[arm_joint_index_offset + 0]
+        arr[arm_joint_index_offset + 4] = -arr[arm_joint_index_offset + 4]
+        arr[arm_joint_index_offset + 5] = -arr[arm_joint_index_offset + 5]
+        arr[arm_joint_index_offset + 6] = -arr[arm_joint_index_offset + 6]
         self.ue.call_function("setJoints", {"Values": arr})
 
     def publish_connection_status(self):

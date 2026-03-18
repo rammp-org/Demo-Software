@@ -90,9 +90,11 @@ class ArmDriverNode(rclpy.node.Node):
         self._latest_twist: Twist | None = None
         self._latest_twist_time: float = 0.0
 
-        # ReentrantCallbackGroup allows action callbacks to run concurrently with
-        # the rest of the node (timers, subscribers) on the MultiThreadedExecutor.
+        # ReentrantCallbackGroup allows action/service callbacks to run concurrently
+        # with the rest of the node (timers, subscribers) on the MultiThreadedExecutor,
+        # so that blocking service/action handlers don't starve the joint_states timer.
         self._action_group = ReentrantCallbackGroup()
+        self._service_group = ReentrantCallbackGroup()
 
         self._init_publishers()
         self._init_subscribers()
@@ -159,19 +161,34 @@ class ArmDriverNode(rclpy.node.Node):
     def _init_services(self):
         """Create all ROS service servers."""
         self._set_mode_srv = self.create_service(
-            SetMode, "/arm/set_mode", self._on_set_mode
+            SetMode,
+            "/arm/set_mode",
+            self._on_set_mode,
+            callback_group=self._service_group,
         )
         self._set_speed_preset_srv = self.create_service(
-            SetSpeedPreset, "/arm/set_speed_preset", self._on_set_speed_preset
+            SetSpeedPreset,
+            "/arm/set_speed_preset",
+            self._on_set_speed_preset,
+            callback_group=self._service_group,
         )
         self._get_speed_preset_srv = self.create_service(
-            GetSpeedPreset, "/arm/get_speed_preset", self._on_get_speed_preset
+            GetSpeedPreset,
+            "/arm/get_speed_preset",
+            self._on_get_speed_preset,
+            callback_group=self._service_group,
         )
         self._open_gripper_srv = self.create_service(
-            Trigger, "/arm/open_gripper", self._on_open_gripper
+            Trigger,
+            "/arm/open_gripper",
+            self._on_open_gripper,
+            callback_group=self._service_group,
         )
         self._close_gripper_srv = self.create_service(
-            Trigger, "/arm/close_gripper", self._on_close_gripper
+            Trigger,
+            "/arm/close_gripper",
+            self._on_close_gripper,
+            callback_group=self._service_group,
         )
 
     def _init_actions(self):

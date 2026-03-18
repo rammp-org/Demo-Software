@@ -2,4 +2,6 @@
 # No request fields.
 ---
 # Response message
-string preset
+bool success
+uint8 preset
+string message

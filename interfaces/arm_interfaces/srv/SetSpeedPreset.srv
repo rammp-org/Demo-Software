@@ -1,12 +1,12 @@
 # Service definition for setting the arm speed preset at runtime.
 
-# Valid presets
-string PRESET_LOW    = "low"
-string PRESET_MEDIUM = "medium"
-string PRESET_HIGH   = "high"
+uint8 PRESET_LOW    = 0
+uint8 PRESET_MEDIUM = 1
+uint8 PRESET_HIGH   = 2
+uint8 PRESET_MAX    = 3
 
 # Request message
-string preset
+uint8 preset
 ---
 # Response message
 bool success

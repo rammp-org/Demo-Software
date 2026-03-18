@@ -3,6 +3,7 @@
 # Python 3.10 removed these aliases from collections; kortex_api 2.6.0 still references them
 import collections
 import collections.abc
+import enum
 import math
 import os
 import subprocess
@@ -47,6 +48,14 @@ try:
     from kortex_api.UDPTransport import UDPTransport
 except ModuleNotFoundError:
     pass
+
+
+class SpeedPreset(enum.IntEnum):
+    DEFAULT = -1  # sentinel for hardware defaults (no soft limits applied)
+    LOW = 0
+    MEDIUM = 1
+    HIGH = 2
+    MAX = 3
 
 
 class DeviceConnection:
@@ -183,7 +192,7 @@ class KinovaArm:
             )
 
         # Tracks speed presets
-        self.speed_preset = "medium"
+        self.speed_preset = SpeedPreset.MEDIUM
         self.choose_from_speed_presets(self.speed_preset)
 
         # Action topic notifications
@@ -533,20 +542,26 @@ class KinovaArm:
                 joint_acceleration_soft_limits
             )
 
-    def choose_from_speed_presets(self, speed_preset):
-        if speed_preset not in ["low", "medium", "high"]:
-            raise ValueError("Invalid speed preset")
+    def choose_from_speed_presets(self, speed_preset: SpeedPreset):
+        if (
+            not isinstance(speed_preset, SpeedPreset)
+            or speed_preset == SpeedPreset.DEFAULT
+        ):
+            raise ValueError("speed_preset must be SpeedPreset type and not DEFAULT")
 
         self.speed_preset = speed_preset
-        if speed_preset == "low":
+        if speed_preset == SpeedPreset.LOW:
             speed_limits = [12.5, 12.5, 12.5, 12.5, 12.5, 12.5, 12.5]
             acceleration_limits = [25, 25, 25, 25, 25, 25, 25]
-        elif speed_preset == "medium":
+        elif speed_preset == SpeedPreset.MEDIUM:
             speed_limits = [25, 25, 25, 25, 25, 25, 25]
             acceleration_limits = [50, 50, 50, 50, 50, 50, 50]
-        else:
+        elif speed_preset == SpeedPreset.HIGH:
             speed_limits = [50, 50, 50, 50, 50, 50, 50]
             acceleration_limits = [100, 100, 100, 100, 100, 100, 100]
+        elif speed_preset == SpeedPreset.MAX:
+            speed_limits = [100, 100, 100, 100, 100, 100, 100]
+            acceleration_limits = [200, 200, 200, 200, 200, 200, 200]
 
         self.set_joint_limits(speed_limits, acceleration_limits)
 
@@ -554,7 +569,7 @@ class KinovaArm:
         return self.speed_preset
 
     def set_max_joint_limits(self):
-        self.speed_preset = "max"
+        self.speed_preset = SpeedPreset.MAX
         speed_limits = self.control_config.GetKinematicHardLimits().joint_speed_limits
         acceleration_limits = (
             self.control_config.GetKinematicHardLimits().joint_acceleration_limits
@@ -578,7 +593,7 @@ class KinovaArm:
         return joint_limits
 
     def reset_joint_limits(self):
-        self.speed_preset = "default"
+        self.speed_preset = SpeedPreset.DEFAULT
         control_mode_information = ControlConfig_pb2.ControlModeInformation()
         for control_mode in [
             ControlConfig_pb2.ANGULAR_JOYSTICK,

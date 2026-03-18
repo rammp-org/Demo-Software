@@ -15,7 +15,7 @@ from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger
 
-from arm_driver.arm_interface import KinovaArm
+from arm_driver.arm_interface import KinovaArm, SpeedPreset
 
 FEEDBACK_RATE = 0.1  # seconds between feedback publishes during action execution
 
@@ -394,21 +394,23 @@ class ArmDriverNode(rclpy.node.Node):
         """Handle a /arm/set_speed_preset service request.
 
         Args:
-            request: Service request containing ``request.preset`` (string: "low", "medium", "high").
+            request: Service request containing ``request.preset`` (uint8).
             response: Service response with ``response.success`` (bool).
 
         Returns:
             The populated service response.
         """
-        valid_presets = [
-            SetSpeedPreset.Request.PRESET_LOW,
-            SetSpeedPreset.Request.PRESET_MEDIUM,
-            SetSpeedPreset.Request.PRESET_HIGH,
-        ]
-        if request.preset not in valid_presets:
+        try:
+            preset = SpeedPreset(request.preset)
+        except ValueError:
+            response.success = False
+            response.message = f"Unknown preset '{request.preset}'"
+            return response
+
+        if preset == SpeedPreset.DEFAULT:
             response.success = False
             response.message = (
-                f"Unknown preset '{request.preset}'. Valid options: {valid_presets}"
+                "Cannot set DEFAULT preset directly. Choose LOW, MEDIUM, HIGH, or MAX."
             )
             return response
 
@@ -417,10 +419,10 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = "Arm not connected"
             return response
 
-        self._arm.choose_from_speed_presets(request.preset)
-        self.get_logger().info(f"Speed preset set to '{request.preset}'.")
+        self._arm.choose_from_speed_presets(preset)
+        self.get_logger().info(f"Speed preset set to '{preset.name}'.")
         response.success = True
-        response.message = f"Speed preset set to '{request.preset}'"
+        response.message = f"Speed preset set to '{preset.name}'"
         return response
 
     def _on_get_speed_preset(self, request, response):
@@ -428,12 +430,18 @@ class ArmDriverNode(rclpy.node.Node):
 
         Args:
             request: Empty request.
-            response: Service response with ``response.preset`` (string).
+            response: Service response with ``response.preset`` (uint8).
 
         Returns:
             The populated service response.
         """
-        response.preset = self._arm.get_speed_preset() if self._arm else "unknown"
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected"
+            return response
+
+        response.success = True
+        response.preset = int(self._arm.get_speed_preset())
         return response
 
     def _on_open_gripper(self, request, response):

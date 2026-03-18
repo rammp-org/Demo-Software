@@ -3,5 +3,5 @@
 ---
 # Response message
 bool success
-uint8 preset
+int8 preset
 string message

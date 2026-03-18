@@ -407,10 +407,10 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = f"Unknown preset '{request.preset}'"
             return response
 
-        if preset == SpeedPreset.DEFAULT:
+        if preset in (SpeedPreset.DEFAULT, SpeedPreset.MAX):
             response.success = False
             response.message = (
-                "Cannot set DEFAULT preset directly. Choose LOW, MEDIUM, HIGH, or MAX."
+                "Cannot set DEFAULT or MAX preset directly. Choose LOW, MEDIUM, HIGH."
             )
             return response
 

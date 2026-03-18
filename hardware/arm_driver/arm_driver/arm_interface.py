@@ -55,7 +55,7 @@ class SpeedPreset(enum.IntEnum):
     LOW = 0
     MEDIUM = 1
     HIGH = 2
-    MAX = 3
+    MAX = 3  # sentinel for maximum possible limits (equal to hard limits)
 
 
 class DeviceConnection:
@@ -543,13 +543,14 @@ class KinovaArm:
             )
 
     def choose_from_speed_presets(self, speed_preset: SpeedPreset):
-        if (
-            not isinstance(speed_preset, SpeedPreset)
-            or speed_preset == SpeedPreset.DEFAULT
-        ):
-            raise ValueError("speed_preset must be SpeedPreset type and not DEFAULT")
+        if not isinstance(speed_preset, SpeedPreset) or speed_preset in [
+            SpeedPreset.DEFAULT,
+            SpeedPreset.MAX,
+        ]:
+            raise ValueError(
+                "speed_preset must be SpeedPreset type and not DEFAULT or MAX"
+            )
 
-        self.speed_preset = speed_preset
         if speed_preset == SpeedPreset.LOW:
             speed_limits = [12.5, 12.5, 12.5, 12.5, 12.5, 12.5, 12.5]
             acceleration_limits = [25, 25, 25, 25, 25, 25, 25]
@@ -559,9 +560,10 @@ class KinovaArm:
         elif speed_preset == SpeedPreset.HIGH:
             speed_limits = [50, 50, 50, 50, 50, 50, 50]
             acceleration_limits = [100, 100, 100, 100, 100, 100, 100]
-        elif speed_preset == SpeedPreset.MAX:
-            speed_limits = [100, 100, 100, 100, 100, 100, 100]
-            acceleration_limits = [200, 200, 200, 200, 200, 200, 200]
+        else:
+            raise ValueError("Invalid speed preset")
+
+        self.speed_preset = speed_preset
 
         self.set_joint_limits(speed_limits, acceleration_limits)
 

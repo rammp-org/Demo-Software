@@ -14,28 +14,53 @@ void IMU_Class::initialize_BNO055_sensor() {
 }
 
 void IMU_Class::retrieve_readings() {
-  // Display orientation sensor values:
-  // - VECTOR_ACCELEsROMETER - m/s^2
-  // - VECTOR_MAGNETOMETER  - uT
-  // - VECTOR_GYROSCOPE     - rad/s
-  // - VECTOR_EULER         - degrees
-  // - VECTOR_LINEARACCEL   - m/s^2
-  // - VECTOR_GRAVITY       - m/s^2
-  imu::Vector<3> euler = bno_sensor.getVector(Adafruit_BNO055::VECTOR_EULER);
+  // Get quaternion data to avoid Euler angle discontinuities (gimbal lock / wraparound)
+  imu::Quaternion quat = bno_sensor.getQuat();
+
+  // Convert quaternion to Euler angles manually
+  // This uses the standard aerospace sequence
+  
+  // X-axis rotation
+  double sinr_cosp = 2.0 * (quat.w() * quat.x() + quat.y() * quat.z());
+  double cosr_cosp = 1.0 - 2.0 * (quat.x() * quat.x() + quat.y() * quat.y());
+  double raw_x = atan2(sinr_cosp, cosr_cosp) * (180.0 / PI);
+
+  // Y-axis rotation
+  double sinp = 2.0 * (quat.w() * quat.y() - quat.z() * quat.x());
+  double raw_y;
+  if (abs(sinp) >= 1)
+    raw_y = copysign(M_PI / 2, sinp) * (180.0 / PI); // use 90 degrees if out of range
+  else
+    raw_y = asin(sinp) * (180.0 / PI);
+
+  // Z-axis rotation
+  double siny_cosp = 2.0 * (quat.w() * quat.z() + quat.x() * quat.y());
+  double cosy_cosp = 1.0 - 2.0 * (quat.y() * quat.y() + quat.z() * quat.z());
+  double raw_z = atan2(siny_cosp, cosy_cosp) * (180.0 / PI);
+
+  // Get linear acceleration
   imu::Vector<3> accel =
       bno_sensor.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
   ax = accel.x();
   ay = accel.y();
   az = accel.z();
-  // IMU.pitch =  euler.z() - 2.0- IMU.pitch_offset;   //offset to slightly tilt
-  // back the chair. Change offset in SL speed change
-  pitch = euler.z() - 2.0 - 3.0;
-  roll = euler.y() + 1.5;
-  yaw = euler.x();
 
+  // Map axes to match legacy getVector(VECTOR_EULER) behavior
+  // where euler.z() was pitch, euler.y() was roll, euler.x() was yaw
+  double raw_pitch = raw_z;
+  double raw_roll = raw_y;
+  double raw_yaw = raw_x;
+
+  // Apply offsets (matching legacy behavior)
+  // IMU.pitch_offset was 5.0 (2.0 + 3.0)
+  pitch = raw_pitch - 5.0;
+  roll = raw_roll + 1.5;
+  yaw = raw_yaw;
+
+  // Apply low pass filter
   pitchf = pitchf + K * (pitch - pitchf);
   rollf = rollf + K * (roll - rollf);
 
-  pitchrd = 1 * pitchf / DG;
-  rollrd = -1 * rollf / DG;
+  pitchrd = pitchf * (PI / 180.0);
+  rollrd = -1.0 * rollf * (PI / 180.0);
 }

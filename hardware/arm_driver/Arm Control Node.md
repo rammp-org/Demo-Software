@@ -64,6 +64,8 @@ ______________________________________________________________________
 | ----------------------- | ----------------------------------- |
 | `/arm/set_mode`         | `arm_interfaces/srv/SetMode`        |
 | `/arm/set_speed_preset` | `arm_interfaces/srv/SetSpeedPreset` |
+| `/arm/open_gripper`     | `std_srvs/srv/Trigger`              |
+| `/arm/close_gripper`    | `std_srvs/srv/Trigger`              |
 
 ## Action Servers
 

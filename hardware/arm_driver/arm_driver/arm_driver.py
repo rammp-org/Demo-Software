@@ -13,6 +13,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool, String
+from std_srvs.srv import Trigger
 
 from arm_driver.arm_interface import KinovaArm
 
@@ -162,6 +163,12 @@ class ArmDriverNode(rclpy.node.Node):
         )
         self._set_speed_preset_srv = self.create_service(
             SetSpeedPreset, "/arm/set_speed_preset", self._on_set_speed_preset
+        )
+        self._open_gripper_srv = self.create_service(
+            Trigger, "/arm/open_gripper", self._on_open_gripper
+        )
+        self._close_gripper_srv = self.create_service(
+            Trigger, "/arm/close_gripper", self._on_close_gripper
         )
 
     def _init_actions(self):
@@ -394,6 +401,54 @@ class ArmDriverNode(rclpy.node.Node):
         self.get_logger().info(f"Speed preset set to '{request.preset}'.")
         response.success = True
         response.message = f"Speed preset set to '{request.preset}'"
+        return response
+
+    def _on_open_gripper(self, request, response):
+        """Handle a /arm/open_gripper service request.
+
+        Args:
+            request: Empty Trigger request.
+            response: Service response with ``response.success`` (bool).
+
+        Returns:
+            The populated service response.
+        """
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected"
+            return response
+
+        try:
+            self._arm.open_gripper()
+            response.success = True
+            response.message = "Gripper opened"
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
+        return response
+
+    def _on_close_gripper(self, request, response):
+        """Handle a /arm/close_gripper service request.
+
+        Args:
+            request: Empty Trigger request.
+            response: Service response with ``response.success`` (bool).
+
+        Returns:
+            The populated service response.
+        """
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected"
+            return response
+
+        try:
+            self._arm.close_gripper()
+            response.success = True
+            response.message = "Gripper closed"
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
         return response
 
     # -------------------------------------------------------------------------

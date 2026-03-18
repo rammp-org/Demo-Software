@@ -184,7 +184,7 @@ class KinovaArm:
 
         # Tracks speed presets
         self.speed_preset = "medium"
-        self.set_speed_preset(self.speed_preset)
+        self.choose_from_speed_presets(self.speed_preset)
 
         # Action topic notifications
         self.end_or_abort_event = threading.Event()

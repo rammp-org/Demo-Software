@@ -1,0 +1,13 @@
+# Service definition for setting the arm speed preset at runtime.
+
+# Valid presets
+string PRESET_LOW    = "low"
+string PRESET_MEDIUM = "medium"
+string PRESET_HIGH   = "high"
+
+# Request message
+string preset
+---
+# Response message
+bool success
+string message

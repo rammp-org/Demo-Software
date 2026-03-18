@@ -26,6 +26,7 @@ endif()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/SetMode.srv"
+  "srv/SetSpeedPreset.srv"
   "action/ReachPreset.action"
   "action/ExecuteTrajectory.action"
   DEPENDENCIES builtin_interfaces sensor_msgs trajectory_msgs

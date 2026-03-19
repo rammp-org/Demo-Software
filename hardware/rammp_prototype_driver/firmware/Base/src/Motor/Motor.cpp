@@ -51,7 +51,22 @@ int8_t Motor::getDirection() const {
   return direction;
 }
 
+void Motor::setEncoderDirection(int8_t dir) {
+  encoder_dir = (dir >= 0) ? 1 : -1;
+}
+
+void Motor::toggleEncoderDirection() {
+  encoder_dir = -encoder_dir;
+}
+
+int8_t Motor::getEncoderDirection() const {
+  return encoder_dir;
+}
+
 void Motor::updateSensorData(float current_pos, float dt) {
+  // Multiply by encoder direction to allow reversing logical sensor axis
+  current_pos = current_pos * encoder_dir;
+
   if (dt > 0.0f) {
     float raw_vel = (current_pos - this->prev_pos) / dt;
     // Low-pass filter: alpha = 0.2 for smoothing

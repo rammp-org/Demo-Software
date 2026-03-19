@@ -50,6 +50,14 @@ public:
   
   // Motor direction: 1 = normal, -1 = inverted
   int8_t direction = 1;
+  
+  // Encoder direction: 1 = normal, -1 = inverted
+  int8_t encoder_dir = 1;
+  
+  // Encoder direction control
+  void setEncoderDirection(int8_t dir);
+  void toggleEncoderDirection();
+  int8_t getEncoderDirection() const;
 
   PIDController pos_pid;
   PIDController vel_pid;

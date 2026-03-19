@@ -4,31 +4,33 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
+struct MotorConfig {
+    int8_t motor_dir;
+    int8_t encoder_dir;
+    float pos_p, pos_i, pos_d, pos_ff;
+    float vel_p, vel_i, vel_d, vel_ff;
+};
+
 /**
  * ConfigStorage - EEPROM storage for motor configuration
  * 
  * EEPROM memory map:
- * Address 0-5: Motor directions (6 motors, 1 byte each: 1 = normal, -1 = inverted)
- * Address 6-7: Magic number for validity check (0xABCD)
- * Address 100+: Reserved for future use
+ * Address 0-1: Magic number for validity check (0xABCD)
+ * Address 10+: Array of 6 MotorConfig structs
  */
 class ConfigStorage {
 public:
     static const uint16_t MAGIC_NUMBER = 0xABCD;
-    static const int MAGIC_ADDR = 6;
-    static const int DIR_START_ADDR = 0;
+    static const int MAGIC_ADDR = 0;
+    static const int CONFIG_START_ADDR = 10;
     static const int NUM_MOTORS = 6;
     
     // Initialize storage, check validity
     static void begin();
     
-    // Save/load single motor direction
-    static void saveMotorDirection(int motor_id, int8_t direction);
-    static int8_t loadMotorDirection(int motor_id);
-    
-    // Save/load all motor directions at once
-    static void saveAllDirections(int8_t* dirs);
-    static void loadAllDirections(int8_t* dirs);
+    // Save/load single motor config
+    static void saveMotorConfig(int motor_id, const MotorConfig& config);
+    static MotorConfig loadMotorConfig(int motor_id);
     
     // Check if EEPROM has valid data
     static bool isValid();

@@ -49,7 +49,10 @@ class EncoderData:
     pwm_values: List[float] = field(default_factory=list)  # 6 pwms
 
     # New fields for motor config
-    direction_values: List[int] = field(default_factory=list)  # 6 directions (1 or -1)
+    direction_values: List[int] = field(default_factory=list)  # 6 motor directions
+    encoder_direction_values: List[int] = field(
+        default_factory=list
+    )  # 6 encoder directions
     limit_switches: List[bool] = field(
         default_factory=list
     )  # 4 switches [ML_fwd, ML_bwd, MR_fwd, MR_bwd]
@@ -73,16 +76,32 @@ class EncoderData:
         return None
 
 
+@dataclass
+class ConfigData:
+    """Parsed configuration data from Teensy."""
+
+    joint_id: int
+    pos_p: float
+    pos_i: float
+    pos_d: float
+    pos_ff: float
+    vel_p: float
+    vel_i: float
+    vel_d: float
+    vel_ff: float
+
+
 class ProtocolParser:
     """Parse incoming serial data from Teensy."""
 
-    # Matches: TELEMETRY,timestamp,state,<18 float values>
+    # Matches: TELEMETRY,timestamp,state,<values>
     ENCODER_PATTERN = re.compile(r"^TELEMETRY,(\d+),(\d+),(.+)$")
+    CONFIG_PATTERN = re.compile(r"^CONFIG,(\d+),(.+)$")
 
     NUM_JOINTS = 6
 
     @classmethod
-    def parse_line(cls, line: str) -> Optional[EncoderData]:
+    def parse_line(cls, line: str):
         """
         Parse a line of serial data from Teensy.
 
@@ -90,9 +109,32 @@ class ProtocolParser:
             line: Raw line from serial (newline stripped)
 
         Returns:
-            EncoderData if valid encoder message, None otherwise
+            EncoderData, ConfigData, or None
         """
         line = line.strip()
+
+        # Try matching config first
+        config_match = cls.CONFIG_PATTERN.match(line)
+        if config_match:
+            try:
+                joint_id = int(config_match.group(1))
+                values_str = config_match.group(2)
+                values = [float(v.strip()) for v in values_str.split(",")]
+                if len(values) == 8:
+                    return ConfigData(
+                        joint_id=joint_id,
+                        pos_p=values[0],
+                        pos_i=values[1],
+                        pos_d=values[2],
+                        pos_ff=values[3],
+                        vel_p=values[4],
+                        vel_i=values[5],
+                        vel_d=values[6],
+                        vel_ff=values[7],
+                    )
+            except (ValueError, IndexError):
+                pass
+            return None
 
         match = cls.ENCODER_PATTERN.match(line)
         if match:
@@ -102,8 +144,8 @@ class ProtocolParser:
                 values_str = match.group(3)
                 values = [float(v.strip()) for v in values_str.split(",")]
 
-                # New format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
-                if len(values) == 34:
+                # Newest format: 40 values (6 pos, 6 vel, 6 pwm, 6 dir, 6 enc_dir, 4 limits, 6 imu)
+                if len(values) == 40:
                     return EncoderData(
                         timestamp_ms=timestamp,
                         state=state,
@@ -111,6 +153,25 @@ class ProtocolParser:
                         velocity_values=values[6:12],
                         pwm_values=values[12:18],
                         direction_values=[int(v) for v in values[18:24]],
+                        encoder_direction_values=[int(v) for v in values[24:30]],
+                        limit_switches=[bool(v) for v in values[30:34]],
+                        imu_pitch=values[34],
+                        imu_roll=values[35],
+                        imu_yaw=values[36],
+                        imu_ax=values[37],
+                        imu_ay=values[38],
+                        imu_az=values[39],
+                    )
+                # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
+                elif len(values) == 34:
+                    return EncoderData(
+                        timestamp_ms=timestamp,
+                        state=state,
+                        position_values=values[0:6],
+                        velocity_values=values[6:12],
+                        pwm_values=values[12:18],
+                        direction_values=[int(v) for v in values[18:24]],
+                        encoder_direction_values=[1] * 6,  # default
                         limit_switches=[bool(v) for v in values[24:28]],
                         imu_pitch=values[28],
                         imu_roll=values[29],
@@ -246,6 +307,30 @@ class ProtocolEncoder:
         Create command to toggle motor direction.
         """
         cmd = f"V{joint_id}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def toggle_encoder_direction(joint_id: int) -> bytes:
+        """
+        Create command to toggle encoder direction.
+        """
+        cmd = f"E{joint_id}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def save_config(joint_id: int) -> bytes:
+        """
+        Save configuration to EEPROM for joint.
+        """
+        cmd = f"K{joint_id}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def get_config(joint_id: int) -> bytes:
+        """
+        Request configuration from EEPROM for joint.
+        """
+        cmd = f"G{joint_id}\n"
         return cmd.encode("ascii")
 
     @staticmethod

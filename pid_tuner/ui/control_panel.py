@@ -94,6 +94,9 @@ class ControlPanel(QWidget):
         # Connect to direction updates
         self._data_store.directions_updated.connect(self._update_direction_indicator)
 
+        # Connect to config updates
+        self._data_store.config_updated.connect(self._on_config_updated)
+
     def _setup_ui(self):
         """Set up the control panel layout with scroll area."""
         # Main layout for this widget
@@ -387,6 +390,25 @@ class ControlPanel(QWidget):
         vel_pid_layout.addWidget(self._set_vel_pid_btn)
         layout.addLayout(vel_pid_layout)
 
+        # Config row (Save/Load EEPROM)
+        config_layout = QHBoxLayout()
+        config_layout.setSpacing(SIZES["spacing_small"])
+
+        self._load_config_btn = QPushButton("Load from EEPROM")
+        self._load_config_btn.setToolTip("Request PID configuration from EEPROM")
+        self._load_config_btn.clicked.connect(self._on_load_config)
+        config_layout.addWidget(self._load_config_btn)
+
+        self._save_config_btn = QPushButton("Save to EEPROM")
+        self._save_config_btn.setToolTip("Save current PID configuration to EEPROM")
+        self._save_config_btn.clicked.connect(self._on_save_config)
+        self._save_config_btn.setStyleSheet(
+            f"background-color: {THEME.blue}; color: {THEME.crust};"
+        )
+        config_layout.addWidget(self._save_config_btn)
+
+        layout.addLayout(config_layout)
+
         return group
 
     def _create_target_group(self) -> QGroupBox:
@@ -493,6 +515,27 @@ class ControlPanel(QWidget):
         motor_config_layout.addWidget(self._dir_btn)
 
         layout.addLayout(motor_config_layout)
+
+        # Encoder Direction row
+        enc_config_layout = QHBoxLayout()
+        enc_config_layout.setSpacing(SIZES["spacing_small"])
+
+        enc_config_layout.addStretch()  # Push to right to align with motor dir
+
+        # Encoder Direction toggle with indicator
+        enc_config_layout.addWidget(QLabel("Enc Dir:"))
+        self._enc_dir_indicator = QLabel("->")
+        self._enc_dir_indicator.setStyleSheet(
+            f"font-size: {SIZES['font_medium']}pt; font-weight: bold; color: {THEME.green};"
+        )
+        enc_config_layout.addWidget(self._enc_dir_indicator)
+
+        self._enc_dir_btn = QPushButton("Flip Enc")
+        self._enc_dir_btn.setToolTip("Flip encoder direction (saved to EEPROM)")
+        self._enc_dir_btn.clicked.connect(self._on_toggle_encoder_direction)
+        enc_config_layout.addWidget(self._enc_dir_btn)
+
+        layout.addLayout(enc_config_layout)
 
         # Safety buttons row (separate for emphasis)
         safety_layout = QHBoxLayout()
@@ -969,6 +1012,15 @@ class ControlPanel(QWidget):
         if linked_joint_id != 0:
             self._serial_handler.toggle_direction(linked_joint_id)
 
+    def _on_toggle_encoder_direction(self):
+        """Toggle encoder direction for selected joint."""
+        joint_id = self._data_store.selected_joint
+        self._serial_handler.toggle_encoder_direction(joint_id)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.toggle_encoder_direction(linked_joint_id)
+
     def _update_direction_indicator(self):
         """Update the direction indicator based on current motor direction."""
         joint_id = self._data_store.selected_joint
@@ -983,6 +1035,20 @@ class ControlPanel(QWidget):
             else:
                 self._dir_indicator.setText("<-")
                 self._dir_indicator.setStyleSheet(
+                    f"font-size: {SIZES['font_medium']}pt; font-weight: bold; color: {THEME.yellow};"
+                )
+
+        enc_directions = self._data_store.encoder_directions
+        if joint_id <= len(enc_directions):
+            enc_direction = enc_directions[joint_id - 1]
+            if enc_direction >= 0:
+                self._enc_dir_indicator.setText("->")
+                self._enc_dir_indicator.setStyleSheet(
+                    f"font-size: {SIZES['font_medium']}pt; font-weight: bold; color: {THEME.green};"
+                )
+            else:
+                self._enc_dir_indicator.setText("<-")
+                self._enc_dir_indicator.setStyleSheet(
                     f"font-size: {SIZES['font_medium']}pt; font-weight: bold; color: {THEME.yellow};"
                 )
 
@@ -1033,6 +1099,39 @@ class ControlPanel(QWidget):
             self._serial_handler.set_pid(linked_joint_id, "i", i)
             self._serial_handler.set_pid(linked_joint_id, "d", d)
             self._serial_handler.set_feed_forward(linked_joint_id, "f", ff)
+
+    def _on_load_config(self):
+        """Request PID configuration from EEPROM."""
+        joint_id = self._data_store.selected_joint
+        self._serial_handler.get_config(joint_id)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.get_config(linked_joint_id)
+
+    def _on_save_config(self):
+        """Save current PID configuration to EEPROM."""
+        joint_id = self._data_store.selected_joint
+        self._serial_handler.save_config(joint_id)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.save_config(linked_joint_id)
+
+    def _on_config_updated(self, joint_id: int):
+        """Update PID input fields when configuration is loaded from EEPROM."""
+        if joint_id == self._data_store.selected_joint:
+            config = self._data_store.get_config(joint_id)
+            if config is not None:
+                self._pos_p.setText(f"{config.pos_p:g}")
+                self._pos_i.setText(f"{config.pos_i:g}")
+                self._pos_d.setText(f"{config.pos_d:g}")
+                self._pos_ff.setText(f"{config.pos_ff:g}")
+
+                self._vel_p.setText(f"{config.vel_p:g}")
+                self._vel_i.setText(f"{config.vel_i:g}")
+                self._vel_d.setText(f"{config.vel_d:g}")
+                self._vel_ff.setText(f"{config.vel_ff:g}")
 
     def _on_step_positive(self):
         """Handle positive step button click - timed step."""

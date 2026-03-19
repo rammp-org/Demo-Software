@@ -48,6 +48,7 @@ class MainWindow(QMainWindow):
 
         # Connect serial signals
         self._serial_handler.data_received.connect(self._on_data_received)
+        self._serial_handler.config_received.connect(self._data_store.set_config)
         self._serial_handler.raw_lines_received.connect(self._on_raw_lines_received)
         self._serial_handler.connection_changed.connect(self._on_connection_changed)
         self._serial_handler.error_occurred.connect(self._on_error)

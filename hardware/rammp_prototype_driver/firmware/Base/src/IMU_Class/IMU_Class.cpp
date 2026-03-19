@@ -14,10 +14,8 @@ void IMU_Class::initialize_BNO055_sensor() {
   
   delay(100);
   
-  // Remap axes for upside-down mounting (IC facing floor)
-  // P4 configuration flips the Z and Y axes to match an inverted orientation.
-  bno_sensor.setAxisRemap(Adafruit_BNO055::REMAP_CONFIG_P4);
-  bno_sensor.setAxisSign(Adafruit_BNO055::REMAP_SIGN_P4);
+  // Removed hardware axis remap because it scrambles the quaternion axes.
+  // We will handle the upside-down mounting in software below.
 }
 
 void IMU_Class::retrieve_readings() {
@@ -57,6 +55,10 @@ void IMU_Class::retrieve_readings() {
   double raw_pitch = raw_z;
   double raw_roll = raw_y;
   double raw_yaw = raw_x;
+
+  // Software fix for upside-down mounting (moves the +/-180 discontinuity away from the flat resting position)
+  raw_roll += 180.0;
+  if (raw_roll > 180.0) raw_roll -= 360.0;
 
   // Apply offsets (matching legacy behavior)
   // IMU.pitch_offset was 5.0 (2.0 + 3.0)

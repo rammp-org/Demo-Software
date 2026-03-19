@@ -39,6 +39,9 @@ RobotCommand CommandParser::parse(Stream& serial) {
                         case 'R': cmd.type = CMD_R; break;
                         case 'H': cmd.type = CMD_HOME; break;
                         case 'V': cmd.type = CMD_DIR; break;
+                        case 'E': cmd.type = CMD_ENC_DIR; break;
+                        case 'K': cmd.type = CMD_SAVE_CONFIG; break;
+                        case 'G': cmd.type = CMD_GET_CONFIG; break;
                         default: cmd.type = CMD_UNKNOWN; break;
                     }
                 }

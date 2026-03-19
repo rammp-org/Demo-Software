@@ -14,7 +14,7 @@ import serial
 import serial.tools.list_ports
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 
-from .protocol import ProtocolParser, ProtocolEncoder, EncoderData
+from .protocol import ProtocolParser, ProtocolEncoder, EncoderData, ConfigData
 
 
 class SerialHandler(QObject):
@@ -23,6 +23,7 @@ class SerialHandler(QObject):
 
     Signals:
         data_received: Emitted when valid encoder data is received (latest only per batch)
+        config_received: Emitted when valid config data is received
         raw_lines_received: Emitted with batched raw lines for console display
         connection_changed: Emitted when connection state changes
         error_occurred: Emitted when an error occurs
@@ -30,6 +31,7 @@ class SerialHandler(QObject):
 
     # Qt Signals for thread-safe UI updates
     data_received = pyqtSignal(EncoderData)
+    config_received = pyqtSignal(ConfigData)
     raw_lines_received = pyqtSignal(list)  # Batched raw lines for console display
     connection_changed = pyqtSignal(bool)  # True = connected, False = disconnected
     error_occurred = pyqtSignal(str)
@@ -204,6 +206,21 @@ class SerialHandler(QObject):
         cmd = ProtocolEncoder.set_imu_target(pitch, roll)
         self.send_command(cmd)
 
+    def toggle_encoder_direction(self, joint_id: int):
+        """Toggle encoder direction."""
+        cmd = ProtocolEncoder.toggle_encoder_direction(joint_id)
+        self.send_command(cmd)
+
+    def save_config(self, joint_id: int):
+        """Save configuration to EEPROM."""
+        cmd = ProtocolEncoder.save_config(joint_id)
+        self.send_command(cmd)
+
+    def get_config(self, joint_id: int):
+        """Request configuration from EEPROM."""
+        cmd = ProtocolEncoder.get_config(joint_id)
+        self.send_command(cmd)
+
     def send_raw(self, cmd_str: str):
         """Send raw serial command."""
         if not cmd_str.endswith("\n"):
@@ -284,10 +301,19 @@ class SerialHandler(QObject):
         # Emit all raw lines as a batch for console display
         self.raw_lines_received.emit(lines)
 
-        # Parse and emit only the latest telemetry data
-        # (no point processing stale data for real-time plotting)
+        # Parse and emit telemetry and config data
+        # Only the latest telemetry data is emitted for performance
+        # All configs are emitted
+        latest_encoder = None
+
         for line in reversed(lines):
             data = ProtocolParser.parse_line(line)
             if data is not None:
-                self.data_received.emit(data)
-                break  # Only emit the latest valid data
+                if isinstance(data, EncoderData):
+                    if latest_encoder is None:
+                        latest_encoder = data
+                elif isinstance(data, ConfigData):
+                    self.config_received.emit(data)
+
+        if latest_encoder is not None:
+            self.data_received.emit(latest_encoder)

@@ -157,6 +157,19 @@ void sendTelemetry() {
   Serial.print(",");
   Serial.print(mr_carriage.getDirection());
   Serial.print(",");
+  // Encoder directions (6)
+  Serial.print(rc.getEncoderDirection());
+  Serial.print(",");
+  Serial.print(fc.getEncoderDirection());
+  Serial.print(",");
+  Serial.print(ml.getEncoderDirection());
+  Serial.print(",");
+  Serial.print(mr.getEncoderDirection());
+  Serial.print(",");
+  Serial.print(ml_carriage.getEncoderDirection());
+  Serial.print(",");
+  Serial.print(mr_carriage.getEncoderDirection());
+  Serial.print(",");
   // Limit switches (4)
   Serial.print(ml_fwd_limit ? 1 : 0);
   Serial.print(",");
@@ -293,16 +306,25 @@ void setup() {
     Serial.println("IMU initialized");
   }
   
-  // Initialize ConfigStorage and load saved motor directions
+  // Initialize ConfigStorage and load saved motor configurations
   ConfigStorage::begin();
-  int8_t dirs[6];
-  ConfigStorage::loadAllDirections(dirs);
-  rc.setDirection(dirs[0]);
-  fc.setDirection(dirs[1]);
-  ml.setDirection(dirs[2]);
-  mr.setDirection(dirs[3]);
-  ml_carriage.setDirection(dirs[4]);
-  mr_carriage.setDirection(dirs[5]);
+  
+  Motor* all_motors[6] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+  for (int i = 0; i < 6; i++) {
+    MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
+    all_motors[i]->setDirection(conf.motor_dir);
+    all_motors[i]->setEncoderDirection(conf.encoder_dir);
+    // Load PID values into PIDController objects
+    all_motors[i]->pos_pid.kp = conf.pos_p;
+    all_motors[i]->pos_pid.ki = conf.pos_i;
+    all_motors[i]->pos_pid.kd = conf.pos_d;
+    all_motors[i]->pos_pid.setFeedForward(conf.pos_ff);
+    
+    all_motors[i]->vel_pid.kp = conf.vel_p;
+    all_motors[i]->vel_pid.ki = conf.vel_i;
+    all_motors[i]->vel_pid.kd = conf.vel_d;
+    all_motors[i]->vel_pid.setFeedForward(conf.vel_ff);
+  }
 
   current_state = IDLE;
 }
@@ -494,13 +516,64 @@ void loop() {
       case CMD_DIR: {
         // Toggle motor direction and save to EEPROM
         m->toggleDirection();
-        ConfigStorage::saveMotorDirection(cmd.actuator_id, m->getDirection());
+        MotorConfig conf = ConfigStorage::loadMotorConfig(cmd.actuator_id);
+        conf.motor_dir = m->getDirection();
+        ConfigStorage::saveMotorConfig(cmd.actuator_id, conf);
         if (DEBUG_MODE) {
           Serial.print("DEBUG: Toggled direction for motor ");
           Serial.print(cmd.actuator_id);
           Serial.print(" to ");
           Serial.println(m->getDirection());
         }
+        break;
+      }
+      case CMD_ENC_DIR: {
+        // Toggle encoder direction and save to EEPROM
+        m->toggleEncoderDirection();
+        MotorConfig conf = ConfigStorage::loadMotorConfig(cmd.actuator_id);
+        conf.encoder_dir = m->getEncoderDirection();
+        ConfigStorage::saveMotorConfig(cmd.actuator_id, conf);
+        if (DEBUG_MODE) {
+          Serial.print("DEBUG: Toggled enc direction for motor ");
+          Serial.print(cmd.actuator_id);
+          Serial.print(" to ");
+          Serial.println(m->getEncoderDirection());
+        }
+        break;
+      }
+      case CMD_SAVE_CONFIG: {
+        // Save current PID settings and directions to EEPROM
+        MotorConfig conf;
+        conf.motor_dir = m->getDirection();
+        conf.encoder_dir = m->getEncoderDirection();
+        conf.pos_p = m->pos_pid.kp;
+        conf.pos_i = m->pos_pid.ki;
+        conf.pos_d = m->pos_pid.kd;
+        conf.pos_ff = m->pos_pid.kff;
+        conf.vel_p = m->vel_pid.kp;
+        conf.vel_i = m->vel_pid.ki;
+        conf.vel_d = m->vel_pid.kd;
+        conf.vel_ff = m->vel_pid.kff;
+        ConfigStorage::saveMotorConfig(cmd.actuator_id, conf);
+        if (DEBUG_MODE) {
+          Serial.print("DEBUG: Saved config for motor ");
+          Serial.println(cmd.actuator_id);
+        }
+        break;
+      }
+      case CMD_GET_CONFIG: {
+        // Print config back to GUI
+        Serial.print("CONFIG,");
+        Serial.print(cmd.actuator_id);
+        Serial.print(",");
+        Serial.print(m->pos_pid.kp, 4); Serial.print(",");
+        Serial.print(m->pos_pid.ki, 4); Serial.print(",");
+        Serial.print(m->pos_pid.kd, 4); Serial.print(",");
+        Serial.print(m->pos_pid.kff, 4); Serial.print(",");
+        Serial.print(m->vel_pid.kp, 4); Serial.print(",");
+        Serial.print(m->vel_pid.ki, 4); Serial.print(",");
+        Serial.print(m->vel_pid.kd, 4); Serial.print(",");
+        Serial.println(m->vel_pid.kff, 4);
         break;
       }
       default:

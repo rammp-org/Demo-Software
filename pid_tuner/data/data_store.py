@@ -327,6 +327,8 @@ class DataStore(QObject):
         int
     )  # Emitted when linked joint changes (0 for none)
 
+    config_updated = pyqtSignal(int)  # Emits joint_id when config is loaded
+
     NUM_JOINTS = 6
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
     SIMULATION_UPDATE_MS = 20  # 50 Hz simulation rate
@@ -357,6 +359,10 @@ class DataStore(QObject):
 
         # Motor directions (6 motors)
         self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1]
+        self._encoder_directions: List[int] = [1, 1, 1, 1, 1, 1]
+
+        # PID configurations (dict of joint_id -> ConfigData)
+        self._configs: dict = {}
 
         # Limit switches (4: ML_fwd, ML_bwd, MR_fwd, MR_bwd)
         self._limit_switches: List[bool] = [False, False, False, False]
@@ -513,6 +519,20 @@ class DataStore(QObject):
         return self._motor_directions
 
     @property
+    def encoder_directions(self) -> List[int]:
+        """Get encoder directions (1 or -1 for each of 6 motors)."""
+        return self._encoder_directions
+
+    def get_config(self, joint_id: int):
+        """Get configuration data for a joint."""
+        return self._configs.get(joint_id)
+
+    def set_config(self, config_data):
+        """Store config data and emit signal."""
+        self._configs[config_data.joint_id] = config_data
+        self.config_updated.emit(config_data.joint_id)
+
+    @property
     def limit_switches(self) -> List[bool]:
         """Get limit switch states [ML_fwd, ML_bwd, MR_fwd, MR_bwd]."""
         return self._limit_switches
@@ -574,6 +594,14 @@ class DataStore(QObject):
         # Store motor directions
         if data.direction_values:
             self._motor_directions = data.direction_values
+
+        # Store encoder directions
+        if hasattr(data, "encoder_direction_values") and data.encoder_direction_values:
+            self._encoder_directions = data.encoder_direction_values
+
+        if data.direction_values or (
+            hasattr(data, "encoder_direction_values") and data.encoder_direction_values
+        ):
             self.directions_updated.emit()
 
         # Store limit switches

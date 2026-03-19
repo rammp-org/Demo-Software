@@ -12,6 +12,9 @@ struct MotorConfig {
     float pos_lpf_alpha;
     float vel_p, vel_i, vel_d, vel_ff;
     float vel_lpf_alpha;
+    int32_t saved_position;
+    int32_t pos_limit_min;
+    int32_t pos_limit_max;
 };
 
 /**

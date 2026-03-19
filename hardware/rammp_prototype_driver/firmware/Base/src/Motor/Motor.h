@@ -60,6 +60,11 @@ public:
   void toggleEncoderDirection();
   int8_t getEncoderDirection() const;
 
+  int32_t pos_limit_min = 0;
+  int32_t pos_limit_max = 0;
+  bool limits_enabled = false;
+  void updateLimits(int32_t min, int32_t max);
+
   PIDController pos_pid;
   PIDController vel_pid;
   ControlMode mode;

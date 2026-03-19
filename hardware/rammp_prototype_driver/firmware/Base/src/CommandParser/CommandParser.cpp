@@ -64,6 +64,8 @@ RobotCommand CommandParser::parse(Stream& serial) {
                         case 'l': cmd.type = CMD_INPUT_LPF; break;
                         case 'Q': cmd.type = CMD_POS_LPF; break;
                         case 'q': cmd.type = CMD_VEL_LPF; break;
+                        case 'n': cmd.type = CMD_POS_MIN; break;
+                        case 'x': cmd.type = CMD_POS_MAX; break;
                         case 'L': cmd.type = CMD_LEVEL_MODE; break;
                         case 'A': 
                             if (cmd.actuator_id == 1) cmd.type = CMD_LEVEL_PITCH;

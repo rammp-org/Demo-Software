@@ -236,6 +236,14 @@ class SerialHandler(QObject):
         cmd = ProtocolEncoder.get_config(joint_id)
         self.send_command(cmd)
 
+    def set_pos_limit_min(self, joint_id: int, limit: int):
+        cmd = ProtocolEncoder.set_pos_limit_min(joint_id, limit)
+        self.send_command(cmd)
+
+    def set_pos_limit_max(self, joint_id: int, limit: int):
+        cmd = ProtocolEncoder.set_pos_limit_max(joint_id, limit)
+        self.send_command(cmd)
+
     def send_raw(self, cmd_str: str):
         """Send raw serial command."""
         if not cmd_str.endswith("\n"):

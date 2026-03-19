@@ -20,6 +20,8 @@ enum CommandType {
     CMD_ENC_DIR, // e.g. E<id> (Toggle encoder direction)
     CMD_SAVE_CONFIG, // e.g. K<id> (Save config to EEPROM for joint)
     CMD_GET_CONFIG,  // e.g. G<id> (Get config from EEPROM for joint)
+    CMD_POS_MIN,     // e.g. n<id>:<val> (Min pos limit)
+    CMD_POS_MAX,     // e.g. x<id>:<val> (Max pos limit)
     CMD_INPUT_LPF,   // e.g. l<id>:<val> (Motor input LPF alpha)
     CMD_POS_LPF,     // e.g. Q<id>:<val> (Position PID output LPF alpha)
     CMD_VEL_LPF,     // e.g. q<id>:<val> (Velocity PID output LPF alpha)

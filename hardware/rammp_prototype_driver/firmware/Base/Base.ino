@@ -354,6 +354,24 @@ void setup() {
     all_motors[i]->vel_pid.kd = conf.vel_d;
     all_motors[i]->vel_pid.setFeedForward(conf.vel_ff);
     all_motors[i]->vel_pid.setLpfAlpha(conf.vel_lpf_alpha);
+    
+    all_motors[i]->updateLimits(conf.pos_limit_min, conf.pos_limit_max);
+
+    // Apply saved offset to encoder.
+    // Assuming encoderf mapping is somewhat consistent or we just apply to EncoderContainer.
+    // EContr requires index from 1-12. Here we map motor (0-5) to actual index based on updateSensorData logic
+    int enc_idx = 0;
+    switch (i) {
+      case 0: enc_idx = 3; break;  // rc
+      case 1: enc_idx = 2; break;  // fc
+      case 2: enc_idx = 7; break;  // ml
+      case 3: enc_idx = 5; break;  // mr
+      case 4: enc_idx = 11; break; // ml_carriage
+      case 5: enc_idx = 12; break; // mr_carriage
+    }
+    
+    // Reverse the encoder reading based on saved position to compute the offset
+    EContr.encoder_offset[enc_idx] = EContr.getRawReading(enc_idx) - (conf.saved_position / conf.encoder_dir);
   }
 
   current_state = IDLE;
@@ -427,7 +445,35 @@ void loop() {
 
   // Process specific tuning commands if in TUNER_MODE
   if (current_state == TUNER_MODE && cmd.type != CMD_NONE) {
-    Motor *m = nullptr;
+    // Special case: Save all motors (K0)
+    if (cmd.type == CMD_SAVE_CONFIG && cmd.actuator_id == 0) {
+      Motor* all_motors[6] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+      for (int i = 0; i < 6; i++) {
+        Motor* m_i = all_motors[i];
+        MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
+        conf.motor_dir = m_i->getDirection();
+        conf.encoder_dir = m_i->getEncoderDirection();
+        conf.lpf_input_alpha = m_i->lpf_input_alpha;
+        conf.pos_p = m_i->pos_pid.kp;
+        conf.pos_i = m_i->pos_pid.ki;
+        conf.pos_d = m_i->pos_pid.kd;
+        conf.pos_ff = m_i->pos_pid.kff;
+        conf.pos_lpf_alpha = m_i->pos_pid.getLpfAlpha();
+        conf.vel_p = m_i->vel_pid.kp;
+        conf.vel_i = m_i->vel_pid.ki;
+        conf.vel_d = m_i->vel_pid.kd;
+        conf.vel_ff = m_i->vel_pid.kff;
+        conf.vel_lpf_alpha = m_i->vel_pid.getLpfAlpha();
+        conf.saved_position = m_i->current_pos;
+        conf.pos_limit_min = m_i->pos_limit_min;
+        conf.pos_limit_max = m_i->pos_limit_max;
+        ConfigStorage::saveMotorConfig(i + 1, conf);
+      }
+      if (DEBUG_MODE) {
+        Serial.println("DEBUG: Saved config for ALL motors (K0)");
+      }
+    } else {
+      Motor *m = nullptr;
     switch (cmd.actuator_id - 1) {
     case 0:
       m = &rc;
@@ -602,10 +648,29 @@ void loop() {
         conf.vel_d = m->vel_pid.kd;
         conf.vel_ff = m->vel_pid.kff;
         conf.vel_lpf_alpha = m->vel_pid.getLpfAlpha();
+        conf.saved_position = m->current_pos;
+        conf.pos_limit_min = m->pos_limit_min;
+        conf.pos_limit_max = m->pos_limit_max;
         ConfigStorage::saveMotorConfig(cmd.actuator_id, conf);
         if (DEBUG_MODE) {
           Serial.print("DEBUG: Saved config for motor ");
           Serial.println(cmd.actuator_id);
+        }
+        break;
+      }
+      case CMD_POS_MIN: {
+        m->updateLimits(cmd.value, m->pos_limit_max);
+        if (DEBUG_MODE) {
+          Serial.print("DEBUG: Set min limit to ");
+          Serial.println(cmd.value);
+        }
+        break;
+      }
+      case CMD_POS_MAX: {
+        m->updateLimits(m->pos_limit_min, cmd.value);
+        if (DEBUG_MODE) {
+          Serial.print("DEBUG: Set max limit to ");
+          Serial.println(cmd.value);
         }
         break;
       }
@@ -624,13 +689,16 @@ void loop() {
         Serial.print(m->vel_pid.kff, 4); Serial.print(",");
         Serial.print(m->pos_pid.getLpfAlpha(), 4); Serial.print(",");
         Serial.print(m->vel_pid.getLpfAlpha(), 4); Serial.print(",");
-        Serial.println(m->lpf_input_alpha, 4);
+        Serial.print(m->lpf_input_alpha, 4); Serial.print(",");
+        Serial.print(m->pos_limit_min); Serial.print(",");
+        Serial.println(m->pos_limit_max);
         break;
       }
       default:
         break;
       }
     }
+  }
   }
 
   // 4. Update Motors

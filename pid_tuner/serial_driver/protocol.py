@@ -98,6 +98,8 @@ class ConfigData:
     pos_lpf_alpha: float = 1.0
     vel_lpf_alpha: float = 1.0
     input_lpf_alpha: float = 0.5
+    pos_limit_min: int = 0
+    pos_limit_max: int = 0
 
 
 class ProtocolParser:
@@ -146,6 +148,10 @@ class ProtocolParser:
                         config_data.pos_lpf_alpha = values[8]
                         config_data.vel_lpf_alpha = values[9]
                         config_data.input_lpf_alpha = values[10]
+                    # Handle new limit fields
+                    if len(values) >= 13:
+                        config_data.pos_limit_min = int(values[11])
+                        config_data.pos_limit_max = int(values[12])
                     return config_data
             except (ValueError, IndexError):
                 pass
@@ -353,6 +359,22 @@ class ProtocolEncoder:
         Request configuration from EEPROM for joint.
         """
         cmd = f"G{joint_id}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def set_pos_limit_min(joint_id: int, limit: int) -> bytes:
+        """
+        Set the minimum position limit for a joint.
+        """
+        cmd = f"n{joint_id}:{limit}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def set_pos_limit_max(joint_id: int, limit: int) -> bytes:
+        """
+        Set the maximum position limit for a joint.
+        """
+        cmd = f"x{joint_id}:{limit}\n"
         return cmd.encode("ascii")
 
     @staticmethod

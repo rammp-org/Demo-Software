@@ -225,6 +225,7 @@ class EncoderOverview(QWidget):
 
         # Connect to limit switch updates
         self._data_store.limits_updated.connect(self._update_limits)
+        self._data_store.config_updated.connect(self._on_config_updated)
 
     def _setup_ui(self):
         """Set up the widget layout."""
@@ -305,3 +306,12 @@ class EncoderOverview(QWidget):
             # MR carriage (joint 6, index 5): limits[2]=fwd, limits[3]=bwd
             if len(self._bars) > 5:
                 self._bars[5].set_limits(limits[2], limits[3])
+
+    def _on_config_updated(self, joint_id: int):
+        """Update bar range when config is loaded from Teensy."""
+        config = self._data_store.get_config(joint_id)
+        if config is not None:
+            min_limit = config.pos_limit_min
+            max_limit = config.pos_limit_max
+            if min_limit != max_limit:
+                self._bars[joint_id - 1].set_range(min_limit, max_limit)

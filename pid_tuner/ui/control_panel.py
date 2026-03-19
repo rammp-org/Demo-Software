@@ -428,6 +428,16 @@ class ControlPanel(QWidget):
         )
         config_layout.addWidget(self._save_config_btn)
 
+        self._save_pos_btn = QPushButton("Save Robot Position State")
+        self._save_pos_btn.setToolTip(
+            "Save current encoder positions and config to EEPROM for ALL motors"
+        )
+        self._save_pos_btn.clicked.connect(self._on_save_robot_state)
+        self._save_pos_btn.setStyleSheet(
+            f"background-color: {THEME.mauve}; color: {THEME.crust};"
+        )
+        config_layout.addWidget(self._save_pos_btn)
+
         layout.addLayout(config_layout)
 
         return group
@@ -551,6 +561,36 @@ class ControlPanel(QWidget):
         motor_config_layout.addWidget(self._set_input_lpf_btn)
 
         layout.addLayout(motor_config_layout)
+
+        # Position Limits row
+        limits_layout = QHBoxLayout()
+        limits_layout.setSpacing(SIZES["spacing_small"])
+
+        limits_layout.addWidget(QLabel("Min Limit:"))
+        self._pos_limit_min = QSpinBox()
+        self._pos_limit_min.setRange(-1000000, 1000000)
+        self._pos_limit_min.setValue(0)
+        self._pos_limit_min.setMinimumWidth(SIZES["input_min_width"])
+        limits_layout.addWidget(self._pos_limit_min)
+
+        self._set_min_limit_btn = QPushButton("Set Min")
+        self._set_min_limit_btn.clicked.connect(self._on_set_min_limit)
+        limits_layout.addWidget(self._set_min_limit_btn)
+
+        limits_layout.addStretch()
+
+        limits_layout.addWidget(QLabel("Max Limit:"))
+        self._pos_limit_max = QSpinBox()
+        self._pos_limit_max.setRange(-1000000, 1000000)
+        self._pos_limit_max.setValue(0)
+        self._pos_limit_max.setMinimumWidth(SIZES["input_min_width"])
+        limits_layout.addWidget(self._pos_limit_max)
+
+        self._set_max_limit_btn = QPushButton("Set Max")
+        self._set_max_limit_btn.clicked.connect(self._on_set_max_limit)
+        limits_layout.addWidget(self._set_max_limit_btn)
+
+        layout.addLayout(limits_layout)
 
         # Encoder Direction row
         enc_config_layout = QHBoxLayout()
@@ -1171,6 +1211,30 @@ class ControlPanel(QWidget):
         if linked_joint_id != 0:
             self._serial_handler.save_config(linked_joint_id)
 
+    def _on_save_robot_state(self):
+        """Save current position and configuration for ALL motors (K0)."""
+        self._serial_handler.save_config(0)
+
+    def _on_set_min_limit(self):
+        """Set the minimum position limit."""
+        joint_id = self._data_store.selected_joint
+        limit = self._pos_limit_min.value()
+        self._serial_handler.set_pos_limit_min(joint_id, limit)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.set_pos_limit_min(linked_joint_id, limit)
+
+    def _on_set_max_limit(self):
+        """Set the maximum position limit."""
+        joint_id = self._data_store.selected_joint
+        limit = self._pos_limit_max.value()
+        self._serial_handler.set_pos_limit_max(joint_id, limit)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.set_pos_limit_max(linked_joint_id, limit)
+
     def _on_config_updated(self, joint_id: int):
         """Update PID input fields when configuration is loaded from EEPROM."""
         if joint_id == self._data_store.selected_joint:
@@ -1189,6 +1253,10 @@ class ControlPanel(QWidget):
                 self._vel_lpf.setText(f"{config.vel_lpf_alpha:g}")
 
                 self._input_lpf.setText(f"{config.input_lpf_alpha:g}")
+
+                # Update limits
+                self._pos_limit_min.setValue(config.pos_limit_min)
+                self._pos_limit_max.setValue(config.pos_limit_max)
 
     def _on_step_positive(self):
         """Handle positive step button click - timed step."""

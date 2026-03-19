@@ -33,6 +33,9 @@ void ConfigStorage::initializeDefaults() {
     def_config.vel_d = 0.0f;
     def_config.vel_ff = 0.0f;
     def_config.vel_lpf_alpha = 1.0f;
+    def_config.saved_position = 0;
+    def_config.pos_limit_min = 0;
+    def_config.pos_limit_max = 0;
     
     for (int i = 1; i <= NUM_MOTORS; i++) {
         saveMotorConfig(i, def_config);
@@ -63,6 +66,9 @@ MotorConfig ConfigStorage::loadMotorConfig(int motor_id) {
     config.vel_d = 0.0f;
     config.vel_ff = 0.0f;
     config.vel_lpf_alpha = 1.0f;
+    config.saved_position = 0;
+    config.pos_limit_min = 0;
+    config.pos_limit_max = 0;
     
     if (motor_id >= 1 && motor_id <= NUM_MOTORS) {
         int addr = CONFIG_START_ADDR + (motor_id - 1) * sizeof(MotorConfig);

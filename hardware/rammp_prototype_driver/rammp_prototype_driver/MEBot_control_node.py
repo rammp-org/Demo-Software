@@ -30,9 +30,6 @@ class MEBotControlNode(Node):
         # publishing rate for all topics
         self.publish_rate = 0.001
 
-        # variables for sending commands to Teensy
-        self.mode = None
-
         # IMU
         self.IMU_pitch = 0.0
         self.IMU_roll = 0.0
@@ -338,12 +335,13 @@ class MEBotControlNode(Node):
 
     def self_level_enable_callback(self, request, response):
         if request.data:
-            # content
+            self.write_serial_data("s\n")
             pass
         else:
-            # content
+            self.write_serial_data("r\n")
             pass
 
+        response.success = True
         return response
 
 

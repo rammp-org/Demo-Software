@@ -1,10 +1,9 @@
-from ament_index_python.packages import get_package_share_directory
-import os
 import json
+from pathlib import Path
 
-
-pkg_path = get_package_share_directory("rammp_pkg")  # needs to be changed
-json_path = os.path.join(pkg_path, "config", "nodes.json")  # needs to be changed
+json_path = Path(
+    "/Demo-Software/core/rammp_prototype_behavior/rammp_prototype_behavior/nodes.json"
+)
 
 
 class NodeNameMonitor:

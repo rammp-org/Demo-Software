@@ -25,7 +25,7 @@ public:
   void setTargetPWM(float target_pwm);
 
   // Provide sensory feedback
-  void updateSensorData(float current_pos, float current_vel);
+  void updateSensorData(float current_pos, float dt);
 
   // Compute cascaded control, returns PWM required
   float update(float dt);
@@ -43,8 +43,9 @@ public:
   float target_vel;
   float target_pwm;
   float scaled_target_pwm;
-  float lpf_pos_alpha = 0.5;
-  float lpf_vel_alpha = 0.5;
+  float lpf_input_alpha = 0.5f;
+
+  void setInputLpfAlpha(float alpha);
 
   const float PWM_SCALE = 32767;
   

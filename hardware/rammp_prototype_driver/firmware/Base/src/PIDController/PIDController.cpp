@@ -41,7 +41,10 @@ float PIDController::compute(float setpoint, float measured, float dt) {
   // Save previous error
   prev_error = error;
 
-  return output;
+  // Apply Low Pass Filter to the output
+  _filtered_output += lpf_alpha * (output - _filtered_output);
+
+  return _filtered_output;
 }
 
 void PIDController::setGains(float kp, float ki, float kd) {
@@ -60,4 +63,15 @@ void PIDController::setOutputLimits(float min_out, float max_out) {
 void PIDController::reset() {
   integral = 0.0f;
   prev_error = 0.0f;
+  _filtered_output = 0.0f;
+}
+
+void PIDController::setLpfAlpha(float alpha) {
+  if (alpha < 0.0f) alpha = 0.0f;
+  if (alpha > 1.0f) alpha = 1.0f;
+  this->lpf_alpha = alpha;
+}
+
+float PIDController::getLpfAlpha() const {
+  return this->lpf_alpha;
 }

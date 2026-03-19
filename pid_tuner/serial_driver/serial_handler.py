@@ -166,6 +166,21 @@ class SerialHandler(QObject):
         cmd = ProtocolEncoder.set_pid(joint_id, param, value)
         self.send_command(cmd)
 
+    def set_pos_lpf(self, joint_id: int, alpha: float):
+        """Set position PID output LPF alpha."""
+        cmd = ProtocolEncoder.set_pos_lpf(joint_id, alpha)
+        self.send_command(cmd)
+
+    def set_vel_lpf(self, joint_id: int, alpha: float):
+        """Set velocity PID output LPF alpha."""
+        cmd = ProtocolEncoder.set_vel_lpf(joint_id, alpha)
+        self.send_command(cmd)
+
+    def set_input_lpf(self, joint_id: int, alpha: float):
+        """Set motor input LPF alpha."""
+        cmd = ProtocolEncoder.set_input_lpf(joint_id, alpha)
+        self.send_command(cmd)
+
     def disable_motors(self):
         """Send disable motors command (ESTOP)."""
         cmd = ProtocolEncoder.disable_motors()

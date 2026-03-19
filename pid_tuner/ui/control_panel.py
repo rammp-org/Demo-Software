@@ -331,6 +331,12 @@ class ControlPanel(QWidget):
         self._pos_ff.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
+        self._pos_lpf = QLineEdit("1.0")
+        self._pos_lpf.setValidator(QDoubleValidator())
+        self._pos_lpf.setMinimumWidth(pid_input_width)
+        self._pos_lpf.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
 
         pos_pid_layout.addWidget(QLabel("P:"))
         pos_pid_layout.addWidget(self._pos_p)
@@ -340,6 +346,8 @@ class ControlPanel(QWidget):
         pos_pid_layout.addWidget(self._pos_d)
         pos_pid_layout.addWidget(QLabel("FF:"))
         pos_pid_layout.addWidget(self._pos_ff)
+        pos_pid_layout.addWidget(QLabel("LPF α:"))
+        pos_pid_layout.addWidget(self._pos_lpf)
 
         self._set_pos_pid_btn = QPushButton("Set")
         self._set_pos_pid_btn.clicked.connect(self._on_set_pos_pid)
@@ -375,6 +383,12 @@ class ControlPanel(QWidget):
         self._vel_ff.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
+        self._vel_lpf = QLineEdit("1.0")
+        self._vel_lpf.setValidator(QDoubleValidator())
+        self._vel_lpf.setMinimumWidth(pid_input_width)
+        self._vel_lpf.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
 
         vel_pid_layout.addWidget(QLabel("P:"))
         vel_pid_layout.addWidget(self._vel_p)
@@ -384,6 +398,8 @@ class ControlPanel(QWidget):
         vel_pid_layout.addWidget(self._vel_d)
         vel_pid_layout.addWidget(QLabel("FF:"))
         vel_pid_layout.addWidget(self._vel_ff)
+        vel_pid_layout.addWidget(QLabel("LPF α:"))
+        vel_pid_layout.addWidget(self._vel_lpf)
 
         self._set_vel_pid_btn = QPushButton("Set")
         self._set_vel_pid_btn.clicked.connect(self._on_set_vel_pid)
@@ -513,6 +529,21 @@ class ControlPanel(QWidget):
         self._dir_btn.setToolTip("Flip motor direction (saved to EEPROM)")
         self._dir_btn.clicked.connect(self._on_toggle_direction)
         motor_config_layout.addWidget(self._dir_btn)
+
+        motor_config_layout.addStretch()
+
+        motor_config_layout.addWidget(QLabel("Input LPF α:"))
+        self._input_lpf = QLineEdit("0.5")
+        self._input_lpf.setValidator(QDoubleValidator())
+        self._input_lpf.setMinimumWidth(SIZES["input_min_width"])
+        self._input_lpf.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        motor_config_layout.addWidget(self._input_lpf)
+
+        self._set_input_lpf_btn = QPushButton("Set")
+        self._set_input_lpf_btn.clicked.connect(self._on_set_input_lpf)
+        motor_config_layout.addWidget(self._set_input_lpf_btn)
 
         layout.addLayout(motor_config_layout)
 
@@ -1067,11 +1098,13 @@ class ControlPanel(QWidget):
         i = self._get_float_from_lineedit(self._pos_i)
         d = self._get_float_from_lineedit(self._pos_d)
         ff = self._get_float_from_lineedit(self._pos_ff)
+        lpf = self._get_float_from_lineedit(self._pos_lpf, 1.0)
 
         self._serial_handler.set_pid(joint_id, "P", p)
         self._serial_handler.set_pid(joint_id, "I", i)
         self._serial_handler.set_pid(joint_id, "D", d)
         self._serial_handler.set_feed_forward(joint_id, "F", ff)
+        self._serial_handler.set_pos_lpf(joint_id, lpf)
 
         linked_joint_id = self._data_store.linked_joint
         if linked_joint_id != 0:
@@ -1079,6 +1112,7 @@ class ControlPanel(QWidget):
             self._serial_handler.set_pid(linked_joint_id, "I", i)
             self._serial_handler.set_pid(linked_joint_id, "D", d)
             self._serial_handler.set_feed_forward(linked_joint_id, "F", ff)
+            self._serial_handler.set_pos_lpf(linked_joint_id, lpf)
 
     def _on_set_vel_pid(self):
         """Send velocity PID gains and feed-forward."""
@@ -1087,11 +1121,13 @@ class ControlPanel(QWidget):
         i = self._get_float_from_lineedit(self._vel_i)
         d = self._get_float_from_lineedit(self._vel_d)
         ff = self._get_float_from_lineedit(self._vel_ff)
+        lpf = self._get_float_from_lineedit(self._vel_lpf, 1.0)
 
         self._serial_handler.set_pid(joint_id, "p", p)
         self._serial_handler.set_pid(joint_id, "i", i)
         self._serial_handler.set_pid(joint_id, "d", d)
         self._serial_handler.set_feed_forward(joint_id, "f", ff)
+        self._serial_handler.set_vel_lpf(joint_id, lpf)
 
         linked_joint_id = self._data_store.linked_joint
         if linked_joint_id != 0:
@@ -1099,6 +1135,18 @@ class ControlPanel(QWidget):
             self._serial_handler.set_pid(linked_joint_id, "i", i)
             self._serial_handler.set_pid(linked_joint_id, "d", d)
             self._serial_handler.set_feed_forward(linked_joint_id, "f", ff)
+            self._serial_handler.set_vel_lpf(linked_joint_id, lpf)
+
+    def _on_set_input_lpf(self):
+        """Send motor input LPF alpha."""
+        joint_id = self._data_store.selected_joint
+        lpf = self._get_float_from_lineedit(self._input_lpf, 0.5)
+
+        self._serial_handler.set_input_lpf(joint_id, lpf)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.set_input_lpf(linked_joint_id, lpf)
 
     def _on_load_config(self):
         """Request PID configuration from EEPROM."""
@@ -1127,11 +1175,15 @@ class ControlPanel(QWidget):
                 self._pos_i.setText(f"{config.pos_i:g}")
                 self._pos_d.setText(f"{config.pos_d:g}")
                 self._pos_ff.setText(f"{config.pos_ff:g}")
+                self._pos_lpf.setText(f"{config.pos_lpf_alpha:g}")
 
                 self._vel_p.setText(f"{config.vel_p:g}")
                 self._vel_i.setText(f"{config.vel_i:g}")
                 self._vel_d.setText(f"{config.vel_d:g}")
                 self._vel_ff.setText(f"{config.vel_ff:g}")
+                self._vel_lpf.setText(f"{config.vel_lpf_alpha:g}")
+
+                self._input_lpf.setText(f"{config.input_lpf_alpha:g}")
 
     def _on_step_positive(self):
         """Handle positive step button click - timed step."""

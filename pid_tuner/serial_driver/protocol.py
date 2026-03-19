@@ -89,6 +89,9 @@ class ConfigData:
     vel_i: float
     vel_d: float
     vel_ff: float
+    pos_lpf_alpha: float = 1.0
+    vel_lpf_alpha: float = 1.0
+    input_lpf_alpha: float = 0.5
 
 
 class ProtocolParser:
@@ -120,8 +123,8 @@ class ProtocolParser:
                 joint_id = int(config_match.group(1))
                 values_str = config_match.group(2)
                 values = [float(v.strip()) for v in values_str.split(",")]
-                if len(values) == 8:
-                    return ConfigData(
+                if len(values) >= 8:
+                    config_data = ConfigData(
                         joint_id=joint_id,
                         pos_p=values[0],
                         pos_i=values[1],
@@ -132,6 +135,12 @@ class ProtocolParser:
                         vel_d=values[6],
                         vel_ff=values[7],
                     )
+                    # Handle backwards compatibility for LPF alphas
+                    if len(values) >= 11:
+                        config_data.pos_lpf_alpha = values[8]
+                        config_data.vel_lpf_alpha = values[9]
+                        config_data.input_lpf_alpha = values[10]
+                    return config_data
             except (ValueError, IndexError):
                 pass
             return None
@@ -332,6 +341,18 @@ class ProtocolEncoder:
         """
         cmd = f"G{joint_id}\n"
         return cmd.encode("ascii")
+
+    @staticmethod
+    def set_pos_lpf(joint_id: int, alpha: float) -> bytes:
+        return f"Q{joint_id}:{alpha:.4f}\n".encode("ascii")
+
+    @staticmethod
+    def set_vel_lpf(joint_id: int, alpha: float) -> bytes:
+        return f"q{joint_id}:{alpha:.4f}\n".encode("ascii")
+
+    @staticmethod
+    def set_input_lpf(joint_id: int, alpha: float) -> bytes:
+        return f"l{joint_id}:{alpha:.4f}\n".encode("ascii")
 
     @staticmethod
     def set_self_leveling(enable: bool) -> bytes:

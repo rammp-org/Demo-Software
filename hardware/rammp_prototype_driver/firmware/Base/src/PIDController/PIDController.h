@@ -15,11 +15,18 @@ public:
   void setOutputLimits(float min_out, float max_out);
   void reset();
 
+  void setLpfAlpha(float alpha);
+  float getLpfAlpha() const;
+
   float kp, ki, kd, kff;
   float min_out, max_out;
   float integral;
   float prev_error;
   float scaling;
+  float lpf_alpha = 1.0f;
+
+private:
+  float _filtered_output = 0.0f;
 };
 
 #endif

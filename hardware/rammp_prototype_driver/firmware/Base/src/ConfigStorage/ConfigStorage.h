@@ -7,20 +7,23 @@
 struct MotorConfig {
     int8_t motor_dir;
     int8_t encoder_dir;
+    float lpf_input_alpha;
     float pos_p, pos_i, pos_d, pos_ff;
+    float pos_lpf_alpha;
     float vel_p, vel_i, vel_d, vel_ff;
+    float vel_lpf_alpha;
 };
 
 /**
  * ConfigStorage - EEPROM storage for motor configuration
  * 
  * EEPROM memory map:
- * Address 0-1: Magic number for validity check (0xABCD)
+ * Address 0-1: Magic number for validity check (0xABCE)
  * Address 10+: Array of 6 MotorConfig structs
  */
 class ConfigStorage {
 public:
-    static const uint16_t MAGIC_NUMBER = 0xABCD;
+    static const uint16_t MAGIC_NUMBER = 0xABCE;
     static const int MAGIC_ADDR = 0;
     static const int CONFIG_START_ADDR = 10;
     static const int NUM_MOTORS = 6;

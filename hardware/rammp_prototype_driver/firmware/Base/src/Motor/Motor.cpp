@@ -63,18 +63,25 @@ int8_t Motor::getEncoderDirection() const {
   return encoder_dir;
 }
 
+void Motor::setInputLpfAlpha(float alpha) {
+  if (alpha < 0.0f) alpha = 0.0f;
+  if (alpha > 1.0f) alpha = 1.0f;
+  this->lpf_input_alpha = alpha;
+}
+
 void Motor::updateSensorData(float current_pos, float dt) {
   // Multiply by encoder direction to allow reversing logical sensor axis
-  current_pos = current_pos * encoder_dir;
+  float raw_pos = current_pos * encoder_dir;
+
+  // position input LPF
+  this->current_pos = this->current_pos + this->lpf_input_alpha * (raw_pos - this->current_pos);
 
   if (dt > 0.0f) {
-    float raw_vel = (current_pos - this->prev_pos) / dt;
-    // Low-pass filter: alpha = 0.2 for smoothing
-    this->current_vel =
-        this->current_vel + this->lpf_vel_alpha * (raw_vel - this->current_vel);
+    float raw_vel = (this->current_pos - this->prev_pos) / dt;
+    // velocity input LPF
+    this->current_vel = this->current_vel + this->lpf_input_alpha * (raw_vel - this->current_vel);
   }
-  this->prev_pos = current_pos;
-  this->current_pos = current_pos;
+  this->prev_pos = this->current_pos;
 }
 
 float Motor::update(float dt) {

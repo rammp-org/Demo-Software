@@ -314,16 +314,19 @@ void setup() {
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
     all_motors[i]->setDirection(conf.motor_dir);
     all_motors[i]->setEncoderDirection(conf.encoder_dir);
+    all_motors[i]->setInputLpfAlpha(conf.lpf_input_alpha);
     // Load PID values into PIDController objects
     all_motors[i]->pos_pid.kp = conf.pos_p;
     all_motors[i]->pos_pid.ki = conf.pos_i;
     all_motors[i]->pos_pid.kd = conf.pos_d;
     all_motors[i]->pos_pid.setFeedForward(conf.pos_ff);
+    all_motors[i]->pos_pid.setLpfAlpha(conf.pos_lpf_alpha);
     
     all_motors[i]->vel_pid.kp = conf.vel_p;
     all_motors[i]->vel_pid.ki = conf.vel_i;
     all_motors[i]->vel_pid.kd = conf.vel_d;
     all_motors[i]->vel_pid.setFeedForward(conf.vel_ff);
+    all_motors[i]->vel_pid.setLpfAlpha(conf.vel_lpf_alpha);
   }
 
   current_state = IDLE;
@@ -485,6 +488,21 @@ void loop() {
         if (DEBUG_MODE)
           Serial.println("DEBUG: Set Vel FF");
         break;
+      case CMD_INPUT_LPF:
+        m->setInputLpfAlpha(cmd.value);
+        if (DEBUG_MODE)
+          Serial.println("DEBUG: Set Input LPF");
+        break;
+      case CMD_POS_LPF:
+        m->pos_pid.setLpfAlpha(cmd.value);
+        if (DEBUG_MODE)
+          Serial.println("DEBUG: Set Pos LPF");
+        break;
+      case CMD_VEL_LPF:
+        m->vel_pid.setLpfAlpha(cmd.value);
+        if (DEBUG_MODE)
+          Serial.println("DEBUG: Set Vel LPF");
+        break;
       case CMD_R:
         m->pos_pid.reset();
         m->vel_pid.reset();
@@ -546,14 +564,17 @@ void loop() {
         MotorConfig conf;
         conf.motor_dir = m->getDirection();
         conf.encoder_dir = m->getEncoderDirection();
+        conf.lpf_input_alpha = m->lpf_input_alpha;
         conf.pos_p = m->pos_pid.kp;
         conf.pos_i = m->pos_pid.ki;
         conf.pos_d = m->pos_pid.kd;
         conf.pos_ff = m->pos_pid.kff;
+        conf.pos_lpf_alpha = m->pos_pid.getLpfAlpha();
         conf.vel_p = m->vel_pid.kp;
         conf.vel_i = m->vel_pid.ki;
         conf.vel_d = m->vel_pid.kd;
         conf.vel_ff = m->vel_pid.kff;
+        conf.vel_lpf_alpha = m->vel_pid.getLpfAlpha();
         ConfigStorage::saveMotorConfig(cmd.actuator_id, conf);
         if (DEBUG_MODE) {
           Serial.print("DEBUG: Saved config for motor ");
@@ -573,7 +594,10 @@ void loop() {
         Serial.print(m->vel_pid.kp, 4); Serial.print(",");
         Serial.print(m->vel_pid.ki, 4); Serial.print(",");
         Serial.print(m->vel_pid.kd, 4); Serial.print(",");
-        Serial.println(m->vel_pid.kff, 4);
+        Serial.print(m->vel_pid.kff, 4); Serial.print(",");
+        Serial.print(m->pos_pid.getLpfAlpha(), 4); Serial.print(",");
+        Serial.print(m->vel_pid.getLpfAlpha(), 4); Serial.print(",");
+        Serial.println(m->lpf_input_alpha, 4);
         break;
       }
       default:

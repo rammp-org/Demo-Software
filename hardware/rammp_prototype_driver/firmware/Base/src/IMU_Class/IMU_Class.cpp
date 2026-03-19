@@ -50,20 +50,17 @@ void IMU_Class::retrieve_readings() {
   ay = accel.y();
   az = accel.z();
 
-  // Map axes to match legacy getVector(VECTOR_EULER) behavior
-  // where euler.z() was pitch, euler.y() was roll, euler.x() was yaw
-  double raw_pitch = raw_z;
+  // set pitch roll and yaw to the encoder axes expected
+  double raw_pitch = raw_x;
   double raw_roll = raw_y;
-  double raw_yaw = raw_x;
+  double raw_yaw = raw_z;
 
   // Software fix for upside-down mounting (moves the +/-180 discontinuity away from the flat resting position)
   raw_roll += 180.0;
   if (raw_roll > 180.0) raw_roll -= 360.0;
 
-  // Apply offsets (matching legacy behavior)
-  // IMU.pitch_offset was 5.0 (2.0 + 3.0)
-  pitch = raw_pitch - 5.0;
-  roll = raw_roll + 1.5;
+  pitch = raw_pitch;
+  roll = raw_roll;
   yaw = raw_yaw;
 
   // Apply low pass filter using shortest path for continuous angles

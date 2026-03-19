@@ -204,22 +204,40 @@ void runSelfLeveling(float dt) {
   mr_carriage.setMode(Motor::POSITION_CONTROL);
   fc.setMode(Motor::POSITION_CONTROL);
 
-  // Read current IMU angles
-  float current_pitch = IMU.pitchf; // Degrees
-  float current_roll = IMU.rollf;   // Degrees
+  // Get raw orientation from IMU
+  imu::Quaternion q_meas = IMU.current_quat;
 
-  // Calculate error against targets (in radians)
-  // Use shortest path distance to avoid +/- 180 discontinuity jumps
-  float pitch_error = target_pitch - current_pitch;
-  while (pitch_error > 180.0f) pitch_error -= 360.0f;
-  while (pitch_error < -180.0f) pitch_error += 360.0f;
+  // Construct target quaternion manually to avoid API differences in fromAxisAngle
+  // Note: BNO055 defines Pitch as rotation around X, Roll as rotation around Y.
+  // Because the IMU is mounted upside down, Roll is physically offset by 180 deg.
+  double p_rad = (target_pitch * PI / 180.0) / 2.0;
+  imu::Quaternion q_target_pitch(cos(p_rad), sin(p_rad), 0.0, 0.0);
   
-  float roll_error = target_roll - current_roll;
-  while (roll_error > 180.0f) roll_error -= 360.0f;
-  while (roll_error < -180.0f) roll_error += 360.0f;
+  double r_rad = ((target_roll - 180.0) * PI / 180.0) / 2.0;
+  imu::Quaternion q_target_roll(cos(r_rad), 0.0, sin(r_rad), 0.0);
+  
+  // Target orientation
+  imu::Quaternion q_target = q_target_pitch * q_target_roll;
 
-  float dpitchrd = 1.0f * (pitch_error / DG);
-  float drollrd  = 1.0f * (roll_error / DG);
+  // Calculate the rotation required to go from current to target
+  imu::Quaternion q_err = q_target * q_meas.conjugate();
+
+  // Extract the Pitch and Roll error directly from the Error Quaternion
+  // Because the error is small, this will never hit gimbal lock or +/- 180 boundaries!
+  double sinr_cosp = 2.0 * (q_err.w() * q_err.x() + q_err.y() * q_err.z());
+  double cosr_cosp = 1.0 - 2.0 * (q_err.x() * q_err.x() + q_err.y() * q_err.y());
+  double err_x = atan2(sinr_cosp, cosr_cosp) * (180.0 / PI); // Roll error mapped to X
+
+  double sinp = 2.0 * (q_err.w() * q_err.y() - q_err.z() * q_err.x());
+  double err_y;
+  if (abs(sinp) >= 1)
+    err_y = copysign(M_PI / 2, sinp) * (180.0 / PI);
+  else
+    err_y = asin(sinp) * (180.0 / PI); // Pitch error mapped to Y
+
+  // Convert exact, continuous error angles to radians
+  float dpitchrd = 1.0f * (err_x / DG); // BNO X = Robot Pitch
+  float drollrd  = 1.0f * (err_y / DG); // BNO Y = Robot Roll
 
   // Deadband to prevent jitter
   if (fabs(dpitchrd) < 0.001) dpitchrd = 0.0;

@@ -21,6 +21,7 @@ void IMU_Class::initialize_BNO055_sensor() {
 void IMU_Class::retrieve_readings() {
   // Get quaternion data to avoid Euler angle discontinuities (gimbal lock / wraparound)
   imu::Quaternion quat = bno_sensor.getQuat();
+  current_quat = quat; // Expose raw unfiltered quaternion for self-leveling kinematics
 
   // Convert quaternion to Euler angles manually
   // This uses the standard aerospace sequence

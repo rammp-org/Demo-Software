@@ -30,6 +30,9 @@ class MEBotControlNode(Node):
         # publishing rate for all topics
         self.publish_rate = 0.001
 
+        # variables for sending commands to Teensy
+        self.mode = None
+
         # IMU
         self.IMU_pitch = 0.0
         self.IMU_roll = 0.0
@@ -143,6 +146,9 @@ class MEBotControlNode(Node):
                 "Action:"
             ):  # check if data is an action command from Base.ino
                 self.action = raw_data.split("Action:")[1].strip()[0]
+
+    def write_serial_data(self, data):
+        self.ser.write(data.encode("utf-8"))
 
     # update variables to be published
     def update_data(self, data):

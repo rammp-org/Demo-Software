@@ -1,0 +1,16 @@
+{
+  "nodes": [
+    {
+      "name": "/arm/state/joint_states",
+      "namespace": "/"
+    },
+    {
+      "name": "subscribers",
+      "namespace": "/"
+    },
+    {
+      "name": "find_nodes",
+      "namespace": "/"
+    }
+  ]
+}

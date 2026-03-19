@@ -24,6 +24,7 @@ setup(
     entry_points={
         "console_scripts": [
             "system_control = rammp_prototype_behavior.SystemControl:main",
+            "mock_arm_driver = rammp_prototype_behavior.mocks.mock_arm_driver:main",
         ],
     },
 )

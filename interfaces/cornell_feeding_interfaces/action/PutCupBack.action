@@ -1,9 +1,0 @@
-# Goal: put the cup back to a specified location
-string destination  # "table" or "wheelchair"
----
-# Result
-bool success
-string message
----
-# Feedback
-string status

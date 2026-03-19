@@ -1,9 +1,0 @@
-# Goal: grab the cup from a specified location
-string source  # "table" or "wheelchair"
----
-# Result
-bool success
-string message
----
-# Feedback
-string status

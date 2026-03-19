@@ -11,10 +11,11 @@ find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "action/GrabCup.action"
+  "action/GrabCupFromTable.action"
   "action/BringCupToMouth.action"
   "action/HomeCup.action"
-  "action/PutCupBack.action"
+  "action/PutCupBackToHolder.action"
+  "action/PickupAndOrder.action"
   DEPENDENCIES builtin_interfaces
 )
 

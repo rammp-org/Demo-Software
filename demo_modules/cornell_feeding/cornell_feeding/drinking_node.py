@@ -5,6 +5,7 @@ This node provides action servers matching the Drinking Node spec:
   - /arm/drink/bring_cup_to_mouth
   - /arm/drink/home_cup
   - /arm/drink/put_cup_back_to_holder
+  - /arm/drink/pickup_and_order
 
 Each action server is a dummy that sleeps briefly and returns success.
 """
@@ -18,10 +19,11 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
 from cornell_feeding_interfaces.action import (
-    GrabCup,
     BringCupToMouth,
+    GrabCupFromTable,
     HomeCup,
-    PutCupBack,
+    PickupAndOrder,
+    PutCupBackToHolder,
 )
 
 
@@ -39,7 +41,7 @@ class DrinkingNode(rclpy.node.Node):
 
         self._grab_cup_action = ActionServer(
             self,
-            GrabCup,
+            GrabCupFromTable,
             "/arm/drink/grab_cup_from_table",
             self._on_grab_cup,
             callback_group=self._action_group,
@@ -63,9 +65,17 @@ class DrinkingNode(rclpy.node.Node):
 
         self._put_cup_back_action = ActionServer(
             self,
-            PutCupBack,
+            PutCupBackToHolder,
             "/arm/drink/put_cup_back_to_holder",
             self._on_put_cup_back,
+            callback_group=self._action_group,
+        )
+
+        self._pickup_and_order_action = ActionServer(
+            self,
+            PickupAndOrder,
+            "/arm/drink/pickup_and_order",
+            self._on_pickup_and_order,
             callback_group=self._action_group,
         )
 
@@ -79,37 +89,31 @@ class DrinkingNode(rclpy.node.Node):
         self.get_logger().info(f"Feedback: {status_msg}")
 
     def _on_grab_cup(self, goal_handle):
-        source = goal_handle.request.source
-        self.get_logger().info(f"[GrabCup] Received goal: source={source}")
+        self.get_logger().info("[GrabCupFromTable] Received goal")
 
-        self._publish_feedback(goal_handle, GrabCup, f"Moving to {source}")
+        self._publish_feedback(goal_handle, GrabCupFromTable, "Moving to table")
         time.sleep(DUMMY_STEP_DURATION)
 
-        self._publish_feedback(goal_handle, GrabCup, "Closing gripper on cup")
+        self._publish_feedback(goal_handle, GrabCupFromTable, "Closing gripper on cup")
         time.sleep(DUMMY_STEP_DURATION)
 
-        self._publish_feedback(goal_handle, GrabCup, "Lifting cup")
+        self._publish_feedback(goal_handle, GrabCupFromTable, "Lifting cup")
         time.sleep(DUMMY_STEP_DURATION)
 
         goal_handle.succeed()
-        result = GrabCup.Result()
+        result = GrabCupFromTable.Result()
         result.success = True
-        result.message = f"Cup grabbed from {source}"
-        self.get_logger().info(f"[GrabCup] Completed: {result.message}")
+        result.message = "Cup grabbed from table"
+        self.get_logger().info(f"[GrabCupFromTable] Completed: {result.message}")
         return result
 
     def _on_bring_cup_to_mouth(self, goal_handle):
-        distance = goal_handle.request.outside_mouth_distance
-        self.get_logger().info(
-            f"[BringCupToMouth] Received goal: outside_mouth_distance={distance}"
-        )
+        self.get_logger().info("[BringCupToMouth] Received goal")
 
         self._publish_feedback(goal_handle, BringCupToMouth, "Moving cup toward mouth")
         time.sleep(DUMMY_STEP_DURATION)
 
-        self._publish_feedback(
-            goal_handle, BringCupToMouth, f"Holding at {distance}m from mouth"
-        )
+        self._publish_feedback(goal_handle, BringCupToMouth, "Holding at mouth")
         time.sleep(DUMMY_STEP_DURATION)
 
         goal_handle.succeed()
@@ -135,24 +139,39 @@ class DrinkingNode(rclpy.node.Node):
         self.get_logger().info(f"[HomeCup] Completed: {result.message}")
         return result
 
-    def _on_put_cup_back(self, goal_handle):
-        destination = goal_handle.request.destination
-        self.get_logger().info(f"[PutCupBack] Received goal: destination={destination}")
+    def _on_pickup_and_order(self, goal_handle):
+        self.get_logger().info("[PickupAndOrder] Received goal")
 
-        self._publish_feedback(goal_handle, PutCupBack, f"Moving to {destination}")
+        self._publish_feedback(goal_handle, PickupAndOrder, "Picking up cup")
         time.sleep(DUMMY_STEP_DURATION)
 
-        self._publish_feedback(goal_handle, PutCupBack, "Placing cup down")
-        time.sleep(DUMMY_STEP_DURATION)
-
-        self._publish_feedback(goal_handle, PutCupBack, "Opening gripper")
+        self._publish_feedback(goal_handle, PickupAndOrder, "Ordering drink")
         time.sleep(DUMMY_STEP_DURATION)
 
         goal_handle.succeed()
-        result = PutCupBack.Result()
+        result = PickupAndOrder.Result()
         result.success = True
-        result.message = f"Cup placed back at {destination}"
-        self.get_logger().info(f"[PutCupBack] Completed: {result.message}")
+        result.message = "Pickup and order completed"
+        self.get_logger().info(f"[PickupAndOrder] Completed: {result.message}")
+        return result
+
+    def _on_put_cup_back(self, goal_handle):
+        self.get_logger().info("[PutCupBackToHolder] Received goal")
+
+        self._publish_feedback(goal_handle, PutCupBackToHolder, "Moving to wheelchair holder")
+        time.sleep(DUMMY_STEP_DURATION)
+
+        self._publish_feedback(goal_handle, PutCupBackToHolder, "Placing cup down")
+        time.sleep(DUMMY_STEP_DURATION)
+
+        self._publish_feedback(goal_handle, PutCupBackToHolder, "Opening gripper")
+        time.sleep(DUMMY_STEP_DURATION)
+
+        goal_handle.succeed()
+        result = PutCupBackToHolder.Result()
+        result.success = True
+        result.message = "Cup placed back at wheelchair holder"
+        self.get_logger().info(f"[PutCupBackToHolder] Completed: {result.message}")
         return result
 
 

@@ -13,6 +13,7 @@ class SystemControl(rclpy.node.Node):
         self.init_services_clients()
         self.init_actions_clients()
         self.init_state_machine()
+        self.simple_test()
 
     def init_subscribers(self):
         pass
@@ -47,6 +48,24 @@ class SystemControl(rclpy.node.Node):
     def is_arm_retracted(self):
         # Placeholder for actual logic to determine if the arm is retracted
         return False
+
+    # state machine callbacks
+    def on_enter_Chair(self):
+        # for testing
+        print("Entering Chair state")
+
+    def on_enter_Arm(self):
+        print("Entering Arm state")
+
+    def simple_test(self):
+        print("simple test:")
+        print("current state:" + self.state)
+        print("triggering ready")
+        self.ready()
+        print("current state:" + self.state)
+        print("triggering reqArm")
+        self.reqArm()
+        print("current state:" + self.state)
 
     # state machine setup
     def init_state_machine(self):

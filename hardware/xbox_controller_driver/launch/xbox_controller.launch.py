@@ -7,8 +7,8 @@ def generate_launch_description():
         [
             Node(
                 package="xbox_controller_driver",
-                executable="estop_node",
-                name="estop_node",
+                executable="xbox_controller_node",
+                name="xbox_controller_node",
                 output="screen",
             )
         ]

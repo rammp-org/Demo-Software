@@ -25,6 +25,8 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": ["estop_node = xbox_controller_driver.estop.py:main"],
+        "console_scripts": [
+            "xbox_controller_node = xbox_controller_driver.xbox_controller_node.py:main"
+        ],
     },
 )

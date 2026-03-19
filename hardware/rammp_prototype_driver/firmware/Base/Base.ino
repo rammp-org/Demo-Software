@@ -98,7 +98,7 @@ void updateTelemetry() {
 }
 
 // Helper to send telemetry
-// Extended format: 36 values (18 original + 6 dirs + 4 limits + 6 imu)
+// Extended format: 44 values (18 original + 6 dirs + 4 limits + 6 imu + 4 quat)
 void sendTelemetry() {
   Serial.print("TELEMETRY,");
   Serial.print(millis());
@@ -190,7 +190,16 @@ void sendTelemetry() {
   Serial.print(",");
   Serial.print(IMU.ay, 3);
   Serial.print(",");
-  Serial.println(IMU.az, 3);
+  Serial.print(IMU.az, 3);
+  Serial.print(",");
+  // Raw Quaternion (4)
+  Serial.print(IMU.current_quat.w(), 4);
+  Serial.print(",");
+  Serial.print(IMU.current_quat.x(), 4);
+  Serial.print(",");
+  Serial.print(IMU.current_quat.y(), 4);
+  Serial.print(",");
+  Serial.println(IMU.current_quat.z(), 4);
 }
 
 // --- Self Leveling Kinematics ---

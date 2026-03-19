@@ -29,6 +29,7 @@ from ..serial_driver.serial_handler import SerialHandler
 from .theme import THEME
 from .scaling import SIZES, scaled
 from .imu_display import IMUDisplay
+from .imu_3d_widget import IMU3DWidget
 
 
 # Control mode constants
@@ -146,6 +147,10 @@ class ControlPanel(QWidget):
         # IMU Display
         self._imu_display = IMUDisplay(self._data_store)
         layout.addWidget(self._imu_display)
+
+        # 3D IMU Visualization
+        self._imu_3d_widget = IMU3DWidget(self._data_store)
+        layout.addWidget(self._imu_3d_widget)
 
         layout.addStretch()
 

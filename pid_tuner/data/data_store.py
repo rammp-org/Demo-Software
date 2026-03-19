@@ -354,6 +354,11 @@ class DataStore(QObject):
         self._imu_ay: float = 0.0
         self._imu_az: float = 0.0
 
+        self._imu_qw: float = 1.0
+        self._imu_qx: float = 0.0
+        self._imu_qy: float = 0.0
+        self._imu_qz: float = 0.0
+
         self._imu_target_pitch: float = 0.0
         self._imu_target_roll: float = 0.0
 
@@ -494,6 +499,26 @@ class DataStore(QObject):
         return self._imu_az
 
     @property
+    def imu_qw(self) -> float:
+        """Get IMU Quaternion W."""
+        return self._imu_qw
+
+    @property
+    def imu_qx(self) -> float:
+        """Get IMU Quaternion X."""
+        return self._imu_qx
+
+    @property
+    def imu_qy(self) -> float:
+        """Get IMU Quaternion Y."""
+        return self._imu_qy
+
+    @property
+    def imu_qz(self) -> float:
+        """Get IMU Quaternion Z."""
+        return self._imu_qz
+
+    @property
     def imu_target_pitch(self) -> float:
         """Get IMU target pitch angle."""
         return self._imu_target_pitch
@@ -578,6 +603,12 @@ class DataStore(QObject):
         self._imu_ax = data.imu_ax
         self._imu_ay = data.imu_ay
         self._imu_az = data.imu_az
+
+        if hasattr(data, "imu_qw"):
+            self._imu_qw = data.imu_qw
+            self._imu_qx = data.imu_qx
+            self._imu_qy = data.imu_qy
+            self._imu_qz = data.imu_qz
 
         # Add IMU sample to history for graphing
         self._imu_data.add_sample(

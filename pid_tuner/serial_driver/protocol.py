@@ -65,6 +65,12 @@ class EncoderData:
     imu_ay: float = 0.0
     imu_az: float = 0.0
 
+    # New fields for IMU quaternion
+    imu_qw: float = 1.0
+    imu_qx: float = 0.0
+    imu_qy: float = 0.0
+    imu_qz: float = 0.0
+
     @property
     def num_joints(self) -> int:
         return len(self.position_values)
@@ -153,9 +159,9 @@ class ProtocolParser:
                 values_str = match.group(3)
                 values = [float(v.strip()) for v in values_str.split(",")]
 
-                # Newest format: 40 values (6 pos, 6 vel, 6 pwm, 6 dir, 6 enc_dir, 4 limits, 6 imu)
-                if len(values) == 40:
-                    return EncoderData(
+                # Newest format: 44 values (6 pos, 6 vel, 6 pwm, 6 dir, 6 enc_dir, 4 limits, 6 imu, 4 quat)
+                if len(values) >= 40:
+                    data = EncoderData(
                         timestamp_ms=timestamp,
                         state=state,
                         position_values=values[0:6],
@@ -171,6 +177,13 @@ class ProtocolParser:
                         imu_ay=values[38],
                         imu_az=values[39],
                     )
+                    # Support new 44-value format with quaternion
+                    if len(values) >= 44:
+                        data.imu_qw = values[40]
+                        data.imu_qx = values[41]
+                        data.imu_qy = values[42]
+                        data.imu_qz = values[43]
+                    return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:
                     return EncoderData(

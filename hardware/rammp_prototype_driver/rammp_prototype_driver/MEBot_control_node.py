@@ -5,12 +5,14 @@ import serial
 import ast
 from sensor_msgs.msg import Imu
 import math
-from tf2_msgs.msg import TFMessage
 from sensor_msgs.msg import JointState
 from std_srvs.srv import SetBool
+from std_msgs.msg import Bool
+from tf2_ros import TransformBroadcaster
+
+# custom msgs/srvs
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
 from rammp_prototype_interfaces.action import CurbTraverse
-from std_msgs.msg import Bool
 
 
 class MEBotControlNode(Node):
@@ -114,9 +116,8 @@ class MEBotControlNode(Node):
             self.publish_rate, self.publish_joint_states
         )
 
-        # tf publisher
-        self.tf_pubslisher = self.create_publisher(TFMessage, "tf_data", 10)
-        self.tf_timer = self.create_timer(self.publish_rate, self.publish_tf_data)
+        # init transform broadcaster
+        self.tf_broadcaster = TransformBroadcaster(self)
 
         # state publisher
         self.RAMMPPrototypeState_publisher = self.create_publisher(
@@ -139,6 +140,7 @@ class MEBotControlNode(Node):
             ):  # check if data is in expected list format
                 data = ast.literal_eval(raw_data)
                 self.update_data(data)  # Update variables with new data
+                self.publish_tf_data()  # update tf data based on updated teensy encoder data
             if raw_data.startswith(
                 "Action:"
             ):  # check if data is an action command from Base.ino
@@ -209,9 +211,12 @@ class MEBotControlNode(Node):
         self.joint_state_publisher.publish(msg)
 
     def publish_tf_data(self):
+        # t = TransformStamped()
+        # t.header.stamp = self.get_clock().now().to_msg()
+        # t.header.frame_id = None
+        # t.child_frame_id = None
+        # self.tf_broadcaster.sendTransform(t)
         pass
-        # msg = TFMessage()
-        # transform = TransformStamped()
 
     def publish_RAMMPPrototypeState(self):
         msg = RAMMPPrototypeState()

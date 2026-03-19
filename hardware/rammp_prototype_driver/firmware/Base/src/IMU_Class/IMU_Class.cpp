@@ -21,7 +21,7 @@ void IMU_Class::initialize_BNO055_sensor() {
 void IMU_Class::retrieve_readings() {
   // Get quaternion data to avoid Euler angle discontinuities (gimbal lock / wraparound)
   imu::Quaternion quat = bno_sensor.getQuat();
-  current_quat = quat; // Expose raw unfiltered quaternion for self-leveling kinematics
+  current_quat = extractSwing(quat); // Expose non-yaw quaternion for self-leveling kinematics
 
   // Convert quaternion to Euler angles manually
   // This uses the standard aerospace sequence
@@ -81,4 +81,29 @@ void IMU_Class::retrieve_readings() {
 
   pitchrd = pitchf * (PI / 180.0);
   rollrd = -1.0 * rollf * (PI / 180.0);
+}
+
+imu::Quaternion IMU_Class::extractSwing(imu::Quaternion q) {
+    imu::Quaternion swing;
+    
+    // 1. Calculate the magnitude of the yaw (twist) rotation
+    float twist_norm = sqrt((q.w() * q.w()) + (q.z() * q.z()));
+
+    // 2. Handle the singularity (to prevent divide-by-zero)
+    // This only happens if the robot is pitched exactly 180 degrees 
+    // straight down or straight up.
+    if (twist_norm < 0.0001f) {
+        // In this rare edge case, return an unrotated state 
+        // to prevent math errors from crashing the loop.
+        return imu::Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    }
+
+    // 3. Apply the algebraically simplified cancellation
+    // This directly computes the result of: Inverse(Twist) * Measured
+    float swing_w = twist_norm;
+    float swing_x = (q.w() * q.x() + q.z() * q.y()) / twist_norm;
+    float swing_y = (q.w() * q.y() - q.z() * q.x()) / twist_norm;
+    float swing_z = 0.0f; // Yaw is now completely zeroed out!
+
+    return imu::Quaternion(swing_w, swing_x, swing_y, swing_z);
 }

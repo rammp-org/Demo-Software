@@ -20,6 +20,8 @@ public:
   IMU_Class(Adafruit_BNO055 &);
   void initialize_BNO055_sensor();
   void retrieve_readings();
+  
+  imu::Quaternion extractSwing(imu::Quaternion q);
 };
 
 #endif

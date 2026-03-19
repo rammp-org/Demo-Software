@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 from glob import glob
 import os
 
-package_name = "xbox_controller_driver"
+package_name = "gamepad_driver"
 
 setup(
     name=package_name,
@@ -25,8 +25,6 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [
-            "xbox_controller_node = xbox_controller_driver.xbox_controller_node.py:main"
-        ],
+        "console_scripts": ["gamepad_node = gamepad_driver.gamepad_node.py:main"],
     },
 )

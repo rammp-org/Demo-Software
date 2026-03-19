@@ -8,19 +8,18 @@ This node provides action servers matching the Drinking Node spec:
   - /arm/drink/pickup_and_order
 
 Each action server sends joint/cartesian move commands to the arm
-via ArmInterfaceClient, or runs them in PyBullet simulation.
+via ArmInterfaceClient, or runs them in PyBullet simulation if available.
 """
 
 import traceback
 from pathlib import Path
 
+import yaml
 import rclpy
 import rclpy.node
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
-
-from pybullet_helpers.geometry import Pose
 
 from cornell_feeding_interfaces.action import (
     BringCupToMouth,
@@ -37,8 +36,26 @@ from rammp.control.robot_controller.command_interface import (
     JointCommand,
     OpenGripperCommand,
 )
-from rammp.simulation.scene_description import create_scene_description_from_config
-from rammp.simulation.simulator import FeedingDeploymentPyBulletSimulator
+
+# Optional PyBullet simulation support.
+try:
+    from pybullet_helpers.geometry import Pose
+    from rammp.simulation.scene_description import create_scene_description_from_config
+    from rammp.simulation.simulator import FeedingDeploymentPyBulletSimulator
+    PYBULLET_AVAILABLE = True
+except ImportError:
+    PYBULLET_AVAILABLE = False
+
+
+def _load_scene_config(config_path: str) -> dict:
+    """Load named positions/poses from a scene config YAML as plain lists."""
+    with open(config_path, "r") as f:
+        raw = yaml.safe_load(f)
+    scene = {}
+    for key, entry in raw.items():
+        if isinstance(entry, dict) and "values" in entry:
+            scene[key] = entry["values"]
+    return scene
 
 
 class DrinkingNode(rclpy.node.Node):
@@ -56,16 +73,27 @@ class DrinkingNode(rclpy.node.Node):
         self._run_on_robot = self.get_parameter("run_on_robot").value
         use_gui = self.get_parameter("use_gui").value
 
-        # Initialize scene description and simulator.
-        scene_config_path = (
+        scene_config_path = str(
             Path(__file__).resolve().parents[3]
             / "src" / "rammp" / "simulation" / "configs"
             / f"{scene_config}.yaml"
         )
-        self._scene_description = create_scene_description_from_config(str(scene_config_path))
-        self._sim = FeedingDeploymentPyBulletSimulator(
-            self._scene_description, use_gui=use_gui, ignore_user=True
-        )
+
+        # Initialize simulator if PyBullet is available.
+        self._sim = None
+        if PYBULLET_AVAILABLE and not self._run_on_robot:
+            scene_desc = create_scene_description_from_config(scene_config_path)
+            self._sim = FeedingDeploymentPyBulletSimulator(
+                scene_desc, use_gui=use_gui, ignore_user=True
+            )
+            self.get_logger().info("PyBullet simulation initialized.")
+        elif not self._run_on_robot:
+            self.get_logger().warn(
+                "PyBullet not available. Running in log-only mode (no sim, no robot)."
+            )
+
+        # Load positions/poses as plain lists for direct use.
+        self._scene = _load_scene_config(scene_config_path)
 
         # Initialize robot interface.
         if self._run_on_robot:
@@ -127,37 +155,37 @@ class DrinkingNode(rclpy.node.Node):
         self.get_logger().info(f"Feedback: {status_msg}")
 
     def _move_joints(self, joint_positions: list[float]):
-        """Move to joint positions on robot or in sim."""
+        """Move to joint positions on robot, in sim, or log-only."""
         self.get_logger().info(f"Moving joints: {[round(v, 3) for v in joint_positions]}")
         if self._arm is not None:
             self._arm.execute_command(JointCommand(pos=joint_positions))
-        else:
+        elif self._sim is not None:
             plan = self._sim.plan_to_joint_positions(joint_positions)
             self._sim.visualize_plan(plan)
 
     def _move_cartesian(self, pose_values: list[float]):
-        """Move to cartesian pose on robot or in sim. pose_values = [x,y,z, qx,qy,qz,qw]."""
-        pos = tuple(pose_values[:3])
-        quat = tuple(pose_values[3:])
+        """Move to cartesian pose. pose_values = [x,y,z, qx,qy,qz,qw]."""
+        pos = pose_values[:3]
+        quat = pose_values[3:]
         self.get_logger().info(f"Moving cartesian: pos={[round(v, 3) for v in pos]}")
         if self._arm is not None:
-            self._arm.execute_command(CartesianCommand(pos=list(pos), quat=list(quat)))
-        else:
-            plan = self._sim.plan_to_ee_pose(Pose(pos, quat))
+            self._arm.execute_command(CartesianCommand(pos=pos, quat=quat))
+        elif self._sim is not None:
+            plan = self._sim.plan_to_ee_pose(Pose(tuple(pos), tuple(quat)))
             self._sim.visualize_plan(plan)
 
     def _open_gripper(self):
         self.get_logger().info("Opening gripper")
         if self._arm is not None:
             self._arm.execute_command(OpenGripperCommand())
-        else:
+        elif self._sim is not None:
             self._sim.robot.open_fingers()
 
     def _close_gripper(self):
         self.get_logger().info("Closing gripper")
         if self._arm is not None:
             self._arm.execute_command(CloseGripperCommand())
-        else:
+        elif self._sim is not None:
             self._sim.robot.close_fingers()
 
     def _set_speed(self, speed: str):
@@ -172,16 +200,15 @@ class DrinkingNode(rclpy.node.Node):
         try:
             self._set_speed("medium")
             self._publish_feedback(goal_handle, GrabCupFromTable, "Moving to retract")
-            self._move_joints(self._scene_description.retract_pos)
+            self._move_joints(self._scene["retract_pos"])
             self._close_gripper()
 
             self._publish_feedback(goal_handle, GrabCupFromTable, "Moving to drink gaze")
-            self._move_joints(self._scene_description.drink_gaze_pos)
+            self._move_joints(self._scene["drink_gaze_pos"])
 
-            # Move to staging, open gripper, then home
             self._publish_feedback(goal_handle, GrabCupFromTable, "Grasping cup")
             self._open_gripper()
-            self._move_joints(self._scene_description.home_pos)
+            self._move_joints(self._scene["home_pos"])
 
             if self._arm is not None:
                 self._arm.start_maintain_home_orientation()
@@ -210,16 +237,16 @@ class DrinkingNode(rclpy.node.Node):
                 self._arm.stop_maintain_home_orientation()
 
             self._publish_feedback(goal_handle, BringCupToMouth, "Moving to transfer waypoint")
-            self._move_joints(self._scene_description.drink_transfer_waypoint_pos)
+            self._move_joints(self._scene["drink_transfer_waypoint_pos"])
 
             self._publish_feedback(goal_handle, BringCupToMouth, "Moving to before-transfer position")
-            self._move_joints(self._scene_description.drink_before_transfer_pos)
+            self._move_joints(self._scene["drink_before_transfer_pos"])
 
             self._publish_feedback(goal_handle, BringCupToMouth, "Returning to waypoint")
-            self._move_joints(self._scene_description.drink_transfer_waypoint_pos)
+            self._move_joints(self._scene["drink_transfer_waypoint_pos"])
 
             self._publish_feedback(goal_handle, BringCupToMouth, "Returning home")
-            self._move_joints(self._scene_description.home_pos)
+            self._move_joints(self._scene["home_pos"])
 
             if self._arm is not None:
                 self._arm.start_maintain_home_orientation()
@@ -243,7 +270,7 @@ class DrinkingNode(rclpy.node.Node):
         self.get_logger().info("[HomeCup] Received goal")
         try:
             self._publish_feedback(goal_handle, HomeCup, "Moving to home position")
-            self._move_joints(self._scene_description.home_pos)
+            self._move_joints(self._scene["home_pos"])
 
             goal_handle.succeed()
             result = HomeCup.Result()
@@ -266,26 +293,26 @@ class DrinkingNode(rclpy.node.Node):
             self._set_speed("medium")
 
             self._publish_feedback(goal_handle, PickupAndOrder, "Moving home")
-            self._move_joints(self._scene_description.home_pos)
+            self._move_joints(self._scene["home_pos"])
 
             self._publish_feedback(goal_handle, PickupAndOrder, "Moving outside handle")
-            self._move_joints(self._scene_description.outside_drink_handle_pos)
+            self._move_joints(self._scene["outside_drink_handle_pos"])
             self._close_gripper()
 
             self._publish_feedback(goal_handle, PickupAndOrder, "Moving below handle")
-            self._move_cartesian(self._scene_description.below_drink_handle_pose)
+            self._move_cartesian(self._scene["below_drink_handle_pose"])
 
             self._publish_feedback(goal_handle, PickupAndOrder, "Moving inside handle")
-            self._move_cartesian(self._scene_description.inside_drink_handle_pose)
+            self._move_cartesian(self._scene["inside_drink_handle_pose"])
 
             self._publish_feedback(goal_handle, PickupAndOrder, "Grasping cup")
             self._open_gripper()
 
             self._publish_feedback(goal_handle, PickupAndOrder, "Lifting cup")
-            self._move_cartesian(self._scene_description.above_drink_handle_pose)
+            self._move_cartesian(self._scene["above_drink_handle_pose"])
 
             self._publish_feedback(goal_handle, PickupAndOrder, "Moving home")
-            self._move_joints(self._scene_description.home_pos)
+            self._move_joints(self._scene["home_pos"])
 
             goal_handle.succeed()
             result = PickupAndOrder.Result()
@@ -311,25 +338,25 @@ class DrinkingNode(rclpy.node.Node):
                 self._arm.stop_maintain_home_orientation()
 
             self._publish_feedback(goal_handle, PutCupBackToHolder, "Moving home")
-            self._move_joints(self._scene_description.home_pos)
+            self._move_joints(self._scene["home_pos"])
 
             self._publish_feedback(goal_handle, PutCupBackToHolder, "Moving above handle")
-            self._move_joints(self._scene_description.above_drink_handle_pos)
+            self._move_joints(self._scene["above_drink_handle_pos"])
 
             self._publish_feedback(goal_handle, PutCupBackToHolder, "Placing inside handle")
-            self._move_cartesian(self._scene_description.inside_drink_handle_pose)
+            self._move_cartesian(self._scene["inside_drink_handle_pose"])
 
             self._publish_feedback(goal_handle, PutCupBackToHolder, "Releasing cup")
             self._close_gripper()
 
             self._publish_feedback(goal_handle, PutCupBackToHolder, "Moving below handle")
-            self._move_cartesian(self._scene_description.below_drink_handle_pose)
+            self._move_cartesian(self._scene["below_drink_handle_pose"])
 
             self._publish_feedback(goal_handle, PutCupBackToHolder, "Moving outside handle")
-            self._move_cartesian(self._scene_description.outside_drink_handle_pose)
+            self._move_cartesian(self._scene["outside_drink_handle_pose"])
 
             self._publish_feedback(goal_handle, PutCupBackToHolder, "Moving home")
-            self._move_joints(self._scene_description.home_pos)
+            self._move_joints(self._scene["home_pos"])
 
             goal_handle.succeed()
             result = PutCupBackToHolder.Result()

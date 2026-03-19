@@ -22,6 +22,8 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "drinking_node = cornell_feeding.drinking_node:main",
+        ],
     },
 )

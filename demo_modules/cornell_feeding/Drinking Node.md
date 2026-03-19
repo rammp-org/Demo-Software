@@ -29,8 +29,8 @@
 ### Service Servers:
 
 | Topic | Type |
-| ----- | ---- |
-|       |      |
+| --------------------------------- | ---- |
+| /arm/drink/stream_cup_handle      |      |
 
 ### Service Clients:
 
@@ -40,10 +40,13 @@
 
 ### Action Servers:
 
-| Topic            | Type |
-| ---------------- | ---- |
-| /arm/drink/drink |      |
-| /arm/drink/order |      |
+| Topic                             | Type |
+| --------------------------------  | ---- |
+| /arm/drink/pickup_and_order       |      |
+| /arm/drink/grab_cup_from_table    |      |
+| /arm/drink/bring_cup_to_mouth     |      |
+| /arm/drink/home_cup               |      |
+| /arm/drink/put_cup_back_to_holder |      |
 
 ### Action Clients:
 

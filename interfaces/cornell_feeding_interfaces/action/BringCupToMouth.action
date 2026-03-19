@@ -1,0 +1,9 @@
+# Goal: bring the cup to the user's mouth for drinking
+float64 outside_mouth_distance  # distance to stop before the mouth (meters)
+---
+# Result
+bool success
+string message
+---
+# Feedback
+string status

@@ -1,0 +1,8 @@
+# Goal: return the cup to the home position after drinking
+---
+# Result
+bool success
+string message
+---
+# Feedback
+string status

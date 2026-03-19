@@ -1,7 +1,10 @@
+import asyncio
+import threading
+
 import rclpy
 import rclpy.action
 import rclpy.node
-from .ArmPresetActionClient import ArmPresetActionClient
+from .ArmPresetActionClient import ArmPreset, ArmPresetActionClient
 from transitions.extensions import HierarchicalMachine as Machine
 
 
@@ -9,10 +12,16 @@ class SystemControl(rclpy.node.Node):
     def __init__(self):
         super().__init__("system_control")
         self.get_logger().info("System Control Node has been started.")
+
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
+        self._thread.start()
+
         self.init_subscribers()
         self.init_services_clients()
         self.init_actions_clients()
         self.init_state_machine()
+        # put test for asyncio actions here for now, will move to separate test file later
         self.simple_test()
 
     def init_subscribers(self):
@@ -66,6 +75,22 @@ class SystemControl(rclpy.node.Node):
         print("triggering reqArm")
         self.reqArm()
         print("current state:" + self.state)
+        self.arm_preset_client.set_preset(ArmPreset.HOME)
+        print("current state:" + self.state)
+
+        # get current time
+        current_time = self.get_clock().now()
+        # run function 100 times.
+        for i in range(100):
+            self.get_node_names_and_namespaces()
+
+        # get now
+        new_time = self.get_clock().now()
+        # print time difference
+        time_diff = new_time - current_time
+        print(
+            f"Time taken to call get_node_names_and_namespaces 100 times: {time_diff.nanoseconds / 1e6} ms"
+        )
 
     # state machine setup
     def init_state_machine(self):
@@ -74,9 +99,10 @@ class SystemControl(rclpy.node.Node):
             {"name": "Chair", "initial": "SLOff", "children": ["SLOn", "SLOff"]},
             {
                 "name": "Arm",
-                "initial": "home",
+                "initial": "retracted",
                 "children": [
                     "home",
+                    "homing",
                     "retracting",
                     "retracted",
                     "manual",
@@ -90,9 +116,9 @@ class SystemControl(rclpy.node.Node):
                         "initial": "pickCup",
                         "children": [
                             "pickCup",
-                            "waitingForDrink",
-                            "receivingDrink",
-                            "ordered",
+                            "releaseCup",
+                            "detectingDrink",
+                            "pickingUpDrink",
                         ],
                     },
                     {
@@ -100,9 +126,9 @@ class SystemControl(rclpy.node.Node):
                         "initial": "bringCloser",
                         "children": [
                             "bringCloser",
-                            "drinking",
-                            "placingCup",
-                            "finished",
+                            "sipping",
+                            "placingCupAway",
+                            "placingCupBack",
                         ],
                     },
                     {
@@ -139,6 +165,12 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_retracted",
             },
             {"trigger": "reqArmActionCancel", "source": "Arm", "dest": "Arm_paused"},
+            {
+                "trigger": "reqHome",
+                "source": ["Arm_retracted", "Arm_paused", "Arm_cupStabilize_stable"],
+                "dest": "Arm_homing",
+            },
+            {"trigger": "homed", "source": "Arm_homing", "dest": "Arm_home"},
             # open door
             {
                 "trigger": "reqOpenDoor",
@@ -167,19 +199,29 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_OrderDrink_pickCup",
             },
             {
-                "trigger": "placeOrder",
+                "trigger": "releaseCupConfirm",
                 "source": "Arm_OrderDrink_pickCup",
-                "dest": "Arm_OrderDrink_waitingForDrink",
+                "dest": "Arm_OrderDrink_releaseCup",
+            },
+            {
+                "trigger": "cupReleased",
+                "source": "Arm_OrderDrink_releaseCup",
+                "dest": "home",
+            },
+            {
+                "trigger": "detectDrink",
+                "source": "home",
+                "dest": "Arm_OrderDrink_detectingDrink",
             },
             {
                 "trigger": "receiveDrinkConfirm",
-                "source": "Arm_OrderDrink_waitingForDrink",
+                "source": "Arm_OrderDrink_detectingDrink",
                 "dest": "Arm_OrderDrink_receivingDrink",
             },
             {
-                "trigger": "orderComplete",
+                "trigger": "receivedDrink",
                 "source": "Arm_OrderDrink_receivingDrink",
-                "dest": "Arm_OrderDrink_ordered",
+                "dest": "home",
             },
             # stabilize cup
             {
@@ -195,23 +237,33 @@ class SystemControl(rclpy.node.Node):
             # drink
             {
                 "trigger": "reqDrink",
-                "source": "Arm_cupStabilize_stable",
+                "source": "home",
                 "dest": "Arm_Drink_bringCloser",
             },
             {
                 "trigger": "readyForDrink",
                 "source": "Arm_Drink_bringCloser",
-                "dest": "Arm_Drink_drinking",
+                "dest": "Arm_Drink_sipping",
             },
             {
-                "trigger": "finishedDrink",
-                "source": "Arm_Drink_drinking",
-                "dest": "Arm_Drink_placingCup",
+                "trigger": "placeCupAway",
+                "source": "Arm_Drink_sipping",
+                "dest": "Arm_Drink_placingCupAway",
             },
             {
                 "trigger": "cupPlaced",
-                "source": "Arm_Drink_placingCup",
-                "dest": "Arm_Drink_finished",
+                "source": "Arm_Drink_placingCupAway",
+                "dest": "home",
+            },
+            {
+                "trigger": "placeCupBack",
+                "source": "home",
+                "dest": "placingCupBack",
+            },
+            {
+                "trigger": "cupPlacedBack",
+                "source": "placingCupBack",
+                "dest": "retracted",
             },
             # manual control
             {

@@ -44,6 +44,8 @@ class KinovaArm:
                 )
         with open(self.lock_file, "w") as f:
             f.write(str(os.getpid()))
+        self.action_count = 0
+        self.speed_preset = SpeedPreset.MEDIUM
 
     def set_tool(self, tool):
         print("Does not affect current controller, but setting tool to", tool)
@@ -52,7 +54,27 @@ class KinovaArm:
         print("disconnect")
 
     def ready(self):
-        return True
+        if self.action_count == 0:
+            return True
+        else:
+            self.action_count -= 1
+        return False
+
+    def _execute_reference_action(self, action_name, blocking=True):
+        # Retrieve reference action
+        self.action_count = 10
+
+    def home(self, blocking=True):
+        self._execute_reference_action("Home", blocking=blocking)
+
+    def retract(self, blocking=True):
+        self._execute_reference_action("Retract", blocking=blocking)
+
+    def zero(self, blocking=True):
+        self._execute_reference_action("Zero", blocking=blocking)
+
+    def cup_stabilize(self, blocking=True):
+        self._execute_reference_action("Home", blocking=blocking)
 
     def send_twist(self, linear_xyz, angular_xyz):
         """Send a Cartesian twist velocity command (SINGLE_LEVEL_SERVOING).

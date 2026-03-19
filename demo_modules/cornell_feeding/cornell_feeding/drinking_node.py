@@ -7,11 +7,10 @@ This node provides action servers matching the Drinking Node spec:
   - /arm/drink/put_cup_back_to_holder
   - /arm/drink/pickup_and_order
 
-Each action server calls the actual RAMMP HLA implementations for
-pick, transfer, and stow.
+Each action server sends joint/cartesian move commands to the arm
+via ArmInterfaceClient, or runs them in PyBullet simulation.
 """
 
-import shutil
 import traceback
 from pathlib import Path
 
@@ -21,6 +20,8 @@ from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
+from pybullet_helpers.geometry import Pose
+
 from cornell_feeding_interfaces.action import (
     BringCupToMouth,
     GrabCupFromTable,
@@ -29,93 +30,48 @@ from cornell_feeding_interfaces.action import (
     PutCupBackToHolder,
 )
 
-from rammp.actions.pick_tool import PickToolHLA
-from rammp.actions.stow_tool import StowToolHLA
-from rammp.actions.transfer_tool import TransferToolHLA
 from rammp.control.robot_controller.arm_client import ArmInterfaceClient
-from rammp.interfaces.perception_interface import PerceptionInterface
-from rammp.interfaces.rviz_interface import RVizInterface
+from rammp.control.robot_controller.command_interface import (
+    CartesianCommand,
+    CloseGripperCommand,
+    JointCommand,
+    OpenGripperCommand,
+)
 from rammp.simulation.scene_description import create_scene_description_from_config
 from rammp.simulation.simulator import FeedingDeploymentPyBulletSimulator
 
 
 class DrinkingNode(rclpy.node.Node):
-    """ROS 2 node that exposes action servers backed by RAMMP HLAs."""
+    """ROS 2 node that exposes action servers for cup manipulation."""
 
     def __init__(self):
         super().__init__("drinking_node")
         self.get_logger().info("Drinking Node starting up...")
 
-        # Declare ROS parameters for configuration.
         self.declare_parameter("scene_config", "wheelchair")
         self.declare_parameter("run_on_robot", True)
-        self.declare_parameter("no_waits", True)
-        self.declare_parameter("simulate_head_perception", False)
-        self.declare_parameter("max_motion_planning_time", 10.0)
+        self.declare_parameter("use_gui", False)
 
         scene_config = self.get_parameter("scene_config").value
-        run_on_robot = self.get_parameter("run_on_robot").value
-        no_waits = self.get_parameter("no_waits").value
-        simulate_head_perception = self.get_parameter("simulate_head_perception").value
-        max_motion_planning_time = self.get_parameter("max_motion_planning_time").value
-
-        # Set up log and behavior tree directories.
-        self._log_dir = Path(__file__).resolve().parent / "log" / "drinking_node"
-        self._log_dir.mkdir(parents=True, exist_ok=True)
-        self._execution_log = self._log_dir / "execution_log.txt"
-        self._execution_log.write_text("")
-
-        self._behavior_tree_dir = self._log_dir / "behavior_trees"
-        self._behavior_tree_dir.mkdir(exist_ok=True)
-        original_bt_dir = Path(__file__).resolve().parents[3] / "src" / "rammp" / "actions" / "behavior_trees"
-        if original_bt_dir.exists():
-            for bt_file in original_bt_dir.glob("*.yaml"):
-                shutil.copy(bt_file, self._behavior_tree_dir)
-
-        # Initialize robot interface.
-        if run_on_robot:
-            self._robot_interface = ArmInterfaceClient(node=self)
-        else:
-            self._robot_interface = None
-
-        # Initialize perception interface.
-        self._perception_interface = PerceptionInterface(
-            node=self,
-            robot_interface=self._robot_interface,
-            simulate_head_perception=simulate_head_perception,
-            log_dir=self._log_dir,
-        )
+        self._run_on_robot = self.get_parameter("run_on_robot").value
+        use_gui = self.get_parameter("use_gui").value
 
         # Initialize scene description and simulator.
-        scene_config_path = Path(__file__).resolve().parents[3] / "src" / "rammp" / "simulation" / "configs" / f"{scene_config}.yaml"
+        scene_config_path = (
+            Path(__file__).resolve().parents[3]
+            / "src" / "rammp" / "simulation" / "configs"
+            / f"{scene_config}.yaml"
+        )
         self._scene_description = create_scene_description_from_config(str(scene_config_path))
-        self._sim = FeedingDeploymentPyBulletSimulator(self._scene_description, use_gui=False, ignore_user=True)
-
-        # Initialize RViz interface.
-        if run_on_robot:
-            self._rviz_interface = RVizInterface(self, self._scene_description)
-        else:
-            self._rviz_interface = None
-
-        # Common HLA constructor arguments.
-        hla_hyperparams = {"max_motion_planning_time": max_motion_planning_time}
-        hla_args = (
-            self._sim,
-            self._robot_interface,
-            self._perception_interface,
-            self._rviz_interface,
-            None,  # web_interface
-            hla_hyperparams,
-            no_waits,
-            self._log_dir,
-            self._behavior_tree_dir,
-            self._execution_log,
+        self._sim = FeedingDeploymentPyBulletSimulator(
+            self._scene_description, use_gui=use_gui, ignore_user=True
         )
 
-        # Create HLA instances.
-        self._pick_tool_hla = PickToolHLA(*hla_args)
-        self._stow_tool_hla = StowToolHLA(*hla_args)
-        self._transfer_tool_hla = TransferToolHLA(*hla_args)
+        # Initialize robot interface.
+        if self._run_on_robot:
+            self._arm = ArmInterfaceClient(node=self)
+        else:
+            self._arm = None
 
         # Set up action servers.
         self._action_group = ReentrantCallbackGroup()
@@ -162,21 +118,73 @@ class DrinkingNode(rclpy.node.Node):
 
         self.get_logger().info("Drinking Node ready.")
 
+    # -- helpers --
+
     def _publish_feedback(self, goal_handle, action_type, status_msg: str):
-        """Helper to publish a feedback message."""
         feedback = action_type.Feedback()
         feedback.status = status_msg
         goal_handle.publish_feedback(feedback)
         self.get_logger().info(f"Feedback: {status_msg}")
 
-    def _on_grab_cup(self, goal_handle):
-        """Pick up the cup from the table using PickToolHLA."""
-        self.get_logger().info("[GrabCupFromTable] Received goal")
+    def _move_joints(self, joint_positions: list[float]):
+        """Move to joint positions on robot or in sim."""
+        self.get_logger().info(f"Moving joints: {[round(v, 3) for v in joint_positions]}")
+        if self._arm is not None:
+            self._arm.execute_command(JointCommand(pos=joint_positions))
+        else:
+            plan = self._sim.plan_to_joint_positions(joint_positions)
+            self._sim.visualize_plan(plan)
 
+    def _move_cartesian(self, pose_values: list[float]):
+        """Move to cartesian pose on robot or in sim. pose_values = [x,y,z, qx,qy,qz,qw]."""
+        pos = tuple(pose_values[:3])
+        quat = tuple(pose_values[3:])
+        self.get_logger().info(f"Moving cartesian: pos={[round(v, 3) for v in pos]}")
+        if self._arm is not None:
+            self._arm.execute_command(CartesianCommand(pos=list(pos), quat=list(quat)))
+        else:
+            plan = self._sim.plan_to_ee_pose(Pose(pos, quat))
+            self._sim.visualize_plan(plan)
+
+    def _open_gripper(self):
+        self.get_logger().info("Opening gripper")
+        if self._arm is not None:
+            self._arm.execute_command(OpenGripperCommand())
+        else:
+            self._sim.robot.open_fingers()
+
+    def _close_gripper(self):
+        self.get_logger().info("Closing gripper")
+        if self._arm is not None:
+            self._arm.execute_command(CloseGripperCommand())
+        else:
+            self._sim.robot.close_fingers()
+
+    def _set_speed(self, speed: str):
+        if self._arm is not None:
+            self._arm.set_speed(speed)
+
+    # -- action callbacks --
+
+    def _on_grab_cup(self, goal_handle):
+        """Pick up the cup from the table."""
+        self.get_logger().info("[GrabCupFromTable] Received goal")
         try:
-            self._publish_feedback(goal_handle, GrabCupFromTable, "Picking up cup from table")
-            self._pick_tool_hla.drink_location = "table"
-            self._pick_tool_hla.pick_drink("medium")
+            self._set_speed("medium")
+            self._publish_feedback(goal_handle, GrabCupFromTable, "Moving to retract")
+            self._move_joints(self._scene_description.retract_pos)
+            self._close_gripper()
+
+            self._publish_feedback(goal_handle, GrabCupFromTable, "Moving to drink gaze")
+            self._move_joints(self._scene_description.drink_gaze_pos)
+
+            # Move to staging, open gripper, then home
+            self._publish_feedback(goal_handle, GrabCupFromTable, "Grasping cup")
+            self._open_gripper()
+            self._move_joints(self._scene_description.home_pos)
+
+            if self._arm is not None:
+                self._arm.start_maintain_home_orientation()
 
             goal_handle.succeed()
             result = GrabCupFromTable.Result()
@@ -193,21 +201,28 @@ class DrinkingNode(rclpy.node.Node):
         return result
 
     def _on_bring_cup_to_mouth(self, goal_handle):
-        """Transfer the cup to the user's mouth using TransferToolHLA."""
+        """Transfer the cup toward the user's mouth."""
         self.get_logger().info("[BringCupToMouth] Received goal")
-
         try:
-            self._publish_feedback(goal_handle, BringCupToMouth, "Transferring cup to mouth")
-            self._transfer_tool_hla.transfer_drink(
-                "medium",                # speed
-                "voice",                 # ready_to_initiate_mode
-                "open_mouth",            # initiate_transfer_mode
-                "voice",                 # ready_to_transfer_mode
-                "sense",                 # transfer_complete_mode
-                0.1,                     # outside_mouth_distance
-                0,                       # ask_confirmation (no web interface)
-                10.0,                    # drink_autocontinue_time
-            )
+            self._set_speed("medium")
+
+            if self._arm is not None:
+                self._arm.stop_maintain_home_orientation()
+
+            self._publish_feedback(goal_handle, BringCupToMouth, "Moving to transfer waypoint")
+            self._move_joints(self._scene_description.drink_transfer_waypoint_pos)
+
+            self._publish_feedback(goal_handle, BringCupToMouth, "Moving to before-transfer position")
+            self._move_joints(self._scene_description.drink_before_transfer_pos)
+
+            self._publish_feedback(goal_handle, BringCupToMouth, "Returning to waypoint")
+            self._move_joints(self._scene_description.drink_transfer_waypoint_pos)
+
+            self._publish_feedback(goal_handle, BringCupToMouth, "Returning home")
+            self._move_joints(self._scene_description.home_pos)
+
+            if self._arm is not None:
+                self._arm.start_maintain_home_orientation()
 
             goal_handle.succeed()
             result = BringCupToMouth.Result()
@@ -224,19 +239,16 @@ class DrinkingNode(rclpy.node.Node):
         return result
 
     def _on_home_cup(self, goal_handle):
-        """Return the cup to the home position using base HLA movement."""
+        """Return the arm to the home position."""
         self.get_logger().info("[HomeCup] Received goal")
-
         try:
             self._publish_feedback(goal_handle, HomeCup, "Moving to home position")
-            self._pick_tool_hla.move_to_joint_positions(
-                self._sim.scene_description.home_pos
-            )
+            self._move_joints(self._scene_description.home_pos)
 
             goal_handle.succeed()
             result = HomeCup.Result()
             result.success = True
-            result.message = "Cup returned to home position"
+            result.message = "Arm returned to home position"
         except Exception as e:
             self.get_logger().error(f"[HomeCup] Failed: {traceback.format_exc()}")
             goal_handle.abort()
@@ -248,13 +260,32 @@ class DrinkingNode(rclpy.node.Node):
         return result
 
     def _on_pickup_and_order(self, goal_handle):
-        """Pick up the cup from the wheelchair holder using PickToolHLA."""
+        """Pick up the cup from the wheelchair holder."""
         self.get_logger().info("[PickupAndOrder] Received goal")
-
         try:
-            self._publish_feedback(goal_handle, PickupAndOrder, "Picking up cup from wheelchair holder")
-            self._pick_tool_hla.drink_location = "wheelchair_handle"
-            self._pick_tool_hla.pick_drink("medium")
+            self._set_speed("medium")
+
+            self._publish_feedback(goal_handle, PickupAndOrder, "Moving home")
+            self._move_joints(self._scene_description.home_pos)
+
+            self._publish_feedback(goal_handle, PickupAndOrder, "Moving outside handle")
+            self._move_joints(self._scene_description.outside_drink_handle_pos)
+            self._close_gripper()
+
+            self._publish_feedback(goal_handle, PickupAndOrder, "Moving below handle")
+            self._move_cartesian(self._scene_description.below_drink_handle_pose)
+
+            self._publish_feedback(goal_handle, PickupAndOrder, "Moving inside handle")
+            self._move_cartesian(self._scene_description.inside_drink_handle_pose)
+
+            self._publish_feedback(goal_handle, PickupAndOrder, "Grasping cup")
+            self._open_gripper()
+
+            self._publish_feedback(goal_handle, PickupAndOrder, "Lifting cup")
+            self._move_cartesian(self._scene_description.above_drink_handle_pose)
+
+            self._publish_feedback(goal_handle, PickupAndOrder, "Moving home")
+            self._move_joints(self._scene_description.home_pos)
 
             goal_handle.succeed()
             result = PickupAndOrder.Result()
@@ -271,13 +302,34 @@ class DrinkingNode(rclpy.node.Node):
         return result
 
     def _on_put_cup_back(self, goal_handle):
-        """Place the cup back to the wheelchair holder using StowToolHLA."""
+        """Place the cup back to the wheelchair holder."""
         self.get_logger().info("[PutCupBackToHolder] Received goal")
-
         try:
-            self._publish_feedback(goal_handle, PutCupBackToHolder, "Placing cup back to wheelchair holder")
-            self._stow_tool_hla.drink_location = "wheelchair_handle"
-            self._stow_tool_hla.stow_drink("medium")
+            self._set_speed("medium")
+
+            if self._arm is not None:
+                self._arm.stop_maintain_home_orientation()
+
+            self._publish_feedback(goal_handle, PutCupBackToHolder, "Moving home")
+            self._move_joints(self._scene_description.home_pos)
+
+            self._publish_feedback(goal_handle, PutCupBackToHolder, "Moving above handle")
+            self._move_joints(self._scene_description.above_drink_handle_pos)
+
+            self._publish_feedback(goal_handle, PutCupBackToHolder, "Placing inside handle")
+            self._move_cartesian(self._scene_description.inside_drink_handle_pose)
+
+            self._publish_feedback(goal_handle, PutCupBackToHolder, "Releasing cup")
+            self._close_gripper()
+
+            self._publish_feedback(goal_handle, PutCupBackToHolder, "Moving below handle")
+            self._move_cartesian(self._scene_description.below_drink_handle_pose)
+
+            self._publish_feedback(goal_handle, PutCupBackToHolder, "Moving outside handle")
+            self._move_cartesian(self._scene_description.outside_drink_handle_pose)
+
+            self._publish_feedback(goal_handle, PutCupBackToHolder, "Moving home")
+            self._move_joints(self._scene_description.home_pos)
 
             goal_handle.succeed()
             result = PutCupBackToHolder.Result()

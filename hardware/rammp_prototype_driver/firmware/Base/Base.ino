@@ -357,21 +357,26 @@ void setup() {
     
     all_motors[i]->updateLimits(conf.pos_limit_min, conf.pos_limit_max);
 
-    // Apply saved offset to encoder.
-    // Assuming encoderf mapping is somewhat consistent or we just apply to EncoderContainer.
-    // EContr requires index from 1-12. Here we map motor (0-5) to actual index based on updateSensorData logic
+    // Restore encoder offset so the filtered position resumes from saved_position.
+    // Map motor index (0-5) to encoder container index, matching updateSensorData().
     int enc_idx = 0;
     switch (i) {
-      case 0: enc_idx = 3; break;  // rc
-      case 1: enc_idx = 2; break;  // fc
-      case 2: enc_idx = 7; break;  // ml
-      case 3: enc_idx = 5; break;  // mr
-      case 4: enc_idx = 11; break; // ml_carriage
-      case 5: enc_idx = 12; break; // mr_carriage
+      case 0: enc_idx = 3; break;  // rc  -> encoderf[3]
+      case 1: enc_idx = 2; break;  // fc  -> encoderf[2]
+      case 2: enc_idx = 7; break;  // ml  -> encoderf[7]
+      case 3: enc_idx = 5; break;  // mr  -> encoderf[5]
+      case 4: enc_idx = 11; break; // ml_carriage -> encoderf[11]
+      case 5: enc_idx = 12; break; // mr_carriage -> encoderf[12]
     }
-    
-    // Reverse the encoder reading based on saved position to compute the offset
-    EContr.encoder_offset[enc_idx] = EContr.getRawReading(enc_idx) - (conf.saved_position / conf.encoder_dir);
+
+    // saved_position is the logical position (after encoder_dir flip).
+    // Divide by encoder_dir to recover the raw tick count, then set the
+    // offset so that (raw_reading - offset) == saved_position.
+    // Guard: encoder_dir is validated to ±1 by loadMotorConfig; check anyway.
+    if (conf.encoder_dir != 0) {
+      EContr.encoder_offset[enc_idx] = EContr.getRawReading(enc_idx) -
+          (signed long)(conf.saved_position / (float)conf.encoder_dir);
+    }
   }
 
   current_state = IDLE;
@@ -633,8 +638,8 @@ void loop() {
         break;
       }
       case CMD_SAVE_CONFIG: {
-        // Save current PID settings and directions to EEPROM
-        MotorConfig conf;
+        // Load existing config first so any fields not set here are preserved
+        MotorConfig conf = ConfigStorage::loadMotorConfig(cmd.actuator_id);
         conf.motor_dir = m->getDirection();
         conf.encoder_dir = m->getEncoderDirection();
         conf.lpf_input_alpha = m->lpf_input_alpha;

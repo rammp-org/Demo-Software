@@ -33,7 +33,7 @@ void ConfigStorage::initializeDefaults() {
     def_config.vel_d = 0.0f;
     def_config.vel_ff = 0.0f;
     def_config.vel_lpf_alpha = 1.0f;
-    def_config.saved_position = 0;
+    def_config.saved_position = 0.0f;
     def_config.pos_limit_min = 0;
     def_config.pos_limit_max = 0;
     
@@ -66,7 +66,7 @@ MotorConfig ConfigStorage::loadMotorConfig(int motor_id) {
     config.vel_d = 0.0f;
     config.vel_ff = 0.0f;
     config.vel_lpf_alpha = 1.0f;
-    config.saved_position = 0;
+    config.saved_position = 0.0f;
     config.pos_limit_min = 0;
     config.pos_limit_max = 0;
     
@@ -74,9 +74,17 @@ MotorConfig ConfigStorage::loadMotorConfig(int motor_id) {
         int addr = CONFIG_START_ADDR + (motor_id - 1) * sizeof(MotorConfig);
         EEPROM.get(addr, config);
         
-        // Validate dirs
+        // Validate dirs - must be +1 or -1, reset if corrupt
         if (config.motor_dir != 1 && config.motor_dir != -1) config.motor_dir = 1;
         if (config.encoder_dir != 1 && config.encoder_dir != -1) config.encoder_dir = 1;
+
+        // Sanitize saved_position: reject NaN, Inf, or unreasonably large values.
+        // A corrupt or previously-wrong int32 cast can produce ~2e9 here, which
+        // would generate a massive encoder offset and NaN motor positions.
+        if (isnan(config.saved_position) || isinf(config.saved_position) ||
+            config.saved_position > 10000000.0f || config.saved_position < -10000000.0f) {
+            config.saved_position = 0.0f;
+        }
     }
     return config;
 }

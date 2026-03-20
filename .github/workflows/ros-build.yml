@@ -1,5 +1,4 @@
 name: ROS 2 Build
-
 on:
   push:
     branches: [main, dev]
@@ -11,7 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     container: ros:humble
     env:
-      CMAKE_PREFIX_PATH: /root/.local
+      CMAKE_PREFIX_PATH: /github/home/.local
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm]
@@ -25,22 +24,16 @@ jobs:
       - name: Cache gRPC
         uses: actions/cache@v3
         with:
-          path: /root/.local
+          path: /github/home/.local
           key: grpc-v1.56.2-${{ matrix.os }}
 
       - name: Install dependencies
         shell: bash
         run: src/Demo-Software/setup.sh
 
-      - name: Debug
-        shell: bash
-        run: |
-          echo "CMAKE_PREFIX_PATH: $CMAKE_PREFIX_PATH"
-          echo "HOME: $HOME"
-          ls $HOME/.local/lib | grep -E "proto|grpc"
-
       - name: Build
         shell: bash
         run: |
           source /opt/ros/humble/setup.bash
+          export CMAKE_PREFIX_PATH=$HOME/.local
           colcon build --symlink-install --event-handlers console_cohesion+

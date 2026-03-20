@@ -10,10 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     container: ros:humble
     env:
-      CMAKE_PREFIX_PATH: /github/home/.local
-    strategy:
-      matrix:
-        os: [ubuntu-22.04, ubuntu-22.04-arm]
+      MY_INSTALL_DIR: /github/home/.local
 
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +32,6 @@ jobs:
         shell: bash
         run: |
           source /opt/ros/humble/setup.bash
-          export CMAKE_PREFIX_PATH=$HOME/.local
-          export PATH=$HOME/.local/bin:$PATH
+          export CMAKE_PREFIX_PATH=/github/home/.local
+          export PATH=/github/home/.local/bin:$PATH
           colcon build --symlink-install --event-handlers console_cohesion+

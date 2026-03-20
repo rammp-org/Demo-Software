@@ -5,7 +5,7 @@ from rclpy.node import Node
 
 class testNode2(Node):  # MODIFY NAME
     def __init__(self):
-        super().__init__("testNode2")  # MODIFY NAME
+        super().__init__("test_node2")  # MODIFY NAME
 
 
 def main(args=None):

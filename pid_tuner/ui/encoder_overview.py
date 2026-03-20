@@ -192,11 +192,17 @@ class EncoderBar(QWidget):
                 # Normal - joint color
                 fill_color = self._color
 
-            # Calculate fill width and position
-            center_x = bar_rect_x + bar_width / 2
-            fill_width = abs(normalized - 0.5) * bar_width
+            # Calculate fill width and position relative to range midpoint
+            mid_val = (self._min_val + self._max_val) / 2.0
+            norm_mid = (
+                mid_val - self._min_val
+            ) / range_span  # midpoint normalized to [0, 1]
+            center_x = bar_rect_x + norm_mid * bar_width
 
-            if self._value >= 0:
+            # Fill from midpoint toward the current normalized position
+            fill_width = abs(normalized - norm_mid) * bar_width
+
+            if self._value >= mid_val:
                 fill_x = center_x
             else:
                 fill_x = center_x - fill_width
@@ -213,7 +219,7 @@ class EncoderBar(QWidget):
                 scaled(2),
             )
 
-            # Draw center line
+            # Draw center line at range midpoint
             painter.setPen(QPen(QColor(THEME.overlay0), 1))
             painter.drawLine(
                 int(center_x), bar_rect_y, int(center_x), bar_rect_y + bar_rect_h
@@ -337,6 +343,10 @@ class EncoderOverview(QWidget):
         # Set first bar as selected
         if self._bars:
             self._bars[0].set_selected(True)
+
+        # Bootstrap bar ranges from any configs already loaded in DataStore
+        for joint in JOINTS:
+            self._on_config_updated(joint.id)
 
     def _setup_timer(self):
         """Set up the update timer."""

@@ -328,6 +328,7 @@ class DataStore(QObject):
     )  # Emitted when linked joint changes (0 for none)
 
     config_updated = pyqtSignal(int)  # Emits joint_id when config is loaded
+    leveling_updated = pyqtSignal()  # Emitted when leveling debug data is updated
 
     NUM_JOINTS = 6
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
@@ -361,6 +362,13 @@ class DataStore(QObject):
 
         self._imu_target_pitch: float = 0.0
         self._imu_target_roll: float = 0.0
+
+        # Leveling debug fields
+        self._leveling_pitch_err: float = 0.0
+        self._leveling_roll_err: float = 0.0
+        self._z_target_ml: float = 0.0
+        self._z_target_rc: float = 0.0
+        self._z_target_mr: float = 0.0
 
         # Motor directions (6 motors)
         self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1]
@@ -539,6 +547,31 @@ class DataStore(QObject):
         self.imu_updated.emit()
 
     @property
+    def leveling_pitch_err(self) -> float:
+        """Get leveling pitch error (degrees)."""
+        return self._leveling_pitch_err
+
+    @property
+    def leveling_roll_err(self) -> float:
+        """Get leveling roll error (degrees)."""
+        return self._leveling_roll_err
+
+    @property
+    def z_target_ml(self) -> float:
+        """Get Z target for ML (Mid-Left) actuator."""
+        return self._z_target_ml
+
+    @property
+    def z_target_rc(self) -> float:
+        """Get Z target for RC (Rear-Center) actuator."""
+        return self._z_target_rc
+
+    @property
+    def z_target_mr(self) -> float:
+        """Get Z target for MR (Mid-Right) actuator."""
+        return self._z_target_mr
+
+    @property
     def motor_directions(self) -> List[int]:
         """Get motor directions (1 or -1 for each of 6 motors)."""
         return self._motor_directions
@@ -621,6 +654,15 @@ class DataStore(QObject):
             data.imu_az,
         )
         self.imu_updated.emit()
+
+        # Store leveling debug data
+        if hasattr(data, "leveling_pitch_err"):
+            self._leveling_pitch_err = data.leveling_pitch_err
+            self._leveling_roll_err = data.leveling_roll_err
+            self._z_target_ml = data.z_target_ml
+            self._z_target_rc = data.z_target_rc
+            self._z_target_mr = data.z_target_mr
+            self.leveling_updated.emit()
 
         # Store motor directions
         if data.direction_values:

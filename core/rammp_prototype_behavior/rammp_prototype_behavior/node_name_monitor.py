@@ -35,7 +35,3 @@ class NodeNameMonitor:
 
         if missing:
             self.callback(False)
-        else:
-            self.callback(True)
-
-        return

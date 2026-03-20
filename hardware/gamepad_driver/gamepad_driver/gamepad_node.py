@@ -2,17 +2,29 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist
+from sensor_msgs.msg import Joy
+from std_msgs.msg import String
 
 
 class gamepadNode(Node):
     def __init__(self):
         super().__init__("gamepad_node")
 
+        self.buttons = None
+        self.axes = None
+
         self.estop_publisher = self.create_publisher(Bool, "estop", 10)
         self.estop_timer = self.create_timer(1.0, self.estop_pub)
 
         self.twist_publisher = self.create_publisher(Twist, "twist", 10)
         self.twist_timer = self.create_timer(1.0, self.twist_pub)
+
+        self.joy_pub = self.create_publisher(String, "gamepad_inputs", 10)
+        self.joy_timer = self.create_timer(1.0, self.joy_pub_callback)
+
+        self.joy_sub = self.create_subscription(
+            Joy, "sensor_msgs/msg/Joy", self.joy_sub_callback, 10
+        )
 
     def estop_pub(self):
         # msg = Bool()
@@ -24,6 +36,25 @@ class gamepadNode(Node):
         msg.angular = None
         self.twist_publisher.publish(msg)
         pass
+
+    def joy_pub_callback(self):
+        msg = String()
+
+        if self.buttons[0] == 1:
+            msg.data = "Button 1 pressed"
+        elif self.buttons[1] == 1:
+            msg.data = "Button 2 pressed"
+        elif self.buttons[2] == 1:
+            msg.data = "Button 3 pressed"
+        elif self.buttons[3] == 1:
+            msg.data = "Button 4 pressed"
+        else:
+            msg.data = "No buttons pressed"
+        self.joy_pub.publish(msg)
+
+    def joy_sub_callback(self, msg):
+        msg.data.buttons = self.buttons
+        msg.data.axes = self.axes
 
 
 def main(args=None):

@@ -1,26 +1,26 @@
 import json
-from pathlib import Path
 
-json_path = Path(
-    "/Demo-Software/core/rammp_prototype_behavior/rammp_prototype_behavior/nodes.json"
-)
+# json_path = Path(
+#     "/Demo-Software/core/rammp_prototype_behavior/rammp_prototype_behavior/nodes.json"
+# )
 
 
 class NodeNameMonitor:
-    def __init__(self, ros_node, callback):
+    def __init__(self, ros_node, json_path, callback):
         self.ros_node = ros_node
         self.callback = callback
+        self.json_path = json_path
 
     def NodesReady(self):
         actual_nodes = [
             name
-            for name in self.get_fully_qualified_node_names()
+            for name in self.ros_node.get_fully_qualified_node_names()
             if not name.startswith(
                 "_"
             )  # to remove built-in ros tools that show up by default when getting a nodes list
         ]
 
-        with open(json_path) as f:
+        with open(self.json_path) as f:
             data = json.load(f)
 
         expected_nodes = [

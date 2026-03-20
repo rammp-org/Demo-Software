@@ -1,13 +1,13 @@
 {
   "nodes": [
     {
-      "name": "/arm/state/joint_states"
+      "name": "/test_nn_monitor"
     },
     {
-      "name": "/subscribers"
+      "name": "/test_node1"
     },
     {
-      "name": "/find_nodes"
+      "name": "/test_node2"
     }
   ]
 }

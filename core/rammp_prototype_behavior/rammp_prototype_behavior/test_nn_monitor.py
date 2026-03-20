@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from pathlib import Path
-from node_name_monitor import NodeNameMonitor
+from rammp_prototype_behavior.node_name_monitor import NodeNameMonitor
 
 json_path = Path(
     "/Demo-Software/core/rammp_prototype_behavior/rammp_prototype_behavior/nodes.json"

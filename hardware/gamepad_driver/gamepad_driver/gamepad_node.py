@@ -22,22 +22,23 @@ class gamepadNode(Node):
         self.joy_pub = self.create_publisher(String, "gamepad_inputs", 10)
         self.joy_timer = self.create_timer(1.0, self.joy_pub_callback)
 
-        self.joy_sub = self.create_subscription(
-            Joy, "sensor_msgs/msg/Joy", self.joy_sub_callback, 10
-        )
+        self.joy_sub = self.create_subscription(Joy, "/Joy", self.joy_sub_callback, 10)
 
     def estop_pub(self):
         # msg = Bool()
         pass
 
     def twist_pub(self):
-        msg = Twist()
-        msg.linear = None
-        msg.angular = None
-        self.twist_publisher.publish(msg)
+        # msg = Twist()
+        # msg.linear = None
+        # msg.angular = None
+        # self.twist_publisher.publish(msg)
         pass
 
     def joy_pub_callback(self):
+        if self.buttons is None:
+            return
+
         msg = String()
 
         if self.buttons[0] == 1:
@@ -53,8 +54,8 @@ class gamepadNode(Node):
         self.joy_pub.publish(msg)
 
     def joy_sub_callback(self, msg):
-        msg.data.buttons = self.buttons
-        msg.data.axes = self.axes
+        self.buttons = msg.buttons
+        self.axes = msg.axes
 
 
 def main(args=None):

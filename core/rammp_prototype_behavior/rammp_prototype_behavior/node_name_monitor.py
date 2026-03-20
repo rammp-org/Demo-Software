@@ -12,12 +12,12 @@ class NodeNameMonitor:
         self.json_path = json_path
 
     def NodesReady(self):
+        names_and_ns = self.ros_node.get_node_names_and_namespaces()
+
         actual_nodes = [
-            name
-            for name in self.ros_node.get_fully_qualified_node_names()
-            if not name.startswith(
-                "_"
-            )  # to remove built-in ros tools that show up by default when getting a nodes list
+            f"{ns}/{name}" if ns != "/" else f"/{name}"
+            for name, ns in names_and_ns
+            if not name.startswith("_")
         ]
 
         with open(self.json_path) as f:

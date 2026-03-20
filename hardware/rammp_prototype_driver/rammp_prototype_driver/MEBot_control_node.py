@@ -1,5 +1,6 @@
 import ast
 import math
+from enum import IntEnum
 
 import rclpy
 import serial
@@ -12,6 +13,43 @@ from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
+
+
+class SerialField(IntEnum):
+    """Named indices for the serial data list sent by the Teensy.
+
+    The Teensy sends sensor data as a Python list string (e.g. '[0.5, 1.2, ...]'),
+    which is parsed with ast.literal_eval into a list. Each enum member's integer
+    value is the index of that field in the list, matching the order the Teensy
+    populates its output array in Base.ino.
+
+    Usage:
+        data = ast.literal_eval(raw)
+        pitch = data[SerialField.IMU_PITCH]  # instead of data[0]
+
+    If the Teensy serial protocol changes field order, update the values here.
+    """
+
+    IMU_PITCH = 0
+    IMU_ROLL = 1
+    ACCEL_X = 2
+    ACCEL_Y = 3
+    ACCEL_Z = 4
+    FC_POS = 5
+    RC_POS = 6
+    MR_POS = 7
+    ML_POS = 8
+    ML_CARRIAGE_POS = 9
+    MR_CARRIAGE_POS = 10
+    ML_WHEEL_POS = 11
+    MR_WHEEL_POS = 12
+    FC_LOADCELL = 13
+    MR_LOADCELL = 14
+    ML_LOADCELL = 15
+    CA_FLAG = 16
+    APP_TIME = 17
+    SPEED_ML = 18
+    SPEED_MR = 19
 
 
 class MEBotControlNode(Node):
@@ -164,39 +202,41 @@ class MEBotControlNode(Node):
 
     # update variables to be published
     def update_data(self, data):
+        F = SerialField
+
         # IMU
-        self.IMU_pitch = data[0]
-        self.IMU_roll = data[1]
-        self.accel_x = data[2]
-        self.accel_y = data[3]
-        self.accel_z = data[4]
+        self.IMU_pitch = data[F.IMU_PITCH]
+        self.IMU_roll = data[F.IMU_ROLL]
+        self.accel_x = data[F.ACCEL_X]
+        self.accel_y = data[F.ACCEL_Y]
+        self.accel_z = data[F.ACCEL_Z]
 
         # Encoders
-        self.FC_pos = data[5]
-        self.RC_pos = data[6]
-        self.MR_pos = data[7]
-        self.ML_pos = data[8]
-        self.ML_carriage_pos = data[9]
-        self.MR_carriage_pos = data[10]
-        self.ML_wheel_pos = data[11]
-        self.MR_wheel_pos = data[12]
+        self.FC_pos = data[F.FC_POS]
+        self.RC_pos = data[F.RC_POS]
+        self.MR_pos = data[F.MR_POS]
+        self.ML_pos = data[F.ML_POS]
+        self.ML_carriage_pos = data[F.ML_CARRIAGE_POS]
+        self.MR_carriage_pos = data[F.MR_CARRIAGE_POS]
+        self.ML_wheel_pos = data[F.ML_WHEEL_POS]
+        self.MR_wheel_pos = data[F.MR_WHEEL_POS]
 
-        # loadcells
-        self.FC_loadcell = data[13]
-        self.MR_loadcell = data[14]
-        self.ML_loadcell = data[15]
+        # Loadcells
+        self.FC_loadcell = data[F.FC_LOADCELL]
+        self.MR_loadcell = data[F.MR_LOADCELL]
+        self.ML_loadcell = data[F.ML_LOADCELL]
 
         # CA_flag
-        self.CA_flag = data[16]
+        self.CA_flag = data[F.CA_FLAG]
 
         # Apptime
-        self.appTime = data[17]
+        self.appTime = data[F.APP_TIME]
 
-        # velocity
+        # Velocity
         self.prev_speed_ML = self.current_speed_ML
-        self.current_speed_ML = data[18]
+        self.current_speed_ML = data[F.SPEED_ML]
         self.prev_speed_MR = self.current_speed_MR
-        self.current_speed_MR = data[19]
+        self.current_speed_MR = data[F.SPEED_MR]
 
     def publish_joint_states(self):
         msg = JointState()

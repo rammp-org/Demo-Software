@@ -37,6 +37,11 @@ struct SystemTelemetry {
   float ml_vel, mr_vel;
   float ml_carriage_vel, mr_carriage_vel;
   float imu_pitch, imu_roll, imu_yaw;
+  float leveling_pitch_err;
+  float leveling_roll_err;
+  float z_target_ml;
+  float z_target_rc;
+  float z_target_mr;
 };
 
 // Global State
@@ -199,7 +204,18 @@ void sendTelemetry() {
   Serial.print(",");
   Serial.print(IMU.current_quat.y(), 4);
   Serial.print(",");
-  Serial.println(IMU.current_quat.z(), 4);
+  Serial.print(IMU.current_quat.z(), 4);
+  Serial.print(",");
+  // Leveling Debug (5)
+  Serial.print(telemetry.leveling_pitch_err, 4);
+  Serial.print(",");
+  Serial.print(telemetry.leveling_roll_err, 4);
+  Serial.print(",");
+  Serial.print(telemetry.z_target_ml, 4);
+  Serial.print(",");
+  Serial.print(telemetry.z_target_rc, 4);
+  Serial.print(",");
+  Serial.println(telemetry.z_target_mr, 4);
 }
 
 // --- Self Leveling Kinematics ---
@@ -309,6 +325,13 @@ void runSelfLeveling(float dt) {
   
   // FC is hardcoded to top of range
   fc.setTargetPosition(FC_MAX_TICKS);
+  
+  // Store debug data for telemetry
+  telemetry.leveling_pitch_err = err_y;
+  telemetry.leveling_roll_err = err_x;
+  telemetry.z_target_ml = z_target_ml;
+  telemetry.z_target_rc = z_target_rc;
+  telemetry.z_target_mr = z_target_mr;
 }
 
 void setup() {
@@ -606,6 +629,49 @@ void loop() {
         if (DEBUG_MODE) {
           Serial.print("DEBUG: Homed encoder for joint ");
           Serial.println(cmd.actuator_id);
+        }
+        break;
+      }
+      case CMD_OFFSET: {
+        int enc_idx = 0;
+        switch (cmd.actuator_id) {
+          case 1: enc_idx = 3; break;
+          case 2: enc_idx = 2; break;
+          case 3: enc_idx = 7; break;
+          case 4: enc_idx = 5; break;
+          case 5: enc_idx = 11; break;
+          case 6: enc_idx = 12; break;
+        }
+        
+        if (enc_idx > 0) {
+          float raw_pos = (float)EContr.getRawReading(enc_idx);
+          // Apply motor encoder direction to the raw reading logic?
+          // The GUI targets "logical position".
+          // In updateSensorData: raw_pos = current_pos * encoder_dir
+          // We want: current_logical = cmd.value
+          // (raw_pos - new_offset) * encoder_dir = cmd.value
+          // raw_pos - new_offset = cmd.value / encoder_dir
+          // new_offset = raw_pos - (cmd.value / encoder_dir)
+          float encoder_dir = m->getEncoderDirection();
+          signed long new_offset = (signed long)(raw_pos - (cmd.value / encoder_dir));
+          
+          EContr.setOffset(enc_idx, new_offset);
+          
+          m->pos_pid.reset();
+          m->vel_pid.reset();
+          m->target_pos = cmd.value;
+          m->current_pos = cmd.value; // prevent jump
+          m->prev_pos = cmd.value;    // prevent velocity jump
+          
+          if (DEBUG_MODE) {
+            Serial.print("DEBUG: Set offset J");
+            Serial.print(cmd.actuator_id);
+            Serial.print(": new logical pos=");
+            Serial.println(cmd.value);
+          }
+          
+          // Auto-save
+          ConfigStorage::save_position(cmd.actuator_id, cmd.value);
         }
         break;
       }

@@ -71,6 +71,13 @@ class EncoderData:
     imu_qy: float = 0.0
     imu_qz: float = 0.0
 
+    # New fields for leveling debug
+    leveling_pitch_err: float = 0.0
+    leveling_roll_err: float = 0.0
+    z_target_ml: float = 0.0
+    z_target_rc: float = 0.0
+    z_target_mr: float = 0.0
+
     @property
     def num_joints(self) -> int:
         return len(self.position_values)
@@ -165,7 +172,7 @@ class ProtocolParser:
                 values_str = match.group(3)
                 values = [float(v.strip()) for v in values_str.split(",")]
 
-                # Newest format: 44 values (6 pos, 6 vel, 6 pwm, 6 dir, 6 enc_dir, 4 limits, 6 imu, 4 quat)
+                # Newest format: 49 values (44 previous + 5 leveling debug)
                 if len(values) >= 40:
                     data = EncoderData(
                         timestamp_ms=timestamp,
@@ -189,6 +196,13 @@ class ProtocolParser:
                         data.imu_qx = values[41]
                         data.imu_qy = values[42]
                         data.imu_qz = values[43]
+                    # Support newest 49-value format with leveling debug
+                    if len(values) >= 49:
+                        data.leveling_pitch_err = values[44]
+                        data.leveling_roll_err = values[45]
+                        data.z_target_ml = values[46]
+                        data.z_target_rc = values[47]
+                        data.z_target_mr = values[48]
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:
@@ -405,4 +419,14 @@ class ProtocolEncoder:
         """
         # We send two commands back to back
         cmd = f"A1:{pitch:.2f}\nA2:{roll:.2f}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
+    def set_position_offset(joint_id: int, desired_position: float) -> bytes:
+        """
+        Set encoder offset so current position reads as desired_position.
+        Teensy calculates: offset = desired_position - current_raw_position
+        Note: Requires firmware support for 'O' command.
+        """
+        cmd = f"O{joint_id}:{desired_position:.2f}\n"
         return cmd.encode("ascii")

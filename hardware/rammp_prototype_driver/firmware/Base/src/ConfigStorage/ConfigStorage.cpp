@@ -50,6 +50,14 @@ void ConfigStorage::saveMotorConfig(int motor_id, const MotorConfig& config) {
     }
 }
 
+void ConfigStorage::save_position(int motor_id, float position) {
+    if (motor_id >= 1 && motor_id <= NUM_MOTORS) {
+        MotorConfig config = loadMotorConfig(motor_id);
+        config.saved_position = position;
+        saveMotorConfig(motor_id, config);
+    }
+}
+
 MotorConfig ConfigStorage::loadMotorConfig(int motor_id) {
     MotorConfig config;
     // Default fallback

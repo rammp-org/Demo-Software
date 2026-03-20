@@ -221,6 +221,11 @@ class SerialHandler(QObject):
         cmd = ProtocolEncoder.set_imu_target(pitch, roll)
         self.send_command(cmd)
 
+    def set_position_offset(self, joint_id: int, desired_position: float):
+        """Set position offset so current position reads as desired_position."""
+        cmd = ProtocolEncoder.set_position_offset(joint_id, desired_position)
+        self.send_command(cmd)
+
     def toggle_encoder_direction(self, joint_id: int):
         """Toggle encoder direction."""
         cmd = ProtocolEncoder.toggle_encoder_direction(joint_id)

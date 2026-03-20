@@ -18,6 +18,17 @@ from .scaling import SIZES, scaled, scaled_font_size
 from ..data.data_store import DataStore
 from ..data.joint_config import JOINTS
 
+# Mode colors for indicator dots
+MODE_OPEN_LOOP = 0
+MODE_VELOCITY = 1
+MODE_POSITION = 2
+
+MODE_COLORS = {
+    MODE_OPEN_LOOP: THEME.red,
+    MODE_VELOCITY: THEME.yellow,
+    MODE_POSITION: THEME.blue,
+}
+
 
 class EncoderBar(QWidget):
     """A single horizontal bar representing an encoder position."""
@@ -42,6 +53,9 @@ class EncoderBar(QWidget):
         self._fwd_limit = False
         self._bwd_limit = False
         self._show_limits = joint_id in [5, 6]
+
+        # Mode indicator
+        self._mode = MODE_OPEN_LOOP
 
         # Use scaled heights
         self.setMinimumHeight(SIZES["encoder_bar_height"])
@@ -69,6 +83,11 @@ class EncoderBar(QWidget):
         """Set limit switch states for this bar."""
         self._fwd_limit = fwd
         self._bwd_limit = bwd
+        self.update()
+
+    def set_mode(self, mode: int):
+        """Set the control mode for this joint."""
+        self._mode = mode
         self.update()
 
     def mousePressEvent(self, event):
@@ -125,9 +144,53 @@ class EncoderBar(QWidget):
         # The bar shows position relative to range, with 0 in the middle
         range_span = self._max_val - self._min_val
         if range_span > 0:
+            # Draw danger zones (10% from each limit)
+            danger_width = int(bar_width * 0.1)
+            danger_color = QColor(THEME.red)
+            danger_color.setAlpha(40)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(danger_color))
+
+            # Left danger zone (near min limit)
+            painter.drawRect(bar_rect_x, bar_rect_y, danger_width, bar_rect_h)
+
+            # Right danger zone (near max limit)
+            painter.drawRect(
+                bar_rect_x + bar_width - danger_width,
+                bar_rect_y,
+                danger_width,
+                bar_rect_h,
+            )
+
+            # Draw limit markers (vertical lines at edges)
+            painter.setPen(QPen(QColor(THEME.red), 2))
+            painter.drawLine(
+                bar_rect_x, bar_rect_y, bar_rect_x, bar_rect_y + bar_rect_h
+            )
+            painter.drawLine(
+                bar_rect_x + bar_width,
+                bar_rect_y,
+                bar_rect_x + bar_width,
+                bar_rect_y + bar_rect_h,
+            )
+
             # Normalize value to 0-1 range
             normalized = (self._value - self._min_val) / range_span
             normalized = max(0.0, min(1.0, normalized))
+
+            # Determine fill color based on proximity to limits
+            dist_to_min = abs(self._value - self._min_val) / range_span
+            dist_to_max = abs(self._value - self._max_val) / range_span
+
+            if dist_to_min < 0.1 or dist_to_max < 0.1:
+                # In danger zone - red fill
+                fill_color = QColor(THEME.red)
+            elif dist_to_min < 0.2 or dist_to_max < 0.2:
+                # Approaching limits - yellow fill
+                fill_color = QColor(THEME.yellow)
+            else:
+                # Normal - joint color
+                fill_color = self._color
 
             # Calculate fill width and position
             center_x = bar_rect_x + bar_width / 2
@@ -138,9 +201,9 @@ class EncoderBar(QWidget):
             else:
                 fill_x = center_x - fill_width
 
-            # Draw filled portion
+            # Draw filled portion with dynamic color
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(self._color))
+            painter.setBrush(QBrush(fill_color))
             painter.drawRoundedRect(
                 int(fill_x),
                 bar_rect_y + 1,
@@ -195,6 +258,18 @@ class EncoderBar(QWidget):
                 indicator_size,
                 indicator_size,
             )
+
+        # Draw mode indicator dot (top-right corner, above bar)
+        mode_indicator_size = scaled(10)
+        mode_color = QColor(MODE_COLORS.get(self._mode, THEME.overlay0))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(mode_color))
+        painter.drawEllipse(
+            bar_left + bar_width - mode_indicator_size - scaled(2),
+            margin,
+            mode_indicator_size,
+            mode_indicator_size,
+        )
 
         painter.end()
 
@@ -315,3 +390,13 @@ class EncoderOverview(QWidget):
             max_limit = config.pos_limit_max
             if min_limit != max_limit:
                 self._bars[joint_id - 1].set_range(min_limit, max_limit)
+
+    def set_mode_for_joint(self, joint_id: int, mode: int):
+        """Set the mode indicator for a specific joint."""
+        if 1 <= joint_id <= len(self._bars):
+            self._bars[joint_id - 1].set_mode(mode)
+
+    def set_mode_for_all(self, mode: int):
+        """Set the mode indicator for all joints."""
+        for bar in self._bars:
+            bar.set_mode(mode)

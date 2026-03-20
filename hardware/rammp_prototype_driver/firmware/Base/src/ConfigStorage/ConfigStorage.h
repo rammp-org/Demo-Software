@@ -38,6 +38,9 @@ public:
     static void saveMotorConfig(int motor_id, const MotorConfig& config);
     static MotorConfig loadMotorConfig(int motor_id);
     
+    // Helper to just save position
+    static void save_position(int motor_id, float position);
+    
     // Check if EEPROM has valid data
     static bool isValid();
     

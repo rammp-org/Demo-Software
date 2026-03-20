@@ -16,6 +16,7 @@ enum CommandType {
     CMD_VEL_FF,  // e.g. f<id>:<val> (Velocity Feed-Forward)
     CMD_R,       // e.g. R<id> (Reset PID state - clear integrator windup)
     CMD_HOME,    // e.g. H<id> (Home/zero encoder position)
+    CMD_OFFSET,  // e.g. O<id>:<val> (Set position offset to arbitrary value)
     CMD_DIR,     // e.g. V<id> (Toggle motor direction - V for inVert)
     CMD_ENC_DIR, // e.g. E<id> (Toggle encoder direction)
     CMD_SAVE_CONFIG, // e.g. K<id> (Save config to EEPROM for joint)

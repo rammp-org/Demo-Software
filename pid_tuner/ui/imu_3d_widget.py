@@ -3,15 +3,61 @@
 Renders the real-time physical orientation and the target orientation.
 """
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtGui import QMatrix4x4, QQuaternion
 
+import numpy as np
 import pyqtgraph.opengl as gl
 
 from ..data.data_store import DataStore
 from .theme import THEME
 from .scaling import SIZES
+
+
+class ThickAxisItem(gl.GLLinePlotItem):
+    """
+    Custom axis item with configurable line width.
+    Creates X (red), Y (green), Z (blue) axes with thick lines.
+    """
+
+    def __init__(self, size=1.0, width=3.0, alpha=1.0, **kwargs):
+        # Create axis vertices
+        # Each axis: origin to endpoint
+        verts = np.array(
+            [
+                # X axis
+                [0, 0, 0],
+                [size, 0, 0],
+                # Y axis
+                [0, 0, 0],
+                [0, size, 0],
+                # Z axis
+                [0, 0, 0],
+                [0, 0, size],
+            ],
+            dtype=np.float32,
+        )
+
+        # Colors for each axis (with alpha)
+        colors = np.array(
+            [
+                # X axis - red
+                [1, 0, 0, alpha],
+                [1, 0, 0, alpha],
+                # Y axis - green
+                [0, 1, 0, alpha],
+                [0, 1, 0, alpha],
+                # Z axis - blue
+                [0, 0, 1, alpha],
+                [0, 0, 1, alpha],
+            ],
+            dtype=np.float32,
+        )
+
+        super().__init__(
+            pos=verts, color=colors, width=width, mode="lines", antialias=True, **kwargs
+        )
 
 
 class IMU3DWidget(QWidget):
@@ -35,10 +81,22 @@ class IMU3DWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(SIZES["spacing_small"])
 
-        # Title
+        # Title row with legend
+        title_layout = QHBoxLayout()
         title = QLabel("3D IMU Visualization")
         title.setStyleSheet(f"font-weight: bold; color: {THEME.text};")
-        layout.addWidget(title)
+        title_layout.addWidget(title)
+
+        title_layout.addStretch()
+
+        # Legend
+        legend = QLabel("Thick: Actual | Thin: Target")
+        legend.setStyleSheet(
+            f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
+        )
+        title_layout.addWidget(legend)
+
+        layout.addLayout(title_layout)
 
         # Create OpenGL widget
         self._view = gl.GLViewWidget()
@@ -53,15 +111,12 @@ class IMU3DWidget(QWidget):
         self._grid.setSpacing(x=1, y=1, z=1)
         self._view.addItem(self._grid)
 
-        # Actual Orientation Axes (Thick, solid)
-        self._actual_axis = gl.GLAxisItem()
-        self._actual_axis.setSize(x=1.5, y=1.5, z=1.5)
+        # Actual Orientation Axes (THICK - very visible)
+        self._actual_axis = ThickAxisItem(size=1.5, width=5.0, alpha=1.0)
         self._view.addItem(self._actual_axis)
 
-        # Target Orientation Axes (Thinner, translucent)
-        # By default GLAxisItem uses standard RGB for XYZ. We'll use a second axis item.
-        self._target_axis = gl.GLAxisItem()
-        self._target_axis.setSize(x=1.2, y=1.2, z=1.2)
+        # Target Orientation Axes (thin, semi-transparent)
+        self._target_axis = ThickAxisItem(size=1.2, width=1.5, alpha=0.5)
         self._view.addItem(self._target_axis)
 
     @pyqtSlot()

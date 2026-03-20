@@ -29,6 +29,7 @@ public:
 
   void retrieve_readings();
   void zeroEncoder(int index);      // Zero single encoder
+  void setOffset(int index, signed long offset); // Set custom offset
   signed long getRawReading(int index);  // Get raw value before offset
 };
 

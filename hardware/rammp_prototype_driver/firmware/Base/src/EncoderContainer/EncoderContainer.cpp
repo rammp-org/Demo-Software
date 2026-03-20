@@ -53,6 +53,14 @@ void EncoderContainer::zeroEncoder(int index) {
   }
 }
 
+void EncoderContainer::setOffset(int index, signed long offset) {
+  if (index >= 1 && index <= 12) {
+    encoder_offset[index] = offset;
+    // Immediately update the filtered value to match the new logical position
+    encoderf[index] = (signed long)(getRawReading(index) - encoder_offset[index]);
+  }
+}
+
 signed long EncoderContainer::getRawReading(int index) {
   switch (index) {
     case 1: return Enc2.read();

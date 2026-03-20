@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QSizePolicy,
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QSettings
 
 from ..data.data_store import DataStore
 from ..data.joint_config import get_joint_names, get_joint_id_from_index, get_joint_info
@@ -42,6 +42,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        # Initialize settings storage
+        self._settings = QSettings("MEBot", "PIDTuner")
+
         # Create core components
         self._data_store = DataStore()
         self._serial_handler = SerialHandler()
@@ -58,6 +61,9 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._setup_status_bar()
+
+        # Restore saved settings (or default to maximized)
+        self._restore_settings()
 
         # Refresh ports on startup
         self._refresh_ports()
@@ -91,9 +97,11 @@ class MainWindow(QMainWindow):
 
         # Main content area with vertical splitter (plot+console on left, controls on right)
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._main_splitter = main_splitter  # Store reference for settings
 
         # Left side - Plot and Console in vertical splitter
         left_splitter = QSplitter(Qt.Orientation.Vertical)
+        self._left_splitter = left_splitter  # Store reference for settings
 
         # Plot widget
         self._plot_widget = PlotWidget(self._data_store)
@@ -114,6 +122,10 @@ class MainWindow(QMainWindow):
         self._control_panel.setMinimumWidth(SIZES["control_panel_min_width"])
         self._control_panel.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+        )
+        # Connect mode changes to encoder overview
+        self._control_panel.mode_changed.connect(
+            self._encoder_overview.set_mode_for_all
         )
         main_splitter.addWidget(self._control_panel)
 
@@ -337,7 +349,64 @@ class MainWindow(QMainWindow):
         self._data_count = 0
         self._data_rate_label.setText(f"{rate} Hz")
 
+    def _restore_settings(self):
+        """Restore saved window configuration."""
+        # Window geometry
+        geometry = self._settings.value("geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
+        else:
+            # Default to maximized if no saved geometry
+            self.showMaximized()
+
+        # Window state (maximized/minimized)
+        state = self._settings.value("windowState")
+        if state:
+            self.restoreState(state)
+
+        # Splitter sizes
+        main_sizes = self._settings.value("main_splitter")
+        if main_sizes:
+            try:
+                self._main_splitter.setSizes([int(s) for s in main_sizes])
+            except (TypeError, ValueError):
+                pass
+
+        left_sizes = self._settings.value("left_splitter")
+        if left_sizes:
+            try:
+                self._left_splitter.setSizes([int(s) for s in left_sizes])
+            except (TypeError, ValueError):
+                pass
+
+        # Last serial port
+        last_port = self._settings.value("last_port", "")
+        if last_port:
+            index = self._port_combo.findText(last_port)
+            if index >= 0:
+                self._port_combo.setCurrentIndex(index)
+
+        # Last baud rate
+        last_baud = self._settings.value("last_baud", "115200")
+        self._baud_combo.setCurrentText(str(last_baud))
+
+        # Last joint selection
+        last_joint = self._settings.value("last_joint", 0, type=int)
+        if 0 <= last_joint < self._joint_combo.count():
+            self._joint_combo.setCurrentIndex(last_joint)
+
+    def _save_settings(self):
+        """Save current window configuration."""
+        self._settings.setValue("geometry", self.saveGeometry())
+        self._settings.setValue("windowState", self.saveState())
+        self._settings.setValue("main_splitter", self._main_splitter.sizes())
+        self._settings.setValue("left_splitter", self._left_splitter.sizes())
+        self._settings.setValue("last_port", self._port_combo.currentText())
+        self._settings.setValue("last_baud", self._baud_combo.currentText())
+        self._settings.setValue("last_joint", self._joint_combo.currentIndex())
+
     def closeEvent(self, event):
         """Handle window close event."""
+        self._save_settings()
         self._serial_handler.disconnect()
         event.accept()

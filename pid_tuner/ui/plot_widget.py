@@ -108,6 +108,15 @@ class PlotWidget(QWidget):
 
         control_layout.addStretch()
 
+        # Export CSV button
+        self._export_btn = QPushButton("Export CSV")
+        self._export_btn.setToolTip("Export visible graph data to CSV file")
+        self._export_btn.setStyleSheet(
+            f"background-color: {THEME.green}; color: {THEME.crust};"
+        )
+        self._export_btn.clicked.connect(self._on_export_csv)
+        control_layout.addWidget(self._export_btn)
+
         # Simulate button - allows plotting targets without serial connection
         self._simulate_btn = QPushButton("Sim")
         self._simulate_btn.setCheckable(True)
@@ -547,3 +556,113 @@ class PlotWidget(QWidget):
     def set_simulation_mode(self, enabled: bool):
         """Set the simulation mode state (called externally)."""
         self._simulate_btn.setChecked(enabled)
+
+    def _on_export_csv(self):
+        """Export visible graph data to CSV file."""
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        import csv
+        from datetime import datetime
+
+        # Get save file path
+        default_name = (
+            f"pid_tuner_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        )
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Graph Data", default_name, "CSV Files (*.csv);;All Files (*)"
+        )
+
+        if not file_path:
+            return
+
+        try:
+            # Get data from data store
+            joint_data = self._data_store.get_selected_joint_data()
+            timestamps, positions, targets = joint_data.get_plot_data()
+            vel_timestamps, velocities = joint_data.get_velocity_data()
+            pwm_timestamps, pwms = joint_data.get_pwm_data()
+
+            if len(timestamps) == 0:
+                QMessageBox.warning(self, "Export Error", "No data to export")
+                return
+
+            # Build headers and collect data columns
+            headers = ["timestamp"]
+            rows_data = {
+                i: {"timestamp": timestamps[i]} for i in range(len(timestamps))
+            }
+
+            if self._show_position:
+                headers.extend(["position", "target"])
+                for i in range(len(timestamps)):
+                    rows_data[i]["position"] = (
+                        positions[i] if i < len(positions) else ""
+                    )
+                    rows_data[i]["target"] = targets[i] if i < len(targets) else ""
+
+            if self._show_velocity:
+                headers.append("velocity")
+                for i in range(len(timestamps)):
+                    # Find matching velocity timestamp
+                    vel_val = ""
+                    if i < len(velocities):
+                        vel_val = velocities[i]
+                    rows_data[i]["velocity"] = vel_val
+
+            if self._show_pwm:
+                headers.append("pwm")
+                for i in range(len(timestamps)):
+                    pwm_val = ""
+                    if i < len(pwms):
+                        pwm_val = pwms[i]
+                    rows_data[i]["pwm"] = pwm_val
+
+            # Include linked joint if present
+            linked_id = self._data_store.linked_joint
+            if linked_id:
+                linked_data = self._data_store.get_joint(linked_id)
+                if linked_data:
+                    l_timestamps, l_positions, l_targets = linked_data.get_plot_data()
+                    l_vel_timestamps, l_velocities = linked_data.get_velocity_data()
+                    l_pwm_timestamps, l_pwms = linked_data.get_pwm_data()
+
+                    if self._show_position:
+                        headers.extend(["linked_position", "linked_target"])
+                        for i in range(len(timestamps)):
+                            rows_data[i]["linked_position"] = (
+                                l_positions[i] if i < len(l_positions) else ""
+                            )
+                            rows_data[i]["linked_target"] = (
+                                l_targets[i] if i < len(l_targets) else ""
+                            )
+
+                    if self._show_velocity:
+                        headers.append("linked_velocity")
+                        for i in range(len(timestamps)):
+                            rows_data[i]["linked_velocity"] = (
+                                l_velocities[i] if i < len(l_velocities) else ""
+                            )
+
+                    if self._show_pwm:
+                        headers.append("linked_pwm")
+                        for i in range(len(timestamps)):
+                            rows_data[i]["linked_pwm"] = (
+                                l_pwms[i] if i < len(l_pwms) else ""
+                            )
+
+            # Write CSV
+            with open(file_path, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=headers)
+                writer.writeheader()
+                for i in range(len(timestamps)):
+                    # Filter row to only include headers we have
+                    row = {k: rows_data[i].get(k, "") for k in headers}
+                    writer.writerow(row)
+
+            QMessageBox.information(
+                self,
+                "Export Complete",
+                f"Data exported to:\n{file_path}\n\n{len(timestamps)} samples exported.",
+            )
+
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"Failed to export: {str(e)}")

@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QCheckBox,
 )
-from PyQt6.QtCore import pyqtSignal, QTimer, Qt
+from PyQt6.QtCore import pyqtSignal, pyqtSlot, QTimer, Qt
 from PyQt6.QtGui import QDoubleValidator
 import math
 import numpy as np
@@ -30,6 +30,7 @@ from .theme import THEME
 from .scaling import SIZES, scaled
 from .imu_display import IMUDisplay
 from .imu_3d_widget import IMU3DWidget
+from .config_viewer import ConfigViewerWidget
 
 
 # Control mode constants
@@ -50,6 +51,13 @@ MODE_NAMES = {
     MODE_POSITION: "Position",
 }
 
+# Mode colors for visibility enhancement
+MODE_COLORS = {
+    MODE_OPEN_LOOP: THEME.red,
+    MODE_VELOCITY: THEME.yellow,
+    MODE_POSITION: THEME.blue,
+}
+
 
 class ControlPanel(QWidget):
     """
@@ -61,6 +69,9 @@ class ControlPanel(QWidget):
     - Sine wave inputs with configurable amplitude, frequency, duration
     - Oscillation analysis metrics
     """
+
+    # Signal emitted when control mode changes
+    mode_changed = pyqtSignal(int)
 
     # Default step sizes
     DEFAULT_STEP_SIZES = [10, 50, 100, 500, 1000]
@@ -123,6 +134,9 @@ class ControlPanel(QWidget):
         )
         layout.setSpacing(SIZES["spacing_medium"])
 
+        # Mode banner (prominent mode indicator at top)
+        layout.addWidget(self._create_mode_banner())
+
         # Current values display
         layout.addWidget(self._create_status_group())
 
@@ -138,6 +152,9 @@ class ControlPanel(QWidget):
         # Step inputs
         layout.addWidget(self._create_step_group())
 
+        # Quick Jog (hold-to-jog PWM buttons)
+        layout.addWidget(self._create_quick_jog_group())
+
         # Sine wave inputs
         layout.addWidget(self._create_sine_group())
 
@@ -152,11 +169,53 @@ class ControlPanel(QWidget):
         self._imu_3d_widget = IMU3DWidget(self._data_store)
         layout.addWidget(self._imu_3d_widget)
 
+        # Configuration Viewer (Memory Debug)
+        self._config_viewer = ConfigViewerWidget(self._data_store, self._serial_handler)
+        layout.addWidget(self._config_viewer)
+
         layout.addStretch()
 
         # Set scroll content and add to outer layout
         scroll_area.setWidget(scroll_content)
         outer_layout.addWidget(scroll_area)
+
+    def _create_mode_banner(self) -> QFrame:
+        """Create a prominent mode indicator banner."""
+        self._mode_banner = QFrame()
+        self._mode_banner.setFixedHeight(scaled(40))
+        self._mode_banner.setStyleSheet(f"""
+            QFrame {{
+                background-color: {MODE_COLORS[MODE_OPEN_LOOP]};
+                border-radius: {scaled(4)}px;
+            }}
+        """)
+
+        layout = QHBoxLayout(self._mode_banner)
+        layout.setContentsMargins(SIZES["margin_medium"], 0, SIZES["margin_medium"], 0)
+
+        self._mode_banner_label = QLabel("MODE: OPEN LOOP")
+        self._mode_banner_label.setStyleSheet(f"""
+            font-size: {SIZES["font_large"]}pt;
+            font-weight: bold;
+            color: {THEME.crust};
+        """)
+        self._mode_banner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._mode_banner_label)
+
+        return self._mode_banner
+
+    def _update_mode_banner(self):
+        """Update the mode banner color and text."""
+        mode_name = MODE_NAMES.get(self._current_mode, "Unknown")
+        mode_color = MODE_COLORS.get(self._current_mode, THEME.overlay0)
+
+        self._mode_banner.setStyleSheet(f"""
+            QFrame {{
+                background-color: {mode_color};
+                border-radius: {scaled(4)}px;
+            }}
+        """)
+        self._mode_banner_label.setText(f"MODE: {mode_name.upper()}")
 
     def _create_status_group(self) -> QGroupBox:
         """Create the current values display group."""
@@ -613,6 +672,34 @@ class ControlPanel(QWidget):
 
         layout.addLayout(enc_config_layout)
 
+        # Position Offset row
+        offset_layout = QHBoxLayout()
+        offset_layout.setSpacing(SIZES["spacing_small"])
+
+        offset_layout.addWidget(QLabel("Set Position As:"))
+        self._position_offset_input = QLineEdit("0")
+        self._position_offset_input.setValidator(QDoubleValidator())
+        self._position_offset_input.setMinimumWidth(SIZES["input_min_width"])
+        self._position_offset_input.setToolTip(
+            "Set the current physical position to this value.\n"
+            "Example: If motor is at +25 ticks and you enter 150,\n"
+            "the position will now read 150 ticks.\n"
+            "Note: Requires firmware support for 'O' command."
+        )
+        offset_layout.addWidget(self._position_offset_input)
+
+        self._set_offset_btn = QPushButton("Set Offset")
+        self._set_offset_btn.setToolTip("Set current position to the specified value")
+        self._set_offset_btn.clicked.connect(self._on_set_position_offset)
+        self._set_offset_btn.setStyleSheet(
+            f"background-color: {THEME.mauve}; color: {THEME.crust};"
+        )
+        offset_layout.addWidget(self._set_offset_btn)
+
+        offset_layout.addStretch()
+
+        layout.addLayout(offset_layout)
+
         # Safety buttons row (separate for emphasis)
         safety_layout = QHBoxLayout()
         safety_layout.setSpacing(SIZES["spacing_small"])
@@ -695,6 +782,80 @@ class ControlPanel(QWidget):
         layout.addLayout(quick_layout)
 
         return group
+
+    def _create_quick_jog_group(self) -> QGroupBox:
+        """Create quick jog buttons for open-loop PWM control (hold to jog)."""
+        group = QGroupBox("Quick Jog (Open Loop)")
+        layout = QVBoxLayout(group)
+        layout.setSpacing(SIZES["spacing_medium"])
+
+        # Info label
+        info_label = QLabel("Hold button to jog, release to stop")
+        info_label.setStyleSheet(
+            f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
+        )
+        layout.addWidget(info_label)
+
+        # Jog buttons row
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(SIZES["spacing_small"])
+
+        # PWM values as fractions of max PWM (32767)
+        jog_values = [(-0.2, "-20%"), (-0.1, "-10%"), (0.1, "+10%"), (0.2, "+20%")]
+
+        for pwm_fraction, label in jog_values:
+            btn = QPushButton(label)
+            btn.setAutoRepeat(False)  # We handle press/release manually
+            # Connect press and release events
+            btn.pressed.connect(lambda pf=pwm_fraction: self._on_jog_pressed(pf))
+            btn.released.connect(self._on_jog_released)
+            btn_layout.addWidget(btn)
+
+        layout.addLayout(btn_layout)
+
+        # Stop button
+        self._jog_stop_btn = QPushButton("STOP (PWM=0)")
+        self._jog_stop_btn.setStyleSheet(
+            f"background-color: {THEME.red}; color: {THEME.crust};"
+        )
+        self._jog_stop_btn.clicked.connect(self._on_jog_stop)
+        layout.addWidget(self._jog_stop_btn)
+
+        return group
+
+    def _on_jog_pressed(self, pwm_fraction: float):
+        """Handle jog button press - start jogging."""
+        joint_id = self._data_store.selected_joint
+
+        # Calculate PWM value (32767 is max PWM)
+        pwm_value = int(pwm_fraction * 32767)
+
+        # Send target command
+        self._serial_handler.set_target(joint_id, pwm_value)
+        self._data_store.set_target(joint_id, pwm_value)
+
+        # Also apply to linked joint if active
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            invert = self._invert_linked_cb.isChecked()
+            linked_pwm = -pwm_value if invert else pwm_value
+            self._serial_handler.set_target(linked_joint_id, linked_pwm)
+            self._data_store.set_target(linked_joint_id, linked_pwm)
+
+    def _on_jog_released(self):
+        """Handle jog button release - stop jogging."""
+        self._on_jog_stop()
+
+    def _on_jog_stop(self):
+        """Stop all jogging - set PWM to 0."""
+        joint_id = self._data_store.selected_joint
+        self._serial_handler.set_target(joint_id, 0)
+        self._data_store.set_target(joint_id, 0)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            self._serial_handler.set_target(linked_joint_id, 0)
+            self._data_store.set_target(linked_joint_id, 0)
 
     def _create_sine_group(self) -> QGroupBox:
         """Create the sine wave input group."""
@@ -967,6 +1128,12 @@ class ControlPanel(QWidget):
         self._sine_amplitude_unit_label.setText(unit)
         self._mode_indicator_label.setText(MODE_NAMES.get(index, "Unknown"))
 
+        # Update mode banner
+        self._update_mode_banner()
+
+        # Emit signal for other widgets
+        self.mode_changed.emit(index)
+
         # Update error unit based on mode
         if index == MODE_POSITION:
             self._error_unit_label.setText("ticks")
@@ -1096,6 +1263,22 @@ class ControlPanel(QWidget):
         linked_joint_id = self._data_store.linked_joint
         if linked_joint_id != 0:
             self._serial_handler.toggle_encoder_direction(linked_joint_id)
+
+    def _on_set_position_offset(self):
+        """Set the current position to a specified value (position offset)."""
+        desired_position = self._get_float_from_lineedit(
+            self._position_offset_input, 0.0
+        )
+        joint_id = self._data_store.selected_joint
+
+        # Send offset command to Teensy
+        # The Teensy will calculate: offset = desired_position - current_raw_position
+        self._serial_handler.set_position_offset(joint_id, desired_position)
+
+        linked_joint_id = self._data_store.linked_joint
+        if linked_joint_id != 0:
+            # Use same offset for linked joint
+            self._serial_handler.set_position_offset(linked_joint_id, desired_position)
 
     def _update_direction_indicator(self):
         """Update the direction indicator based on current motor direction."""

@@ -655,8 +655,8 @@ class DataStore(QObject):
         )
         self.imu_updated.emit()
 
-        # Store leveling debug data
-        if hasattr(data, "leveling_pitch_err"):
+        # Store leveling debug data — only when firmware actually sent the 49-field packet
+        if getattr(data, "has_leveling_data", False):
             self._leveling_pitch_err = data.leveling_pitch_err
             self._leveling_roll_err = data.leveling_roll_err
             self._z_target_ml = data.z_target_ml

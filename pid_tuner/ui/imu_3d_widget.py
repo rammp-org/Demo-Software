@@ -78,8 +78,10 @@ class IMU3DWidget(QWidget):
     ACTUATOR_POS_MR = (-34 * 0.03, 31 * 0.03)  # Mid-Right
     ACTUATOR_POS_RC = (34 * 0.03, 0)  # Rear-Center
 
-    # Z target scale (encoder ticks to view units)
-    Z_SCALE = 0.0005  # Adjust based on typical Z target range
+    # Z target scale (encoder ticks -> view units).
+    # View is ~5 units wide; typical actuator range is ~200 ticks.
+    # 200 * 0.005 = 1.0 view unit — about 20% of the grid, clearly visible.
+    Z_SCALE = 0.005
 
     def __init__(self, data_store: DataStore, parent=None):
         super().__init__(parent)
@@ -171,8 +173,9 @@ class IMU3DWidget(QWidget):
     def _create_z_bar(self, xy_pos: tuple, color: tuple) -> gl.GLLinePlotItem:
         """Create a vertical bar at the given XY position to show Z target."""
         x, y = xy_pos
-        # Initial bar from z=0 to z=0 (will be updated)
-        pts = np.array([[x, y, 0], [x, y, 0]], dtype=np.float32)
+        # Use a tiny non-zero initial extent so the GL item is painted on the first
+        # frame and the vertex buffer is properly initialized in the OpenGL context.
+        pts = np.array([[x, y, 0], [x, y, 0.001]], dtype=np.float32)
         return gl.GLLinePlotItem(pos=pts, color=color, width=4.0, antialias=True)
 
     def _create_actuator_marker(
@@ -241,9 +244,15 @@ class IMU3DWidget(QWidget):
         x, y = xy_pos
         # Scale Z value for visualization (ticks -> view units)
         z_scaled = z_value * self.Z_SCALE
-        # Bar goes from z=0 to z=z_scaled
+        # Ensure the bar has at least a tiny visible extent even at zero
+        if abs(z_scaled) < 0.001:
+            z_scaled = 0.001
         pts = np.array([[x, y, 0], [x, y, z_scaled]], dtype=np.float32)
-        bar.setData(pos=pts)
+        # Pass antialias=True explicitly — setData resets it to False unconditionally
+        bar.setData(pos=pts, antialias=True)
+        # Force the view to repaint so the new geometry is visible immediately
+        if bar.view() is not None:
+            bar.view().update()
 
     @pyqtSlot()
     def _on_imu_updated(self):

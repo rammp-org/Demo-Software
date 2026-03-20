@@ -13,7 +13,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QSpinBox,
-    QComboBox,
     QDoubleSpinBox,
     QScrollArea,
     QSizePolicy,
@@ -521,24 +520,33 @@ class ControlPanel(QWidget):
         # Get scaled input width
         pid_input_width = SIZES["input_min_width"]
 
-        # Mode Selection row
+        # Mode buttons row — each button sends the mode immediately when pressed
         mode_layout = QHBoxLayout()
         mode_layout.setSpacing(SIZES["spacing_small"])
-        mode_layout.addWidget(QLabel("Mode:"))
-        self._mode_combo = QComboBox()
-        self._mode_combo.addItems(["Open Loop (0)", "Velocity (1)", "Position (2)"])
-        self._mode_combo.currentIndexChanged.connect(self._on_mode_combo_changed)
-        self._mode_combo.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-        # Prevent accidental changes when scrolling the panel
-        self._mode_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._mode_combo.wheelEvent = lambda event: event.ignore()
-        mode_layout.addWidget(self._mode_combo)
 
-        self._set_mode_btn = QPushButton("Set Mode")
-        self._set_mode_btn.clicked.connect(self._on_set_mode)
-        mode_layout.addWidget(self._set_mode_btn)
+        self._open_loop_btn = QPushButton("Open Loop")
+        self._open_loop_btn.setToolTip("Set open-loop PWM mode (mode 0)")
+        self._open_loop_btn.clicked.connect(lambda: self._on_set_mode(MODE_OPEN_LOOP))
+        self._open_loop_btn.setStyleSheet(
+            f"background-color: {MODE_COLORS[MODE_OPEN_LOOP]}; color: {THEME.crust}; font-weight: bold;"
+        )
+        mode_layout.addWidget(self._open_loop_btn)
+
+        self._cl_vel_btn = QPushButton("CL Vel")
+        self._cl_vel_btn.setToolTip("Set closed-loop velocity mode (mode 1)")
+        self._cl_vel_btn.clicked.connect(lambda: self._on_set_mode(MODE_VELOCITY))
+        self._cl_vel_btn.setStyleSheet(
+            f"background-color: {MODE_COLORS[MODE_VELOCITY]}; color: {THEME.crust}; font-weight: bold;"
+        )
+        mode_layout.addWidget(self._cl_vel_btn)
+
+        self._cl_pos_btn = QPushButton("CL Pos")
+        self._cl_pos_btn.setToolTip("Set closed-loop position mode (mode 2)")
+        self._cl_pos_btn.clicked.connect(lambda: self._on_set_mode(MODE_POSITION))
+        self._cl_pos_btn.setStyleSheet(
+            f"background-color: {MODE_COLORS[MODE_POSITION]}; color: {THEME.crust}; font-weight: bold;"
+        )
+        mode_layout.addWidget(self._cl_pos_btn)
 
         # Clear PID button (resets integrator windup)
         self._clear_pid_btn = QPushButton("Clear PID")
@@ -1020,18 +1028,19 @@ class ControlPanel(QWidget):
         """Handle jog button press - start jogging."""
         joint_id = self._data_store.selected_joint
 
-        # Calculate PWM value (32767 is max PWM)
-        pwm_value = int(pwm_fraction * 32767)
+        # Ensure open-loop mode is active before jogging
+        self._serial_handler.set_mode(joint_id, MODE_OPEN_LOOP)
 
-        # Send target command
-        self._serial_handler.set_target(joint_id, pwm_value)
-        self._data_store.set_target(joint_id, pwm_value)
+        # Send PWM fraction directly (-1.0 to 1.0); Teensy scales internally
+        self._serial_handler.set_target(joint_id, pwm_fraction)
+        self._data_store.set_target(joint_id, pwm_fraction)
 
         # Also apply to linked joint if active
         linked_joint_id = self._data_store.linked_joint
         if linked_joint_id != 0:
             invert = self._invert_linked_cb.isChecked()
-            linked_pwm = -pwm_value if invert else pwm_value
+            linked_pwm = -pwm_fraction if invert else pwm_fraction
+            self._serial_handler.set_mode(linked_joint_id, MODE_OPEN_LOOP)
             self._serial_handler.set_target(linked_joint_id, linked_pwm)
             self._data_store.set_target(linked_joint_id, linked_pwm)
 
@@ -1311,34 +1320,6 @@ class ControlPanel(QWidget):
         self._settled_label.setText("---")
         self._oscillation_label.setText("---")
 
-    def _on_mode_combo_changed(self, index: int):
-        """Handle mode combo box change - update unit labels."""
-        self._current_mode = index
-        self._data_store.control_mode = index
-        unit = MODE_UNITS.get(index, "")
-
-        # Update all unit labels based on mode
-        self._target_unit_label.setText(unit)
-        self._target_input_unit_label.setText(unit)
-        self._linked_target_unit_label.setText(unit)
-        self._step_unit_label.setText(unit)
-        self._sine_amplitude_unit_label.setText(unit)
-        self._mode_indicator_label.setText(MODE_NAMES.get(index, "Unknown"))
-
-        # Update mode banner
-        self._update_mode_banner()
-
-        # Emit signal for other widgets
-        self.mode_changed.emit(index)
-
-        # Update error unit based on mode
-        if index == MODE_POSITION:
-            self._error_unit_label.setText("ticks")
-        elif index == MODE_VELOCITY:
-            self._error_unit_label.setText("units/s")
-        else:
-            self._error_unit_label.setText("")
-
     def _on_linked_joint_changed(self, linked_joint_id: int):
         """Update UI based on whether a linked joint is active."""
         has_linked = linked_joint_id != 0
@@ -1508,13 +1489,31 @@ class ControlPanel(QWidget):
                     f"font-size: {SIZES['font_medium']}pt; font-weight: bold; color: {THEME.yellow};"
                 )
 
-    def _on_set_mode(self):
-        """Send mode set command."""
+    def _on_set_mode(self, mode: int):
+        """Send mode set command and update local state/banner."""
         joint_id = self._data_store.selected_joint
-        mode = self._mode_combo.currentIndex()
         self._serial_handler.set_mode(joint_id, mode)
         if self._data_store.linked_joint != 0:
             self._serial_handler.set_mode(self._data_store.linked_joint, mode)
+
+        # Update local tracking and UI
+        self._current_mode = mode
+        self._data_store.control_mode = mode
+        unit = MODE_UNITS.get(mode, "")
+        self._target_unit_label.setText(unit)
+        self._target_input_unit_label.setText(unit)
+        self._linked_target_unit_label.setText(unit)
+        self._step_unit_label.setText(unit)
+        self._sine_amplitude_unit_label.setText(unit)
+        self._mode_indicator_label.setText(MODE_NAMES.get(mode, "Unknown"))
+        if mode == MODE_POSITION:
+            self._error_unit_label.setText("ticks")
+        elif mode == MODE_VELOCITY:
+            self._error_unit_label.setText("units/s")
+        else:
+            self._error_unit_label.setText("")
+        self._update_mode_banner()
+        self.mode_changed.emit(mode)
 
     def _on_set_pos_pid(self):
         """Send position PID gains and feed-forward."""

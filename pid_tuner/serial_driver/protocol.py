@@ -77,6 +77,7 @@ class EncoderData:
     z_target_ml: float = 0.0
     z_target_rc: float = 0.0
     z_target_mr: float = 0.0
+    has_leveling_data: bool = False  # True only when firmware sent the 49-field packet
 
     @property
     def num_joints(self) -> int:
@@ -203,6 +204,7 @@ class ProtocolParser:
                         data.z_target_ml = values[46]
                         data.z_target_rc = values[47]
                         data.z_target_mr = values[48]
+                        data.has_leveling_data = True
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:

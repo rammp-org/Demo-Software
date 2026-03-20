@@ -1,18 +1,17 @@
-import rclpy
-from rclpy.node import Node
-from rclpy.action import ActionServer
-import serial
 import ast
-from sensor_msgs.msg import Imu
 import math
-from sensor_msgs.msg import JointState
-from std_srvs.srv import SetBool
-from std_msgs.msg import Bool
-from tf2_ros import TransformBroadcaster
+
+import rclpy
+import serial
+from rammp_prototype_interfaces.action import CurbTraverse
 
 # custom msgs/srvs
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
-from rammp_prototype_interfaces.action import CurbTraverse
+from rclpy.action import ActionServer
+from rclpy.node import Node
+from sensor_msgs.msg import Imu, JointState
+from std_msgs.msg import Bool
+from std_srvs.srv import SetBool
 
 
 class MEBotControlNode(Node):
@@ -26,11 +25,18 @@ class MEBotControlNode(Node):
             timeout=1,
         )
 
-        # timer for serial data reading
-        self.serial_timer = self.create_timer(0.001, self.read_serial_data)
+        # Data transfer rates
+        # Rate to read data from serial
+        self.serial_rate = 1 / 1000.0
+        # Rate to publish joint states
+        self.joint_state_rate = 1 / 100.0
+        # Rate to publish RAMMPPrototypeState
+        self.state_publish_rate = 1 / 100.0
+        # Diagnostic publish rate
+        self.publish_rate = 1 / 1.0
 
-        # publishing rate for all topics
-        self.publish_rate = 0.001
+        # timer for serial data reading
+        self.serial_timer = self.create_timer(self.serial_rate, self.read_serial_data)
 
         # IMU
         self.IMU_pitch = 0.0
@@ -77,6 +83,13 @@ class MEBotControlNode(Node):
         self.tilt = 0.0
         self.measure_height = 0.0
 
+        # Init all ROS interfaces
+        self._init_services()
+        self._init_actions()
+        self._init_subscribers()
+        self._init_publishers()
+
+    def _init_services(self):
         # services
         self.drive_enable_service = self.create_service(
             SetBool, "drive_enable", self.drive_enable_callback
@@ -86,11 +99,13 @@ class MEBotControlNode(Node):
             SetBool, "self_level_enable", self.self_level_enable_callback
         )
 
+    def _init_actions(self):
         # actions
         self.curb_traverse_action = ActionServer(
             self, CurbTraverse, "curb_traverse", self.curb_traverse_action_callback
         )
 
+    def _init_subscribers(self):
         # subscriptions
         self.manual_seat_control_subscription = self.create_subscription(
             Bool, "manual_seat_control", self.manual_seat_control_callback, 10
@@ -108,16 +123,14 @@ class MEBotControlNode(Node):
             Bool, "estop", self.estop_callback, 10
         )
 
+    def _init_publishers(self):
         # joint state publisher
         self.joint_state_publisher = self.create_publisher(
             JointState, "joint_states", 10
         )
         self.joint_state_timer = self.create_timer(
-            self.publish_rate, self.publish_joint_states
+            self.joint_state_rate, self.publish_joint_states
         )
-
-        # init transform broadcaster
-        self.tf_broadcaster = TransformBroadcaster(self)
 
         # state publisher
         self.RAMMPPrototypeState_publisher = self.create_publisher(

@@ -9,6 +9,7 @@ def generate_launch_description():
                 package="rammp_prototype_driver",
                 executable="control_node",
                 name="MEBot_control_node",
+                namespace="base",
                 output="screen",
             )
         ]

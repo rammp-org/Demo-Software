@@ -2,36 +2,41 @@
 
 > **summary**
 > This Node is used to communicate with Teensy (USB-Uart) to control the MeBot and also communicate with `LUCI Node`.
-> When receive `/drive_enable` == `true`, it should talk to `LUCI` to enable joystick control.
-> When receive `/drive_enable` == `false`, it should talk to LUCI to disable joystick control.
-> This Node is also response to `/self_level_enable`, `/manual_seat_control`, `/curb_ascend` and `/curb_descend`.
-> When receive `/estop`, it should disable joystick control.
+> When receive `/base/drive_enable` == `true`, it should talk to `LUCI` to enable joystick control.
+> When receive `/base/drive_enable` == `false`, it should talk to LUCI to disable joystick control.
+> This Node is also response to `/base/self_level_enable`, `/base/manual_seat_control`, `/base/curb_ascend` and `/base/curb_descend`.
+> When receive `/base/estop`, it should disable joystick control.
+>
+> All topics are published under the `/base` namespace, set via the launch file.
+> The tf tree is managed externally by a Robot State Publisher node with a URDF — this node does not publish transforms directly.
 
 > **TODO:**
 >
 > - \[ \] Determine the correct interface for LUCI node
-> - \[ \] Add publishers for encoders, velocities, accelerations, etc.
+> - \[ \] Implement LUCI service client calls in `drive_enable` callback
 
 ### Publishers:
 
-| Topic      | Type                   |
-| ---------- | ---------------------- |
-| /tf        | tf2_msgs/msg/TFMessage |
-| /mebot/imu | sensor_msgs/msg/Imu    |
+| Topic                       | Type                                               | Note                              |
+| --------------------------- | -------------------------------------------------- | --------------------------------- |
+| /base/imu                   | sensor_msgs/msg/Imu                                |                                   |
+| /base/joint_states          | sensor_msgs/msg/JointState                         | Encoder positions for all joints  |
+| /base/rammp_prototype_state | rammp_prototype_interfaces/msg/RAMMPPrototypeState | Full debug state from Teensy      |
+| /diagnostics                | diagnostic_msgs/msg/DiagnosticArray                | Not namespaced per ROS convention |
 
-### Subscriber:
+### Subscribers:
 
-| Topic                      | Type              |
-| -------------------------- | ----------------- |
-| /mebot/seat/manual_control |                   |
-| /estop                     | std_msgs/msg/Bool |
+| Topic                     | Type              |
+| ------------------------- | ----------------- |
+| /base/manual_seat_control |                   |
+| /base/estop               | std_msgs/msg/Bool |
 
 ### Service Servers:
 
-| Topic                         | Type                 |
-| ----------------------------- | -------------------- |
-| /mebot/drive/enable           | std_srvs/srv/SetBool |
-| /mebot/seat/self_level/enable | std_srvs/srv/SetBool |
+| Topic                   | Type                 |
+| ----------------------- | -------------------- |
+| /base/drive_enable      | std_srvs/srv/SetBool |
+| /base/self_level_enable | std_srvs/srv/SetBool |
 
 ### Service Clients:
 
@@ -42,9 +47,9 @@
 
 ### Action Servers:
 
-| Topic                | Type |
-| -------------------- | ---- |
-| /mebot/curb/traverse |      |
+| Topic               | Type |
+| ------------------- | ---- |
+| /base/curb_traverse |      |
 
 ### Action Clients:
 

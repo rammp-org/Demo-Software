@@ -76,6 +76,7 @@ class MEBotControlNode(Node):
         # timer for serial data reading
         self.serial_timer = self.create_timer(self.serial_rate, self.read_serial_data)
 
+        ### Fields to store incoming data from serial for publishing in ROS messages
         # IMU
         self.IMU_pitch = 0.0
         self.IMU_roll = 0.0
@@ -121,7 +122,7 @@ class MEBotControlNode(Node):
         self.tilt = 0.0
         self.measure_height = 0.0
 
-        # Init all ROS interfaces
+        #### Init all ROS interfaces
         self._init_services()
         self._init_actions()
         self._init_subscribers()
@@ -148,14 +149,6 @@ class MEBotControlNode(Node):
         self.manual_seat_control_subscription = self.create_subscription(
             Bool, "manual_seat_control", self.manual_seat_control_callback, 10
         )  # message type is placeholder
-
-        self.curb_ascend_subscription = self.create_subscription(
-            Bool, "curb_ascend", self.curb_ascend_callback, 10
-        )
-
-        self.curb_descend_subscription = self.create_subscription(
-            Bool, "curb_descend", self.curb_descend_callback, 10
-        )
 
         self.estop_subscription = self.create_subscription(
             Bool, "estop", self.estop_callback, 10
@@ -355,16 +348,6 @@ class MEBotControlNode(Node):
         self.imu_publisher.publish(msg)
 
     def manual_seat_control_callback(self, msg):
-        if msg.data:
-            # content
-            pass
-
-    def curb_ascend_callback(self, msg):
-        if msg.data:
-            # content
-            pass
-
-    def curb_descend_callback(self, msg):
         if msg.data:
             # content
             pass

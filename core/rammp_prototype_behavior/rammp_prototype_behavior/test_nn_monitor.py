@@ -12,7 +12,7 @@ class testNNMonitor(Node):
     def __init__(self):
         super().__init__("test_nn_monitor")
         self.nodes_check = NodeNameMonitor(self, json_path, self.ready)
-        self.node_check_timer = self.create_timer(1.0, self.nodes_check.NodesReady)
+        # self.node_check_timer = self.create_timer(1.0, self.nodes_check.NodesReady)
 
     def ready(self, isReady):
         if not isReady:

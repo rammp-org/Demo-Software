@@ -10,6 +10,7 @@ class NodeNameMonitor:
         self.ros_node = ros_node
         self.callback = callback
         self.json_path = json_path
+        self.nodes_ready_timer = ros_node.create_timer(1.0, self.NodesReady)
 
     def NodesReady(self):
         names_and_ns = self.ros_node.get_node_names_and_namespaces()

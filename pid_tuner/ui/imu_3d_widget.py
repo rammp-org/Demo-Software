@@ -166,6 +166,59 @@ class IMU3DWidget(QWidget):
         self._view.addItem(self._marker_mr)
         self._view.addItem(self._marker_rc)
 
+        # Ground plane — semi-transparent grey quad at z=0
+        s = 3.0  # half-extent
+        gp_verts = np.array(
+            [
+                [-s, -s, 0],
+                [s, -s, 0],
+                [s, s, 0],
+                [-s, s, 0],
+            ],
+            dtype=np.float32,
+        )
+        gp_faces = np.array([[0, 1, 2], [0, 2, 3]], dtype=np.uint32)
+        gp_colors = np.array(
+            [
+                [0.3, 0.3, 0.35, 0.35],
+                [0.3, 0.3, 0.35, 0.35],
+            ],
+            dtype=np.float32,
+        )
+        gp_mesh = gl.MeshData(vertexes=gp_verts, faces=gp_faces, faceColors=gp_colors)
+        self._ground_plane = gl.GLMeshItem(
+            meshdata=gp_mesh,
+            smooth=False,
+            drawFaces=True,
+            drawEdges=False,
+            glOptions="translucent",
+        )
+        self._view.addItem(self._ground_plane)
+
+        # Chassis triangle — connects the tops of the three z-bars.
+        # Initialized flat; updated live in _on_leveling_updated.
+        tri_verts = np.array(
+            [
+                [self.ACTUATOR_POS_ML[0], self.ACTUATOR_POS_ML[1], 0.001],
+                [self.ACTUATOR_POS_MR[0], self.ACTUATOR_POS_MR[1], 0.001],
+                [self.ACTUATOR_POS_RC[0], self.ACTUATOR_POS_RC[1], 0.001],
+            ],
+            dtype=np.float32,
+        )
+        tri_faces = np.array([[0, 1, 2]], dtype=np.uint32)
+        tri_colors = np.array([[0.6, 0.8, 1.0, 0.45]], dtype=np.float32)
+        tri_mesh = gl.MeshData(
+            vertexes=tri_verts, faces=tri_faces, faceColors=tri_colors
+        )
+        self._chassis_triangle = gl.GLMeshItem(
+            meshdata=tri_mesh,
+            smooth=False,
+            drawFaces=True,
+            drawEdges=True,
+            glOptions="translucent",
+        )
+        self._view.addItem(self._chassis_triangle)
+
         # Leveling debug info panel (below 3D view)
         self._leveling_panel = self._create_leveling_panel()
         layout.addWidget(self._leveling_panel)
@@ -321,6 +374,27 @@ class IMU3DWidget(QWidget):
         self._update_z_bar(self._z_bar_ml, self.ACTUATOR_POS_ML, z_ml)
         self._update_z_bar(self._z_bar_rc, self.ACTUATOR_POS_RC, z_rc)
         self._update_z_bar(self._z_bar_mr, self.ACTUATOR_POS_MR, z_mr)
+
+        # Update chassis triangle — vertices are the tops of the three z-bars
+        def _z(v):
+            z = v * self.Z_SCALE
+            return z if abs(z) >= 0.001 else 0.001
+
+        tri_verts = np.array(
+            [
+                [self.ACTUATOR_POS_ML[0], self.ACTUATOR_POS_ML[1], _z(z_ml)],
+                [self.ACTUATOR_POS_MR[0], self.ACTUATOR_POS_MR[1], _z(z_mr)],
+                [self.ACTUATOR_POS_RC[0], self.ACTUATOR_POS_RC[1], _z(z_rc)],
+            ],
+            dtype=np.float32,
+        )
+        tri_faces = np.array([[0, 1, 2]], dtype=np.uint32)
+        tri_colors = np.array([[0.6, 0.8, 1.0, 0.45]], dtype=np.float32)
+        tri_mesh = gl.MeshData(
+            vertexes=tri_verts, faces=tri_faces, faceColors=tri_colors
+        )
+        self._chassis_triangle.setMeshData(meshdata=tri_mesh)
+        self._view.update()
 
     def _get_error_color(self, error: float) -> str:
         """Get color based on error magnitude."""

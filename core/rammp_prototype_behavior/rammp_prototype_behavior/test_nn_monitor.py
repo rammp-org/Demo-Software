@@ -11,7 +11,7 @@ json_path = Path(
 class testNNMonitor(Node):
     def __init__(self):
         super().__init__("test_nn_monitor")
-        self.nodes_check = NodeNameMonitor(self, json_path, self.ready())
+        self.nodes_check = NodeNameMonitor(self, json_path, self.ready(isReady=True))
         self.node_check_timer = self.create_timer(1.0, self.nodes_check)
 
     def ready(self, isReady):

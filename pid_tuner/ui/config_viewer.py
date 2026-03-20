@@ -26,9 +26,13 @@ from .theme import THEME
 from .scaling import SIZES, scaled
 
 
-# Column definitions for the config table
+# Column definitions for the config table.
+# Columns with attr starting with "_dir_" are sourced from DataStore direction lists,
+# not from ConfigData, and are handled separately in _on_directions_updated.
 CONFIG_COLUMNS = [
     ("Joint", "joint"),
+    ("mot_dir", "_dir_motor"),
+    ("enc_dir", "_dir_encoder"),
     ("pos_p", "pos_p"),
     ("pos_i", "pos_i"),
     ("pos_d", "pos_d"),
@@ -43,6 +47,13 @@ CONFIG_COLUMNS = [
     ("pos_min", "pos_limit_min"),
     ("pos_max", "pos_limit_max"),
 ]
+
+# Columns that come from DataStore direction lists rather than ConfigData
+_DIRECTION_ATTRS = {"_dir_motor", "_dir_encoder"}
+
+# Colors for direction values
+_DIR_POS_COLOR = QColor("#a6e3a1")  # green  — forward (+1)
+_DIR_NEG_COLOR = QColor("#f38ba8")  # red    — reversed (-1)
 
 
 class ConfigViewerWidget(QWidget):
@@ -72,8 +83,9 @@ class ConfigViewerWidget(QWidget):
 
         self._setup_ui()
 
-        # Connect to config updates
+        # Connect to config and direction updates
         self._data_store.config_updated.connect(self._on_config_updated)
+        self._data_store.directions_updated.connect(self._on_directions_updated)
 
     def _setup_ui(self):
         """Set up the widget layout."""
@@ -227,8 +239,10 @@ class ConfigViewerWidget(QWidget):
         # Get previous values for this joint
         prev = self._previous_values.get(joint_id, {})
 
-        # Update each column
+        # Update each column (skip direction columns — sourced from DataStore, not ConfigData)
         for col, (_, attr) in enumerate(CONFIG_COLUMNS[1:], start=1):
+            if attr in _DIRECTION_ATTRS:
+                continue
             value = getattr(config, attr, None)
             if value is not None:
                 # Format the value appropriately
@@ -258,6 +272,27 @@ class ConfigViewerWidget(QWidget):
         }
 
         self._status_label.setText(f"Joint {joint_id} config loaded")
+
+    def _on_directions_updated(self):
+        """Refresh motor and encoder direction columns from DataStore."""
+        motor_dirs = self._data_store.motor_directions
+        encoder_dirs = self._data_store.encoder_directions
+
+        for col, (_, attr) in enumerate(CONFIG_COLUMNS[1:], start=1):
+            if attr not in _DIRECTION_ATTRS:
+                continue
+            for row in range(self._table.rowCount()):
+                dirs = motor_dirs if attr == "_dir_motor" else encoder_dirs
+                value = dirs[row] if row < len(dirs) else None
+                item = self._table.item(row, col)
+                if item is None or value is None:
+                    continue
+                text = f"{value:+d}"
+                item.setText(text)
+                # Color-code: green for +1 (forward), red for -1 (reversed)
+                bg = _DIR_POS_COLOR if value >= 0 else _DIR_NEG_COLOR
+                item.setBackground(QBrush(bg))
+                item.setForeground(QBrush(QColor(THEME.crust)))
 
     def _clear_highlights(self):
         """Clear all change highlighting."""

@@ -2,12 +2,13 @@
 Control panel for setting targets, step inputs, and sine wave inputs.
 """
 
+from __future__ import annotations
+
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QGridLayout,
-    QGroupBox,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -18,9 +19,10 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QFrame,
     QCheckBox,
+    QMenu,
 )
-from PyQt6.QtCore import pyqtSignal, pyqtSlot, QTimer, Qt
-from PyQt6.QtGui import QDoubleValidator
+from PyQt6.QtCore import pyqtSignal, pyqtSlot, QTimer, Qt, QSettings
+from PyQt6.QtGui import QDoubleValidator, QAction
 import math
 import numpy as np
 
@@ -31,6 +33,7 @@ from .scaling import SIZES, scaled
 from .imu_display import IMUDisplay
 from .imu_3d_widget import IMU3DWidget
 from .config_viewer import ConfigViewerWidget
+from .collapsible_group import CollapsibleGroupBox
 
 
 # Control mode constants
@@ -77,11 +80,16 @@ class ControlPanel(QWidget):
     DEFAULT_STEP_SIZES = [10, 50, 100, 500, 1000]
 
     def __init__(
-        self, data_store: DataStore, serial_handler: SerialHandler, parent=None
+        self,
+        data_store: DataStore,
+        serial_handler: SerialHandler,
+        settings: "QSettings | None" = None,
+        parent=None,
     ):
         super().__init__(parent)
         self._data_store = data_store
         self._serial_handler = serial_handler
+        self._settings = settings
 
         # Current control mode (tracked locally)
         self._current_mode = MODE_OPEN_LOOP
@@ -116,6 +124,26 @@ class ControlPanel(QWidget):
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(0)
 
+        # Toolbar row at the top (outside scroll area)
+        toolbar_layout = QHBoxLayout()
+        toolbar_layout.setContentsMargins(
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            0,
+        )
+        toolbar_layout.setSpacing(SIZES["spacing_small"])
+
+        # Panels visibility menu button
+        self._panels_btn = QPushButton("Panels")
+        self._panels_btn.setToolTip("Show/hide control panels")
+        self._panels_menu = QMenu(self)
+        self._panels_btn.setMenu(self._panels_menu)
+        toolbar_layout.addWidget(self._panels_btn)
+
+        toolbar_layout.addStretch()
+        outer_layout.addLayout(toolbar_layout)
+
         # Create scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -137,47 +165,197 @@ class ControlPanel(QWidget):
         # Mode banner (prominent mode indicator at top)
         layout.addWidget(self._create_mode_banner())
 
-        # Current values display
-        layout.addWidget(self._create_status_group())
+        # Initialize panel registry (name -> widget mapping)
+        self._panels: dict[str, QWidget] = {}
 
-        # Oscillation analysis
-        layout.addWidget(self._create_analysis_group())
+        # Current values display
+        self._status_group = self._create_status_group()
+        layout.addWidget(self._status_group)
+        self._panels["Current Values"] = self._status_group
+
+        # Oscillation analysis (default collapsed)
+        self._analysis_group = self._create_analysis_group()
+        self._analysis_group.setCollapsed(True)
+        layout.addWidget(self._analysis_group)
+        self._panels["Performance Analysis"] = self._analysis_group
 
         # PID Control
-        layout.addWidget(self._create_pid_group())
+        self._pid_group = self._create_pid_group()
+        layout.addWidget(self._pid_group)
+        self._panels["Mode & PID Control"] = self._pid_group
 
         # Target control
-        layout.addWidget(self._create_target_group())
+        self._target_group = self._create_target_group()
+        layout.addWidget(self._target_group)
+        self._panels["Target Control"] = self._target_group
 
         # Step inputs
-        layout.addWidget(self._create_step_group())
+        self._step_group = self._create_step_group()
+        layout.addWidget(self._step_group)
+        self._panels["Step/Jog Input"] = self._step_group
 
         # Quick Jog (hold-to-jog PWM buttons)
-        layout.addWidget(self._create_quick_jog_group())
+        self._quick_jog_group = self._create_quick_jog_group()
+        layout.addWidget(self._quick_jog_group)
+        self._panels["Quick Jog"] = self._quick_jog_group
 
-        # Sine wave inputs
-        layout.addWidget(self._create_sine_group())
+        # Sine wave inputs (default collapsed)
+        self._sine_group = self._create_sine_group()
+        self._sine_group.setCollapsed(True)
+        layout.addWidget(self._sine_group)
+        self._panels["Sine Wave Input"] = self._sine_group
 
         # Self Leveling inputs
-        layout.addWidget(self._create_self_leveling_group())
+        self._leveling_group = self._create_self_leveling_group()
+        layout.addWidget(self._leveling_group)
+        self._panels["Self Leveling"] = self._leveling_group
 
-        # IMU Display
+        # IMU Display (wrapped in collapsible group)
         self._imu_display = IMUDisplay(self._data_store)
-        layout.addWidget(self._imu_display)
+        self._imu_display_group = CollapsibleGroupBox("IMU Display")
+        self._imu_display_group.addWidget(self._imu_display)
+        layout.addWidget(self._imu_display_group)
+        self._panels["IMU Display"] = self._imu_display_group
 
-        # 3D IMU Visualization
+        # 3D IMU Visualization (wrapped in collapsible group)
         self._imu_3d_widget = IMU3DWidget(self._data_store)
-        layout.addWidget(self._imu_3d_widget)
+        self._imu_3d_group = CollapsibleGroupBox("3D IMU Visualization")
+        self._imu_3d_group.addWidget(self._imu_3d_widget)
+        layout.addWidget(self._imu_3d_group)
+        self._panels["3D IMU Visualization"] = self._imu_3d_group
 
-        # Configuration Viewer (Memory Debug)
+        # Configuration Viewer (Memory Debug) (wrapped in collapsible group)
         self._config_viewer = ConfigViewerWidget(self._data_store, self._serial_handler)
-        layout.addWidget(self._config_viewer)
+        self._config_viewer_group = CollapsibleGroupBox("Config Viewer")
+        self._config_viewer_group.addWidget(self._config_viewer)
+        layout.addWidget(self._config_viewer_group)
+        self._panels["Config Viewer"] = self._config_viewer_group
 
         layout.addStretch()
 
         # Set scroll content and add to outer layout
         scroll_area.setWidget(scroll_content)
         outer_layout.addWidget(scroll_area)
+
+        # Build the panels visibility menu
+        self._build_panels_menu()
+
+        # Restore saved panel states (must be after menu is built)
+        self._restore_panel_settings()
+
+    def _build_panels_menu(self):
+        """Build the panels visibility menu with checkboxes for each panel."""
+        self._panels_menu.clear()
+        self._panel_actions: dict[str, QAction] = {}
+
+        for panel_name, panel_widget in self._panels.items():
+            action = QAction(panel_name, self)
+            action.setCheckable(True)
+            action.setChecked(panel_widget.isVisible())
+            # Use a closure to capture the widget and name references
+            action.triggered.connect(
+                lambda checked, w=panel_widget, name=panel_name: (
+                    self._on_panel_visibility_changed(name, w, checked)
+                )
+            )
+            self._panels_menu.addAction(action)
+            self._panel_actions[panel_name] = action
+
+            # Connect collapsed_changed signal for CollapsibleGroupBox panels
+            if isinstance(panel_widget, CollapsibleGroupBox):
+                panel_widget.collapsed_changed.connect(
+                    lambda collapsed, name=panel_name: self._on_panel_collapsed_changed(
+                        name, collapsed
+                    )
+                )
+
+        # Add separator and utility actions
+        self._panels_menu.addSeparator()
+
+        # Show All action
+        show_all_action = QAction("Show All", self)
+        show_all_action.triggered.connect(self._show_all_panels)
+        self._panels_menu.addAction(show_all_action)
+
+        # Hide All action
+        hide_all_action = QAction("Hide All", self)
+        hide_all_action.triggered.connect(self._hide_all_panels)
+        self._panels_menu.addAction(hide_all_action)
+
+    def _on_panel_visibility_changed(self, name: str, widget: QWidget, visible: bool):
+        """Handle panel visibility change - update widget and save setting."""
+        widget.setVisible(visible)
+        self._save_panel_settings()
+
+    def _on_panel_collapsed_changed(self, name: str, collapsed: bool):
+        """Handle panel collapsed state change - save setting."""
+        self._save_panel_settings()
+
+    def _save_panel_settings(self):
+        """Save panel visibility and collapsed states to settings."""
+        if self._settings is None:
+            return
+
+        # Save visibility states
+        hidden_panels = [
+            name for name, widget in self._panels.items() if not widget.isVisible()
+        ]
+        self._settings.setValue("hidden_panels", hidden_panels)
+
+        # Save collapsed states
+        collapsed_panels = [
+            name
+            for name, widget in self._panels.items()
+            if isinstance(widget, CollapsibleGroupBox) and widget.isCollapsed()
+        ]
+        self._settings.setValue("collapsed_panels", collapsed_panels)
+
+    def _restore_panel_settings(self):
+        """Restore panel visibility and collapsed states from settings."""
+        if self._settings is None:
+            return
+
+        # Restore visibility states
+        hidden_panels = self._settings.value("hidden_panels", [])
+        if hidden_panels:
+            for panel_name in hidden_panels:
+                if panel_name in self._panels:
+                    self._panels[panel_name].setVisible(False)
+                    if panel_name in self._panel_actions:
+                        self._panel_actions[panel_name].setChecked(False)
+
+        # Restore collapsed states
+        collapsed_panels = self._settings.value("collapsed_panels", [])
+        if collapsed_panels:
+            for panel_name in collapsed_panels:
+                if panel_name in self._panels:
+                    widget = self._panels[panel_name]
+                    if isinstance(widget, CollapsibleGroupBox):
+                        widget.setCollapsed(True)
+
+        # Also handle panels that should be expanded (were collapsed by default but user expanded)
+        # by checking what's NOT in collapsed_panels
+        if collapsed_panels is not None:  # Only if we have saved state
+            for panel_name, widget in self._panels.items():
+                if isinstance(widget, CollapsibleGroupBox):
+                    if panel_name not in collapsed_panels:
+                        widget.setCollapsed(False)
+
+    def _show_all_panels(self):
+        """Show all panels and update menu checkboxes."""
+        for panel_name, panel_widget in self._panels.items():
+            panel_widget.setVisible(True)
+            if panel_name in self._panel_actions:
+                self._panel_actions[panel_name].setChecked(True)
+        self._save_panel_settings()
+
+    def _hide_all_panels(self):
+        """Hide all panels and update menu checkboxes."""
+        for panel_name, panel_widget in self._panels.items():
+            panel_widget.setVisible(False)
+            if panel_name in self._panel_actions:
+                self._panel_actions[panel_name].setChecked(False)
+        self._save_panel_settings()
 
     def _create_mode_banner(self) -> QFrame:
         """Create a prominent mode indicator banner."""
@@ -217,10 +395,11 @@ class ControlPanel(QWidget):
         """)
         self._mode_banner_label.setText(f"MODE: {mode_name.upper()}")
 
-    def _create_status_group(self) -> QGroupBox:
+    def _create_status_group(self) -> CollapsibleGroupBox:
         """Create the current values display group."""
-        group = QGroupBox("Current Values")
-        layout = QGridLayout(group)
+        group = CollapsibleGroupBox("Current Values")
+        content = QWidget()
+        layout = QGridLayout(content)
         layout.setSpacing(SIZES["spacing_small"])
 
         # Dynamic font size for value labels
@@ -283,12 +462,14 @@ class ControlPanel(QWidget):
         self._status_timer.timeout.connect(self._update_status)
         self._status_timer.start(100)  # Update at 10 Hz
 
+        group.addWidget(content)
         return group
 
-    def _create_analysis_group(self) -> QGroupBox:
+    def _create_analysis_group(self) -> CollapsibleGroupBox:
         """Create oscillation analysis metrics group."""
-        group = QGroupBox("Performance Analysis")
-        layout = QGridLayout(group)
+        group = CollapsibleGroupBox("Performance Analysis")
+        content = QWidget()
+        layout = QGridLayout(content)
         layout.setSpacing(SIZES["spacing_small"])
 
         # RMS Error
@@ -328,11 +509,13 @@ class ControlPanel(QWidget):
         self._reset_analysis_btn.clicked.connect(self._on_reset_analysis)
         layout.addWidget(self._reset_analysis_btn, 2, 2, 1, 2)
 
+        group.addWidget(content)
         return group
 
-    def _create_pid_group(self) -> QGroupBox:
-        group = QGroupBox("Mode & PID Control")
-        layout = QVBoxLayout(group)
+    def _create_pid_group(self) -> CollapsibleGroupBox:
+        group = CollapsibleGroupBox("Mode & PID Control")
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setSpacing(SIZES["spacing_medium"])
 
         # Get scaled input width
@@ -348,6 +531,9 @@ class ControlPanel(QWidget):
         self._mode_combo.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
+        # Prevent accidental changes when scrolling the panel
+        self._mode_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._mode_combo.wheelEvent = lambda event: event.ignore()
         mode_layout.addWidget(self._mode_combo)
 
         self._set_mode_btn = QPushButton("Set Mode")
@@ -499,12 +685,14 @@ class ControlPanel(QWidget):
 
         layout.addLayout(config_layout)
 
+        group.addWidget(content)
         return group
 
-    def _create_target_group(self) -> QGroupBox:
+    def _create_target_group(self) -> CollapsibleGroupBox:
         """Create the target control group."""
-        group = QGroupBox("Target Control")
-        layout = QVBoxLayout(group)
+        group = CollapsibleGroupBox("Target Control")
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setSpacing(SIZES["spacing_medium"])
 
         # Target input row - use QLineEdit for unlimited range
@@ -722,12 +910,14 @@ class ControlPanel(QWidget):
 
         layout.addLayout(safety_layout)
 
+        group.addWidget(content)
         return group
 
-    def _create_step_group(self) -> QGroupBox:
+    def _create_step_group(self) -> CollapsibleGroupBox:
         """Create the step/jog input group with timed step support."""
-        group = QGroupBox("Step/Jog Input")
-        layout = QVBoxLayout(group)
+        group = CollapsibleGroupBox("Step/Jog Input")
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setSpacing(SIZES["spacing_medium"])
 
         # Amplitude and Duration inputs
@@ -781,12 +971,14 @@ class ControlPanel(QWidget):
             quick_layout.addWidget(btn)
         layout.addLayout(quick_layout)
 
+        group.addWidget(content)
         return group
 
-    def _create_quick_jog_group(self) -> QGroupBox:
+    def _create_quick_jog_group(self) -> CollapsibleGroupBox:
         """Create quick jog buttons for open-loop PWM control (hold to jog)."""
-        group = QGroupBox("Quick Jog (Open Loop)")
-        layout = QVBoxLayout(group)
+        group = CollapsibleGroupBox("Quick Jog (Open Loop)")
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setSpacing(SIZES["spacing_medium"])
 
         # Info label
@@ -821,6 +1013,7 @@ class ControlPanel(QWidget):
         self._jog_stop_btn.clicked.connect(self._on_jog_stop)
         layout.addWidget(self._jog_stop_btn)
 
+        group.addWidget(content)
         return group
 
     def _on_jog_pressed(self, pwm_fraction: float):
@@ -857,10 +1050,11 @@ class ControlPanel(QWidget):
             self._serial_handler.set_target(linked_joint_id, 0)
             self._data_store.set_target(linked_joint_id, 0)
 
-    def _create_sine_group(self) -> QGroupBox:
+    def _create_sine_group(self) -> CollapsibleGroupBox:
         """Create the sine wave input group."""
-        group = QGroupBox("Sine Wave Input")
-        layout = QVBoxLayout(group)
+        group = CollapsibleGroupBox("Sine Wave Input")
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setSpacing(SIZES["spacing_medium"])
 
         # Parameters grid - use QLineEdit for unlimited range
@@ -922,12 +1116,14 @@ class ControlPanel(QWidget):
         self._sine_status_label = QLabel("Sine wave: Inactive")
         layout.addWidget(self._sine_status_label)
 
+        group.addWidget(content)
         return group
 
-    def _create_self_leveling_group(self) -> QGroupBox:
+    def _create_self_leveling_group(self) -> CollapsibleGroupBox:
         """Create the self-leveling group."""
-        group = QGroupBox("Self Leveling")
-        layout = QVBoxLayout(group)
+        group = CollapsibleGroupBox("Self Leveling")
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setSpacing(SIZES["spacing_medium"])
 
         # Parameter grid
@@ -978,6 +1174,7 @@ class ControlPanel(QWidget):
 
         layout.addLayout(btn_layout)
 
+        group.addWidget(content)
         return group
 
     def _on_start_leveling(self):

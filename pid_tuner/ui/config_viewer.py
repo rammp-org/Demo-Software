@@ -159,6 +159,10 @@ class ConfigViewerWidget(QWidget):
         for i in range(1, len(CONFIG_COLUMNS)):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
 
+        # Set minimum height to show all 6 rows + header comfortably
+        # Row height ~25px, header ~30px, some padding = ~200px minimum
+        self._table.setMinimumHeight(scaled(200))
+
         # Initialize rows with joint names
         for row, joint in enumerate(JOINTS):
             # Joint name column (non-editable)

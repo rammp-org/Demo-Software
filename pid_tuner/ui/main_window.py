@@ -118,7 +118,9 @@ class MainWindow(QMainWindow):
         main_splitter.addWidget(left_splitter)
 
         # Right side - Control panel (with flexible sizing)
-        self._control_panel = ControlPanel(self._data_store, self._serial_handler)
+        self._control_panel = ControlPanel(
+            self._data_store, self._serial_handler, self._settings
+        )
         self._control_panel.setMinimumWidth(SIZES["control_panel_min_width"])
         self._control_panel.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding

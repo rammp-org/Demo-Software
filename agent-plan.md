@@ -1124,7 +1124,7 @@ The firmware implementation should:
 | 3 | Settings Persistence | ✅ Complete | QSettings saves/restores geometry, splitters, last port/baud/joint |
 | 4 | Quick Jogging | ✅ Complete | Hold-to-jog buttons (-20%, -10%, +10%, +20%) + STOP button |
 | 5 | Mode Visibility | ✅ Complete | Color banner at top of control panel + mode dot on each encoder bar |
-| 6 | Collapsible Panels | ✅ Widget created | `collapsible_group.py` exists; full swap of QGroupBoxes deferred |
+| 6 | Collapsible Panels | ✅ Complete | All groups migrated to `CollapsibleGroupBox`; Panels menu for visibility toggle |
 | 7 | CSV Export | ✅ Complete | Export CSV button in plot toolbar; exports all visible series |
 | 8 | Limits Visualization | ✅ Complete | Danger zones (10%), dynamic fill color, red edge markers |
 | 9 | IMU Contrast | ✅ Complete | `ThickAxisItem` (width=5 actual, width=1.5 target), legend |
@@ -1132,7 +1132,6 @@ The firmware implementation should:
 
 ### DEFERRED / PARTIAL
 
-- **Priority 6 full integration**: `CollapsibleGroupBox` widget is implemented but the ~8 existing `QGroupBox` instances in `control_panel.py` have not been migrated. Migration is a straightforward mechanical swap but was deferred to avoid scope creep.
 - **Priority 10 firmware**: The Teensy firmware needs an `O<joint>:<position>` command handler. See firmware requirements in section 10 above.
 
 ---
@@ -1167,8 +1166,14 @@ The firmware implementation should:
 - [ ] Colors update immediately when mode combo changes
 
 ### Priority 6: Collapsible Panels
-- [ ] (Deferred) `CollapsibleGroupBox` collapses/expands with animation
+- [ ] All groups converted to `CollapsibleGroupBox`
+- [ ] `CollapsibleGroupBox` collapses/expands with animation
 - [ ] Arrow indicator flips between ▼ and ▶
+- [ ] "Panels" button appears at top of control panel
+- [ ] Menu shows checkboxes for each panel
+- [ ] Unchecking a panel hides it completely
+- [ ] "Show All" / "Hide All" utility actions work
+- [ ] Performance Analysis and Sine Wave start collapsed by default
 
 ### Priority 7: CSV Export
 - [ ] "Export CSV" button visible in plot control bar

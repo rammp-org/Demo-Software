@@ -36,4 +36,5 @@ jobs:
         run: |
           source /opt/ros/humble/setup.bash
           export CMAKE_PREFIX_PATH=$HOME/.local
+          export PATH=$HOME/.local/bin:$PATH
           colcon build --symlink-install --event-handlers console_cohesion+

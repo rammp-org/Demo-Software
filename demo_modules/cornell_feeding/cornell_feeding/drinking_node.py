@@ -72,9 +72,15 @@ class DrinkingNode(rclpy.node.Node):
         self.declare_parameter("save_dir", "")
 
         scene_config = self.get_parameter("scene_config").value
-        self._run_on_robot = self.get_parameter("run_on_robot").value
+        run_on_robot_val = self.get_parameter("run_on_robot").value
+        # Handle both bool and string "false"/"true" from command line.
+        if isinstance(run_on_robot_val, str):
+            self._run_on_robot = run_on_robot_val.lower() not in ("false", "0", "no")
+        else:
+            self._run_on_robot = bool(run_on_robot_val)
         use_gui = self.get_parameter("use_gui").value
         save_dir = self.get_parameter("save_dir").value
+        self.get_logger().info(f"run_on_robot={self._run_on_robot}, use_gui={use_gui}, save_dir={save_dir}")
 
         # Directory for saving simulation images (headless mode).
         if save_dir:

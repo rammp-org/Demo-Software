@@ -16,7 +16,9 @@ class testNNMonitor(Node):
 
     def ready(self, isReady):
         if not isReady:
-            self.get_logger().info("ERROR: Node missing!")
+            self.get_logger().info("Node missing")
+        else:
+            self.get_logger().info("Node ready")
 
 
 def main(args=None):

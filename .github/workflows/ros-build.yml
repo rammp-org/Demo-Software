@@ -32,6 +32,13 @@ jobs:
         shell: bash
         run: src/Demo-Software/setup.sh
 
+      - name: Debug
+        shell: bash
+        run: |
+          echo "CMAKE_PREFIX_PATH: $CMAKE_PREFIX_PATH"
+          echo "HOME: $HOME"
+          ls $HOME/.local/lib | grep -E "proto|grpc"
+
       - name: Build
         shell: bash
         run: |

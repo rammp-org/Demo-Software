@@ -4,15 +4,15 @@ from pathlib import Path
 from rammp_prototype_behavior.node_name_monitor import NodeNameMonitor
 
 json_path = Path(
-    "/Demo-Software/core/rammp_prototype_behavior/rammp_prototype_behavior/nodes.json"
+    "/home/herl/rammp_ws/src/Demo-Software/core/rammp_prototype_behavior/rammp_prototype_behavior/nodes.json"
 )
 
 
 class testNNMonitor(Node):
     def __init__(self):
         super().__init__("test_nn_monitor")
-        self.nodes_check = NodeNameMonitor(self, json_path, self.ready(isReady=True))
-        self.node_check_timer = self.create_timer(1.0, self.nodes_check.NodesReady())
+        self.nodes_check = NodeNameMonitor(self, json_path, self.ready)
+        self.node_check_timer = self.create_timer(1.0, self.nodes_check.NodesReady)
 
     def ready(self, isReady):
         if not isReady:

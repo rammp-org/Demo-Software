@@ -40,6 +40,7 @@ from rammp.control.robot_controller.command_interface import (
 # Optional PyBullet simulation support.
 try:
     from pybullet_helpers.geometry import Pose
+    from pybullet_helpers.camera import capture_superimposed_image
     from rammp.simulation.scene_description import create_scene_description_from_config
     from rammp.simulation.simulator import FeedingDeploymentPyBulletSimulator
     PYBULLET_AVAILABLE = True
@@ -68,10 +69,20 @@ class DrinkingNode(rclpy.node.Node):
         self.declare_parameter("scene_config", "wheelchair")
         self.declare_parameter("run_on_robot", True)
         self.declare_parameter("use_gui", False)
+        self.declare_parameter("save_dir", "")
 
         scene_config = self.get_parameter("scene_config").value
         self._run_on_robot = self.get_parameter("run_on_robot").value
         use_gui = self.get_parameter("use_gui").value
+        save_dir = self.get_parameter("save_dir").value
+
+        # Directory for saving simulation images (headless mode).
+        if save_dir:
+            self._save_dir = Path(save_dir)
+            self._save_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            self._save_dir = None
+        self._frame_counter = 0
 
         scene_config_path = str(
             Path(__file__).resolve().parents[3]
@@ -154,6 +165,25 @@ class DrinkingNode(rclpy.node.Node):
         goal_handle.publish_feedback(feedback)
         self.get_logger().info(f"Feedback: {status_msg}")
 
+    def _show_or_save_plan(self, plan):
+        """Visualize plan in GUI, or save frames to save_dir if headless."""
+        if self._save_dir is not None and PYBULLET_AVAILABLE:
+            import imageio.v2 as iio
+            for state in plan:
+                self._sim.sync(state)
+                img = capture_superimposed_image(
+                    self._sim.physics_client_id,
+                    **self._sim.scene_description.camera_kwargs,
+                )
+                out_path = self._save_dir / f"frame_{self._frame_counter:05d}.png"
+                iio.imwrite(str(out_path), img)
+                self._frame_counter += 1
+            self.get_logger().info(
+                f"Saved {len(plan)} frames to {self._save_dir}"
+            )
+        else:
+            self._sim.visualize_plan(plan)
+
     def _move_joints(self, joint_positions: list[float]):
         """Move to joint positions on robot, in sim, or log-only."""
         self.get_logger().info(f"Moving joints: {[round(v, 3) for v in joint_positions]}")
@@ -161,7 +191,7 @@ class DrinkingNode(rclpy.node.Node):
             self._arm.execute_command(JointCommand(pos=joint_positions))
         elif self._sim is not None:
             plan = self._sim.plan_to_joint_positions(joint_positions)
-            self._sim.visualize_plan(plan)
+            self._show_or_save_plan(plan)
 
     def _move_cartesian(self, pose_values: list[float]):
         """Move to cartesian pose. pose_values = [x,y,z, qx,qy,qz,qw]."""
@@ -172,7 +202,7 @@ class DrinkingNode(rclpy.node.Node):
             self._arm.execute_command(CartesianCommand(pos=pos, quat=quat))
         elif self._sim is not None:
             plan = self._sim.plan_to_ee_pose(Pose(tuple(pos), tuple(quat)))
-            self._sim.visualize_plan(plan)
+            self._show_or_save_plan(plan)
 
     def _open_gripper(self):
         self.get_logger().info("Opening gripper")

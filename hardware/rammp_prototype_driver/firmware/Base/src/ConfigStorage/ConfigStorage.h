@@ -10,8 +10,10 @@ struct MotorConfig {
     float lpf_input_alpha;
     float pos_p, pos_i, pos_d, pos_ff;
     float pos_lpf_alpha;
+    float pos_max_ramp_rate;
     float vel_p, vel_i, vel_d, vel_ff;
     float vel_lpf_alpha;
+    float vel_max_ramp_rate;
     float saved_position;
     int32_t pos_limit_min;
     int32_t pos_limit_max;
@@ -21,12 +23,12 @@ struct MotorConfig {
  * ConfigStorage - EEPROM storage for motor configuration
  * 
  * EEPROM memory map:
- * Address 0-1: Magic number for validity check (0xABCF)
+ * Address 0-1: Magic number for validity check (0xABD0)
  * Address 10+: Array of 6 MotorConfig structs
  */
 class ConfigStorage {
 public:
-    static const uint16_t MAGIC_NUMBER = 0xABCF;  // Bumped: saved_position changed int32->float
+    static const uint16_t MAGIC_NUMBER = 0xABD0;  // Bumped: added max_ramp_rate fields
     static const int MAGIC_ADDR = 0;
     static const int CONFIG_START_ADDR = 10;
     static const int NUM_MOTORS = 6;

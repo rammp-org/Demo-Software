@@ -371,12 +371,14 @@ void setup() {
     all_motors[i]->pos_pid.kd = conf.pos_d;
     all_motors[i]->pos_pid.setFeedForward(conf.pos_ff);
     all_motors[i]->pos_pid.setLpfAlpha(conf.pos_lpf_alpha);
+    all_motors[i]->pos_pid.setRampRate(conf.pos_max_ramp_rate);
     
     all_motors[i]->vel_pid.kp = conf.vel_p;
     all_motors[i]->vel_pid.ki = conf.vel_i;
     all_motors[i]->vel_pid.kd = conf.vel_d;
     all_motors[i]->vel_pid.setFeedForward(conf.vel_ff);
     all_motors[i]->vel_pid.setLpfAlpha(conf.vel_lpf_alpha);
+    all_motors[i]->vel_pid.setRampRate(conf.vel_max_ramp_rate);
     
     all_motors[i]->updateLimits(conf.pos_limit_min, conf.pos_limit_max);
 
@@ -487,11 +489,13 @@ void loop() {
         conf.pos_d = m_i->pos_pid.kd;
         conf.pos_ff = m_i->pos_pid.kff;
         conf.pos_lpf_alpha = m_i->pos_pid.getLpfAlpha();
+        conf.pos_max_ramp_rate = m_i->pos_pid.max_ramp_rate;
         conf.vel_p = m_i->vel_pid.kp;
         conf.vel_i = m_i->vel_pid.ki;
         conf.vel_d = m_i->vel_pid.kd;
         conf.vel_ff = m_i->vel_pid.kff;
         conf.vel_lpf_alpha = m_i->vel_pid.getLpfAlpha();
+        conf.vel_max_ramp_rate = m_i->vel_pid.max_ramp_rate;
         conf.saved_position = m_i->current_pos;
         conf.pos_limit_min = m_i->pos_limit_min;
         conf.pos_limit_max = m_i->pos_limit_max;
@@ -604,6 +608,16 @@ void loop() {
         if (DEBUG_MODE)
           Serial.println("DEBUG: Set Vel LPF");
         break;
+      case CMD_POS_RAMP:
+        m->pos_pid.setRampRate(cmd.value);
+        if (DEBUG_MODE)
+          Serial.println("DEBUG: Set Pos max ramp rate");
+        break;
+      case CMD_VEL_RAMP:
+        m->vel_pid.setRampRate(cmd.value);
+        if (DEBUG_MODE)
+          Serial.println("DEBUG: Set Vel max ramp rate");
+        break;
       case CMD_R:
         m->pos_pid.reset();
         m->vel_pid.reset();
@@ -714,11 +728,13 @@ void loop() {
         conf.pos_d = m->pos_pid.kd;
         conf.pos_ff = m->pos_pid.kff;
         conf.pos_lpf_alpha = m->pos_pid.getLpfAlpha();
+        conf.pos_max_ramp_rate = m->pos_pid.max_ramp_rate;
         conf.vel_p = m->vel_pid.kp;
         conf.vel_i = m->vel_pid.ki;
         conf.vel_d = m->vel_pid.kd;
         conf.vel_ff = m->vel_pid.kff;
         conf.vel_lpf_alpha = m->vel_pid.getLpfAlpha();
+        conf.vel_max_ramp_rate = m->vel_pid.max_ramp_rate;
         conf.saved_position = m->current_pos;
         conf.pos_limit_min = m->pos_limit_min;
         conf.pos_limit_max = m->pos_limit_max;
@@ -762,7 +778,9 @@ void loop() {
         Serial.print(m->vel_pid.getLpfAlpha(), 4); Serial.print(",");
         Serial.print(m->lpf_input_alpha, 4); Serial.print(",");
         Serial.print(m->pos_limit_min); Serial.print(",");
-        Serial.println(m->pos_limit_max);
+        Serial.print(m->pos_limit_max); Serial.print(",");
+        Serial.print(m->pos_pid.max_ramp_rate, 4); Serial.print(",");
+        Serial.println(m->vel_pid.max_ramp_rate, 4);
         break;
       }
       default:

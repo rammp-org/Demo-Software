@@ -108,6 +108,8 @@ class ConfigData:
     input_lpf_alpha: float = 0.5
     pos_limit_min: int = 0
     pos_limit_max: int = 0
+    pos_max_ramp_rate: float = 0.0
+    vel_max_ramp_rate: float = 0.0
 
 
 class ProtocolParser:
@@ -160,6 +162,10 @@ class ProtocolParser:
                     if len(values) >= 13:
                         config_data.pos_limit_min = int(values[11])
                         config_data.pos_limit_max = int(values[12])
+                    # Handle new ramp rate fields
+                    if len(values) >= 15:
+                        config_data.pos_max_ramp_rate = values[13]
+                        config_data.vel_max_ramp_rate = values[14]
                     return config_data
             except (ValueError, IndexError):
                 pass
@@ -400,6 +406,14 @@ class ProtocolEncoder:
     @staticmethod
     def set_vel_lpf(joint_id: int, alpha: float) -> bytes:
         return f"q{joint_id}:{alpha:.4f}\n".encode("ascii")
+
+    @staticmethod
+    def set_pos_ramp_rate(joint_id: int, max_rate: float) -> bytes:
+        return f"U{joint_id}:{max_rate:.4f}\n".encode("ascii")
+
+    @staticmethod
+    def set_vel_ramp_rate(joint_id: int, max_rate: float) -> bytes:
+        return f"u{joint_id}:{max_rate:.4f}\n".encode("ascii")
 
     @staticmethod
     def set_input_lpf(joint_id: int, alpha: float) -> bytes:

@@ -13,6 +13,7 @@ public:
   void setGains(float kp, float ki, float kd);
   void setFeedForward(float kff);
   void setOutputLimits(float min_out, float max_out);
+  void setRampRate(float max_ramp_rate);
   void reset();
 
   void setLpfAlpha(float alpha);
@@ -20,6 +21,7 @@ public:
 
   float kp, ki, kd, kff;
   float min_out, max_out;
+  float max_ramp_rate;
   float integral;
   float prev_error;
   float scaling;
@@ -27,6 +29,7 @@ public:
 
 private:
   float _filtered_output = 0.0f;
+  float _prev_output = 0.0f;
 };
 
 #endif

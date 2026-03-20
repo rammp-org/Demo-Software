@@ -28,11 +28,13 @@ void ConfigStorage::initializeDefaults() {
     def_config.pos_d = 0.0f;
     def_config.pos_ff = 0.0f;
     def_config.pos_lpf_alpha = 1.0f;
+    def_config.pos_max_ramp_rate = 0.0f;
     def_config.vel_p = 0.0f;
     def_config.vel_i = 0.0f;
     def_config.vel_d = 0.0f;
     def_config.vel_ff = 0.0f;
     def_config.vel_lpf_alpha = 1.0f;
+    def_config.vel_max_ramp_rate = 0.0f;
     def_config.saved_position = 0.0f;
     def_config.pos_limit_min = 0;
     def_config.pos_limit_max = 0;
@@ -69,11 +71,13 @@ MotorConfig ConfigStorage::loadMotorConfig(int motor_id) {
     config.pos_d = 0.0f;
     config.pos_ff = 0.0f;
     config.pos_lpf_alpha = 1.0f;
+    config.pos_max_ramp_rate = 0.0f;
     config.vel_p = 0.0f;
     config.vel_i = 0.0f;
     config.vel_d = 0.0f;
     config.vel_ff = 0.0f;
     config.vel_lpf_alpha = 1.0f;
+    config.vel_max_ramp_rate = 0.0f;
     config.saved_position = 0.0f;
     config.pos_limit_min = 0;
     config.pos_limit_max = 0;

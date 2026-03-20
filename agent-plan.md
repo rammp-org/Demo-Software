@@ -1263,3 +1263,24 @@ In `IMU3DWidget`, use `GLBarGraphItem` or custom 3D line items positioned at the
 
 #### 11.3 Overlay Updates
 Use a PyQt `QLabel` overlay on top of the `IMU3DWidget` viewport, or pyqtgraph TextItems, to print the exact `leveling_pitch_err` and `leveling_roll_err`.
+
+---
+
+## 12. Motor Control Trapezoidal Profile (Priority #12)
+
+**Complexity:** Medium  
+**Files:** `pid_tuner/ui/control_panel.py`, `pid_tuner/data/data_store.py`  
+**Estimated Time:** 2-3 hours
+
+### Current State
+- The firmware has been updated to include a trapezoidal profile feature via maximum ramp rates on the output of both the Position and Velocity PID controllers.
+- The variables `pos_max_ramp_rate` and `vel_max_ramp_rate` are defined in the `MotorConfig` struct.
+- These variables are exposed via the `U<id>:<val>` (Pos Ramp) and `u<id>:<val>` (Vel Ramp) commands.
+- The `ConfigData` dataclass has been updated to receive and parse these fields via the `CONFIG` command response.
+- `ProtocolEncoder` and `SerialHandler` have been updated with `set_pos_ramp_rate` and `set_vel_ramp_rate` methods.
+
+### Requirements
+- Update `DataStore` to store the new `pos_max_ramp_rate` and `vel_max_ramp_rate` fields when processing `ConfigData`.
+- In `control_panel.py`, add UI spinboxes for setting the max ramp rates (e.g., in a new "Trajectory / Ramp Control" group or under the respective PID groups).
+- Ensure the values auto-update from the Teensy's config, just like the PID gains and Limits.
+- Tooltips should explain that a value of `0.0` disables the ramp limit, while a positive value limits the rate of change of the PID output (units per second).

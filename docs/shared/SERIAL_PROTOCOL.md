@@ -33,6 +33,8 @@ The PC sends commands to instruct the Teensy to alter its state, change PID tuni
 | `f` | Vel FF Gain| `f1:0.5` | Set Velocity PID Feed-Forward Gain. |
 | `Q` | Pos LPF | `Q1:0.8` | Set Position PID output Low-Pass Filter Alpha (0-1). |
 | `q` | Vel LPF | `q1:0.8` | Set Velocity PID output Low-Pass Filter Alpha (0-1). |
+| `U` | Pos Ramp| `U1:500.0`| Set Position PID output max ramp rate (units/s). |
+| `u` | Vel Ramp| `u1:0.1` | Set Velocity PID output max ramp rate (units/s). |
 | `l` | Input LPF | `l1:0.5` | Set Motor velocity input Low-Pass Filter Alpha (0-1). |
 | `n` | Pos Min Lim| `n4:-5000`| Set Joint minimum position limit in ticks. |
 | `x` | Pos Max Lim| `x4:5000` | Set Joint maximum position limit in ticks. |
@@ -80,7 +82,7 @@ Emitted continuously at 10Hz.
 Emitted when requested via the `G<id>` command. Used to sync the GUI sliders with the EEPROM values saved on the Teensy.
 
 **Format:**
-`CONFIG,<id>,<pP>,<pI>,<pD>,<pFF>,<vP>,<vI>,<vD>,<vFF>,<pLPF>,<vLPF>,<inLPF>,<posMin>,<posMax>\n`
+`CONFIG,<id>,<pP>,<pI>,<pD>,<pFF>,<vP>,<vI>,<vD>,<vFF>,<pLPF>,<vLPF>,<inLPF>,<posMin>,<posMax>,<pRamp>,<vRamp>\n`
 
 **Fields:**
 1. String `"CONFIG"`
@@ -89,3 +91,4 @@ Emitted when requested via the `G<id>` command. Used to sync the GUI sliders wit
 7-10. Velocity PID: P, I, D, FF
 11-13. Low Pass Filters: Pos Alpha, Vel Alpha, Input Alpha
 14-15. Limits: Min, Max
+16-17. Ramp Rates: Position Ramp, Velocity Ramp

@@ -4,7 +4,7 @@
 PIDController::PIDController(float kp, float ki, float kd, float kff,
                              float min_out, float max_out, float scaling)
     : kp(kp), ki(ki), kd(kd), kff(kff), min_out(min_out), max_out(max_out),
-      integral(0.0f), prev_error(0.0f), scaling(scaling) {}
+      max_ramp_rate(0.0f), integral(0.0f), prev_error(0.0f), scaling(scaling) {}
 
 float PIDController::compute(float setpoint, float measured, float dt) {
   if (dt <= 0.0f)
@@ -29,16 +29,36 @@ float PIDController::compute(float setpoint, float measured, float dt) {
   // Compute total output (feed-forward + PID)
   float output = ff_out + p_out + i_out + d_out;
 
-  // Apply output limits and anti-windup clamping
+  bool clamped = false;
+
+  // Apply output limits
   if (output > max_out) {
     output = max_out;
-    integral -= error * dt; // Undo integration
+    clamped = true;
   } else if (output < min_out) {
     output = min_out;
-    integral -= error * dt; // Undo integration
+    clamped = true;
   }
 
-  // Save previous error
+  // Apply trapezoidal ramp rate limit if enabled
+  if (max_ramp_rate > 0.0f) {
+    float max_change = max_ramp_rate * dt;
+    if (output - _prev_output > max_change) {
+      output = _prev_output + max_change;
+      clamped = true;
+    } else if (output - _prev_output < -max_change) {
+      output = _prev_output - max_change;
+      clamped = true;
+    }
+  }
+
+  // Anti-windup: undo integration if we hit any limit
+  if (clamped) {
+    integral -= error * dt;
+  }
+
+  // Save state
+  _prev_output = output;
   prev_error = error;
 
   // Apply Low Pass Filter to the output
@@ -60,10 +80,15 @@ void PIDController::setOutputLimits(float min_out, float max_out) {
   this->max_out = max_out;
 }
 
+void PIDController::setRampRate(float max_ramp_rate) {
+  this->max_ramp_rate = max_ramp_rate;
+}
+
 void PIDController::reset() {
   integral = 0.0f;
   prev_error = 0.0f;
   _filtered_output = 0.0f;
+  _prev_output = 0.0f;
 }
 
 void PIDController::setLpfAlpha(float alpha) {

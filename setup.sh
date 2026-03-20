@@ -20,23 +20,26 @@ export MY_INSTALL_DIR=$HOME/.local
 mkdir -p $MY_INSTALL_DIR
 export PATH="$MY_INSTALL_DIR/bin:$PATH"
 
-$SUDO apt-get install -y cmake build-essential
-
-git clone -b v1.56.2 https://github.com/grpc/grpc /tmp/grpc \
-    && cd /tmp/grpc \
-    && git submodule update --init \
-    && mkdir -p cmake/build \
-    && cd cmake/build \
-    && cmake -DgRPC_INSTALL=ON \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DgRPC_BUILD_TESTS=OFF \
-    -DgRPC_PROTOBUF_PROVIDER=module \
-    -DCMAKE_INSTALL_PREFIX=$MY_INSTALL_DIR \
-    ../.. \
-    && make -j$(nproc) \
-    && make install \
-    && cd $REPO_ROOT \
-    && $SUDO apt-get install -y libprotobuf-dev
+if [ ! -f "$MY_INSTALL_DIR/lib/libgrpc.a" ]; then
+    echo "gRPC not found, building from source..."
+    git clone -b v1.56.2 https://github.com/grpc/grpc /tmp/grpc \
+      && cd /tmp/grpc \
+      && git submodule update --init \
+      && mkdir -p cmake/build \
+      && cd cmake/build \
+      && cmake -DgRPC_INSTALL=ON \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DgRPC_BUILD_TESTS=OFF \
+      -DgRPC_PROTOBUF_PROVIDER=module \
+      -DCMAKE_INSTALL_PREFIX=$MY_INSTALL_DIR \
+      ../.. \
+      && make -j$(nproc) \
+      && make install \
+      && cd $REPO_ROOT \
+      && $SUDO apt-get install -y libprotobuf-dev
+else
+    echo "gRPC already installed, skipping build."
+fi
 
 echo "=== Registering custom rosdep sources ==="
 echo "yaml ${ROSDEP_YAML}" | $SUDO tee "${ROSDEP_SOURCE}"

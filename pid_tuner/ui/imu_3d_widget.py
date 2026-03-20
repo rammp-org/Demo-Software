@@ -80,8 +80,8 @@ class IMU3DWidget(QWidget):
 
     # Z target scale (encoder ticks -> view units).
     # View is ~5 units wide; typical actuator range is ~200 ticks.
-    # 200 * 0.005 = 1.0 view unit — about 20% of the grid, clearly visible.
-    Z_SCALE = 0.005
+    # 200 * 0.05 = 10.0 view units — spans twice the grid, clearly visible.
+    Z_SCALE = 0.05
 
     def __init__(self, data_store: DataStore, parent=None):
         super().__init__(parent)

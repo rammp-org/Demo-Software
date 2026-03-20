@@ -6,6 +6,7 @@ from rclpy.node import Node
 class testNode1(Node):  # MODIFY NAME
     def __init__(self):
         super().__init__("test_node1")  # MODIFY NAME
+        self.get_logger().info("Test node1 running...")
 
 
 def main(args=None):

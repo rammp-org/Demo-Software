@@ -11,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     container: ros:humble
     env:
-      CMAKE_PREFIX_PATH: ${{ env.HOME }}/.local
+      CMAKE_PREFIX_PATH: /root/.local
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm]
@@ -25,7 +25,7 @@ jobs:
       - name: Cache gRPC
         uses: actions/cache@v3
         with:
-          path: ${{ env.HOME }}/.local
+          path: /root/.local
           key: grpc-v1.56.2-${{ matrix.os }}
 
       - name: Install dependencies

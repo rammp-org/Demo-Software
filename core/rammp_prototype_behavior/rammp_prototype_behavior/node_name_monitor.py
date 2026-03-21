@@ -11,6 +11,7 @@ class NodeNameMonitor:
         self.callback = callback
         self.json_path = json_path
         self.nodes_ready_timer = ros_node.create_timer(1.0, self.NodesReady)
+        self.nodes_was_missing = True  # to track the previous state of node readiness and only call the callback when there is a change in state
 
     def NodesReady(self):
         names_and_ns = self.ros_node.get_node_names_and_namespaces()
@@ -34,7 +35,8 @@ class NodeNameMonitor:
 
         missing = [node for node in expected_nodes if node not in actual_nodes]
 
-        if missing:
+        if missing and not self.nodes_was_missing:
             self.callback(False)
-        else:
+        elif not missing and self.nodes_was_missing:
             self.callback(True)
+        self.nodes_was_missing = missing

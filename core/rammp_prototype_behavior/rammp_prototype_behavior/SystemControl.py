@@ -1,18 +1,36 @@
 import asyncio
+import enum
 import threading
 
 import rclpy
 import rclpy.action
 import rclpy.node
+import os
 from .ArmPresetActionClient import ArmPreset, ArmPresetActionClient
 from transitions.extensions import HierarchicalMachine as Machine
+from .node_name_monitor import NodeNameMonitor
+from ament_index_python.packages import get_package_share_directory
+from arm_interfaces.srv import SetMode, SetSpeedPreset
+from std_srvs.srv import Trigger
+from diagnostic_msgs.msg import DiagnosticStatus
+
+
+class ArmMode(enum.IntEnum):
+    IDLE = SetMode.Request.MODE_IDLE
+    OPEN_DOOR = SetMode.Request.MODE_OPEN_DOOR
+    ORDER_DRINK = SetMode.Request.MODE_ORDER_DRINK
+    DRINKING = SetMode.Request.MODE_DRINKING
+    CUP_STABILIZE = SetMode.Request.MODE_CUP_STABILIZE
+    MANUAL = SetMode.Request.MODE_MANUAL
 
 
 class SystemControl(rclpy.node.Node):
     def __init__(self):
         super().__init__("system_control")
         self.get_logger().info("System Control Node has been started.")
-
+        share_dir = get_package_share_directory("rammp_prototype_behavior")
+        json_path = os.path.join(share_dir, "config/node_name.json")
+        self.node_monitor = NodeNameMonitor(self, json_path, self.node_monitor_callback)
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
@@ -22,16 +40,66 @@ class SystemControl(rclpy.node.Node):
         self.init_actions_clients()
         self.init_state_machine()
         # put test for asyncio actions here for now, will move to separate test file later
-        self.simple_test()
+        # self.simple_test()
 
     def init_subscribers(self):
-        pass
+        self.arm_status_subscriber = self.create_subscription(
+            DiagnosticStatus,
+            "/arm/status",
+            self.arm_status_callback,
+            10,
+        )
 
     def init_services_clients(self):
-        pass
+        self.set_mode_client = self.create_client(SetMode, "/arm/set_mode")
+        self.open_gripper_client = self.create_client(Trigger, "/arm/open_gripper")
+        self.close_gripper_client = self.create_client(Trigger, "/arm/close_gripper")
+        self.set_speed_client = self.create_client(
+            SetSpeedPreset, "/arm/set_speed_preset"
+        )
 
     def init_actions_clients(self):
         self.arm_preset_client = ArmPresetActionClient(self)
+
+    def set_arm_mode(self, mode: ArmMode) -> bool:
+        req = SetMode.Request()
+        req.mode = mode.value
+        future = self.set_mode_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
+    def open_gripper(self) -> bool:
+        future = self.open_gripper_client.call_async(Trigger.Request())
+        rclpy.spin_until_future_complete(self, future)
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
+    def close_gripper(self) -> bool:
+        future = self.close_gripper_client.call_async(Trigger.Request())
+        rclpy.spin_until_future_complete(self, future)
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
+    def arm_status_callback(self, msg: DiagnosticStatus):
+        # Placeholder for processing arm status messages
+        self.get_logger().info(f"Received arm status: {msg.message}")
+
+    # node name monitor callback
+    def node_monitor_callback(self, all_nodes_ready):
+        if all_nodes_ready:
+            self.get_logger().info("All nodes are ready!")
+            self.ready()  # trigger transition to Chair state when all nodes are ready
+            # TODO: need check UI connection as well
+        else:
+            self.get_logger().warn("Some nodes are missing!")
+            self.eStop()  # trigger transition to error state when nodes are missing
 
     # state machine conditions
     def is_arm_state_good_for_driving(self):
@@ -62,6 +130,10 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Chair(self):
         # for testing
         print("Entering Chair state")
+        # TODO: enable chair control
+
+    def on_enter_Error(self):
+        print("Entering Error state")
 
     def on_enter_Arm(self):
         print("Entering Arm state")
@@ -144,7 +216,7 @@ class SystemControl(rclpy.node.Node):
                 "initial": "detecting",
                 "children": ["detecting", "detected", "traverse", "finished", "paused"],
             },
-            "error",
+            "Error",
         ]
 
         transitions = [
@@ -277,10 +349,10 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_paused",
             },
             # global transitions
-            {"trigger": "eStop", "source": "*", "dest": "error"},
-            {"trigger": "UIDisconnected", "source": "*", "dest": "error"},
+            {"trigger": "eStop", "source": "*", "dest": "Error"},
+            {"trigger": "UIDisconnected", "source": "*", "dest": "Error"},
             {"trigger": "ready", "source": "init", "dest": "Chair"},
-            {"trigger": "reset", "source": "error", "dest": "init"},
+            {"trigger": "reset", "source": "Error", "dest": "init"},
             # main state transitions
             {
                 "trigger": "reqArm",

@@ -1,0 +1,10 @@
+{
+  "nodes": [
+    {
+      "name": "/arm_driver_node"
+    },
+    {
+      "name": "/system_control"
+    }
+  ]
+}

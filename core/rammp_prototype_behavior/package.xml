@@ -9,6 +9,8 @@
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>diagnostic_msgs</depend>
   <depend>arm_interfaces</depend>
 
   <exec_depend>python3-scipy</exec_depend>

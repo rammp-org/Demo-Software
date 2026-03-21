@@ -23,6 +23,9 @@ setup(
     },
     entry_points={
         "console_scripts": [
+            "test_nn_monitor = rammp_prototype_behavior.test_nn_monitor:main",  # just for testing
+            "test_node1 = rammp_prototype_behavior.test_node1:main",  # just for testing
+            "test_node2 = rammp_prototype_behavior.test_node2:main",  # just for testing
             "system_control = rammp_prototype_behavior.SystemControl:main",
             "mock_arm_driver = rammp_prototype_behavior.mocks.mock_arm_driver:main",
         ],

@@ -40,6 +40,8 @@ class SystemControl(rclpy.node.Node):
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
 
+        self._arm_status = ""
+
         self.init_subscribers()
         self.init_services_clients()
         self.init_actions_clients()
@@ -99,7 +101,9 @@ class SystemControl(rclpy.node.Node):
 
     def arm_status_callback(self, msg: DiagnosticStatus):
         # Placeholder for processing arm status messages
-        self.get_logger().info(f"Received arm status: {msg.message}")
+        if self._arm_status != msg.message:
+            self.get_logger().info(f" arm status: {self._arm_status} --> {msg.message}")
+            self._arm_status = msg.message
 
     # node name monitor callback
     def node_monitor_callback(self, all_nodes_ready):

@@ -25,22 +25,26 @@ class BringCupToMouthActionClient(ActionClientWrapper):
             self._node.get_logger().info("Goal accepted by the action server.")
         else:
             self._node.get_logger().warn("Goal rejected by the action server.")
+            self._node.reqArmActionGoalFailed()
 
     def result_callback(self, success: bool):
         if success:
             self._node.get_logger().info("Successfully brought cup to mouth.")
         else:
             self._node.get_logger().warn("Failed to bring cup to mouth.")
+            self._node.ArmActionFailed()
 
     def cancel_callback(self, success: bool):
         if success:
             self._node.get_logger().info(
                 "Goal cancellation accepted by the action server."
             )
+            self._node.reqArmActionCancelSuccess()
         else:
             self._node.get_logger().warn(
                 "Goal cancellation rejected by the action server."
             )
+            self._node.reqArmActionCancelFailed()
 
     def send_goal(self):
         goal = CornellActionsPlaceHolder.Goal()

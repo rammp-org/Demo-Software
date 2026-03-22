@@ -246,8 +246,26 @@ class SystemControl(rclpy.node.Node):
                 "source": "Arm_retracting",
                 "dest": "Arm_retracted",
             },
-            {"trigger": "reqArmActionCancel", "source": "Arm", "dest": "Arm_paused"},
-            {"trigger": "reqArmActionFailed", "source": "Arm", "dest": "Arm_paused"},
+            {
+                "trigger": "reqArmActionCancelSuccess",
+                "source": "Arm",
+                "dest": "Arm_paused",
+            },  # action canceled successfully, pause arm to maintain current state and allow for retry or other recovery actions
+            {
+                "trigger": "reqArmActionCancelFailed",
+                "source": "Arm",
+                "dest": "error",
+            },  # can not cancel action, treat as error and require reset
+            {
+                "trigger": "ArmActionFailed",
+                "source": "Arm",
+                "dest": "Arm_paused",
+            },  # action finished with failure, pause arm to maintain current state and allow for retry or other recovery actions
+            {
+                "trigger": "reqArmActionGoalFailed",
+                "source": "Arm",
+                "dest": "Arm_paused",
+            },  # request action, but fail to start action, pause arm to maintain current state and allow for retry or other recovery actions
             {
                 "trigger": "reqHome",
                 "source": ["Arm_retracted", "Arm_paused", "Arm_cupStabilize_stable"],

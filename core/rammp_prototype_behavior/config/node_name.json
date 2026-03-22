@@ -5,6 +5,9 @@
     },
     {
       "name": "/system_control"
+    },
+    {
+      "name": "/drinking_node"
     }
   ]
 }

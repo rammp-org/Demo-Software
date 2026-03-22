@@ -31,6 +31,7 @@ setup(
             "test_node2 = rammp_prototype_behavior.test.test_node2:main",  # just for testing
             "system_control = rammp_prototype_behavior.SystemControl:main",
             "mock_arm_driver = rammp_prototype_behavior.mocks.mock_arm_driver:main",
+            "mock_drinking_node = rammp_prototype_behavior.mocks.mock_drinking_node:main",
         ],
     },
 )

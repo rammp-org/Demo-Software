@@ -216,9 +216,9 @@ class SystemControl(rclpy.node.Node):
                     {
                         "name": "cupStabilize",
                         "initial": "moving",
-                        "children": ["moving", "stable"],
+                        "children": ["moving", "stable", "homing"],
                     },
-                    "paused",
+                    "paused",  # arm error, will pause arm to maintain current state.
                 ],
             },
             {
@@ -226,7 +226,7 @@ class SystemControl(rclpy.node.Node):
                 "initial": "detecting",
                 "children": ["detecting", "detected", "traverse", "finished", "paused"],
             },
-            "Error",
+            "Error",  # system error state, will require reset to recover
         ]
 
         transitions = [
@@ -247,12 +247,22 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_retracted",
             },
             {"trigger": "reqArmActionCancel", "source": "Arm", "dest": "Arm_paused"},
+            {"trigger": "reqArmActionFailed", "source": "Arm", "dest": "Arm_paused"},
             {
                 "trigger": "reqHome",
                 "source": ["Arm_retracted", "Arm_paused", "Arm_cupStabilize_stable"],
                 "dest": "Arm_homing",
             },
-            {"trigger": "homed", "source": "Arm_homing", "dest": "Arm_home"},
+            {
+                "trigger": "reqHome",
+                "source": "Arm_cupStabilize_stable",
+                "dest": "Arm_cupStabilize_homing",
+            },
+            {
+                "trigger": "homed",
+                "source": ["Arm_homing", "Arm_cupStabilize_homing"],
+                "dest": "Arm_home",
+            },
             # open door
             {
                 "trigger": "reqOpenDoor",
@@ -260,7 +270,7 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_Door_raisingArm",
             },
             {
-                "trigger": "armRaised",
+                "trigger": "homed",
                 "source": "Arm_Door_raisingArm",
                 "dest": "Arm_Door_detecting",
             },

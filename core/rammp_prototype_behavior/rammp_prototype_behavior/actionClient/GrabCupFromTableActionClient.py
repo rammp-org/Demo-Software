@@ -6,13 +6,13 @@ from cornell_feeding_interfaces.action import CornellActionsPlaceHolder
 from .ActionClientWrapper import ActionClientWrapper
 
 
-class BringCupToMouthActionClient(ActionClientWrapper):
+class GrabCupFromTableActionClient(ActionClientWrapper):
     def __init__(
         self,
         node: Node,
     ):
         super().__init__(
-            "/arm/drink/bring_cup_to_mouth",
+            "/arm/drink/GrabCupFromTable",
             CornellActionsPlaceHolder,
             self.goal_callback,
             self.result_callback,
@@ -28,9 +28,9 @@ class BringCupToMouthActionClient(ActionClientWrapper):
 
     def result_callback(self, success: bool):
         if success:
-            self._node.get_logger().info("Successfully brought cup to mouth.")
+            self._node.get_logger().info("Successfully picked up and ordered.")
         else:
-            self._node.get_logger().warn("Failed to bring cup to mouth.")
+            self._node.get_logger().warn("Failed to pick up and order.")
 
     def cancel_callback(self, success: bool):
         if success:

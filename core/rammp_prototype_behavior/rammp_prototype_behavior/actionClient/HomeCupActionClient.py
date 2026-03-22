@@ -12,7 +12,7 @@ class HomeCupActionClient(ActionClientWrapper):
         node: Node,
     ):
         super().__init__(
-            "/arm/drink/home_cup",
+            "/arm/drink/HomeCup",
             CornellActionsPlaceHolder,
             self.goal_callback,
             self.result_callback,

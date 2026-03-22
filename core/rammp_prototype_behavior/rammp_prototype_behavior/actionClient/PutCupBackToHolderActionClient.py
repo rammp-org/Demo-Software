@@ -6,13 +6,13 @@ from cornell_feeding_interfaces.action import CornellActionsPlaceHolder
 from .ActionClientWrapper import ActionClientWrapper
 
 
-class PickUpAndOrderActionClient(ActionClientWrapper):
+class PutCupBackToHolderActionClient(ActionClientWrapper):
     def __init__(
         self,
         node: Node,
     ):
         super().__init__(
-            "/arm/pick_up_and_order",
+            "/arm/drink/PutCupBackToHolder",
             CornellActionsPlaceHolder,
             self.goal_callback,
             self.result_callback,

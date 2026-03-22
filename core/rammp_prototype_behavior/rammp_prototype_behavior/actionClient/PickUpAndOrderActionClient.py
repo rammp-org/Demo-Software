@@ -12,7 +12,7 @@ class PickUpAndOrderActionClient(ActionClientWrapper):
         node: Node,
     ):
         super().__init__(
-            "/arm/pick_up_and_order",
+            "/arm/drink/PickupAndOrder",
             CornellActionsPlaceHolder,
             self.goal_callback,
             self.result_callback,

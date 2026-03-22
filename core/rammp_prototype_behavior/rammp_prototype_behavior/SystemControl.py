@@ -6,7 +6,12 @@ import rclpy
 import rclpy.action
 import rclpy.node
 import os
-from .ArmPresetActionClient import ArmPreset, ArmPresetActionClient
+from .actionClient.ArmPresetActionClient import ArmPreset, ArmPresetActionClient
+from .actionClient.BringCupToMouthActionClient import BringCupToMouthActionClient
+from .actionClient.GrabCupFromTableActionClient import GrabCupFromTableActionClient
+from .actionClient.HomeCupActionClient import HomeCupActionClient
+from .actionClient.PickUpAndOrderActionClient import PickUpAndOrderActionClient
+from .actionClient.PutCupBackToHolderActionClient import PutCupBackToHolderActionClient
 from transitions.extensions import HierarchicalMachine as Machine
 from .node_name_monitor import NodeNameMonitor
 from ament_index_python.packages import get_package_share_directory
@@ -60,6 +65,11 @@ class SystemControl(rclpy.node.Node):
 
     def init_actions_clients(self):
         self.arm_preset_client = ArmPresetActionClient(self)
+        self.pickup_and_order_client = PickUpAndOrderActionClient(self)
+        self.home_cup_client = HomeCupActionClient(self)
+        self.grab_cup_from_table_client = GrabCupFromTableActionClient(self)
+        self.put_cup_back_to_holder_client = PutCupBackToHolderActionClient(self)
+        self.bring_cup_to_mouth_client = BringCupToMouthActionClient(self)
 
     def set_arm_mode(self, mode: ArmMode) -> bool:
         req = SetMode.Request()

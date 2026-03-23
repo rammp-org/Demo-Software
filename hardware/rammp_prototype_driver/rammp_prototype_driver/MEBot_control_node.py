@@ -218,7 +218,7 @@ class MEBotControlNode(Node):
         self.ML_loadcell = data[SerialField.ML_LOADCELL]
 
         # CA_flag
-        self.CA_flag = data[SerialField.CA_FLAG]
+        self.CA_flag = int(data[SerialField.CA_FLAG])
 
         # app_time
         self.app_time = data[SerialField.APP_TIME]

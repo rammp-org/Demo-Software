@@ -58,8 +58,12 @@ class MEBotControlNode(Node):
         super().__init__("MEBot_control_node")
 
         # serial init
+        self.declare_parameter("serial_port", "/dev/ttyACM0")
+        serial_port = (
+            self.get_parameter("serial_port").get_parameter_value().string_value
+        )
         self.ser = serial.Serial(
-            port="/dev/ttyACM0",  # USB connection
+            port=serial_port,
             baudrate=115200,
             timeout=1,
         )

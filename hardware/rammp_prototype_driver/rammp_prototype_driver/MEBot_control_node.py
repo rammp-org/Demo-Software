@@ -120,9 +120,6 @@ class MEBotControlNode(Node):
         self.prev_speed_MR = 0.0
         self.current_speed_MR = 0.0
 
-        self.acceleration_ML = 0.0
-        self.acceleration_MR = 0.0
-
         # tilt and measure height
         self.tilt = 0.0
         self.measure_height = 0.0
@@ -224,6 +221,7 @@ class MEBotControlNode(Node):
         self.app_time = data[SerialField.APP_TIME]
 
         # Velocity
+        # TODO:
         self.prev_speed_ML = self.current_speed_ML
         self.current_speed_ML = data[SerialField.SPEED_ML]
         self.prev_speed_MR = self.current_speed_MR
@@ -285,15 +283,10 @@ class MEBotControlNode(Node):
         # app time
         msg.app_time = float(self.app_time)
 
-        # velocity and acceleration
+        # velocities
         msg.ml_vel = float(self.current_speed_ML)
         msg.mr_vel = float(self.current_speed_MR)
-        msg.ml_acc = float(
-            self.current_speed_ML - self.prev_speed_ML
-        )  # calculate acceleration using change in speed over time (0.1s between serial data updates)
-        msg.mr_acc = float(
-            self.current_speed_MR - self.prev_speed_MR
-        )  # calculate acceleration using change in speed over time (0.1s between serial data updates)
+        # TODO: Add the remaining velocities once they are sent by the Teensy
 
         # measure height
         msg.measure_height = float(self.measure_height)

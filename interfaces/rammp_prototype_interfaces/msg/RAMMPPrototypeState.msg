@@ -44,12 +44,15 @@ float32 ml_wheel_pos
 float32 mr_wheel_pos
 
 # Velocities
-float32 ml_vel
+float32 fc_vel
+float32 rc_vel
 float32 mr_vel
+float32 ml_vel
+float32 ml_carriage_vel
+float32 mr_carriage_vel
+float32 ml_wheel_vel
+float32 mr_wheel_vel
 
-# Accelerations
-float32 ml_acc
-float32 mr_acc
 
 #Loadcells
 # Unit: TODO - confirm units

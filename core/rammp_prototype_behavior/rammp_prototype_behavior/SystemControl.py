@@ -56,13 +56,13 @@ class SystemControl(rclpy.node.Node):
             1.0, self.log_state, callback_group=self._cb_group
         )  # run simple_test every 10 seconds for testing
         # put test for asyncio actions here for now, will move to separate test file later
-        self.simple_test()
+        # self.simple_test()
 
     def log_state(self):
         self.get_logger().info(f"Current state: {self.state}")
-        # if self.state != self._last_state and self.state == "Chair_SLOff":
-        #     self.get_logger().info("Chair SL has been enabled. mock open door")
-        # self.mock_open_door_request()
+        if self.state != self._last_state and self.state == "Chair_SLOff":
+            self.get_logger().info("Chair SL has been enabled. mock open door")
+            self.mock_open_door_request()
         self._last_state = self.state
 
     ## mock testing functions
@@ -191,7 +191,7 @@ class SystemControl(rclpy.node.Node):
             self.ready()  # trigger transition to Chair state when all nodes are ready
             # TODO: need check UI connection as well
             # wait 2 senconds to start mock testing here
-            # self.mock_open_door_request()
+            self.mock_open_door_request()
 
         else:
             self.get_logger().warn("Some nodes are missing!")

@@ -39,7 +39,6 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().info("System Control Node has been started.")
         share_dir = get_package_share_directory("rammp_prototype_behavior")
         json_path = os.path.join(share_dir, "config/node_name.json")
-        self.node_monitor = NodeNameMonitor(self, json_path, self.node_monitor_callback)
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
@@ -47,30 +46,31 @@ class SystemControl(rclpy.node.Node):
         self._arm_status = ""
         self._cb_group = ReentrantCallbackGroup()
         self._last_state = ""
+        self.node_monitor = NodeNameMonitor(self, json_path, self.node_monitor_callback)
 
         self.init_subscribers()
         self.init_services_clients()
         self.init_actions_clients()
         self.init_state_machine()
         self._test_timer = self.create_timer(
-            1.0, self.log_state, callback_group=self._cb_group
-        )  # run simple_test every 10 seconds for testing
+            2.0, self.log_state, callback_group=self._cb_group
+        )  # run simple_test every 2 seconds for testing
         # put test for asyncio actions here for now, will move to separate test file later
         # self.simple_test()
 
     def log_state(self):
-        self.get_logger().info(f"Current state: {self.state}")
-        if self.state != self._last_state and self.state == "Chair_SLOff":
-            self.get_logger().info("Chair SL has been enabled. mock open door")
-            self.mock_open_door_request()
         self._last_state = self.state
+        self.get_logger().info(f"Current state: {self.state}")
 
     ## mock testing functions
     def mock_open_door_request(self):
         # for testing open door action, will remove after testing
         self.get_logger().info("Sending mock open door request.")
+        self.get_logger().info("send reqArm trigger to enter Arm state first.")
         self.reqArm()  # should enter Arm_retracted state
+        self.get_logger().info("then send reqOpenDoor trigger.")
         self.reqOpenDoor()  # should enter Arm_Door_raisingArm state
+        self.get_logger().info("reqOpenDoor trigger sent.")
 
     # door open state transition function calls
     def on_enter_Arm_Door_raisingArm(self):
@@ -145,8 +145,12 @@ class SystemControl(rclpy.node.Node):
         req = SetMode.Request()
         req.mode = mode.value
         future = self.set_mode_client.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
-        print("set_arm_mode result: " + str(future.result()))
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
+        self.get_logger().info(
+            "set_arm_mode to " + mode.name + " result: " + str(future.result())
+        )
         if future.result() is not None:
             return future.result().success
         else:
@@ -154,7 +158,9 @@ class SystemControl(rclpy.node.Node):
 
     def open_gripper(self) -> bool:
         future = self.open_gripper_client.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self, future)
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
         if future.result() is not None:
             return future.result().success
         else:
@@ -164,7 +170,9 @@ class SystemControl(rclpy.node.Node):
         req = SetBool.Request()
         req.data = enable
         future = self.door_button_detection_client.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
         if future.result() is not None:
             return future.result().success
         else:
@@ -172,7 +180,9 @@ class SystemControl(rclpy.node.Node):
 
     def close_gripper(self) -> bool:
         future = self.close_gripper_client.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self, future)
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
         if future.result() is not None:
             return future.result().success
         else:
@@ -225,31 +235,31 @@ class SystemControl(rclpy.node.Node):
     # state machine callbacks
     def on_enter_Chair(self):
         # for testing
-        print("Entering Chair state")
+        self.get_logger().info("Entering Chair state")
         # TODO: enable chair control
 
     def on_enter_Error(self):
-        print("Entering Error state")
+        self.get_logger().info("Entering Error state")
 
     def on_enter_Arm(self):
-        print("Entering Arm state")
+        self.get_logger().info("Entering Arm state")
 
     def simple_test(self):
-        print("simple test:")
-        print("current state:" + self.state)
-        print("triggering ready")
+        self.get_logger().info("simple test:")
+        self.get_logger().info("current state:" + self.state)
+        self.get_logger().info("triggering ready")
         self.ready()
         while self.state != "Chair_SLOff":
             self.get_logger().info("Waiting to enter Chair_SLOff state for testing...")
             self.get_clock().sleep_for(rclpy.duration.Duration(seconds=1))
-        print("current state:" + self.state)
-        print("triggering reqArm")
+        self.get_logger().info("current state:" + self.state)
+        self.get_logger().info("triggering reqArm")
         self.reqArm()
-        print("current state:" + self.state)
-        print("simple test : request open door")
+        self.get_logger().info("current state:" + self.state)
+        self.get_logger().info("simple test : request open door")
         self.reqOpenDoor()  # should enter Arm_Door_raisingArm state
         # self.arm_preset_client.set_preset(ArmPreset.HOME)
-        print("current state:" + self.state)
+        self.get_logger().info("current state:" + self.state)
 
     # state machine setup
     def init_state_machine(self):
@@ -540,7 +550,7 @@ class SystemControl(rclpy.node.Node):
 
 def main():
     rclpy.init()
-    executor = MultiThreadedExecutor()
+    executor = MultiThreadedExecutor(100)
     node = SystemControl()
     executor.add_node(node)
     try:

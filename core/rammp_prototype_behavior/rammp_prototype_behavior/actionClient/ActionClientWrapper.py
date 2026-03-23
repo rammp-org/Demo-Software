@@ -76,7 +76,6 @@ class ActionClientWrapper:
         return self._action_running
 
     async def send_goal(self, goal: Type[Any]):
-        await asyncio.sleep(5)  # yield control to ensure this runs in the event loop
         if self._action_running:
             self._goal_callback(False)
             return

@@ -169,8 +169,8 @@ class MEBotControlNode(Node):
             self.state_publish_rate, self.publish_RAMMPPrototypeState
         )
 
-        self.imu_publisher = self.create_publisher(Imu, "imu", 10)
-        self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
+        # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
+        # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
 
     # reading incoming serial data from teensy
     def read_serial_data(self):

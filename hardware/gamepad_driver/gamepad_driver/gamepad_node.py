@@ -3,7 +3,7 @@ from rclpy.node import Node
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Joy
-from std_msgs.msg import String
+from std_msgs.msg import Float64MultiArray
 
 
 class gamepadNode(Node):
@@ -19,7 +19,7 @@ class gamepadNode(Node):
         self.twist_publisher = self.create_publisher(Twist, "twist", 10)
         self.twist_timer = self.create_timer(1.0, self.twist_pub)
 
-        self.joy_pub = self.create_publisher(String, "gamepad_inputs", 10)
+        self.joy_pub = self.create_publisher(Float64MultiArray, "gamepad_inputs", 10)
         self.joy_timer = self.create_timer(1.0, self.joy_pub_callback)
 
         self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_sub_callback, 10)
@@ -39,16 +39,8 @@ class gamepadNode(Node):
         if self.buttons is None:
             return
 
-        msg = String()
-        msg.data = "No buttons pressed"
-        if self.buttons[0] == 1:
-            msg.data = "Button 1 pressed"
-        if self.buttons[1] == 1:
-            msg.data = "Button 2 pressed"
-        if self.buttons[2] == 1:
-            msg.data = "Button 3 pressed"
-        if self.buttons[3] == 1:
-            msg.data = "Button 4 pressed"
+        msg = Float64MultiArray()
+        msg.data = [float(b) for b in self.buttons]
 
         self.joy_pub.publish(msg)
 

@@ -10,6 +10,12 @@ def generate_launch_description():
                 executable="gamepad_node",
                 name="gamepad_node",
                 output="screen",
-            )
+            ),
+            Node(
+                package="joy",
+                executable="joy_node",
+                name="joy_node",
+                output="screen",
+            ),
         ]
     )

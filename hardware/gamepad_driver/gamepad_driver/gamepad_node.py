@@ -6,29 +6,85 @@ from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Vector3, Vector3Stamped
 import tf2_ros
 from tf2_geometry_msgs import do_transform_vector3
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from controller_manager_msgs.srv import SwitchController
+from builtin_interfaces.msg import Duration
+from rclpy.action import ActionClient
+from control_msgs.action import GripperCommand
 
 
 class gamepadNode(Node):
     def __init__(self):
         super().__init__("gamepad_node")
 
-        self.buttons = None
-        self.axes = None
+        # estop
+        self.estop_publisher = self.create_publisher(Bool, "estop", 10)
+        self.estop_timer = self.create_timer(1.0, self.estop_pub)
+
+        # joy node
+        self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
+
         self.last_button_state = [0] * 12  # Adjust based on your controller
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        self.estop_publisher = self.create_publisher(Bool, "estop", 10)
-        self.estop_timer = self.create_timer(1.0, self.estop_pub)
+        # Controller Switcher Client
+        self.switch_client = self.create_client(
+            SwitchController, "/controller_manager/switch_controller"
+        )
 
+        # Arm Velocity Publisher
         self.twist_pub = self.create_publisher(Twist, "twist", 10)
+        self.home_pub = self.create_publisher(
+            JointTrajectory, "/joint_trajectory_controller/joint_trajectory", 10
+        )
 
-        self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
+        # Gripper Action Client
+        self.gripper_client = ActionClient(
+            self, GripperCommand, "/robotiq_gripper_controller/gripper_cmd"
+        )
 
     def estop_pub(self):
         # msg = Bool()
         pass
+
+    def go_home(self):
+        # A. Switch to Trajectory Controller
+        req = SwitchController.Request()
+        req.activate_controllers = ["joint_trajectory_controller"]
+        req.deactivate_controllers = ["twist_controller"]
+        req.strictness = 1  # STRICT
+        self.switch_client.call_async(req)
+
+        # B. Send Home Trajectory
+        msg = JointTrajectory()
+        msg.joint_names = [
+            "joint_1",
+            "joint_2",
+            "joint_3",
+            "joint_4",
+            "joint_5",
+            "joint_6",
+        ]
+        point = JointTrajectoryPoint()
+        point.positions = [0.0, 0.26, 2.26, 0.0, 0.95, 0.0]  # Gen3 Home
+        point.time_from_start = Duration(sec=3, nanosec=0)
+        msg.points.append(point)
+
+        self.get_logger().info("Homing... Waiting 4s.")
+        self.home_pub.publish(msg)
+
+        # C. Switch back to Twist after move (Simplified: call again after delay)
+        # In a real app, you'd wait for trajectory completion.
+        self.create_timer(4.0, self.reactivate_twist)
+
+    def reactivate_twist(self):
+        req = SwitchController.Request()
+        req.activate_controllers = ["twist_controller"]
+        req.deactivate_controllers = ["joint_trajectory_controller"]
+        self.switch_client.call_async(req)
+        self.get_logger().info("Joystick Control Reactivated.")
 
     def joy_callback(self, msg):  # includes twist publishing
         # --- PRINTING AXES ---
@@ -82,19 +138,18 @@ class gamepadNode(Node):
 
             self.twist_pub.publish(final_twist)
 
-            # DON'T KNOW IF NEEDED YET
-            # # --- HOME BUTTON LOGIC ---
-            # # msg.buttons[3] is typically X or Square
-            # if msg.buttons[3] == 1 and self.last_home_button_state == 0:
-            #     self.go_home()
-            # self.last_home_button_state = msg.buttons[3]
+            # --- HOME BUTTON LOGIC ---
+            # msg.buttons[3] is typically X or Square
+            if msg.buttons[3] == 1 and self.last_home_button_state == 0:
+                self.go_home()
+            self.last_home_button_state = msg.buttons[3]
 
-            # # --- Gripper Control (Buttons) ---
-            # # msg.buttons[6] = A (Close), msg.buttons[7] = B (Open)
-            # if msg.buttons[6] == 1 and self.last_button_state[6] == 0:
-            #     self.send_gripper_goal(0.8) # 0.8 = Fully Closed
-            # elif msg.buttons[7] == 1 and self.last_button_state[7] == 0:
-            #     self.send_gripper_goal(0.0) # 0.0 = Fully Open
+            # --- Gripper Control (Buttons) ---
+            # msg.buttons[6] = A (Close), msg.buttons[7] = B (Open)
+            if msg.buttons[6] == 1 and self.last_button_state[6] == 0:
+                self.send_gripper_goal(0.8)  # 0.8 = Fully Closed
+            elif msg.buttons[7] == 1 and self.last_button_state[7] == 0:
+                self.send_gripper_goal(0.0)  # 0.0 = Fully Open
 
             self.last_button_state = msg.buttons
 
@@ -106,6 +161,16 @@ class gamepadNode(Node):
             self.get_logger().warn(f"Waiting for TF: {e}", throttle_duration_sec=2.0)
         except Exception as e:
             self.get_logger().error(f"Unexpected Error: {e}")
+
+    def send_gripper_goal(self, position):
+        if not self.gripper_client.wait_for_server(timeout_sec=1.0):
+            self.get_logger().error("Gripper action server not available")
+            return
+
+        goal_msg = GripperCommand.Goal()
+        goal_msg.command.position = position
+        goal_msg.command.max_effort = 100.0
+        self.gripper_client.send_goal_async(goal_msg)
 
 
 def main(args=None):

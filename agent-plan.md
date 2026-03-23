@@ -1294,6 +1294,122 @@ TELEMETRY,...,<sg_rc>,<sg_fc>,<sg_ml>,<sg_mr>\n
 
 ---
 
+## 14. Strain Gauge Display Panel (Priority #14)
+
+**Complexity:** Medium
+**Files:**
+- NEW `pid_tuner/ui/strain_gauge_display.py`
+- `pid_tuner/data/data_store.py` (add signal)
+- `pid_tuner/ui/control_panel.py` (integration)
+
+### Requirements
+
+1. **Bar graph visualization** with numeric values written inside each bar
+2. **Dedicated signal** `strain_gauge_updated` in DataStore
+3. **Color gradient** from green to orange based on magnitude; scale configurable
+4. **Default state:** expanded (not collapsed)
+5. **Collapsible/hidable** via existing panel menu system
+
+### Interface Specification
+
+#### DataStore Changes (`data_store.py`)
+
+```python
+# Add signal (around line 332, after leveling_updated):
+strain_gauge_updated = pyqtSignal()  # Emitted when strain gauge data is updated
+
+# In process_encoder_data() (after updating sg_* values):
+self.strain_gauge_updated.emit()
+```
+
+#### New Widget: `StrainGaugeDisplay` (`strain_gauge_display.py`)
+
+**Public Interface:**
+```python
+class StrainGaugeDisplay(QWidget):
+    """
+    Bar graph visualization of strain gauge (load cell) readings.
+    
+    Features:
+    - 4 horizontal bars: RC, FC, ML, MR
+    - Numeric value displayed inside each bar
+    - Color gradient from green (low) to orange (high)
+    - Configurable max_scale for gradient mapping
+    """
+    
+    # Configurable scale for color gradient
+    DEFAULT_MAX_SCALE = 4095.0  # Teensy 4.1 ADC max (12-bit)
+    
+    def __init__(self, data_store: DataStore, parent=None):
+        ...
+    
+    def set_max_scale(self, scale: float):
+        """Set the maximum scale for the color gradient."""
+        ...
+```
+
+**Visual Layout:**
+```
++------------------------------------------+
+| RC  [████████████ 2345.6]                |
+| FC  [████████████████ 3456.7]            |
+| ML  [████████ 1234.5]                    |
+| MR  [██████████████ 3890.2]              |
++------------------------------------------+
+```
+
+**Bar Width Calculation:**
+- Bar width = `(value / max_scale) * available_width`
+- Numeric value centered inside bar
+- Background color from green→orange gradient based on `value / max_scale`
+
+**Color Gradient:**
+- 0% → Green (`#a6e3a1`)
+- 100% → Orange (`#fab387`)
+- Interpolated linearly in between
+
+#### Control Panel Integration (`control_panel.py`)
+
+```python
+# Add import:
+from .strain_gauge_display import StrainGaugeDisplay
+
+# In _setup_ui(), after Config Viewer (around line 231):
+# Strain Gauge Display (wrapped in collapsible group)
+self._strain_gauge_display = StrainGaugeDisplay(self._data_store)
+self._strain_gauge_group = CollapsibleGroupBox("Strain Gauges")
+self._strain_gauge_group.addWidget(self._strain_gauge_display)
+layout.addWidget(self._strain_gauge_group)
+self._panels["Strain Gauges"] = self._strain_gauge_group
+# Note: NOT calling setCollapsed(True) — starts expanded by default
+```
+
+### Implementation Tasks (Parallel)
+
+| Task | File | Agent |
+|------|------|-------|
+| Add `strain_gauge_updated` signal and emit | `data_store.py` | Agent A |
+| Create `StrainGaugeDisplay` widget | `strain_gauge_display.py` (NEW) | Agent B |
+| Integrate into control panel | `control_panel.py` | Agent C |
+
+### Dependencies
+
+- Agent B depends on knowing the signal name (`strain_gauge_updated`)
+- Agent C depends on Agent B's widget class name (`StrainGaugeDisplay`)
+- All agents can work in parallel once interface is specified (above)
+
+### Implementation Status: COMPLETE
+
+**What was done:**
+
+| File | Change |
+|------|--------|
+| `pid_tuner/data/data_store.py` | Added `strain_gauge_updated = pyqtSignal()` declaration after `leveling_updated`. Added `self.strain_gauge_updated.emit()` in `process_encoder_data()` after strain gauge values are updated. |
+| NEW `pid_tuner/ui/strain_gauge_display.py` | Created `StrainGaugeBar` (custom painted widget for single bar with label, proportional fill, centered numeric value) and `StrainGaugeDisplay` (container with 4 bars for RC, FC, ML, MR). Green-to-orange color gradient based on value/max_scale ratio. Configurable `max_scale` (default 4095.0). Connects to `data_store.strain_gauge_updated` signal. |
+| `pid_tuner/ui/control_panel.py` | Added import for `StrainGaugeDisplay`. Integrated as collapsible panel "Strain Gauges" after Config Viewer. Starts expanded by default (no `setCollapsed(True)`). Added to `self._panels` dict for visibility menu. |
+
+---
+
 ## Dependencies
 
 ```

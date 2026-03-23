@@ -329,6 +329,7 @@ class DataStore(QObject):
 
     config_updated = pyqtSignal(int)  # Emits joint_id when config is loaded
     leveling_updated = pyqtSignal()  # Emitted when leveling debug data is updated
+    strain_gauge_updated = pyqtSignal()  # Emitted when strain gauge values are updated
 
     NUM_JOINTS = 6
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
@@ -695,6 +696,7 @@ class DataStore(QObject):
         self._sg_fc_value = data.sg_fc_value
         self._sg_ml_value = data.sg_ml_value
         self._sg_mr_value = data.sg_mr_value
+        self.strain_gauge_updated.emit()
 
         # Store motor directions
         if data.direction_values:

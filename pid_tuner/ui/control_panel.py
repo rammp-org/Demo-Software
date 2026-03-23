@@ -33,6 +33,7 @@ from .imu_display import IMUDisplay
 from .imu_3d_widget import IMU3DWidget
 from .config_viewer import ConfigViewerWidget
 from .collapsible_group import CollapsibleGroupBox
+from .strain_gauge_display import StrainGaugeDisplay
 
 
 # Control mode constants
@@ -229,6 +230,13 @@ class ControlPanel(QWidget):
         self._config_viewer_group.addWidget(self._config_viewer)
         layout.addWidget(self._config_viewer_group)
         self._panels["Config Viewer"] = self._config_viewer_group
+
+        # Strain Gauge Display (wrapped in collapsible group)
+        self._strain_gauge_display = StrainGaugeDisplay(self._data_store)
+        self._strain_gauge_group = CollapsibleGroupBox("Strain Gauges")
+        self._strain_gauge_group.addWidget(self._strain_gauge_display)
+        layout.addWidget(self._strain_gauge_group)
+        self._panels["Strain Gauges"] = self._strain_gauge_group
 
         layout.addStretch()
 

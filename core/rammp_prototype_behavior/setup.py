@@ -10,7 +10,7 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
     ],
-    install_requires=["setuptools"],
+    install_requires=["setuptools", "transitions"],
     zip_safe=True,
     maintainer="root",
     maintainer_email="root@todo.todo",
@@ -22,6 +22,11 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "test_nn_monitor = rammp_prototype_behavior.test_nn_monitor:main",  # just for testing
+            "test_node1 = rammp_prototype_behavior.test_node1:main",  # just for testing
+            "test_node2 = rammp_prototype_behavior.test_node2:main",  # just for testing
+            "system_control = rammp_prototype_behavior.SystemControl:main",
+        ],
     },
 )

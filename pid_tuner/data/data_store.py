@@ -370,6 +370,12 @@ class DataStore(QObject):
         self._z_target_rc: float = 0.0
         self._z_target_mr: float = 0.0
 
+        # Strain gauge (load cell) readings — filtered ADC counts
+        self._sg_rc_value: float = 0.0
+        self._sg_fc_value: float = 0.0
+        self._sg_ml_value: float = 0.0
+        self._sg_mr_value: float = 0.0
+
         # Motor directions (6 motors)
         self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1]
         self._encoder_directions: List[int] = [1, 1, 1, 1, 1, 1]
@@ -572,6 +578,26 @@ class DataStore(QObject):
         return self._z_target_mr
 
     @property
+    def sg_rc_value(self) -> float:
+        """Get filtered strain gauge reading for RC (Rear Caster)."""
+        return self._sg_rc_value
+
+    @property
+    def sg_fc_value(self) -> float:
+        """Get filtered strain gauge reading for FC (Front Caster)."""
+        return self._sg_fc_value
+
+    @property
+    def sg_ml_value(self) -> float:
+        """Get filtered strain gauge reading for ML (Main Left)."""
+        return self._sg_ml_value
+
+    @property
+    def sg_mr_value(self) -> float:
+        """Get filtered strain gauge reading for MR (Main Right)."""
+        return self._sg_mr_value
+
+    @property
     def motor_directions(self) -> List[int]:
         """Get motor directions (1 or -1 for each of 6 motors)."""
         return self._motor_directions
@@ -663,6 +689,12 @@ class DataStore(QObject):
             self._z_target_rc = data.z_target_rc
             self._z_target_mr = data.z_target_mr
             self.leveling_updated.emit()
+
+        # Store strain gauge readings (present from the 53-field packet onward)
+        self._sg_rc_value = data.sg_rc_value
+        self._sg_fc_value = data.sg_fc_value
+        self._sg_ml_value = data.sg_ml_value
+        self._sg_mr_value = data.sg_mr_value
 
         # Store motor directions
         if data.direction_values:

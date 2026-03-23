@@ -46,6 +46,8 @@ CONFIG_COLUMNS = [
     ("in_lpf", "input_lpf_alpha"),
     ("pos_min", "pos_limit_min"),
     ("pos_max", "pos_limit_max"),
+    ("pos_ramp", "pos_max_ramp_rate"),
+    ("vel_ramp", "vel_max_ramp_rate"),
 ]
 
 # Columns that come from DataStore direction lists rather than ConfigData

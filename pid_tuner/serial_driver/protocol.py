@@ -79,6 +79,12 @@ class EncoderData:
     z_target_mr: float = 0.0
     has_leveling_data: bool = False  # True only when firmware sent the 49-field packet
 
+    # Strain gauge (load cell) readings — filtered ADC counts
+    sg_rc_value: float = 0.0
+    sg_fc_value: float = 0.0
+    sg_ml_value: float = 0.0
+    sg_mr_value: float = 0.0
+
     @property
     def num_joints(self) -> int:
         return len(self.position_values)
@@ -211,6 +217,12 @@ class ProtocolParser:
                         data.z_target_rc = values[47]
                         data.z_target_mr = values[48]
                         data.has_leveling_data = True
+                    # Support 53-value format with strain gauge readings
+                    if len(values) >= 53:
+                        data.sg_rc_value = values[49]
+                        data.sg_fc_value = values[50]
+                        data.sg_ml_value = values[51]
+                        data.sg_mr_value = values[52]
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:

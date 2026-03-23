@@ -60,9 +60,9 @@ The Teensy emits data back to the host.
 Emitted continuously at 10Hz.
 
 **Format:**
-`TELEMETRY,<millis>,<state>,<pos1..6>,<vel1..6>,<pwm1..6>,<mdir1..6>,<edir1..6>,<lim1..4>,<pitch>,<roll>,<yaw>,<ax>,<ay>,<az>,<qw>,<qx>,<qy>,<qz>,<leveling_pitch_err>,<leveling_roll_err>,<z_ml>,<z_rc>,<z_mr>\n`
+`TELEMETRY,<millis>,<state>,<pos1..6>,<vel1..6>,<pwm1..6>,<mdir1..6>,<edir1..6>,<lim1..4>,<pitch>,<roll>,<yaw>,<ax>,<ay>,<az>,<qw>,<qx>,<qy>,<qz>,<leveling_pitch_err>,<leveling_roll_err>,<z_ml>,<z_rc>,<z_mr>,<sg_rc>,<sg_fc>,<sg_ml>,<sg_mr>\n`
 
-**Fields (49 total values):**
+**Fields (53 total values):**
 1. String `"TELEMETRY"`
 2. `millis()` timestamp
 3. `SystemState` (int 0-6)
@@ -77,6 +77,7 @@ Emitted continuously at 10Hz.
 44-47. IMU Quaternion: `w`, `x`, `y`, `z`
 48-49. Leveling Debug: `pitch_err`, `roll_err` (float)
 50-52. Leveling Target Z Heights (cm): `z_target_ml`, `z_target_rc`, `z_target_mr` (float)
+53-56. Strain Gauge ADC readings (filtered counts): `sg_rc`, `sg_fc`, `sg_ml`, `sg_mr` (float)
 
 ### 2. Config Dump
 Emitted when requested via the `G<id>` command. Used to sync the GUI sliders with the EEPROM values saved on the Teensy.

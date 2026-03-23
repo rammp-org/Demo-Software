@@ -13,6 +13,7 @@
 #include "src/Motor/Motor.h"
 #include "src/CommandParser/CommandParser.h"
 #include "src/PIDController/PIDController.h"
+#include "src/StrainGauge/StrainGauge.h"
 
 #define DEBUG_MODE 1
 
@@ -42,6 +43,11 @@ struct SystemTelemetry {
   float z_target_ml;
   float z_target_rc;
   float z_target_mr;
+  // Strain gauge (load cell) readings — filtered ADC counts
+  float sg_rc_value;
+  float sg_fc_value;
+  float sg_ml_value;
+  float sg_mr_value;
 };
 
 // Global State
@@ -78,6 +84,12 @@ Motor mr;
 Motor ml_carriage;
 Motor mr_carriage;
 
+// Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
+StrainGauge sg_rc(RC_LOADCELL_PIN);
+StrainGauge sg_fc(FC_LOADCELL_PIN);
+StrainGauge sg_ml(ML_LOADCELL_PIN);
+StrainGauge sg_mr(MR_LOADCELL_PIN);
+
 int16_t scaled_mlc_pwm;
 int16_t scaled_mrc_pwm;
 
@@ -100,6 +112,12 @@ void updateTelemetry() {
   telemetry.mr_vel = mr.current_vel;
   telemetry.ml_carriage_vel = ml_carriage.current_vel;
   telemetry.mr_carriage_vel = mr_carriage.current_vel;
+
+  // Strain gauges
+  telemetry.sg_rc_value = sg_rc.getValue();
+  telemetry.sg_fc_value = sg_fc.getValue();
+  telemetry.sg_ml_value = sg_ml.getValue();
+  telemetry.sg_mr_value = sg_mr.getValue();
 }
 
 // Helper to send telemetry
@@ -215,7 +233,16 @@ void sendTelemetry() {
   Serial.print(",");
   Serial.print(telemetry.z_target_rc, 4);
   Serial.print(",");
-  Serial.println(telemetry.z_target_mr, 4);
+  Serial.print(telemetry.z_target_mr, 4);
+  Serial.print(",");
+  // Strain gauges (4)
+  Serial.print(telemetry.sg_rc_value, 2);
+  Serial.print(",");
+  Serial.print(telemetry.sg_fc_value, 2);
+  Serial.print(",");
+  Serial.print(telemetry.sg_ml_value, 2);
+  Serial.print(",");
+  Serial.println(telemetry.sg_mr_value, 2);
 }
 
 // --- Self Leveling Kinematics ---
@@ -414,6 +441,12 @@ void loop() {
   // 1. Read Sensors
   EContr.retrieve_readings();
   IMU.retrieve_readings();
+
+  // Strain gauges
+  sg_rc.update(dt);
+  sg_fc.update(dt);
+  sg_ml.update(dt);
+  sg_mr.update(dt);
 
   // TODO @alex : verify map encoders to motor positions (I took a guess, but
   // I'm unsure)

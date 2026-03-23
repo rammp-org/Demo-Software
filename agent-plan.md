@@ -1200,6 +1200,100 @@ The firmware implementation should:
 
 ---
 
+## 13. Strain Gauge Integration (Priority #13)
+
+**Complexity:** Medium
+**Files:**
+- NEW `hardware/rammp_prototype_driver/firmware/Base/src/StrainGauge/StrainGauge.h`
+- NEW `hardware/rammp_prototype_driver/firmware/Base/src/StrainGauge/StrainGauge.cpp`
+- `hardware/rammp_prototype_driver/firmware/Base/Base.ino`
+- `pid_tuner/serial_driver/protocol.py`
+- `pid_tuner/data/data_store.py`
+- `docs/shared/SERIAL_PROTOCOL.md`
+
+### Background
+
+`Constants.h` already defines the four load cell analog pins:
+```cpp
+#define FC_LOADCELL_PIN A17
+#define ML_LOADCELL_PIN A15
+#define MR_LOADCELL_PIN A14
+#define RC_LOADCELL_PIN A16
+```
+
+All four strain gauges will be supported (FC, RC, ML, MR). FC and RC values will be streamed in telemetry first (fields 53–54); ML and MR will follow (55–56).
+
+### Firmware — `StrainGauge` Class
+
+```
+src/StrainGauge/
+├── StrainGauge.h    — Public interface
+└── StrainGauge.cpp  — analogRead + IIR LPF
+```
+
+**Public API:**
+```cpp
+StrainGauge(int pin, float lpf_alpha = 0.5f);
+void update(float dt);       // Call each loop(); dt reserved for future use
+float getValue() const;      // Returns current filtered ADC reading
+void setLpfAlpha(float a);
+float getLpfAlpha() const;
+```
+
+**Filter:**
+Same IIR pattern used across the project:
+```cpp
+_filtered_value += lpf_alpha * (raw - _filtered_value);
+```
+Default `lpf_alpha = 0.5` (moderate smoothing — expected noisy analog signal).
+
+### Firmware — `Base.ino` Changes
+
+1. **Include** `src/StrainGauge/StrainGauge.h`
+2. **Global objects**: `StrainGauge sg_rc(RC_LOADCELL_PIN)`, `sg_fc(FC_LOADCELL_PIN)`, `sg_ml(ML_LOADCELL_PIN)`, `sg_mr(MR_LOADCELL_PIN)`
+3. **`SystemTelemetry` struct**: add `sg_rc_value`, `sg_fc_value`, `sg_ml_value`, `sg_mr_value` float fields
+4. **`updateTelemetry()`**: copy current gauge values into the struct
+5. **`loop()` — Read Sensors**: call `sg_rc.update(dt)`, `sg_fc.update(dt)`, `sg_ml.update(dt)`, `sg_mr.update(dt)` alongside `EContr.retrieve_readings()`
+6. **`sendTelemetry()`**: append four new values at the end (fields 53–56), maintaining full backward compatibility
+
+### Python / GUI Changes
+
+**`protocol.py`:**
+- Add `sg_rc_value`, `sg_fc_value`, `sg_ml_value`, `sg_mr_value` float fields (default `0.0`) to `EncoderData`
+- In `parse_line()`, add a `>= 53` length check after the existing leveling check to parse `values[49:53]` as the four strain gauge readings
+
+**`data_store.py`:**
+- Add four private `_sg_*_value: float` fields
+- Add read-only `@property` for each
+- In `process_encoder_data()`, update all four from the incoming `EncoderData`
+
+### Telemetry Packet After Change
+
+Fields 53–56 appended to the existing 52-field packet:
+```
+TELEMETRY,...,<sg_rc>,<sg_fc>,<sg_ml>,<sg_mr>\n
+```
+
+### Implementation Status: COMPLETE
+
+**What was done:**
+
+| File | Change |
+|------|--------|
+| NEW `src/StrainGauge/StrainGauge.h` | Class declaration: constructor, `update(dt)`, `getValue()`, `setLpfAlpha()`, `getLpfAlpha()`. Default `lpf_alpha = 0.5`. |
+| NEW `src/StrainGauge/StrainGauge.cpp` | `analogRead()` + IIR LPF (`_filtered += alpha * (raw - _filtered)`). `pinMode(INPUT)` in constructor. `(void)dt` reserved for future use. |
+| `Base.ino` — include | Added `#include "src/StrainGauge/StrainGauge.h"` |
+| `Base.ino` — globals | Instantiated `sg_rc`, `sg_fc`, `sg_ml`, `sg_mr` using pins from `Constants.h` |
+| `Base.ino` — `SystemTelemetry` | Added `sg_rc_value`, `sg_fc_value`, `sg_ml_value`, `sg_mr_value` float fields |
+| `Base.ino` — `updateTelemetry()` | Copies `sg_*.getValue()` into telemetry struct |
+| `Base.ino` — `loop()` sensor block | Calls `sg_*.update(dt)` alongside `EContr.retrieve_readings()` |
+| `Base.ino` — `sendTelemetry()` | Changed last `z_target_mr` line from `println` → `print`, appended 4 strain gauge fields, final `println` on `sg_mr_value` |
+| `pid_tuner/serial_driver/protocol.py` | Added `sg_rc_value`, `sg_fc_value`, `sg_ml_value`, `sg_mr_value` to `EncoderData`. Added `>= 53` parse block for `values[49:53]`. |
+| `pid_tuner/data/data_store.py` | Added 4 private `_sg_*_value` fields, 4 read-only `@property` accessors, and update assignments in `process_encoder_data()`. |
+| `docs/shared/SERIAL_PROTOCOL.md` | Updated format string and field list to reflect 53 total values (fields 53–56 = strain gauges). |
+
+---
+
 ## Dependencies
 
 ```

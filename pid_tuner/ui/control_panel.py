@@ -595,6 +595,12 @@ class ControlPanel(QWidget):
         self._pos_lpf.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
+        self._pos_ramp = QLineEdit("0.0")
+        self._pos_ramp.setValidator(QDoubleValidator())
+        self._pos_ramp.setMinimumWidth(pid_input_width)
+        self._pos_ramp.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
 
         pos_pid_layout.addWidget(QLabel("P:"))
         pos_pid_layout.addWidget(self._pos_p)
@@ -606,6 +612,8 @@ class ControlPanel(QWidget):
         pos_pid_layout.addWidget(self._pos_ff)
         pos_pid_layout.addWidget(QLabel("LPF α:"))
         pos_pid_layout.addWidget(self._pos_lpf)
+        pos_pid_layout.addWidget(QLabel("Ramp:"))
+        pos_pid_layout.addWidget(self._pos_ramp)
 
         self._set_pos_pid_btn = QPushButton("Set")
         self._set_pos_pid_btn.clicked.connect(self._on_set_pos_pid)
@@ -647,6 +655,12 @@ class ControlPanel(QWidget):
         self._vel_lpf.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
+        self._vel_ramp = QLineEdit("0.0")
+        self._vel_ramp.setValidator(QDoubleValidator())
+        self._vel_ramp.setMinimumWidth(pid_input_width)
+        self._vel_ramp.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
 
         vel_pid_layout.addWidget(QLabel("P:"))
         vel_pid_layout.addWidget(self._vel_p)
@@ -658,6 +672,8 @@ class ControlPanel(QWidget):
         vel_pid_layout.addWidget(self._vel_ff)
         vel_pid_layout.addWidget(QLabel("LPF α:"))
         vel_pid_layout.addWidget(self._vel_lpf)
+        vel_pid_layout.addWidget(QLabel("Ramp:"))
+        vel_pid_layout.addWidget(self._vel_ramp)
 
         self._set_vel_pid_btn = QPushButton("Set")
         self._set_vel_pid_btn.clicked.connect(self._on_set_vel_pid)
@@ -1523,12 +1539,14 @@ class ControlPanel(QWidget):
         d = self._get_float_from_lineedit(self._pos_d)
         ff = self._get_float_from_lineedit(self._pos_ff)
         lpf = self._get_float_from_lineedit(self._pos_lpf, 1.0)
+        ramp = self._get_float_from_lineedit(self._pos_ramp, 0.0)
 
         self._serial_handler.set_pid(joint_id, "P", p)
         self._serial_handler.set_pid(joint_id, "I", i)
         self._serial_handler.set_pid(joint_id, "D", d)
         self._serial_handler.set_feed_forward(joint_id, "F", ff)
         self._serial_handler.set_pos_lpf(joint_id, lpf)
+        self._serial_handler.set_pos_ramp_rate(joint_id, ramp)
 
         linked_joint_id = self._data_store.linked_joint
         if linked_joint_id != 0:
@@ -1537,6 +1555,7 @@ class ControlPanel(QWidget):
             self._serial_handler.set_pid(linked_joint_id, "D", d)
             self._serial_handler.set_feed_forward(linked_joint_id, "F", ff)
             self._serial_handler.set_pos_lpf(linked_joint_id, lpf)
+            self._serial_handler.set_pos_ramp_rate(linked_joint_id, ramp)
 
     def _on_set_vel_pid(self):
         """Send velocity PID gains and feed-forward."""
@@ -1546,12 +1565,14 @@ class ControlPanel(QWidget):
         d = self._get_float_from_lineedit(self._vel_d)
         ff = self._get_float_from_lineedit(self._vel_ff)
         lpf = self._get_float_from_lineedit(self._vel_lpf, 1.0)
+        ramp = self._get_float_from_lineedit(self._vel_ramp, 0.0)
 
         self._serial_handler.set_pid(joint_id, "p", p)
         self._serial_handler.set_pid(joint_id, "i", i)
         self._serial_handler.set_pid(joint_id, "d", d)
         self._serial_handler.set_feed_forward(joint_id, "f", ff)
         self._serial_handler.set_vel_lpf(joint_id, lpf)
+        self._serial_handler.set_vel_ramp_rate(joint_id, ramp)
 
         linked_joint_id = self._data_store.linked_joint
         if linked_joint_id != 0:
@@ -1560,6 +1581,7 @@ class ControlPanel(QWidget):
             self._serial_handler.set_pid(linked_joint_id, "d", d)
             self._serial_handler.set_feed_forward(linked_joint_id, "f", ff)
             self._serial_handler.set_vel_lpf(linked_joint_id, lpf)
+            self._serial_handler.set_vel_ramp_rate(linked_joint_id, ramp)
 
     def _on_set_input_lpf(self):
         """Send motor input LPF alpha."""
@@ -1624,12 +1646,14 @@ class ControlPanel(QWidget):
                 self._pos_d.setText(f"{config.pos_d:g}")
                 self._pos_ff.setText(f"{config.pos_ff:g}")
                 self._pos_lpf.setText(f"{config.pos_lpf_alpha:g}")
+                self._pos_ramp.setText(f"{config.pos_max_ramp_rate:g}")
 
                 self._vel_p.setText(f"{config.vel_p:g}")
                 self._vel_i.setText(f"{config.vel_i:g}")
                 self._vel_d.setText(f"{config.vel_d:g}")
                 self._vel_ff.setText(f"{config.vel_ff:g}")
                 self._vel_lpf.setText(f"{config.vel_lpf_alpha:g}")
+                self._vel_ramp.setText(f"{config.vel_max_ramp_rate:g}")
 
                 self._input_lpf.setText(f"{config.input_lpf_alpha:g}")
 

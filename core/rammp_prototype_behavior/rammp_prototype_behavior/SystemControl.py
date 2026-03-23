@@ -5,6 +5,9 @@ import threading
 import rclpy
 import rclpy.action
 import rclpy.node
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+
 import os
 from .actionClient.ArmPresetActionClient import ArmPreset, ArmPresetActionClient
 from .actionClient.BringCupToMouthActionClient import BringCupToMouthActionClient
@@ -42,13 +45,63 @@ class SystemControl(rclpy.node.Node):
         self._thread.start()
 
         self._arm_status = ""
+        self._cb_group = ReentrantCallbackGroup()
+        self._last_state = ""
 
         self.init_subscribers()
         self.init_services_clients()
         self.init_actions_clients()
         self.init_state_machine()
+        self._test_timer = self.create_timer(
+            1.0, self.log_state, callback_group=self._cb_group
+        )  # run simple_test every 10 seconds for testing
         # put test for asyncio actions here for now, will move to separate test file later
-        # self.simple_test()
+        self.simple_test()
+
+    def log_state(self):
+        self.get_logger().info(f"Current state: {self.state}")
+        # if self.state != self._last_state and self.state == "Chair_SLOff":
+        #     self.get_logger().info("Chair SL has been enabled. mock open door")
+        # self.mock_open_door_request()
+        self._last_state = self.state
+
+    ## mock testing functions
+    def mock_open_door_request(self):
+        # for testing open door action, will remove after testing
+        self.get_logger().info("Sending mock open door request.")
+        self.reqArm()  # should enter Arm_retracted state
+        self.reqOpenDoor()  # should enter Arm_Door_raisingArm state
+
+    # door open state transition function calls
+    def on_enter_Arm_Door_raisingArm(self):
+        self.get_logger().info("Raising arm to home to open door.")
+        self.arm_preset_client.set_preset(ArmPreset.HOME)
+        print("current state after request home:" + self.state)
+
+    def on_enter_Arm_Door_detecting(self):
+        self.get_logger().info("Detecting door button.")
+        if not self.enable_door_detection(True):
+            self.get_logger().warn("Failed to enable door detection.")
+            self.ArmActionFailed()
+        # mock wait for 5 seconds to simulate door button detection, will replace with actual detection logic later
+        self.get_logger().info("Mock detecting door button for 5 seconds.")
+        self.get_clock().sleep_for(rclpy.duration.Duration(seconds=5))
+        self.openDoorConfirm()  # should enter Arm_Door_opening state
+
+    def on_enter_Arm_Door_opening(self):
+        self.get_logger().info("Sending open door action goal.")
+        # disable door detection to avoid interference during door opening
+        if not self.enable_door_detection(False):
+            self.get_logger().warn("Failed to disable door detection.")
+            self.ArmActionFailed()
+        self.set_arm_mode(ArmMode.OPEN_DOOR)
+        self.open_door_client.send_goal()
+
+    def on_enter_Arm_retracted(self):
+        self.get_logger().info("Arm is retracted, ready for next command.")
+        self.set_arm_mode(ArmMode.IDLE)
+
+    # END of Door Open State Transition Functions
 
     def init_subscribers(self):
         self.arm_status_subscriber = self.create_subscription(
@@ -56,17 +109,27 @@ class SystemControl(rclpy.node.Node):
             "/arm/status",
             self.arm_status_callback,
             10,
+            callback_group=self._cb_group,
         )
 
     def init_services_clients(self):
-        self.set_mode_client = self.create_client(SetMode, "/arm/set_mode")
-        self.open_gripper_client = self.create_client(Trigger, "/arm/open_gripper")
-        self.close_gripper_client = self.create_client(Trigger, "/arm/close_gripper")
+        self._service_cb_group = ReentrantCallbackGroup()
+        self.set_mode_client = self.create_client(
+            SetMode, "/arm/set_mode", callback_group=self._service_cb_group
+        )
+        self.open_gripper_client = self.create_client(
+            Trigger, "/arm/open_gripper", callback_group=self._service_cb_group
+        )
+        self.close_gripper_client = self.create_client(
+            Trigger, "/arm/close_gripper", callback_group=self._service_cb_group
+        )
         self.set_speed_client = self.create_client(
-            SetSpeedPreset, "/arm/set_speed_preset"
+            SetSpeedPreset,
+            "/arm/set_speed_preset",
+            callback_group=self._service_cb_group,
         )
         self.door_button_detection_client = self.create_client(
-            SetBool, "/arm/door/detection/enable"
+            SetBool, "/arm/door/detection/enable", callback_group=self._service_cb_group
         )
 
     def init_actions_clients(self):
@@ -83,6 +146,7 @@ class SystemControl(rclpy.node.Node):
         req.mode = mode.value
         future = self.set_mode_client.call_async(req)
         rclpy.spin_until_future_complete(self, future)
+        print("set_arm_mode result: " + str(future.result()))
         if future.result() is not None:
             return future.result().success
         else:
@@ -126,6 +190,9 @@ class SystemControl(rclpy.node.Node):
             self.get_logger().info("All nodes are ready!")
             self.ready()  # trigger transition to Chair state when all nodes are ready
             # TODO: need check UI connection as well
+            # wait 2 senconds to start mock testing here
+            # self.mock_open_door_request()
+
         else:
             self.get_logger().warn("Some nodes are missing!")
             self.eStop()  # trigger transition to error state when nodes are missing
@@ -141,7 +208,7 @@ class SystemControl(rclpy.node.Node):
 
     def is_arm_at_home(self):
         # Placeholder for actual logic to determine if the arm is at the home position
-        return True
+        return False
 
     def is_arm_stable_cup(self):
         # Placeholder for actual logic to determine if the arm is stable with a cup
@@ -153,7 +220,7 @@ class SystemControl(rclpy.node.Node):
 
     def is_arm_retracted(self):
         # Placeholder for actual logic to determine if the arm is retracted
-        return False
+        return True
 
     # state machine callbacks
     def on_enter_Chair(self):
@@ -172,26 +239,17 @@ class SystemControl(rclpy.node.Node):
         print("current state:" + self.state)
         print("triggering ready")
         self.ready()
+        while self.state != "Chair_SLOff":
+            self.get_logger().info("Waiting to enter Chair_SLOff state for testing...")
+            self.get_clock().sleep_for(rclpy.duration.Duration(seconds=1))
         print("current state:" + self.state)
         print("triggering reqArm")
         self.reqArm()
         print("current state:" + self.state)
-        self.arm_preset_client.set_preset(ArmPreset.HOME)
+        print("simple test : request open door")
+        self.reqOpenDoor()  # should enter Arm_Door_raisingArm state
+        # self.arm_preset_client.set_preset(ArmPreset.HOME)
         print("current state:" + self.state)
-
-        # get current time
-        current_time = self.get_clock().now()
-        # run function 100 times.
-        for i in range(100):
-            self.get_node_names_and_namespaces()
-
-        # get now
-        new_time = self.get_clock().now()
-        # print time difference
-        time_diff = new_time - current_time
-        print(
-            f"Time taken to call get_node_names_and_namespaces 100 times: {time_diff.nanoseconds / 1e6} ms"
-        )
 
     # state machine setup
     def init_state_machine(self):
@@ -210,7 +268,7 @@ class SystemControl(rclpy.node.Node):
                     {
                         "name": "Door",
                         "initial": "raisingArm",
-                        "children": ["raisingArm", "detecting", "opening", "opened"],
+                        "children": ["raisingArm", "detecting", "opening"],
                     },
                     {
                         "name": "OrderDrink",
@@ -253,7 +311,6 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "retract",
                 "source": [
-                    "Arm_Door_opened",
                     "Arm_Drink_finished",
                     "Arm_paused",
                     "Arm_home",
@@ -319,7 +376,7 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "doorOpenFinished",
                 "source": "Arm_Door_opening",
-                "dest": "Arm_Door_opened",
+                "dest": "Arm_retracted",
             },
             # order drink
             {
@@ -477,15 +534,22 @@ class SystemControl(rclpy.node.Node):
             transitions=transitions,
             initial="init",
             ignore_invalid_triggers=True,
+            queued=True,  # ensure thread safety for state transitions
         )
 
 
 def main():
     rclpy.init()
+    executor = MultiThreadedExecutor()
     node = SystemControl()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    executor.add_node(node)
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

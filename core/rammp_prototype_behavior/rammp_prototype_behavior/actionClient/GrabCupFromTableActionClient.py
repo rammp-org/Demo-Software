@@ -48,7 +48,7 @@ class GrabCupFromTableActionClient(ActionClientWrapper):
 
     def send_goal(self):
         goal = CornellActionsPlaceHolder.Goal()
-        asyncio.run_coroutine_threadsafe(self.send_goal(goal), self._node._loop)
+        asyncio.run_coroutine_threadsafe(super().send_goal(goal), self._node._loop)
 
     def cancel(self):
-        asyncio.run_coroutine_threadsafe(self.cancel_goal(), self._node._loop)
+        asyncio.run_coroutine_threadsafe(super().cancel_goal(), self._node._loop)

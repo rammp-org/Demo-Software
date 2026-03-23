@@ -23,6 +23,7 @@ class OpenDoorActionClient(ActionClientWrapper):
     def goal_callback(self, success: bool):
         if success:
             self._node.get_logger().info("Goal accepted by the action server.")
+            self._node.doorOpenFinished()
         else:
             self._node.get_logger().warn("Goal rejected by the action server.")
             self._node.reqArmActionGoalFailed()
@@ -48,7 +49,7 @@ class OpenDoorActionClient(ActionClientWrapper):
 
     def send_goal(self):
         goal = DoorOpenActionTypePlaceHolder.Goal()
-        asyncio.run_coroutine_threadsafe(self.send_goal(goal), self._node._loop)
+        asyncio.run_coroutine_threadsafe(super().send_goal(goal), self._node._loop)
 
     def cancel(self):
-        asyncio.run_coroutine_threadsafe(self.cancel_goal(), self._node._loop)
+        asyncio.run_coroutine_threadsafe(super().cancel_goal(), self._node._loop)

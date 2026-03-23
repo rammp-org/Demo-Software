@@ -8,7 +8,7 @@ from arm_interfaces.action import ExecuteTrajectory, ReachPreset
 from arm_interfaces.srv import GetSpeedPreset, SetMode, SetSpeedPreset
 from diagnostic_msgs.msg import DiagnosticStatus
 from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped
-from rclpy.action import ActionServer
+from rclpy.action import ActionServer, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from sensor_msgs.msg import Imu, JointState
@@ -198,6 +198,7 @@ class ArmDriverNode(rclpy.node.Node):
             ReachPreset,
             "/arm/reach_preset",
             self._on_reach_preset,
+            goal_callback=self._goal_callback,
             callback_group=self._action_group,
         )
         self._execute_trajectory_actions = [
@@ -208,11 +209,18 @@ class ArmDriverNode(rclpy.node.Node):
                 lambda goal_handle, s=source: self._on_execute_trajectory(
                     s, goal_handle
                 ),
+                goal_callback=self._goal_callback,
                 callback_group=self._action_group,
             )
             for source in SOURCES
             if _SOURCE_MODE[source] == CommandMode.POSITION
         ]
+
+    def _goal_callback(self, goal_request):
+        # goal_callback receives the Goal request message, not a goal handle.
+        # Accept/reject by returning GoalResponse.
+        self.get_logger().info("Received an action goal request.")
+        return GoalResponse.ACCEPT
 
     def _init_timers(self):
         """Create periodic timers for state publishing and twist streaming."""
@@ -524,6 +532,7 @@ class ArmDriverNode(rclpy.node.Node):
             The populated action result.
         """
         self._transition_to(ArmState.PRESET_IN_MOTION)
+        result = ReachPreset.Result()
 
         try:
             arm_fn(blocking=False)
@@ -531,7 +540,6 @@ class ArmDriverNode(rclpy.node.Node):
             while not self._arm.ready():
                 if self._state == ArmState.ERROR:
                     goal_handle.abort()
-                    result = ReachPreset.Result()
                     result.success = False
                     result.message = self._error_reason
                     return result
@@ -546,21 +554,18 @@ class ArmDriverNode(rclpy.node.Node):
             # Guard against estop firing at the exact moment the arm became ready.
             if self._state == ArmState.ERROR:
                 goal_handle.abort()
-                result = ReachPreset.Result()
                 result.success = False
                 result.message = "Action aborted: e-stop triggered during execution"
                 return result
 
             self._transition_to(ArmState.IDLE)
             goal_handle.succeed()
-            result = ReachPreset.Result()
             result.success = True
         except Exception as e:
             self.get_logger().error(f"Action failed: {e}")
             self._error_reason = f"Action execution failed: {e}"
             self._transition_to(ArmState.ERROR)
             goal_handle.abort()
-            result = ReachPreset.Result()
             result.success = False
             result.message = self._error_reason
 

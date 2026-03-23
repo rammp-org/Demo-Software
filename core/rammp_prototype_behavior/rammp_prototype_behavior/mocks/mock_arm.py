@@ -62,7 +62,7 @@ class KinovaArm:
 
     def _execute_reference_action(self, action_name, blocking=True):
         # Retrieve reference action
-        self.action_count = 10
+        self.action_count = 50
 
     def home(self, blocking=True):
         self._execute_reference_action("Home", blocking=blocking)

@@ -32,8 +32,18 @@ class ActionClientWrapper:
         self._node = node
         self._action_name = name
         self._action_type = goal_type
+        self._action_cb_group = self._node._cb_group
+        self._qos_profile_services_goal = rclpy.qos.QoSProfile(depth=10)
+        self._qos_profile_services_goal.reliability = (
+            rclpy.qos.ReliabilityPolicy.RELIABLE
+        )
+
         self._client: ActionClient = ActionClient(
-            self._node, goal_type, self._action_name
+            self._node,
+            goal_type,
+            self._action_name,
+            callback_group=self._action_cb_group,
+            goal_service_qos_profile=self._qos_profile_services_goal,
         )
         self._goal_callback = goal_callback
         self._result_callback = result_callback
@@ -66,6 +76,7 @@ class ActionClientWrapper:
         return self._action_running
 
     async def send_goal(self, goal: Type[Any]):
+        await asyncio.sleep(5)  # yield control to ensure this runs in the event loop
         if self._action_running:
             self._goal_callback(False)
             return
@@ -78,8 +89,12 @@ class ActionClientWrapper:
             goal
         )  # no feedback callback here.
         send_goal_future.add_done_callback(self._send_goal_done_callback)
+        self._node.get_logger().info(
+            "Goal sent to action server, waiting for response..."
+        )
 
     def _send_goal_done_callback(self, future: Future):
+        print("Received response from action server for goal request.")
         try:
             goal_handle: ClientGoalHandle = future.result()
             if not goal_handle.accepted:

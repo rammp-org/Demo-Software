@@ -4,7 +4,7 @@ import rclpy
 import rclpy.action
 import rclpy.node
 
-from rclpy.action import ActionServer
+from rclpy.action import ActionServer, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from std_srvs.srv import SetBool
@@ -19,15 +19,20 @@ class OpenDoor(rclpy.node.Node):
         self._mock_action_result = True  # default to successful execution
         self._action_running = False
         self._action_counter = 0
+        self.cb_group = ReentrantCallbackGroup()
         self.create_service(
-            SetBool, "/arm/door/detection/enable", self._srv_detection_enable
+            SetBool,
+            "/arm/door/detection/enable",
+            self._srv_detection_enable,
+            callback_group=self.cb_group,
         )
         self._action_server = ActionServer(
             self,
             DoorOpenActionTypePlaceHolder,
             "/arm/door/open",
             self._execute_callback,
-            callback_group=ReentrantCallbackGroup(),
+            callback_group=self.cb_group,
+            goal_callback=self._goal_callback,
         )
 
     def _srv_detection_enable(self, request, response):
@@ -38,14 +43,16 @@ class OpenDoor(rclpy.node.Node):
         response.success = True
         return response
 
-    def publish_feecback(self, goal_handle) -> bool:
+    def publish_feedback(self, goal_handle) -> bool:
         feedback = DoorOpenActionTypePlaceHolder.Feedback()
         while self._action_counter > 0:
+            self.get_logger().info("action counter left: " + str(self._action_counter))
             feedback.status = str(self._action_counter)
             goal_handle.publish_feedback(feedback)
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
                 return False
+            self._action_counter -= 1
             time.sleep(0.1)  # sleep 0.1s
         return True
 
@@ -63,7 +70,7 @@ class OpenDoor(rclpy.node.Node):
             result = DoorOpenActionTypePlaceHolder.Result()
             self._action_running = False
             return result
-
+        self.get_logger().info("Action execution finished.")
         # mock result
         result = DoorOpenActionTypePlaceHolder.Result()
         self._action_running = False
@@ -75,6 +82,12 @@ class OpenDoor(rclpy.node.Node):
             goal_handle.abort()
             result.success = False
         return result
+
+    def _goal_callback(self, goal_request):
+        # goal_callback receives the Goal request message, not a goal handle.
+        # Accept/reject by returning GoalResponse.
+        self.get_logger().info("Received an action goal request.")
+        return GoalResponse.ACCEPT
 
 
 def main(args=None):

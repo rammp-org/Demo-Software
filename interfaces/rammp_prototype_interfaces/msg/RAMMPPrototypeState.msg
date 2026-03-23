@@ -70,4 +70,3 @@ float64 tilt
 
 #other
 float64 app_time
-float64 measure_height

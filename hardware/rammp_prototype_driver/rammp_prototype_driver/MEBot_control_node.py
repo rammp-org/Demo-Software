@@ -120,10 +120,6 @@ class MEBotControlNode(Node):
         self.prev_speed_MR = 0.0
         self.current_speed_MR = 0.0
 
-        # tilt and measure height
-        self.tilt = 0.0
-        self.measure_height = 0.0
-
         #### Init all ROS interfaces
         self._init_services()
         self._init_actions()
@@ -287,9 +283,6 @@ class MEBotControlNode(Node):
         msg.ml_vel = float(self.current_speed_ML)
         msg.mr_vel = float(self.current_speed_MR)
         # TODO: Add the remaining velocities once they are sent by the Teensy
-
-        # measure height
-        msg.measure_height = float(self.measure_height)
 
         self.RAMMPPrototypeState_publisher.publish(msg)
 

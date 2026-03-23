@@ -30,6 +30,7 @@ class SerialField(IntEnum):
     If the Teensy serial protocol changes field order, update the values here.
     """
 
+    #  Indices here should match the order of data sent from the Teensy in Base.ino's serial output array
     IMU_PITCH = 0
     IMU_ROLL = 1
     ACCEL_X = 2
@@ -78,8 +79,8 @@ class MEBotControlNode(Node):
 
         ### Fields to store incoming data from serial for publishing in ROS messages
         # IMU
-        self.IMU_pitch = 0.0
-        self.IMU_roll = 0.0
+        self.imu_pitch = 0.0
+        self.imu_roll = 0.0
         self.accel_x = 0.0
         self.accel_y = 0.0
         self.accel_z = 0.0
@@ -99,14 +100,14 @@ class MEBotControlNode(Node):
         self.MR_loadcell = 0.0
         self.ML_loadcell = 0.0
 
-        # CA_flag and action
-        self.CA_flag = 0.0
-        self.action = (
-            "z"  # variable to store most recent action command Base.ino recieved
-        )
+        # CA_flag
+        self.CA_flag = 0
+
+        # state
+        self.state = RAMMPPrototypeState.STATE_IDLE
 
         # app time
-        self.appTime = 0.0
+        self.app_time = 0.0
 
         # velocity and acceleration
         self.prev_speed_ML = 0.0
@@ -184,52 +185,45 @@ class MEBotControlNode(Node):
             ):  # check if data is in expected list format
                 data = ast.literal_eval(raw_data)
                 self.update_data(data)  # Update variables with new data
-                self.publish_tf_data()  # update tf data based on updated teensy encoder data
-            if raw_data.startswith(
-                "Action:"
-            ):  # check if data is an action command from Base.ino
-                self.action = raw_data.split("Action:")[1].strip()[0]
 
     def write_serial_data(self, data):
         self.ser.write(data.encode("utf-8"))
 
     # update variables to be published
     def update_data(self, data):
-        F = SerialField
-
         # IMU
-        self.IMU_pitch = data[F.IMU_PITCH]
-        self.IMU_roll = data[F.IMU_ROLL]
-        self.accel_x = data[F.ACCEL_X]
-        self.accel_y = data[F.ACCEL_Y]
-        self.accel_z = data[F.ACCEL_Z]
+        self.imu_pitch = data[SerialField.IMU_PITCH]
+        self.imu_roll = data[SerialField.IMU_ROLL]
+        self.accel_x = data[SerialField.ACCEL_X]
+        self.accel_y = data[SerialField.ACCEL_Y]
+        self.accel_z = data[SerialField.ACCEL_Z]
 
         # Encoders
-        self.FC_pos = data[F.FC_POS]
-        self.RC_pos = data[F.RC_POS]
-        self.MR_pos = data[F.MR_POS]
-        self.ML_pos = data[F.ML_POS]
-        self.ML_carriage_pos = data[F.ML_CARRIAGE_POS]
-        self.MR_carriage_pos = data[F.MR_CARRIAGE_POS]
-        self.ML_wheel_pos = data[F.ML_WHEEL_POS]
-        self.MR_wheel_pos = data[F.MR_WHEEL_POS]
+        self.FC_pos = data[SerialField.FC_POS]
+        self.RC_pos = data[SerialField.RC_POS]
+        self.MR_pos = data[SerialField.MR_POS]
+        self.ML_pos = data[SerialField.ML_POS]
+        self.ML_carriage_pos = data[SerialField.ML_CARRIAGE_POS]
+        self.MR_carriage_pos = data[SerialField.MR_CARRIAGE_POS]
+        self.ML_wheel_pos = data[SerialField.ML_WHEEL_POS]
+        self.MR_wheel_pos = data[SerialField.MR_WHEEL_POS]
 
         # Loadcells
-        self.FC_loadcell = data[F.FC_LOADCELL]
-        self.MR_loadcell = data[F.MR_LOADCELL]
-        self.ML_loadcell = data[F.ML_LOADCELL]
+        self.FC_loadcell = data[SerialField.FC_LOADCELL]
+        self.MR_loadcell = data[SerialField.MR_LOADCELL]
+        self.ML_loadcell = data[SerialField.ML_LOADCELL]
 
         # CA_flag
-        self.CA_flag = data[F.CA_FLAG]
+        self.CA_flag = data[SerialField.CA_FLAG]
 
-        # Apptime
-        self.appTime = data[F.APP_TIME]
+        # app_time
+        self.app_time = data[SerialField.APP_TIME]
 
         # Velocity
         self.prev_speed_ML = self.current_speed_ML
-        self.current_speed_ML = data[F.SPEED_ML]
+        self.current_speed_ML = data[SerialField.SPEED_ML]
         self.prev_speed_MR = self.current_speed_MR
-        self.current_speed_MR = data[F.SPEED_MR]
+        self.current_speed_MR = data[SerialField.SPEED_MR]
 
     def publish_joint_states(self):
         msg = JointState()
@@ -256,48 +250,36 @@ class MEBotControlNode(Node):
         ]  # joint positions from encoders
         self.joint_state_publisher.publish(msg)
 
-    def publish_tf_data(self):
-        # t = TransformStamped()
-        # t.header.stamp = self.get_clock().now().to_msg()
-        # t.header.frame_id = None
-        # t.child_frame_id = None
-        # self.tf_broadcaster.sendTransform(t)
-        pass
-
     def publish_RAMMPPrototypeState(self):
         msg = RAMMPPrototypeState()
         msg.header.stamp = self.get_clock().now().to_msg()
 
-        msg.pitch = self.IMU_pitch
-        msg.roll = self.IMU_roll
-        msg.ax = self.accel_x
-        msg.ay = self.accel_y
-        msg.az = self.accel_z
-        msg.tilt = math.acos(math.cos(self.IMU_pitch) * math.cos(self.IMU_roll)) * (
-            180 / math.pi
-        )  # calculate tilt in degrees using pitch and roll
+        # TODO: populate orientation, linear_acceleration, angular_velocity, tilt
+        # once Teensy sends quaternion data directly over serial
 
         # Encoders
-        msg.fc_enc = self.FC_pos
-        msg.fr_enc = self.RC_pos
-        msg.mr_enc = self.MR_pos
-        msg.ml_enc = self.ML_pos
-        msg.ml_carr_enc = self.ML_carriage_pos
-        msg.mr_carr_enc = self.MR_carriage_pos
-        msg.ml_wheel_enc = self.ML_wheel_pos
-        msg.mr_wheel_enc = self.MR_wheel_pos
+        msg.fc_pos = self.FC_pos
+        msg.rc_pos = self.RC_pos
+        msg.mr_pos = self.MR_pos
+        msg.ml_pos = self.ML_pos
+        msg.ml_carriage_pos = self.ML_carriage_pos
+        msg.mr_carriage_pos = self.MR_carriage_pos
+        msg.ml_wheel_pos = self.ML_wheel_pos
+        msg.mr_wheel_pos = self.MR_wheel_pos
 
         # loadcells
-        msg.fc_lc = self.FC_loadcell
-        msg.mr_lc = self.MR_loadcell
-        msg.ml_lc = self.ML_loadcell
+        msg.fc_loadcell = self.FC_loadcell
+        msg.mr_loadcell = self.MR_loadcell
+        msg.ml_loadcell = self.ML_loadcell
 
-        # CA_flag and action
-        msg.ca_flag = int(self.CA_flag)
-        msg.action = str(self.action)
+        # CA_flag
+        msg.ca_flag = self.CA_flag
+
+        # state
+        msg.state = self.state
 
         # app time
-        msg.app_time = float(self.appTime)
+        msg.app_time = float(self.app_time)
 
         # velocity and acceleration
         msg.ml_vel = float(self.current_speed_ML)
@@ -322,8 +304,8 @@ class MEBotControlNode(Node):
         msg.linear_acceleration.z = self.accel_z
 
         # convert IMU angles from degrees to radians for orientation fields
-        pitch = math.radians(self.IMU_pitch)
-        roll = math.radians(self.IMU_roll)
+        pitch = math.radians(self.imu_pitch)
+        roll = math.radians(self.imu_roll)
         yaw = 0.0  # assuming yaw is 0 since it is not measured by the IMU
 
         # populate orientation fields using Euler angles (assuming yaw is 0)

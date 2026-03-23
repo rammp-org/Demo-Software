@@ -22,7 +22,7 @@ class gamepadNode(Node):
         self.joy_pub = self.create_publisher(String, "gamepad_inputs", 10)
         self.joy_timer = self.create_timer(1.0, self.joy_pub_callback)
 
-        self.joy_sub = self.create_subscription(Joy, "/Joy", self.joy_sub_callback, 10)
+        self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_sub_callback, 10)
 
     def estop_pub(self):
         # msg = Bool()
@@ -40,17 +40,16 @@ class gamepadNode(Node):
             return
 
         msg = String()
-
+        msg.data = "No buttons pressed"
         if self.buttons[0] == 1:
             msg.data = "Button 1 pressed"
-        elif self.buttons[1] == 1:
+        if self.buttons[1] == 1:
             msg.data = "Button 2 pressed"
-        elif self.buttons[2] == 1:
+        if self.buttons[2] == 1:
             msg.data = "Button 3 pressed"
-        elif self.buttons[3] == 1:
+        if self.buttons[3] == 1:
             msg.data = "Button 4 pressed"
-        else:
-            msg.data = "No buttons pressed"
+
         self.joy_pub.publish(msg)
 
     def joy_sub_callback(self, msg):

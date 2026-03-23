@@ -38,10 +38,11 @@ class gamepadNode(Node):
     def joy_pub_callback(self):
         if self.buttons is None:
             return
-
+        if self.axes is None:
+            return
         msg = Float64MultiArray()
         msg.data = [float(b) for b in self.buttons]
-
+        # msg.data = [float(b) for b in self.buttons]
         self.joy_pub.publish(msg)
 
     def joy_sub_callback(self, msg):

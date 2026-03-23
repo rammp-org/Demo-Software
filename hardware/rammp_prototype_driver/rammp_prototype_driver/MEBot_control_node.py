@@ -76,7 +76,7 @@ class MEBotControlNode(Node):
         # Rate to publish RAMMPPrototypeState
         self.state_publish_rate = 1 / 100.0
         # Diagnostic publish rate
-        self.publish_rate = 1 / 1.0
+        self.diagnostic_publish_rate = 1 / 1.0
 
         # timer for serial data reading
         self.serial_timer = self.create_timer(self.serial_rate, self.read_serial_data)
@@ -170,7 +170,7 @@ class MEBotControlNode(Node):
             RAMMPPrototypeState, "rammp_prototype_state", 10
         )
         self.RAMMPPrototypeState_timer = self.create_timer(
-            self.publish_rate, self.publish_RAMMPPrototypeState
+            self.state_publish_rate, self.publish_RAMMPPrototypeState
         )
 
         self.imu_publisher = self.create_publisher(Imu, "imu", 10)

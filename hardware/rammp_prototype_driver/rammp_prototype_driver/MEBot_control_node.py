@@ -195,15 +195,17 @@ class MEBotControlNode(Node):
         self.accel_y = data[SerialField.ACCEL_Y]
         self.accel_z = data[SerialField.ACCEL_Z]
 
-        # Encoders
-        self.FC_pos = data[SerialField.FC_POS]
-        self.RC_pos = data[SerialField.RC_POS]
-        self.MR_pos = data[SerialField.MR_POS]
-        self.ML_pos = data[SerialField.ML_POS]
-        self.ML_carriage_pos = data[SerialField.ML_CARRIAGE_POS]
-        self.MR_carriage_pos = data[SerialField.MR_CARRIAGE_POS]
-        self.ML_wheel_pos = data[SerialField.ML_WHEEL_POS]
-        self.MR_wheel_pos = data[SerialField.MR_WHEEL_POS]
+        # Encoders — convert cm to meters
+        self.FC_pos = data[SerialField.FC_POS] / 100.0
+        self.RC_pos = data[SerialField.RC_POS] / 100.0
+        self.MR_pos = data[SerialField.MR_POS] / 100.0
+        self.ML_pos = data[SerialField.ML_POS] / 100.0
+        self.ML_carriage_pos = data[SerialField.ML_CARRIAGE_POS] / 100.0
+        self.MR_carriage_pos = data[SerialField.MR_CARRIAGE_POS] / 100.0
+        # TODO: ML/MR wheel joints are revolute — position should be in radians.
+        # Convert from distance traveled (m) to radians using wheel radius when known.
+        self.ML_wheel_pos = data[SerialField.ML_WHEEL_POS] / 100.0
+        self.MR_wheel_pos = data[SerialField.MR_WHEEL_POS] / 100.0
 
         # Loadcells
         self.FC_loadcell = data[SerialField.FC_LOADCELL]
@@ -216,12 +218,12 @@ class MEBotControlNode(Node):
         # app_time
         self.app_time = data[SerialField.APP_TIME]
 
-        # Velocity
+        # Velocity — convert cm/s to m/s
         # TODO:
         self.prev_speed_ML = self.current_speed_ML
-        self.current_speed_ML = data[SerialField.SPEED_ML]
+        self.current_speed_ML = data[SerialField.SPEED_ML] / 100.0
         self.prev_speed_MR = self.current_speed_MR
-        self.current_speed_MR = data[SerialField.SPEED_MR]
+        self.current_speed_MR = data[SerialField.SPEED_MR] / 100.0
 
     def publish_joint_states(self):
         msg = JointState()

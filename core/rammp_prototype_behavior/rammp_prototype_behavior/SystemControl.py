@@ -12,11 +12,12 @@ from .actionClient.GrabCupFromTableActionClient import GrabCupFromTableActionCli
 from .actionClient.HomeCupActionClient import HomeCupActionClient
 from .actionClient.PickUpAndOrderActionClient import PickUpAndOrderActionClient
 from .actionClient.PutCupBackToHolderActionClient import PutCupBackToHolderActionClient
+from .actionClient.OpenDoorActionClient import OpenDoorActionClient
 from transitions.extensions import HierarchicalMachine as Machine
 from .node_name_monitor import NodeNameMonitor
 from ament_index_python.packages import get_package_share_directory
 from arm_interfaces.srv import SetMode, SetSpeedPreset
-from std_srvs.srv import Trigger
+from std_srvs.srv import Trigger, SetBool
 from diagnostic_msgs.msg import DiagnosticStatus
 
 
@@ -64,6 +65,9 @@ class SystemControl(rclpy.node.Node):
         self.set_speed_client = self.create_client(
             SetSpeedPreset, "/arm/set_speed_preset"
         )
+        self.door_button_detection_client = self.create_client(
+            SetBool, "/arm/door/detection/enable"
+        )
 
     def init_actions_clients(self):
         self.arm_preset_client = ArmPresetActionClient(self)
@@ -72,6 +76,7 @@ class SystemControl(rclpy.node.Node):
         self.grab_cup_from_table_client = GrabCupFromTableActionClient(self)
         self.put_cup_back_to_holder_client = PutCupBackToHolderActionClient(self)
         self.bring_cup_to_mouth_client = BringCupToMouthActionClient(self)
+        self.open_door_client = OpenDoorActionClient(self)
 
     def set_arm_mode(self, mode: ArmMode) -> bool:
         req = SetMode.Request()
@@ -85,6 +90,16 @@ class SystemControl(rclpy.node.Node):
 
     def open_gripper(self) -> bool:
         future = self.open_gripper_client.call_async(Trigger.Request())
+        rclpy.spin_until_future_complete(self, future)
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
+    def enable_door_detection(self, enable: bool) -> bool:
+        req = SetBool.Request()
+        req.data = enable
+        future = self.door_button_detection_client.call_async(req)
         rclpy.spin_until_future_complete(self, future)
         if future.result() is not None:
             return future.result().success

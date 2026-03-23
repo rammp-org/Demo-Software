@@ -8,6 +8,9 @@
     },
     {
       "name": "/drinking_node"
+    },
+    {
+      "name": "/open_door_node"
     }
   ]
 }

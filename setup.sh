@@ -15,7 +15,7 @@ ROSDEP_YAML="file://${REPO_ROOT}/hardware/arm_driver/rosdep/python.yaml"
 echo "=== Updating apt ==="
 $SUDO apt-get update -q
 
-echo "=== Installing gRPC and protobuf ==="
+echo "=== Installing gRPC ==="
 export MY_INSTALL_DIR="${MY_INSTALL_DIR:-$HOME/.local}"
 mkdir -p $MY_INSTALL_DIR
 export PATH="$MY_INSTALL_DIR/bin:$PATH"
@@ -35,11 +35,13 @@ if [ ! -f "$MY_INSTALL_DIR/lib/libgrpc.a" ]; then
       ../.. \
       && make -j$(nproc) \
       && make install \
-      && cd $REPO_ROOT \
-      && $SUDO apt-get install -y libprotobuf-dev
+      && cd $REPO_ROOT
 else
     echo "gRPC already installed, skipping build."
 fi
+
+echo "=== Installing protobuf ==="
+$SUDO apt-get install -y libprotobuf-dev
 
 echo "=== Registering custom rosdep sources ==="
 echo "yaml ${ROSDEP_YAML}" | $SUDO tee "${ROSDEP_SOURCE}"

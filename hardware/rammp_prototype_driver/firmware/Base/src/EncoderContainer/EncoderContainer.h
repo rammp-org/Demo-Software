@@ -23,14 +23,14 @@ public:
   Encoder Enc12 = Encoder(36, 37); // MR back           (36,37)
   signed long encoder[13]; // = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   signed long encoderf[13] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  
+
   // Encoder offsets for zeroing (RAM only, resets on power cycle)
   signed long encoder_offset[13] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
   void retrieve_readings();
-  void zeroEncoder(int index);      // Zero single encoder
+  void zeroEncoder(int index);                   // Zero single encoder
   void setOffset(int index, signed long offset); // Set custom offset
-  signed long getRawReading(int index);  // Get raw value before offset
+  signed long getRawReading(int index);          // Get raw value before offset
 };
 
 #endif

@@ -1,6 +1,5 @@
 from __future__ import annotations
-from typing import Any, Optional, Callable, Type
-import asyncio
+from typing import Any, Callable, Type
 
 import rclpy
 from rclpy.node import Node
@@ -49,25 +48,6 @@ class ActionClientWrapper:
         self._result_callback = result_callback
         self._cancel_callback = cancel_callback
         self.gh = None
-
-    async def wait_for_server(self, timeout: Optional[float] = None) -> bool:
-        """
-        Wait for the action server to be available.
-
-        :param timeout: Optional timeout in seconds. If None, wait indefinitely.
-        :return: True if the server is available, False if timed out.
-        """
-        try:
-            await self._client.wait_for_server(timeout_sec=timeout)
-            self._node.get_logger().debug(
-                f"Action server '{self._action_name}' is available."
-            )
-            return True
-        except asyncio.TimeoutError:
-            self._node.get_logger().warn(
-                f"Timed out waiting for action server '{self._action_name}'."
-            )
-            return False
 
     def is_server_ready(self) -> bool:
         return self._client.server_is_ready()
@@ -143,7 +123,7 @@ class ActionClientWrapper:
             self._cancel_callback(False)
             return False
 
-        if cancel_result.return_code == rclpy.action.GoalResponse.ACCEPTED:
+        if cancel_result.goals_canceling > 0:
             self._node.get_logger().debug(
                 "Goal cancellation accepted by the action server."
             )

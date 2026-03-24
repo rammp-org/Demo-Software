@@ -1,7 +1,5 @@
 import json
-# json_path = Path(
-#     "/Demo-Software/core/rammp_prototype_behavior/rammp_prototype_behavior/nodes.json"
-# )
+from rclpy.callback_groups import ReentrantCallbackGroup
 
 
 class NodeNameMonitor:
@@ -9,8 +7,9 @@ class NodeNameMonitor:
         self.ros_node = ros_node
         self.callback = callback
         self.json_path = json_path
+        cb_group = ReentrantCallbackGroup()
         self.nodes_ready_timer = ros_node.create_timer(
-            1.0, self.NodesReady, callback_group=self.ros_node._cb_group
+            1.0, self.NodesReady, callback_group=cb_group
         )
         self.nodes_was_missing = True  # to track the previous state of node readiness and only call the callback when there is a change in state
 
@@ -40,4 +39,4 @@ class NodeNameMonitor:
             self.callback(False)
         elif not missing and self.nodes_was_missing:
             self.callback(True)
-        self.nodes_was_missing = missing
+        self.nodes_was_missing = bool(missing)

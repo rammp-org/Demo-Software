@@ -4,7 +4,6 @@
 import collections
 import collections.abc
 import enum
-import os
 
 import numpy as np
 
@@ -28,24 +27,9 @@ class KinovaArm:
     def __init__(self):
         # Check whether arm is connected
 
-        # Lock file to enforce single instance
-        self.lock_file = "/tmp/kinova.lock"
-        if os.path.exists(self.lock_file):
-            with open(self.lock_file, "r") as f:
-                pid = int(f.read().strip())
-            try:
-                os.kill(pid, 0)
-            except OSError:
-                print(f"Removing stale lock file (PID {pid})")
-                os.remove(self.lock_file)
-            else:
-                raise Exception(
-                    f"Another instance of the arm is already running (PID {pid})"
-                )
-        with open(self.lock_file, "w") as f:
-            f.write(str(os.getpid()))
         self.action_count = 0
         self.speed_preset = SpeedPreset.MEDIUM
+        self.actuator_count = 7
 
     def set_tool(self, tool):
         print("Does not affect current controller, but setting tool to", tool)

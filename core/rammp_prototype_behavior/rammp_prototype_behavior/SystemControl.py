@@ -143,14 +143,17 @@ class SystemControl(rclpy.node.Node):
 
     def _mock_delay(self, seconds, callback):
         """Non-blocking delay: creates a one-shot timer that calls `callback` after `seconds`."""
-        timer = self.create_timer(seconds, lambda: None, callback_group=self._cb_group)
+        timer = None
 
         def _on_timeout():
-            timer.cancel()
-            self.destroy_timer(timer)
+            nonlocal timer
+            if timer is not None:
+                timer.cancel()
+                self.destroy_timer(timer)
+                timer = None
             callback()
 
-        timer.callback = _on_timeout
+        timer = self.create_timer(seconds, _on_timeout, callback_group=self._cb_group)
 
     ## ---------------------mock testing functions----------------------------------
     def mock_open_door_request(self):
@@ -439,6 +442,8 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().debug(
             "set_arm_mode to " + mode.name + " result: " + str(future.result())
         )
+        if not future.done():
+            return False
         if future.result() is not None:
             return future.result().success
         else:
@@ -449,6 +454,8 @@ class SystemControl(rclpy.node.Node):
         event = threading.Event()
         future.add_done_callback(lambda _: event.set())
         event.wait(timeout=5.0)
+        if not future.done():
+            return False
         if future.result() is not None:
             return future.result().success
         else:
@@ -461,6 +468,8 @@ class SystemControl(rclpy.node.Node):
         event = threading.Event()
         future.add_done_callback(lambda _: event.set())
         event.wait(timeout=5.0)
+        if not future.done():
+            return False
         if future.result() is not None:
             return future.result().success
         else:
@@ -473,6 +482,8 @@ class SystemControl(rclpy.node.Node):
         event = threading.Event()
         future.add_done_callback(lambda _: event.set())
         event.wait(timeout=5.0)
+        if not future.done():
+            return False
         if future.result() is not None:
             return future.result().success
         else:
@@ -485,6 +496,8 @@ class SystemControl(rclpy.node.Node):
         event = threading.Event()
         future.add_done_callback(lambda _: event.set())
         event.wait(timeout=5.0)
+        if not future.done():
+            return False
         if future.result() is not None:
             return future.result().success
         else:
@@ -495,6 +508,8 @@ class SystemControl(rclpy.node.Node):
         event = threading.Event()
         future.add_done_callback(lambda _: event.set())
         event.wait(timeout=5.0)
+        if not future.done():
+            return False
         if future.result() is not None:
             return future.result().success
         else:
@@ -644,7 +659,7 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "reqArmActionCancelFailed",
                 "source": "Arm",
-                "dest": "error",
+                "dest": "Error",
             },  # can not cancel action, treat as error and require reset
             {
                 "trigger": "ArmActionFailed",
@@ -812,7 +827,7 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "reqArm",
                 "source": "Chair",
-                "dest": "Arm_OrderDrink_ordered",
+                "dest": "Arm_home",
                 "conditions": "is_arm_holding_drink",
             },
             {"trigger": "reqtNav", "source": "Chair", "dest": "Nav"},
@@ -865,7 +880,7 @@ class SystemControl(rclpy.node.Node):
 
 def main():
     rclpy.init()
-    executor = MultiThreadedExecutor(100)
+    executor = MultiThreadedExecutor()
     node = SystemControl()
     executor.add_node(node)
     try:

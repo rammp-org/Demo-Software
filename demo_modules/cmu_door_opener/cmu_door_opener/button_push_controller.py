@@ -17,8 +17,9 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer, ActionClient
-from rclpy.callback_group import ReentrantCallbackGroup
-from geometry_msgs.msg import PoseStamped, Twist, Vector3
+from rclpy.callback_groups import ReentrantCallbackGroup
+from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped, TwistStamped
+from sensor_msgs.msg import JointState
 from scipy.spatial.transform import Rotation
 
 from cmu_door_opener_interfaces.action import DoorOpen
@@ -27,9 +28,11 @@ from arm_interfaces.action import ReachPreset
 
 
 # Button push parameters
-PUSH_EXTRA = 0.02                # meters to overshoot past the button surface
-FORCE_THRESHOLD = 20.0           # Newtons — contact detection threshold
-PUSH_TIMEOUT = 10.0              # seconds — max time for push motion
+APPROACH_OFFSET = 0.03           # meters — stop this far in front of the button first
+PUSH_STEP = 0.01                 # meters — incremental push distance per step (1cm)
+PUSH_MAX = 0.10                  # meters — max total push distance past approach point
+FORCE_THRESHOLD = 30.0           # Newtons — contact detection threshold
+PUSH_TIMEOUT = 10.0              # seconds — max time for each phase
 FORCE_CHECK_RATE = 0.02          # seconds between force checks
 
 
@@ -45,10 +48,22 @@ class ButtonPushController(Node):
             ButtonInfo, '/arm/door/button_info', self._cb_button_info, 10
         )
 
+        # Joint states for velocity check
+        self._latest_joint_state = None
+        self.create_subscription(
+            JointState, '/arm/joint_states', self._cb_joint_state, 10
+        )
+
         # End-effector force from arm_driver
         self.latest_ee_force = None
         self.create_subscription(
-            Vector3, '/arm/ee_force', self._cb_ee_force, 10
+            Vector3Stamped, '/arm/ee/force', self._cb_ee_force, 10
+        )
+
+        # End-effector velocity from arm_driver
+        self.latest_ee_velocity = None
+        self.create_subscription(
+            TwistStamped, '/arm/ee/velocity', self._cb_ee_velocity, 10
         )
 
         # Publisher to command arm cartesian pose
@@ -79,8 +94,15 @@ class ButtonPushController(Node):
     def _cb_button_info(self, msg: ButtonInfo):
         self.latest_button_info = msg
 
-    def _cb_ee_force(self, msg: Vector3):
-        self.latest_ee_force = np.array([msg.x, msg.y, msg.z])
+    def _cb_joint_state(self, msg: JointState):
+        self._latest_joint_state = msg
+
+    def _cb_ee_force(self, msg: Vector3Stamped):
+        self.latest_ee_force = np.array([msg.vector.x, msg.vector.y, msg.vector.z])
+
+    def _cb_ee_velocity(self, msg: TwistStamped):
+        v = msg.twist.linear
+        self.latest_ee_velocity = np.array([v.x, v.y, v.z])
 
     def get_ee_force_magnitude(self):
         if self.latest_ee_force is None:
@@ -90,6 +112,12 @@ class ButtonPushController(Node):
     def stop_arm(self):
         zero_twist = Twist()
         self.twist_pub.publish(zero_twist)
+
+    def get_ee_velocity_magnitude(self):
+        """Get EE velocity magnitude from /arm/ee/velocity."""
+        if self.latest_ee_velocity is None:
+            return None
+        return float(np.linalg.norm(self.latest_ee_velocity))
 
     def _button_info_to_pose(self, info: ButtonInfo) -> PoseStamped:
         """Convert ButtonInfo pose_xyzrpy to a PoseStamped for arm command."""
@@ -118,26 +146,32 @@ class ButtonPushController(Node):
         feedback = DoorOpen.Feedback()
         result = DoorOpen.Result()
 
+        self.get_logger().info('=== /arm/door/open action received ===')
+
         # --- 1. Grab the latest ButtonInfo ---
         info = self.latest_button_info
+        self.get_logger().info(f'[STEP 1] Checking ButtonInfo: received={info is not None}')
+        if info is not None:
+            self.get_logger().info(
+                f'[STEP 1] ButtonInfo: confidence={info.confidence:.2f}, '
+                f'pose_xyzrpy={[f"{v:.4f}" for v in info.pose_xyzrpy]}, '
+                f'is_pressable={info.is_pressable}'
+            )
+
         if info is None:
             result.success = False
             result.message = 'No ButtonInfo received — is the detector running?'
-            self.get_logger().error(result.message)
+            self.get_logger().error(f'[STEP 1] ABORT: {result.message}')
             goal_handle.abort()
             return result
 
-        # Check which state the ButtonInfo is in:
-        #   State 1: no button found (confidence == 0, pose all -1)
-        #   State 2: button detected but not pressable (confidence > 0, pose all -1)
-        #   State 3: button detected and pressable (confidence > 0, valid pose)
         pose_arr = np.array(info.pose_xyzrpy)
         pose_invalid = np.allclose(pose_arr, -1.0)
 
         if info.confidence == 0.0 and pose_invalid:
             result.success = False
             result.message = 'No button detected by the detector'
-            self.get_logger().error(result.message)
+            self.get_logger().error(f'[STEP 1] ABORT: {result.message}')
             goal_handle.abort()
             return result
 
@@ -147,19 +181,30 @@ class ButtonPushController(Node):
                 f'Button detected (confidence={info.confidence:.2f}) '
                 'but pose is invalid — button may be too far or depth/TF failed'
             )
-            self.get_logger().error(result.message)
+            self.get_logger().error(f'[STEP 1] ABORT: {result.message}')
             goal_handle.abort()
             return result
+
+        # Log distance from base for debugging
+        btn_xyz = np.array(info.pose_xyzrpy[:3])
+        dist_from_base = float(np.linalg.norm(btn_xyz))
+        self.get_logger().info(
+            f'[STEP 1] Button distance from base: {dist_from_base:.4f}m, '
+            f'xyz=[{btn_xyz[0]:.4f}, {btn_xyz[1]:.4f}, {btn_xyz[2]:.4f}], '
+            f'is_pressable={info.is_pressable}'
+        )
 
         if not info.is_pressable:
             result.success = False
             result.message = (
                 f'Button detected (confidence={info.confidence:.2f}) '
-                'but is not pressable (IK not solvable)'
+                f'but out of reach (dist={dist_from_base:.3f}m)'
             )
-            self.get_logger().error(result.message)
+            self.get_logger().error(f'[STEP 1] ABORT: {result.message}')
             goal_handle.abort()
             return result
+
+        self.get_logger().info('[STEP 1] ButtonInfo valid and pressable')
 
         target_pose = self._button_info_to_pose(info)
         target_xyz = np.array([
@@ -167,74 +212,135 @@ class ButtonPushController(Node):
             target_pose.pose.position.y,
             target_pose.pose.position.z,
         ])
-
+        q = target_pose.pose.orientation
         self.get_logger().info(
-            f'Target pose: [{target_xyz[0]:.4f}, {target_xyz[1]:.4f}, {target_xyz[2]:.4f}]'
+            f'[STEP 1] Target pose: xyz=[{target_xyz[0]:.4f}, {target_xyz[1]:.4f}, {target_xyz[2]:.4f}] '
+            f'quat=[{q.x:.4f}, {q.y:.4f}, {q.z:.4f}, {q.w:.4f}]'
         )
 
-        # --- 2. Push the button ---
-        push_pose = PoseStamped()
-        push_pose.header = target_pose.header
-        push_pose.pose = target_pose.pose
-        # Overshoot along the approach direction (x for now, same as before)
-        push_pose.pose.position.x += PUSH_EXTRA
+        # --- 2a. Move to target (button surface) — 5s timeout ---
+        import copy
+        PHASE_TIMEOUT = 5.0
+        MIN_MOVE_TIME = 1.0    # wait at least 1s before checking velocity
+        SPEED_THRESHOLD = 0.005  # m/s — consider stopped below this
 
-        self.pose_pub.publish(push_pose)
+        self.get_logger().info(f'[STEP 2a] Moving to target: x={target_xyz[0]:.4f} (timeout={PHASE_TIMEOUT}s)')
+        self.pose_pub.publish(target_pose)
 
-        # --- 3. Monitor force — stop on contact, publish distance feedback ---
-        contact = False
+        arrived = False
         start_t = time.time()
-        while rclpy.ok() and (time.time() - start_t) < PUSH_TIMEOUT:
+        while rclpy.ok() and (time.time() - start_t) < PHASE_TIMEOUT:
+            time.sleep(FORCE_CHECK_RATE)
             force_mag = self.get_ee_force_magnitude()
+            velocity = self.get_ee_velocity_magnitude()
+            elapsed = time.time() - start_t
 
-            # Publish distance feedback (approximate — from target, not live EE pos)
-            feedback.distance_to_button = float(PUSH_EXTRA)  # simplified; refine with live EE
-            goal_handle.publish_feedback(feedback)
+            velocity_str = f'{velocity:.4f}' if velocity is not None else 'n/a'
+            print(f'[MOVE] {elapsed:5.2f}s  force={force_mag:6.1f} N  velocity={velocity_str} m/s', flush=True)
 
             if force_mag > FORCE_THRESHOLD:
-                self.get_logger().info(f'Contact! Force: {force_mag:.1f} N')
+                self.get_logger().warn(f'[STEP 2a] Force exceeded during move ({force_mag:.1f} N) — stopping')
+                self.stop_arm()
+                goal_handle.abort()
+                result.success = False
+                result.message = f'Force exceeded moving to target: {force_mag:.1f} N'
+                return result
+
+            # After min move time, if velocity near zero → arm has stopped → arrived
+            if elapsed > MIN_MOVE_TIME and velocity is not None and velocity < SPEED_THRESHOLD:
+                self.get_logger().info(f'[STEP 2a] Arm stopped (velocity={velocity:.4f} m/s) — arrived ({elapsed:.2f}s)')
+                arrived = True
+                break
+
+        if not arrived:
+            self.get_logger().warn('[STEP 2a] Move timed out — proceeding to push anyway')
+
+        # --- 2b. Push along approach direction (EE z-axis = into button) ---
+        push_pose = copy.deepcopy(target_pose)
+
+        # Extract the approach direction from the target orientation
+        # The tool z-axis points into the button surface
+        q = target_pose.pose.orientation
+        rot = Rotation.from_quat([q.x, q.y, q.z, q.w])
+        approach_dir = rot.as_matrix()[:, 2]  # z-axis column
+        push_offset = approach_dir * PUSH_MAX
+
+        push_pose.pose.position.x += float(push_offset[0])
+        push_pose.pose.position.y += float(push_offset[1])
+        push_pose.pose.position.z += float(push_offset[2])
+        push_pose.header.stamp = self.get_clock().now().to_msg()
+
+        self.get_logger().info(
+            f'[STEP 2b] Pushing along approach dir=[{approach_dir[0]:.3f},{approach_dir[1]:.3f},{approach_dir[2]:.3f}]: '
+            f'xyz=[{push_pose.pose.position.x:.4f},{push_pose.pose.position.y:.4f},{push_pose.pose.position.z:.4f}] '
+            f'(+{PUSH_MAX*100:.0f}cm overshoot), force_limit={FORCE_THRESHOLD}N'
+        )
+        self.pose_pub.publish(push_pose)
+
+        contact = False
+        start_t = time.time()
+        while rclpy.ok() and (time.time() - start_t) < PHASE_TIMEOUT:
+            time.sleep(FORCE_CHECK_RATE)
+            force_mag = self.get_ee_force_magnitude()
+            elapsed = time.time() - start_t
+            print(f'[PUSH] {elapsed:5.2f}s  force={force_mag:6.1f} N  (threshold={FORCE_THRESHOLD})', flush=True)
+
+            if force_mag > FORCE_THRESHOLD:
+                self.get_logger().info(
+                    f'[STEP 2b] Contact! Force: {force_mag:.1f} N after {elapsed:.2f}s — stopping arm'
+                )
                 self.stop_arm()
                 contact = True
                 break
-            time.sleep(FORCE_CHECK_RATE)
 
         if not contact:
-            self.get_logger().warn('Push timed out — stopping arm')
+            elapsed = time.time() - start_t
+            self.get_logger().warn(
+                f'[STEP 2b] Timed out after {elapsed:.2f}s (no force > {FORCE_THRESHOLD}N) — stopping arm'
+            )
             self.stop_arm()
 
         # --- 4. Retract ---
-        self.get_logger().info('Retracting arm...')
+        self.get_logger().info('[STEP 4] Retracting arm via /arm/reach_preset...')
 
         if not self._reach_preset_client.wait_for_server(timeout_sec=5.0):
             result.success = False
             result.message = 'Push done but /arm/reach_preset not available for retract'
-            self.get_logger().error(result.message)
+            self.get_logger().error(f'[STEP 4] ABORT: {result.message}')
             goal_handle.abort()
             return result
 
         retract_goal = ReachPreset.Goal()
         retract_goal.preset = ReachPreset.Goal.PRESET_RETRACT
+        self.get_logger().info('[STEP 4] Sending retract goal...')
         retract_future = self._reach_preset_client.send_goal_async(retract_goal)
 
-        # Wait for goal acceptance
-        rclpy.spin_until_future_complete(self, retract_future, timeout_sec=5.0)
+        # Wait for goal acceptance without rclpy.spin_until_future_complete
+        deadline = time.time() + 5.0
+        while not retract_future.done() and time.time() < deadline:
+            time.sleep(0.05)
         retract_handle = retract_future.result()
         if retract_handle is None or not retract_handle.accepted:
             result.success = False
             result.message = 'Retract goal rejected'
-            self.get_logger().error(result.message)
+            self.get_logger().error(f'[STEP 4] ABORT: {result.message}')
             goal_handle.abort()
             return result
 
-        # Wait for retract to finish
+        self.get_logger().info('[STEP 4] Retract goal accepted — waiting for completion...')
         result_future = retract_handle.get_result_async()
-        rclpy.spin_until_future_complete(self, result_future, timeout_sec=30.0)
+
+        # Wait for retract to finish
+        deadline = time.time() + 30.0
+        while not result_future.done() and time.time() < deadline:
+            time.sleep(0.05)
+        self.get_logger().info('[STEP 4] Retract complete')
 
         # --- Done ---
         goal_handle.succeed()
         result.success = True
         result.message = 'Button push complete, arm retracted'
-        self.get_logger().info(result.message)
+        self.get_logger().info(f'=== ACTION SUCCEEDED: {result.message} ===')
         return result
 
 

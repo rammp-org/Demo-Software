@@ -40,7 +40,6 @@ import open3d as o3d
 from scipy.spatial.transform import Rotation
 
 from cmu_door_opener_interfaces.msg import ButtonInfo
-from cmu_door_opener.reachability_checker import ReachabilityChecker
 
 # Default invalid pose — signals "no valid detection this cycle"
 INVALID_POSE = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
@@ -125,7 +124,7 @@ class ButtonPressVisionNode(Node):
         self.declare_parameter('depth_stride', 4)
         self.declare_parameter('min_depth_m', 0.10)
         self.declare_parameter('max_depth_m', 3.00)
-        self.declare_parameter('min_projected_points', 30)
+        self.declare_parameter('min_projected_points', 10)
         self.declare_parameter('mask_core_min_dist_px', 6.0)
         self.declare_parameter('mask_core_min_points', 40)
         self.declare_parameter('bbox_center_radius_px', 18)
@@ -188,6 +187,10 @@ class ButtonPressVisionNode(Node):
         self.last_centroid_cam = None
         self.last_centroid_base = None
         self.last_centroid_uv = None
+        self._dbg_projected_uvs = []
+        self._dbg_within_radius_uvs = []
+        self._dbg_bbox_center = None
+        self._dbg_radius = 0
         quat_param = np.array(self.get_parameter('fixed_pose_quat').value, dtype=np.float32)
         if quat_param.shape[0] != 4:
             raise ValueError("fixed_pose_quat must have 4 values [x, y, z, w]")
@@ -530,13 +533,39 @@ class ButtonPressVisionNode(Node):
         points_color = []
         nearest_point = None
         nearest_d2 = 1e30
+        dbg_total_pixels = 0
+        dbg_valid_depth = 0
+        dbg_in_color_fov = 0
+        dbg_nearest_d = None
+        dbg_projected_uvs = []       # all points that project into color FOV
+        dbg_within_radius_uvs = []   # points within bbox_center_radius_px
 
-        for v in range(0, Hd, stride):
+        # Approximate depth image ROI from bbox + margin to avoid scanning entire image.
+        # The depth and color cameras have different intrinsics, so we apply a generous
+        # margin (scale bbox by ratio of focal lengths + extra padding).
+        fx_ratio = fx_d / fx_c if fx_c > 0 else 1.0
+        fy_ratio = fy_d / fy_c if fy_c > 0 else 1.0
+        margin = 40  # extra pixels of padding
+        d_x1 = max(0, int((x1 - cx_c) * fx_ratio + cx_d) - margin)
+        d_x2 = min(Wd, int((x2 - cx_c) * fx_ratio + cx_d) + margin)
+        d_y1 = max(0, int((y1 - cy_c) * fy_ratio + cy_d) - margin)
+        d_y2 = min(Hd, int((y2 - cy_c) * fy_ratio + cy_d) + margin)
+
+        print(f"[DEBUG 3D] bbox=[{x1:.0f},{y1:.0f},{x2:.0f},{y2:.0f}] center=({uc:.1f},{vc:.1f}) radius={rad}px", flush=True)
+        print(f"[DEBUG 3D] depth ROI=[{d_x1},{d_y1},{d_x2},{d_y2}] (from bbox + margin)", flush=True)
+        print(f"[DEBUG 3D] depth image: {Wd}x{Hd}, color image: {Wc}x{Hc}, stride={stride}", flush=True)
+        print(f"[DEBUG 3D] depth range: [{min_z}, {max_z}]m, min_pts={min_pts}", flush=True)
+        print(f"[DEBUG 3D] color K: fx={fx_c:.1f} fy={fy_c:.1f} cx={cx_c:.1f} cy={cy_c:.1f}", flush=True)
+        print(f"[DEBUG 3D] depth K: fx={fx_d:.1f} fy={fy_d:.1f} cx={cx_d:.1f} cy={cy_d:.1f}", flush=True)
+
+        for v in range(d_y1, d_y2, stride):
             z_row = depth_m[v, :]
-            for u in range(0, Wd, stride):
+            for u in range(d_x1, d_x2, stride):
+                dbg_total_pixels += 1
                 z = float(z_row[u])
                 if not (min_z < z < max_z):
                     continue
+                dbg_valid_depth += 1
 
                 Xd = (u - cx_d) * z / fx_d
                 Yd = (v - cy_d) * z / fy_d
@@ -549,59 +578,92 @@ class ButtonPressVisionNode(Node):
                 vp = fy_c * (float(Pc[1]) / Zc) + cy_c
                 if up < 0.0 or up >= Wc or vp < 0.0 or vp >= Hc:
                     continue
+                dbg_in_color_fov += 1
+                dbg_projected_uvs.append((int(round(up)), int(round(vp))))
 
                 d2 = (up - uc) * (up - uc) + (vp - vc) * (vp - vc)
                 if d2 < nearest_d2:
                     nearest_d2 = d2
                     nearest_point = Pc
+                    dbg_nearest_d = d2 ** 0.5
                 if d2 <= rad * rad:
                     points_color.append(Pc)
+                    dbg_within_radius_uvs.append((int(round(up)), int(round(vp))))
+
+        print(f"[DEBUG 3D] scanned {dbg_total_pixels} pixels, {dbg_valid_depth} valid depth, "
+              f"{dbg_in_color_fov} in color FOV, {len(points_color)} within radius", flush=True)
+        if dbg_nearest_d is not None:
+            print(f"[DEBUG 3D] nearest projected point distance to bbox center: {dbg_nearest_d:.1f}px (radius={rad}px)", flush=True)
+        else:
+            print(f"[DEBUG 3D] NO projected points found at all!", flush=True)
+
+        # Store for visualization
+        self._dbg_projected_uvs = dbg_projected_uvs
+        self._dbg_within_radius_uvs = dbg_within_radius_uvs
+        self._dbg_bbox_center = (int(round(uc)), int(round(vc)))
+        self._dbg_radius = int(round(rad))
 
         if len(points_color) >= min_pts:
             pts = np.stack(points_color, axis=0)
             centroid = np.median(pts, axis=0).astype(np.float32)
+            print(f"[DEBUG 3D] SUCCESS: {len(points_color)} points, centroid=[{centroid[0]:+.4f},{centroid[1]:+.4f},{centroid[2]:+.4f}]", flush=True)
             return centroid, pts, (int(round(uc)), int(round(vc)))
 
-        if nearest_point is not None:
-            pts = np.expand_dims(nearest_point.astype(np.float32), axis=0)
-            centroid = pts[0]
-            self.pt.p("bbox_near_only", "[3D] using nearest depth point to bbox center", 0.5)
-            return centroid, pts, (int(round(uc)), int(round(vc)))
+        print(f"[DEBUG 3D] NOT ENOUGH POINTS: {len(points_color)} < {min_pts} — skipping this frame", flush=True)
 
         self.pt.p("bbox_no_depth", "[3D] no valid depth near bbox center", 0.5)
         return None
 
     def estimate_surface_normal(self, points_3d: np.ndarray):
+        print(f"[DEBUG NORMAL] input points shape={points_3d.shape}, dtype={points_3d.dtype}", flush=True)
         if len(points_3d) < 10:
-            self.pt.p("normal_few", f"[NORMAL] too few points for normal estimation: {len(points_3d)}", 1.0)
+            print(f"[DEBUG NORMAL] FAIL: too few points ({len(points_3d)} < 10)", flush=True)
             return None
 
         try:
             pcd = o3d.geometry.PointCloud()
             pcd.points = o3d.utility.Vector3dVector(points_3d)
+            print(f"[DEBUG NORMAL] point cloud created, {len(pcd.points)} points", flush=True)
+
+            # Print point cloud bounds for sanity
+            pts_np = np.asarray(pcd.points)
+            print(f"[DEBUG NORMAL] point cloud bounds: "
+                  f"x=[{pts_np[:,0].min():.4f}, {pts_np[:,0].max():.4f}] "
+                  f"y=[{pts_np[:,1].min():.4f}, {pts_np[:,1].max():.4f}] "
+                  f"z=[{pts_np[:,2].min():.4f}, {pts_np[:,2].max():.4f}]", flush=True)
 
             radius = float(self.get_parameter('normal_radius').value)
             max_nn = int(self.get_parameter('normal_max_nn').value)
+            print(f"[DEBUG NORMAL] params: radius={radius}, max_nn={max_nn}", flush=True)
 
             pcd.estimate_normals(
                 search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=radius, max_nn=max_nn)
             )
+            print(f"[DEBUG NORMAL] normals estimated, count={len(pcd.normals)}", flush=True)
 
             pcd.orient_normals_towards_camera_location(camera_location=np.array([0, 0, 0]))
 
             normals = np.asarray(pcd.normals)
+            print(f"[DEBUG NORMAL] normals stats: "
+                  f"mean=[{normals[:,0].mean():+.4f},{normals[:,1].mean():+.4f},{normals[:,2].mean():+.4f}] "
+                  f"std=[{normals[:,0].std():.4f},{normals[:,1].std():.4f},{normals[:,2].std():.4f}]", flush=True)
+
             avg_normal = np.mean(normals, axis=0)
-            avg_normal /= np.linalg.norm(avg_normal)
+            norm_mag = np.linalg.norm(avg_normal)
+            print(f"[DEBUG NORMAL] avg normal before normalize: [{avg_normal[0]:+.4f},{avg_normal[1]:+.4f},{avg_normal[2]:+.4f}], mag={norm_mag:.6f}", flush=True)
+            avg_normal /= norm_mag
 
             if avg_normal[2] > 0:
+                print(f"[DEBUG NORMAL] flipping normal (z was positive: {avg_normal[2]:+.4f})", flush=True)
                 avg_normal *= -1
 
-            self.pt.p("normal", f"[NORMAL] estimated [{avg_normal[0]:+.3f},{avg_normal[1]:+.3f},{avg_normal[2]:+.3f}]", 1.0)
-
+            print(f"[DEBUG NORMAL] RESULT: [{avg_normal[0]:+.4f},{avg_normal[1]:+.4f},{avg_normal[2]:+.4f}]", flush=True)
             return avg_normal.astype(np.float32)
 
         except Exception as e:
-            self.pt.p("normal_err", f"[NORMAL] estimation failed: {e}", 2.0)
+            print(f"[DEBUG NORMAL] EXCEPTION: {type(e).__name__}: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             return None
 
     def transform_point_to_base(self, point_cam_xyz: np.ndarray):
@@ -640,6 +702,8 @@ class ButtonPressVisionNode(Node):
         cam_frame = self.color_frame_id if self.color_frame_id else param_cam_frame
         base_frame = self.get_parameter('base_frame').value
         tf_timeout = float(self.get_parameter('tf_timeout_s').value)
+        print(f"[DEBUG TF VEC] transforming vector [{vector_cam[0]:+.4f},{vector_cam[1]:+.4f},{vector_cam[2]:+.4f}] "
+              f"from '{cam_frame}' to '{base_frame}'", flush=True)
 
         try:
             tf = self.tf_buffer.lookup_transform(
@@ -647,11 +711,13 @@ class ButtonPressVisionNode(Node):
                 timeout=Duration(seconds=tf_timeout)
             )
             q = tf.transform.rotation
+            print(f"[DEBUG TF VEC] TF rotation quat=[{q.x:+.4f},{q.y:+.4f},{q.z:+.4f},{q.w:+.4f}]", flush=True)
             rot_base_cam = Rotation.from_quat([q.x, q.y, q.z, q.w])
             vector_base = rot_base_cam.apply(vector_cam)
+            print(f"[DEBUG TF VEC] result=[{vector_base[0]:+.4f},{vector_base[1]:+.4f},{vector_base[2]:+.4f}]", flush=True)
             return vector_base
         except Exception as e2:
-            self.pt.p("tf_vec_fail_fb", f"[TF] vector transform {cam_frame}->{base_frame} failed: {e2}", 1.0)
+            print(f"[DEBUG TF VEC] FAILED: {type(e2).__name__}: {e2}", flush=True)
             return None
 
     def publish_normal_marker(self, centroid_base: np.ndarray, normal_base: np.ndarray):
@@ -773,6 +839,24 @@ class ButtonPressVisionNode(Node):
                 cv2.putText(right, f"centroid px=({u},{v})", (10, 190),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
 
+        # Draw projected depth points
+        if hasattr(self, '_dbg_projected_uvs') and self._dbg_projected_uvs:
+            # All projected points in blue (small)
+            for pu, pv in self._dbg_projected_uvs:
+                if 0 <= pu < right.shape[1] and 0 <= pv < right.shape[0]:
+                    cv2.circle(right, (pu, pv), 1, (255, 100, 0), -1)
+            # Points within radius in green (larger)
+            for pu, pv in self._dbg_within_radius_uvs:
+                if 0 <= pu < right.shape[1] and 0 <= pv < right.shape[0]:
+                    cv2.circle(right, (pu, pv), 3, (0, 255, 0), -1)
+            # Draw the search radius circle
+            if hasattr(self, '_dbg_bbox_center') and self._dbg_bbox_center is not None:
+                cv2.circle(right, self._dbg_bbox_center, self._dbg_radius, (0, 255, 255), 1)
+            n_proj = len(self._dbg_projected_uvs)
+            n_in = len(self._dbg_within_radius_uvs)
+            cv2.putText(right, f"depth pts: {n_in}/{n_proj} in radius", (10, 230),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+
         combo = np.hstack([left, right])
         cv2.imshow("button_viz", combo)
 
@@ -829,13 +913,11 @@ class ButtonPressVisionNode(Node):
             float(filtered_xyz[0]), float(filtered_xyz[1]), float(filtered_xyz[2]),
             float(filtered_rpy[0]), float(filtered_rpy[1]), float(filtered_rpy[2]),
         ]
-        if self._reachability_checker is not None:
-            msg.is_pressable = self._reachability_checker.is_reachable(
-                target_pos=[filtered_xyz[0], filtered_xyz[1], filtered_xyz[2]],
-            )
-        else:
-            # URDF not yet received — assume pressable to avoid blocking.
-            msg.is_pressable = True
+        # Simple distance check — Gen3 6DOF max reach ~0.9m (conservative)
+        MAX_REACH = 1.0  # meters from base_link (2D, ignoring z)
+        dist_from_base_2d = float(np.linalg.norm(filtered_xyz[:2]))
+        msg.is_pressable = dist_from_base_2d < MAX_REACH
+        print(f'[DEBUG] is_pressable={msg.is_pressable}  dist_2d={dist_from_base_2d:.4f}m  z={filtered_xyz[2]:.4f}m  max_reach={MAX_REACH}m', flush=True)
         self.button_info_pub.publish(msg)
 
     # ---- Main loop ----
@@ -910,42 +992,69 @@ class ButtonPressVisionNode(Node):
         self.last_centroid_base = centroid_base
 
         # 4) Estimate surface normal in camera frame, transform to base
+        # No fallback — if any step fails, skip this frame.
+        print(f"[DEBUG PIPELINE] step 4: estimating normal from {len(points_cam)} cam points", flush=True)
         normal_cam = self.estimate_surface_normal(points_cam)
+        if normal_cam is None:
+            print(f"[DEBUG PIPELINE] normal_cam is None — skipping frame", flush=True)
+            self._publish_detected_not_pressable(cur_mask, cur_bbox, cur_conf)
+            return
 
-        # Compute RPY from normal
-        rpy = np.zeros(3, dtype=np.float64)
-        if normal_cam is not None:
-            normal_base = self.transform_vector_to_base(normal_cam)
-            if normal_base is not None:
-                nrm = np.linalg.norm(normal_base)
-                if nrm > 1e-9:
-                    normal_base = (normal_base / nrm).astype(np.float32)
-                    # Tool Z = -normal (point into button)
-                    z_axis = -normal_base
-                    x_axis = np.array([1.0, 0.0, 0.0])
-                    if abs(np.dot(x_axis, z_axis)) > 0.9:
-                        x_axis = np.array([0.0, 1.0, 0.0])
-                    y_axis = np.cross(z_axis, x_axis)
-                    y_axis /= np.linalg.norm(y_axis)
-                    x_axis = np.cross(y_axis, z_axis)
-                    x_axis /= np.linalg.norm(x_axis)
-                    rot_matrix = np.column_stack([x_axis, y_axis, z_axis])
-                    rot = Rotation.from_matrix(rot_matrix)
-                    rpy = np.array(rot.as_euler('xyz'), dtype=np.float64)
+        print(f"[DEBUG PIPELINE] normal_cam=[{normal_cam[0]:+.4f},{normal_cam[1]:+.4f},{normal_cam[2]:+.4f}]", flush=True)
+        normal_base = self.transform_vector_to_base(normal_cam)
+        if normal_base is None:
+            print(f"[DEBUG PIPELINE] transform_vector_to_base returned None — skipping frame", flush=True)
+            self._publish_detected_not_pressable(cur_mask, cur_bbox, cur_conf)
+            return
 
-                    # Publish marker
-                    self.publish_normal_marker(centroid_base, normal_base)
+        nrm = np.linalg.norm(normal_base)
+        print(f"[DEBUG PIPELINE] normal_base=[{normal_base[0]:+.4f},{normal_base[1]:+.4f},{normal_base[2]:+.4f}], norm={nrm:.6f}", flush=True)
+        if nrm <= 1e-9:
+            print(f"[DEBUG PIPELINE] normal_base norm too small ({nrm}) — skipping frame", flush=True)
+            self._publish_detected_not_pressable(cur_mask, cur_bbox, cur_conf)
+            return
+
+        normal_base = (normal_base / nrm).astype(np.float32)
+        # Tool Z = -normal (point into button)
+        z_axis = -normal_base
+        x_axis = np.array([1.0, 0.0, 0.0])
+        if abs(np.dot(x_axis, z_axis)) > 0.9:
+            x_axis = np.array([0.0, 1.0, 0.0])
+            print(f"[DEBUG PIPELINE] z_axis near x — switching initial x_axis to [0,1,0]", flush=True)
+        y_axis = np.cross(z_axis, x_axis)
+        y_axis /= np.linalg.norm(y_axis)
+        x_axis = np.cross(y_axis, z_axis)
+        x_axis /= np.linalg.norm(x_axis)
+        rot_matrix = np.column_stack([x_axis, y_axis, z_axis])
+        print(f"[DEBUG PIPELINE] rot_matrix:\n"
+              f"  x_axis=[{x_axis[0]:+.4f},{x_axis[1]:+.4f},{x_axis[2]:+.4f}]\n"
+              f"  y_axis=[{y_axis[0]:+.4f},{y_axis[1]:+.4f},{y_axis[2]:+.4f}]\n"
+              f"  z_axis=[{z_axis[0]:+.4f},{z_axis[1]:+.4f},{z_axis[2]:+.4f}]", flush=True)
+        rot = Rotation.from_matrix(rot_matrix)
+        quat = rot.as_quat()  # [x,y,z,w]
+        rpy = np.array(rot.as_euler('xyz'), dtype=np.float64)
+        print(f"[DEBUG PIPELINE] quat=[{quat[0]:+.4f},{quat[1]:+.4f},{quat[2]:+.4f},{quat[3]:+.4f}]", flush=True)
+        print(f"[DEBUG PIPELINE] rpy=[{rpy[0]:+.4f},{rpy[1]:+.4f},{rpy[2]:+.4f}] (radians)", flush=True)
+        print(f"[DEBUG PIPELINE] rpy=[{np.degrees(rpy[0]):+.1f},{np.degrees(rpy[1]):+.1f},{np.degrees(rpy[2]):+.1f}] (degrees)", flush=True)
+
+        # Publish marker
+        self.publish_normal_marker(centroid_base, normal_base)
+
+        print(f"[DEBUG PIPELINE] final RPY=[{rpy[0]:+.4f},{rpy[1]:+.4f},{rpy[2]:+.4f}] centroid_base=[{centroid_base[0]:+.4f},{centroid_base[1]:+.4f},{centroid_base[2]:+.4f}]", flush=True)
 
         # 5) Filter
         self._pose_filter.update(centroid_base.astype(np.float64), rpy)
+        print(f"[DEBUG FILTER] count={self._pose_filter._count}, stable={self._pose_filter.is_stable}", flush=True)
+        print(f"[DEBUG FILTER] filtered_xyz=[{self._pose_filter.xyz[0]:+.4f},{self._pose_filter.xyz[1]:+.4f},{self._pose_filter.xyz[2]:+.4f}]", flush=True)
+        print(f"[DEBUG FILTER] filtered_rpy=[{self._pose_filter.rpy[0]:+.4f},{self._pose_filter.rpy[1]:+.4f},{self._pose_filter.rpy[2]:+.4f}]", flush=True)
 
         if not self._pose_filter.is_stable:
-            # Filter warming up — button is detected but pose is not stable yet
-            self.pt.p("filter_warmup", f"[FILTER] warming up ({self._pose_filter._count}/{self._pose_filter.min_samples})", 0.5)
+            print(f"[DEBUG PIPELINE] filter not stable yet — publishing not_pressable", flush=True)
             self._publish_detected_not_pressable(cur_mask, cur_bbox, cur_conf)
             return
 
         # 6) Full success — publish state 3 (detected and pressable)
+        print(f"[DEBUG PIPELINE] SUCCESS — publishing pressable ButtonInfo", flush=True)
         self._publish_detected_pressable(
             filtered_xyz=self._pose_filter.xyz,
             filtered_rpy=self._pose_filter.rpy,
@@ -955,8 +1064,10 @@ class ButtonPressVisionNode(Node):
         )
 
         xyz = self._pose_filter.xyz
-        self.pt.p("pub_info",
-                  f"[PUB] ButtonInfo at [{xyz[0]:+.3f},{xyz[1]:+.3f},{xyz[2]:+.3f}]", 0.5)
+        final_rpy = self._pose_filter.rpy
+        print(f"[DEBUG PUB] xyz=[{xyz[0]:+.4f},{xyz[1]:+.4f},{xyz[2]:+.4f}] "
+              f"rpy=[{final_rpy[0]:+.4f},{final_rpy[1]:+.4f},{final_rpy[2]:+.4f}] "
+              f"rpy_deg=[{np.degrees(final_rpy[0]):+.1f},{np.degrees(final_rpy[1]):+.1f},{np.degrees(final_rpy[2]):+.1f}]", flush=True)
 
 
 def main():

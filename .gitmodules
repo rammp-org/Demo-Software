@@ -5,3 +5,4 @@
 [submodule "third_party/ros2_robotiq_gripper"]
 	path = third_party/ros2_robotiq_gripper
 	url = https://github.com/PickNikRobotics/ros2_robotiq_gripper.git
+	ignore = untracked

@@ -33,4 +33,10 @@ rosdep install \
   --ignore-src -r -y \
   --skip-keys "python3-kortex-api python3-pinocchio python3-scipy"
 
+echo "=== Creating COLCON_IGNORE files ==="
+while IFS= read -r pkg || [ -n "$pkg" ]; do
+    [[ -z "$pkg" || "$pkg" == \#* ]] && continue
+    touch "${REPO_ROOT}/${pkg}/COLCON_IGNORE"
+done < "${REPO_ROOT}/colcon_ignore_packages.txt"
+
 echo "=== Setup complete ==="

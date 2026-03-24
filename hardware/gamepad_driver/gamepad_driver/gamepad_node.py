@@ -115,9 +115,9 @@ class gamepadNode(Node):
             )
 
             # only one will work
-            if abs(msg.axes[3]) - abs(msg.axes[2]) > 0.5:
-                msg.axes[2] = 0.0
-            elif abs(msg.axes[2]) - abs(msg.axes[3]) > 0.5:
+            if abs(msg.axes[3]) - abs(msg.axes[4]) > 0.5:
+                msg.axes[4] = 0.0
+            elif abs(msg.axes[4]) - abs(msg.axes[3]) > 0.5:
                 msg.axes[3] = 0.0
 
             # 2. Create a Vector3Stamped for the Linear Joystick Input
@@ -138,8 +138,8 @@ class gamepadNode(Node):
             # 4. Map Angular Input (Directly to Tool Frame)
             tool_angular = Vector3()
             tool_angular.x = msg.axes[5] * ang_scale  # Roll
-            tool_angular.y = msg.axes[4] * -ang_scale  # Pitch
-            tool_angular.z = msg.axes[2] * -ang_scale  # Yaw
+            tool_angular.y = msg.axes[2] * -ang_scale  # Pitch
+            tool_angular.z = msg.axes[4] * -ang_scale  # Yaw
 
             # 5. Build and Publish the Twist
             final_twist = Twist()
@@ -157,9 +157,9 @@ class gamepadNode(Node):
 
             # --- Gripper Control (Buttons) ---
             # msg.buttons[6] = A (Close), msg.buttons[7] = B (Open)
-            if msg.buttons[6] == 1 and self.last_button_state[6] == 0:
+            if msg.buttons[4] == 1 and self.last_button_state[4] == 0:
                 self.send_gripper_goal(0.8)  # 0.8 = Fully Closed
-            elif msg.buttons[7] == 1 and self.last_button_state[7] == 0:
+            elif msg.buttons[5] == 1 and self.last_button_state[5] == 0:
                 self.send_gripper_goal(0.0)  # 0.0 = Fully Open
 
             self.last_button_state = msg.buttons

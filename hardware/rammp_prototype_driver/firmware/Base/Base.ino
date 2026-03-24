@@ -266,7 +266,7 @@ void runSelfLeveling(float dt) {
   double p_rad = (target_pitch * PI / 180.0) / 2.0;
   imu::Quaternion q_target_pitch(cos(p_rad), sin(p_rad), 0.0, 0.0);
 
-  double r_rad = ((target_roll - 180.0) * PI / 180.0) / 2.0;
+  double r_rad = (target_roll * PI / 180.0) / 2.0;
   imu::Quaternion q_target_roll(cos(r_rad), 0.0, sin(r_rad), 0.0);
 
   // Target orientation
@@ -292,8 +292,8 @@ void runSelfLeveling(float dt) {
     err_y = asin(sinp) * (180.0 / PI); // Pitch error mapped to Y
 
   // Convert exact, continuous error angles to radians
-  float dpitchrd = 1.0f * (err_x / DG); // BNO X = Robot Pitch
-  float drollrd = 1.0f * (err_y / DG);  // BNO Y = Robot Roll
+  float dpitchrd = err_x / DG; // BNO X = Robot Pitch
+  float drollrd = err_y / DG;  // BNO Y = Robot Roll
 
   // Deadband to prevent jitter
   if (fabs(dpitchrd) < 0.001)
@@ -354,8 +354,9 @@ void runSelfLeveling(float dt) {
   rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
 
   // Hold carriages steady
-  ml_carriage.setTargetPosition(0.1f * CARRIAGE_CM_TO_TICKS);
-  mr_carriage.setTargetPosition(0.1f * CARRIAGE_CM_TO_TICKS);
+  // TODO: Convert encoder ticks to ticks/cm
+  ml_carriage.setTargetPosition(12000);
+  mr_carriage.setTargetPosition(12000);
 
   // FC is hardcoded to top of range
   fc.setTargetPosition(FC_MAX_TICKS);
@@ -935,34 +936,16 @@ void loop() {
   // Write PWM to RoboClaws (constrained strictly to 16-bit signed int +/-
   // 32767) roboclaw_main: M1 = Main Left, M2 = Main Right
   // TODO: change main wheel controls back to default
-  // scaled_ml_pwm = (int16_t)constrain(ml_pwm * PWM_SCALE, -32767, 32767);
-  // Serial.print("DEBUG: scaled_ml_pwm = ");
-  // Serial.println(scaled_ml_pwm);
   roboclaw_main.DutyM1(0x80, (int16_t)ml_pwm);
 
-  // scaled_mr_pwm = (int16_t)constrain(mr_pwm * PWM_SCALE, -32767, 32767);
-  // Serial.print("DEBUG: scaled_mr_pwm = ");
-  // Serial.println(scaled_mr_pwm);
   roboclaw_main.DutyM2(0x80, (int16_t)mr_pwm);
 
   // roboclaw_casters: M1 = Rear Caster, M2 = Front Caster
   roboclaw_casters.DutyM1(0x80, (int16_t)rc_pwm);
   roboclaw_casters.DutyM2(0x80, (int16_t)fc_pwm);
 
-  //   roboclaw_carriages: M1 = Left Carriage, M2 = Right Carriage
-  //   Serial.print("DEBUG: mlc_pwm = ");
-  //   Serial.print(mlc_pwm);
-  //   Serial.print("; mrc_pwm = ");
-  //   Serial.println(mrc_pwm);
-
-  // scaled_mlc_pwm = (int16_t)constrain(mlc_pwm * PWM_SCALE, -32767, 32767);
-  Serial.print("DEBUG: scaled_mlc_pwm = ");
-  Serial.println(mlc_pwm);
   roboclaw_carriages.DutyM1(0x80, (int16_t)mlc_pwm);
 
-  // scaled_mrc_pwm = (int16_t)constrain(mrc_pwm * PWM_SCALE, -32767, 32767);
-  Serial.print("DEBUG: scaled_mrc_pwm = ");
-  Serial.println(mrc_pwm);
   roboclaw_carriages.DutyM2(0x80, (int16_t)mrc_pwm);
 
   // 5. Send Telemetry

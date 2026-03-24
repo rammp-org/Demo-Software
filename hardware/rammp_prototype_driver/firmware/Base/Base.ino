@@ -85,10 +85,10 @@ Motor ml_carriage;
 Motor mr_carriage;
 
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
-StrainGauge sg_rc(RC_LOADCELL_PIN);
-StrainGauge sg_fc(FC_LOADCELL_PIN);
-StrainGauge sg_ml(ML_LOADCELL_PIN);
-StrainGauge sg_mr(MR_LOADCELL_PIN);
+StrainGauge sg_rc(RC_LOADCELL_PIN, 0.5f);
+StrainGauge sg_fc(FC_LOADCELL_PIN, 0.6f);
+StrainGauge sg_ml(ML_LOADCELL_PIN, 0.7f);
+StrainGauge sg_mr(MR_LOADCELL_PIN, 0.8f);
 
 int16_t scaled_mlc_pwm;
 int16_t scaled_mrc_pwm;
@@ -369,6 +369,58 @@ void runSelfLeveling(float dt) {
   telemetry.z_target_mr = z_target_mr;
 }
 
+// Save all 6 motor configs (PID, dirs, limits, current position) to EEPROM
+void saveAllMotorConfigs() {
+  Motor *all_motors[6] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+  for (int i = 0; i < 6; i++) {
+    Motor *m = all_motors[i];
+    MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
+    conf.motor_dir         = m->getDirection();
+    conf.encoder_dir       = m->getEncoderDirection();
+    conf.lpf_input_alpha   = m->lpf_input_alpha;
+    conf.pos_p             = m->pos_pid.kp;
+    conf.pos_i             = m->pos_pid.ki;
+    conf.pos_d             = m->pos_pid.kd;
+    conf.pos_ff            = m->pos_pid.kff;
+    conf.pos_lpf_alpha     = m->pos_pid.getLpfAlpha();
+    conf.pos_max_ramp_rate = m->pos_pid.max_ramp_rate;
+    conf.vel_p             = m->vel_pid.kp;
+    conf.vel_i             = m->vel_pid.ki;
+    conf.vel_d             = m->vel_pid.kd;
+    conf.vel_ff            = m->vel_pid.kff;
+    conf.vel_lpf_alpha     = m->vel_pid.getLpfAlpha();
+    conf.vel_max_ramp_rate = m->vel_pid.max_ramp_rate;
+    conf.saved_position    = m->current_pos;
+    conf.pos_limit_min     = m->pos_limit_min;
+    conf.pos_limit_max     = m->pos_limit_max;
+    ConfigStorage::saveMotorConfig(i + 1, conf);
+  }
+}
+
+// Save a single motor's config (PID, dirs, limits, current position) to EEPROM
+void saveMotorConfig(int motor_id, Motor *m) {
+  MotorConfig conf = ConfigStorage::loadMotorConfig(motor_id);
+  conf.motor_dir         = m->getDirection();
+  conf.encoder_dir       = m->getEncoderDirection();
+  conf.lpf_input_alpha   = m->lpf_input_alpha;
+  conf.pos_p             = m->pos_pid.kp;
+  conf.pos_i             = m->pos_pid.ki;
+  conf.pos_d             = m->pos_pid.kd;
+  conf.pos_ff            = m->pos_pid.kff;
+  conf.pos_lpf_alpha     = m->pos_pid.getLpfAlpha();
+  conf.pos_max_ramp_rate = m->pos_pid.max_ramp_rate;
+  conf.vel_p             = m->vel_pid.kp;
+  conf.vel_i             = m->vel_pid.ki;
+  conf.vel_d             = m->vel_pid.kd;
+  conf.vel_ff            = m->vel_pid.kff;
+  conf.vel_lpf_alpha     = m->vel_pid.getLpfAlpha();
+  conf.vel_max_ramp_rate = m->vel_pid.max_ramp_rate;
+  conf.saved_position    = m->current_pos;
+  conf.pos_limit_min     = m->pos_limit_min;
+  conf.pos_limit_max     = m->pos_limit_max;
+  ConfigStorage::saveMotorConfig(motor_id, conf);
+}
+
 void setup() {
   Serial.begin(460800);  // jetson
   Serial3.begin(460800); // roboclaw 1
@@ -453,12 +505,17 @@ void setup() {
     }
   }
 
+  Serial.println("EEPROM CONFIG LOADED: All motor configs restored from EEPROM.");
   current_state = IDLE;
 }
 
 void loop() {
   timer.updateTime();
   float dt = timer.elapsed_time;
+
+  // Track whether the host has ever sent commands this session, so we only
+  // auto-save on a real disconnect (not on first boot with no connection yet).
+  static bool was_connected = false;
 
   // 1. Read Sensors
   EContr.retrieve_readings();
@@ -491,10 +548,21 @@ void loop() {
     Serial.println(cmd.value, 4);
   }
 
+  // Mark connected whenever the watchdog is being fed (commands are flowing)
+  if (!parser.isTimedOut()) {
+    was_connected = true;
+  }
+
   // 3. Update State Machine
   if (parser.isTimedOut() && current_state != ESTOP) {
     current_state = ESTOP;
     Serial.println("WATCHDOG TIMEOUT -> ESTOP");
+    // Auto-save all motor configs on disconnect (fires once per disconnect)
+    if (was_connected) {
+      saveAllMotorConfigs();
+      Serial.println("AUTO-SAVE: All motor configs saved on disconnect.");
+      was_connected = false;
+    }
   }
 
   if (cmd.type == CMD_Z) {
@@ -506,6 +574,7 @@ void loop() {
   } else if (cmd.type == CMD_C && current_state == ESTOP) {
     current_state = IDLE;
     parser.feedWatchdog();
+    was_connected = true; // Re-arm auto-save for next disconnect
     if (DEBUG_MODE)
       Serial.println("DEBUG: ESTOP Cleared, entering IDLE");
   } else if (cmd.type == CMD_LEVEL_MODE) {
@@ -538,30 +607,7 @@ void loop() {
   if (current_state == TUNER_MODE && cmd.type != CMD_NONE) {
     // Special case: Save all motors (K0)
     if (cmd.type == CMD_SAVE_CONFIG && cmd.actuator_id == 0) {
-      Motor *all_motors[6] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
-      for (int i = 0; i < 6; i++) {
-        Motor *m_i = all_motors[i];
-        MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
-        conf.motor_dir = m_i->getDirection();
-        conf.encoder_dir = m_i->getEncoderDirection();
-        conf.lpf_input_alpha = m_i->lpf_input_alpha;
-        conf.pos_p = m_i->pos_pid.kp;
-        conf.pos_i = m_i->pos_pid.ki;
-        conf.pos_d = m_i->pos_pid.kd;
-        conf.pos_ff = m_i->pos_pid.kff;
-        conf.pos_lpf_alpha = m_i->pos_pid.getLpfAlpha();
-        conf.pos_max_ramp_rate = m_i->pos_pid.max_ramp_rate;
-        conf.vel_p = m_i->vel_pid.kp;
-        conf.vel_i = m_i->vel_pid.ki;
-        conf.vel_d = m_i->vel_pid.kd;
-        conf.vel_ff = m_i->vel_pid.kff;
-        conf.vel_lpf_alpha = m_i->vel_pid.getLpfAlpha();
-        conf.vel_max_ramp_rate = m_i->vel_pid.max_ramp_rate;
-        conf.saved_position = m_i->current_pos;
-        conf.pos_limit_min = m_i->pos_limit_min;
-        conf.pos_limit_max = m_i->pos_limit_max;
-        ConfigStorage::saveMotorConfig(i + 1, conf);
-      }
+      saveAllMotorConfigs();
       if (DEBUG_MODE) {
         Serial.println("DEBUG: Saved config for ALL motors (K0)");
       }
@@ -616,66 +662,79 @@ void loop() {
           break;
         case CMD_POS_P:
           m->pos_pid.kp = cmd.value;
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Pos P");
           break;
         case CMD_POS_I:
           m->pos_pid.ki = cmd.value;
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Pos I");
           break;
         case CMD_POS_D:
           m->pos_pid.kd = cmd.value;
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Pos D");
           break;
         case CMD_POS_FF:
           m->pos_pid.setFeedForward(cmd.value);
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Pos FF");
           break;
         case CMD_VEL_P:
           m->vel_pid.kp = cmd.value;
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Vel P");
           break;
         case CMD_VEL_I:
           m->vel_pid.ki = cmd.value;
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Vel I");
           break;
         case CMD_VEL_D:
           m->vel_pid.kd = cmd.value;
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Vel D");
           break;
         case CMD_VEL_FF:
           m->vel_pid.setFeedForward(cmd.value / 10000);
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Vel FF");
           break;
         case CMD_INPUT_LPF:
           m->setInputLpfAlpha(cmd.value);
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Input LPF");
           break;
         case CMD_POS_LPF:
           m->pos_pid.setLpfAlpha(cmd.value);
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Pos LPF");
           break;
         case CMD_VEL_LPF:
           m->vel_pid.setLpfAlpha(cmd.value);
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Vel LPF");
           break;
         case CMD_POS_RAMP:
           m->pos_pid.setRampRate(cmd.value);
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Pos max ramp rate");
           break;
         case CMD_VEL_RAMP:
           m->vel_pid.setRampRate(cmd.value);
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE)
             Serial.println("DEBUG: Set Vel max ramp rate");
           break;
@@ -804,27 +863,7 @@ void loop() {
           break;
         }
         case CMD_SAVE_CONFIG: {
-          // Load existing config first so any fields not set here are preserved
-          MotorConfig conf = ConfigStorage::loadMotorConfig(cmd.actuator_id);
-          conf.motor_dir = m->getDirection();
-          conf.encoder_dir = m->getEncoderDirection();
-          conf.lpf_input_alpha = m->lpf_input_alpha;
-          conf.pos_p = m->pos_pid.kp;
-          conf.pos_i = m->pos_pid.ki;
-          conf.pos_d = m->pos_pid.kd;
-          conf.pos_ff = m->pos_pid.kff;
-          conf.pos_lpf_alpha = m->pos_pid.getLpfAlpha();
-          conf.pos_max_ramp_rate = m->pos_pid.max_ramp_rate;
-          conf.vel_p = m->vel_pid.kp;
-          conf.vel_i = m->vel_pid.ki;
-          conf.vel_d = m->vel_pid.kd;
-          conf.vel_ff = m->vel_pid.kff;
-          conf.vel_lpf_alpha = m->vel_pid.getLpfAlpha();
-          conf.vel_max_ramp_rate = m->vel_pid.max_ramp_rate;
-          conf.saved_position = m->current_pos;
-          conf.pos_limit_min = m->pos_limit_min;
-          conf.pos_limit_max = m->pos_limit_max;
-          ConfigStorage::saveMotorConfig(cmd.actuator_id, conf);
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE) {
             Serial.print("DEBUG: Saved config for motor ");
             Serial.println(cmd.actuator_id);
@@ -833,6 +872,7 @@ void loop() {
         }
         case CMD_POS_MIN: {
           m->updateLimits(cmd.value, m->pos_limit_max);
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE) {
             Serial.print("DEBUG: Set min limit to ");
             Serial.println(cmd.value);
@@ -841,6 +881,7 @@ void loop() {
         }
         case CMD_POS_MAX: {
           m->updateLimits(m->pos_limit_min, cmd.value);
+          saveMotorConfig(cmd.actuator_id, m);
           if (DEBUG_MODE) {
             Serial.print("DEBUG: Set max limit to ");
             Serial.println(cmd.value);

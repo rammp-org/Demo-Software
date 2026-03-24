@@ -15,8 +15,10 @@ from PyQt6.QtWidgets import (
     QStatusBar,
     QMessageBox,
     QSizePolicy,
+    QFrame,
 )
 from PyQt6.QtCore import Qt, QTimer, QSettings
+from PyQt6.QtGui import QShortcut, QKeySequence
 
 from ..data.data_store import DataStore
 from ..data.joint_config import get_joint_names, get_joint_id_from_index, get_joint_info
@@ -26,7 +28,7 @@ from .control_panel import ControlPanel
 from .serial_console import SerialConsole
 from .state_indicator import StateIndicator
 from .encoder_overview import EncoderOverview
-from .theme import get_application_stylesheet
+from .theme import get_application_stylesheet, THEME
 from .scaling import SIZES, scaled
 
 
@@ -86,6 +88,9 @@ class MainWindow(QMainWindow):
             SIZES["margin_small"],
         )
 
+        # EStop bar - always visible at the very top
+        main_layout.addWidget(self._create_estop_bar())
+
         # Top bar - connection, joint selection, and state indicator
         main_layout.addWidget(self._create_top_bar())
 
@@ -137,6 +142,80 @@ class MainWindow(QMainWindow):
         main_splitter.setStretchFactor(1, 1)  # Control panel stretches less
 
         main_layout.addWidget(main_splitter)
+
+    def _create_estop_bar(self) -> QFrame:
+        """Create the always-visible EStop bar at the top of the window."""
+        btn_height = scaled(32)
+
+        bar = QFrame()
+        bar.setStyleSheet(f"""
+            QFrame {{
+                background-color: {THEME.surface0};
+                border-bottom: 2px solid {THEME.red};
+            }}
+        """)
+        bar.setFixedHeight(btn_height + SIZES["margin_small"] * 2)
+
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(
+            SIZES["margin_medium"],
+            SIZES["margin_small"],
+            SIZES["margin_medium"],
+            SIZES["margin_small"],
+        )
+        layout.setSpacing(SIZES["spacing_medium"])
+
+        estop_btn = QPushButton("ESTOP  (z)")
+        estop_btn.setFixedHeight(btn_height)
+        estop_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.red};
+                color: {THEME.crust};
+                font-weight: bold;
+                font-size: {SIZES["font_large"]}pt;
+                border-radius: {scaled(4)}px;
+                padding: 0 {SIZES["margin_medium"]}px;
+            }}
+            QPushButton:hover {{
+                background-color: {THEME.maroon};
+            }}
+        """)
+        estop_btn.clicked.connect(self._on_estop)
+        layout.addWidget(estop_btn)
+
+        clear_btn = QPushButton("Clear ESTOP  (c)")
+        clear_btn.setFixedHeight(btn_height)
+        clear_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.peach};
+                color: {THEME.crust};
+                font-weight: bold;
+                font-size: {SIZES["font_large"]}pt;
+                border-radius: {scaled(4)}px;
+                padding: 0 {SIZES["margin_medium"]}px;
+            }}
+            QPushButton:hover {{
+                background-color: {THEME.yellow};
+            }}
+        """)
+        clear_btn.clicked.connect(self._on_clear_estop)
+        layout.addWidget(clear_btn)
+
+        layout.addStretch()
+
+        # Keyboard shortcuts
+        QShortcut(QKeySequence("z"), self, activated=self._on_estop)
+        QShortcut(QKeySequence("c"), self, activated=self._on_clear_estop)
+
+        return bar
+
+    def _on_estop(self):
+        """Send emergency stop command."""
+        self._serial_handler.disable_motors()
+
+    def _on_clear_estop(self):
+        """Send clear ESTOP command."""
+        self._serial_handler.clear_estop()
 
     def _create_top_bar(self) -> QWidget:
         """Create the top control bar."""

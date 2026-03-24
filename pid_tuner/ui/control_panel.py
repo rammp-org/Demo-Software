@@ -116,6 +116,10 @@ class ControlPanel(QWidget):
         # Connect to config updates
         self._data_store.config_updated.connect(self._on_config_updated)
 
+        # Connect mode banner to data store — only updates when data_store.control_mode
+        # is explicitly set from a confirmed source (not the send path)
+        self._data_store.mode_changed.connect(self._on_mode_confirmed)
+
     def _setup_ui(self):
         """Set up the control panel layout with scroll area."""
         # Main layout for this widget
@@ -369,7 +373,7 @@ class ControlPanel(QWidget):
         self._mode_banner.setFixedHeight(scaled(40))
         self._mode_banner.setStyleSheet(f"""
             QFrame {{
-                background-color: {MODE_COLORS[MODE_OPEN_LOOP]};
+                background-color: {THEME.overlay0};
                 border-radius: {scaled(4)}px;
             }}
         """)
@@ -377,7 +381,7 @@ class ControlPanel(QWidget):
         layout = QHBoxLayout(self._mode_banner)
         layout.setContentsMargins(SIZES["margin_medium"], 0, SIZES["margin_medium"], 0)
 
-        self._mode_banner_label = QLabel("MODE: OPEN LOOP")
+        self._mode_banner_label = QLabel("MODE: ---")
         self._mode_banner_label.setStyleSheet(f"""
             font-size: {SIZES["font_large"]}pt;
             font-weight: bold;
@@ -388,18 +392,24 @@ class ControlPanel(QWidget):
 
         return self._mode_banner
 
-    def _update_mode_banner(self):
-        """Update the mode banner color and text."""
-        mode_name = MODE_NAMES.get(self._current_mode, "Unknown")
-        mode_color = MODE_COLORS.get(self._current_mode, THEME.overlay0)
-
+    def _set_mode_banner_pending(self, mode: int):
+        """Show the mode banner in a dimmed 'pending' state after sending a command."""
+        mode_name = MODE_NAMES.get(mode, "Unknown")
         self._mode_banner.setStyleSheet(f"""
             QFrame {{
-                background-color: {mode_color};
+                background-color: {THEME.overlay0};
                 border-radius: {scaled(4)}px;
             }}
         """)
-        self._mode_banner_label.setText(f"MODE: {mode_name.upper()}")
+        self._mode_banner_label.setText(f"MODE: {mode_name.upper()} (pending...)")
+
+    def _on_mode_confirmed(self, mode: int):
+        """Update the mode banner when the data store reports a confirmed mode.
+
+        Currently unused directly — confirmation comes from CONFIG echo in
+        _on_config_updated.  Kept as a hook for future firmware telemetry support.
+        """
+        pass
 
     def _create_status_group(self) -> CollapsibleGroupBox:
         """Create the current values display group."""
@@ -919,28 +929,6 @@ class ControlPanel(QWidget):
 
         layout.addLayout(offset_layout)
 
-        # Safety buttons row (separate for emphasis)
-        safety_layout = QHBoxLayout()
-        safety_layout.setSpacing(SIZES["spacing_small"])
-
-        # Disable Motors button
-        self._disable_motors_btn = QPushButton("ESTOP (z)")
-        self._disable_motors_btn.clicked.connect(self._on_disable_motors)
-        self._disable_motors_btn.setStyleSheet(
-            f"background-color: {THEME.red}; color: {THEME.crust};"
-        )
-        safety_layout.addWidget(self._disable_motors_btn)
-
-        # Clear ESTOP button
-        self._clear_estop_btn = QPushButton("Clear ESTOP (c)")
-        self._clear_estop_btn.clicked.connect(self._on_clear_estop)
-        self._clear_estop_btn.setStyleSheet(
-            f"background-color: {THEME.peach}; color: {THEME.crust};"
-        )
-        safety_layout.addWidget(self._clear_estop_btn)
-
-        layout.addLayout(safety_layout)
-
         group.addWidget(content)
         return group
 
@@ -1423,14 +1411,6 @@ class ControlPanel(QWidget):
             self._linked_target_input.setText("0")
             self._serial_handler.set_target(linked_joint_id, 0)
 
-    def _on_disable_motors(self):
-        """Send disable motors command."""
-        self._serial_handler.disable_motors()
-
-    def _on_clear_estop(self):
-        """Send clear ESTOP command."""
-        self._serial_handler.clear_estop()
-
     def _on_home_position(self):
         """Send home/zero position command."""
         joint_id = self._data_store.selected_joint
@@ -1511,15 +1491,19 @@ class ControlPanel(QWidget):
                 )
 
     def _on_set_mode(self, mode: int):
-        """Send mode set command and update local state/banner."""
+        """Send mode set command and update local unit labels.
+
+        The mode banner is NOT updated here — it only updates when the robot
+        confirms the mode via a CONFIG echo (_on_config_updated).
+        """
         joint_id = self._data_store.selected_joint
         self._serial_handler.set_mode(joint_id, mode)
         if self._data_store.linked_joint != 0:
             self._serial_handler.set_mode(self._data_store.linked_joint, mode)
 
-        # Update local tracking and UI
+        # Update local tracking for unit labels (send-side bookkeeping only)
         self._current_mode = mode
-        self._data_store.control_mode = mode
+        self._data_store.control_mode = mode  # keeps encoder overview in sync
         unit = MODE_UNITS.get(mode, "")
         self._target_unit_label.setText(unit)
         self._target_input_unit_label.setText(unit)
@@ -1533,7 +1517,9 @@ class ControlPanel(QWidget):
             self._error_unit_label.setText("units/s")
         else:
             self._error_unit_label.setText("")
-        self._update_mode_banner()
+
+        # Mark banner as pending confirmation from robot
+        self._set_mode_banner_pending(mode)
         self.mode_changed.emit(mode)
 
     def _on_set_pos_pid(self):
@@ -1642,8 +1628,23 @@ class ControlPanel(QWidget):
             self._serial_handler.set_pos_limit_max(linked_joint_id, limit)
 
     def _on_config_updated(self, joint_id: int):
-        """Update PID input fields when configuration is loaded from EEPROM."""
+        """Update PID input fields when configuration is loaded from EEPROM.
+
+        A CONFIG echo is also the closest thing to a mode confirmation we have
+        from the robot, so we clear the 'pending' banner here.
+        """
         if joint_id == self._data_store.selected_joint:
+            # Confirm the mode banner — robot has responded
+            mode_name = MODE_NAMES.get(self._current_mode, "Unknown")
+            mode_color = MODE_COLORS.get(self._current_mode, THEME.overlay0)
+            self._mode_banner.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {mode_color};
+                    border-radius: {scaled(4)}px;
+                }}
+            """)
+            self._mode_banner_label.setText(f"MODE: {mode_name.upper()}")
+
             config = self._data_store.get_config(joint_id)
             if config is not None:
                 self._pos_p.setText(f"{config.pos_p:g}")

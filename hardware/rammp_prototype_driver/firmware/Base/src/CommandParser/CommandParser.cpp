@@ -26,6 +26,10 @@ RobotCommand CommandParser::parse(Stream &serial) {
         cmd.type = CMD_Z;
       } else if (buffer.charAt(0) == 'c') {
         cmd.type = CMD_C;
+      } else if (buffer.charAt(0) == '>') {
+        cmd.type = CMD_SEQ_STEP_FWD;
+      } else if (buffer.charAt(0) == '<') {
+        cmd.type = CMD_SEQ_STEP_BWD;
       } else if (buffer.length() >= 2) { // Need at least R<id> or X<id>:<val>
         char type_char = buffer.charAt(0);
         int colon_idx = buffer.indexOf(':');
@@ -62,7 +66,8 @@ RobotCommand CommandParser::parse(Stream &serial) {
         // Commands with value (e.g., T1:0.5)
         else if (colon_idx > 1) {
           cmd.actuator_id = buffer.substring(1, colon_idx).toInt();
-          cmd.value = buffer.substring(colon_idx + 1).toFloat();
+          last_payload = buffer.substring(colon_idx + 1); // full raw payload after ':'
+          cmd.value = last_payload.toFloat();
 
           switch (type_char) {
           case 'T':
@@ -121,6 +126,12 @@ RobotCommand CommandParser::parse(Stream &serial) {
             break;
           case 'L':
             cmd.type = CMD_LEVEL_MODE;
+            break;
+          case 'B':
+            cmd.type = CMD_SEQ_MODE;
+            break;
+          case 'J':
+            cmd.type = CMD_SEQ_KEYFRAME;
             break;
           case 'A':
             if (cmd.actuator_id == 1)

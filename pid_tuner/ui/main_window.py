@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QSizePolicy,
     QFrame,
+    QTabWidget,
 )
 from PyQt6.QtCore import Qt, QTimer, QSettings
 from PyQt6.QtGui import QShortcut, QKeySequence
@@ -28,6 +29,7 @@ from .control_panel import ControlPanel
 from .serial_console import SerialConsole
 from .state_indicator import StateIndicator
 from .encoder_overview import EncoderOverview
+from .sequence_editor import SequenceEditor
 from .theme import get_application_stylesheet, THEME
 from .scaling import SIZES, scaled
 
@@ -56,6 +58,11 @@ class MainWindow(QMainWindow):
         self._serial_handler.raw_lines_received.connect(self._on_raw_lines_received)
         self._serial_handler.connection_changed.connect(self._on_connection_changed)
         self._serial_handler.error_occurred.connect(self._on_error)
+
+        # Forward sequence status from serial to data_store
+        self._serial_handler.seq_status_received.connect(
+            self._data_store.seq_status_updated
+        )
 
         # Apply Catppuccin theme
         self.setStyleSheet(get_application_stylesheet())
@@ -103,20 +110,52 @@ class MainWindow(QMainWindow):
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
         self._main_splitter = main_splitter  # Store reference for settings
 
-        # Left side - Plot and Console in vertical splitter
+        # Left side - Tab widget (Live Plot | Sequences) above Serial Console
         left_splitter = QSplitter(Qt.Orientation.Vertical)
         self._left_splitter = left_splitter  # Store reference for settings
 
-        # Plot widget
-        self._plot_widget = PlotWidget(self._data_store)
-        left_splitter.addWidget(self._plot_widget)
+        # Tab widget containing the plotter and sequence editor
+        self._left_tabs = QTabWidget()
+        self._left_tabs.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: 1px solid {THEME.surface1};
+                background-color: {THEME.base};
+            }}
+            QTabBar::tab {{
+                background-color: {THEME.surface0};
+                color: {THEME.subtext1};
+                padding: 5px 14px;
+                border: 1px solid {THEME.surface1};
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }}
+            QTabBar::tab:selected {{
+                background-color: {THEME.base};
+                color: {THEME.text};
+                font-weight: bold;
+            }}
+            QTabBar::tab:hover:!selected {{
+                background-color: {THEME.surface1};
+            }}
+        """)
 
-        # Serial console
+        # Live Plot tab
+        self._plot_widget = PlotWidget(self._data_store)
+        self._left_tabs.addTab(self._plot_widget, "Live Plot")
+
+        # Sequences tab
+        self._sequence_editor = SequenceEditor(self._data_store, self._serial_handler)
+        self._left_tabs.addTab(self._sequence_editor, "Sequences")
+
+        left_splitter.addWidget(self._left_tabs)
+
+        # Serial console (below tabs)
         self._serial_console = SerialConsole()
         self._serial_console.command_sent.connect(self._serial_handler.send_raw)
         left_splitter.addWidget(self._serial_console)
 
-        # Set plot to take 75% of vertical space, console 25%
+        # Give tabs ~75% of vertical space, console ~25%
         left_splitter.setSizes([450, 150])
 
         main_splitter.addWidget(left_splitter)

@@ -54,6 +54,23 @@ struct SystemTelemetry {
 SystemState current_state = INIT;
 SystemTelemetry telemetry;
 
+// --- Sequence / Trajectory (AUTO_CURB_CLIMBING mode) ---
+#define MAX_SEQ_KEYFRAMES 20
+#define SEQ_NUM_MOTORS 6
+
+struct Keyframe {
+  float    targets[SEQ_NUM_MOTORS];
+  bool     active[SEQ_NUM_MOTORS];
+  uint32_t duration_ms;
+};
+
+Keyframe seq_keyframes[MAX_SEQ_KEYFRAMES];
+int      seq_length        = 0;
+int      seq_current       = -1;
+bool     seq_interpolating = false;
+unsigned long seq_interp_start = 0;
+float    seq_start_pos[SEQ_NUM_MOTORS];
+
 // Self Leveling Targets
 float target_pitch = 0.0f;
 float target_roll = 0.0f;
@@ -368,6 +385,28 @@ void saveMotorConfig(int motor_id, Motor *m) {
   ConfigStorage::saveMotorConfig(motor_id, conf);
 }
 
+// Parse "t1,t2,t3,t4,t5,t6,a1,a2,a3,a4,a5,a6,dur_ms" into a Keyframe.
+// Returns true on success.
+bool parseKeyframePayload(const String &payload, Keyframe &kf) {
+  float vals[13];
+  int count = 0;
+  int start = 0;
+  for (int i = 0; i <= (int)payload.length() && count < 13; i++) {
+    char c = (i < (int)payload.length()) ? payload.charAt(i) : ',';
+    if (c == ',') {
+      vals[count++] = payload.substring(start, i).toFloat();
+      start = i + 1;
+    }
+  }
+  if (count < 13) return false;
+  for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+    kf.targets[i] = vals[i];
+    kf.active[i]  = (vals[6 + i] > 0.5f);
+  }
+  kf.duration_ms = (uint32_t)vals[12];
+  return true;
+}
+
 void setup() {
   Serial.begin(460800);  // jetson
   Serial3.begin(460800); // roboclaw 1
@@ -524,6 +563,22 @@ void loop() {
     was_connected = true; // Re-arm auto-save for next disconnect
     if (DEBUG_MODE)
       Serial.println("DEBUG: ESTOP Cleared, entering IDLE");
+  } else if (cmd.type == CMD_SEQ_MODE) {
+    if (cmd.value > 0.5f) {
+      current_state = AUTO_CURB_CLIMBING;
+      seq_length = 0;
+      seq_current = -1;
+      seq_interpolating = false;
+      Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+      for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+        motors[i]->setMode(Motor::POSITION_CONTROL);
+        seq_start_pos[i] = motors[i]->current_pos;
+      }
+      Serial.println("SEQ: Entered AUTO_CURB_CLIMBING mode");
+    } else {
+      current_state = IDLE;
+      Serial.println("SEQ: Exited AUTO_CURB_CLIMBING mode");
+    }
   } else if (cmd.type == CMD_LEVEL_MODE) {
     if (cmd.value > 0.5) {
       current_state = SELF_LEVELING;
@@ -878,6 +933,53 @@ void loop() {
     }
   }
 
+  // Sequence command dispatch (valid in AUTO_CURB_CLIMBING mode)
+  if (current_state == AUTO_CURB_CLIMBING && cmd.type != CMD_NONE) {
+    if (cmd.type == CMD_SEQ_KEYFRAME) {
+      int idx = cmd.actuator_id;
+      if (idx >= 0 && idx < MAX_SEQ_KEYFRAMES) {
+        Keyframe kf;
+        if (parseKeyframePayload(parser.last_payload, kf)) {
+          seq_keyframes[idx] = kf;
+          if (idx >= seq_length) seq_length = idx + 1;
+          Serial.print("SEQ_ACK,");
+          Serial.println(idx);
+        } else {
+          Serial.print("SEQ_ERR,bad_payload,");
+          Serial.println(idx);
+        }
+      }
+    } else if (cmd.type == CMD_SEQ_STEP_FWD) {
+      if (!seq_interpolating && seq_current < seq_length - 1) {
+        seq_current++;
+        Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+        for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+          seq_start_pos[i] = motors[i]->current_pos;
+        }
+        seq_interp_start = millis();
+        seq_interpolating = true;
+        Serial.print("SEQ_STATUS,"); Serial.print(seq_current);
+        Serial.print(","); Serial.print(seq_length);
+        Serial.println(",1");
+      }
+    } else if (cmd.type == CMD_SEQ_STEP_BWD) {
+      if (!seq_interpolating && seq_current > 0) {
+        seq_current--;
+        Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+        for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+          seq_start_pos[i] = motors[i]->current_pos;
+        }
+        seq_interp_start = millis();
+        seq_interpolating = true;
+        Serial.print("SEQ_STATUS,"); Serial.print(seq_current);
+        Serial.print(","); Serial.print(seq_length);
+        Serial.println(",1");
+      }
+    } else if (cmd.type == CMD_SEQ_MODE && cmd.value <= 0.5f) {
+      // handled above in state transitions
+    }
+  }
+
   // 4. Update Motors
   if (current_state == ESTOP) {
     // Stop all motors safely via DISABLED mode
@@ -889,6 +991,27 @@ void loop() {
     mr_carriage.disable();
   } else if (current_state == SELF_LEVELING) {
     runSelfLeveling(dt);
+  } else if (current_state == AUTO_CURB_CLIMBING) {
+    if (seq_interpolating && seq_current >= 0 && seq_current < seq_length) {
+      Keyframe &kf = seq_keyframes[seq_current];
+      unsigned long elapsed = millis() - seq_interp_start;
+      float t = (kf.duration_ms == 0)
+                  ? 1.0f
+                  : min(1.0f, (float)elapsed / (float)kf.duration_ms);
+      Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+      for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+        if (kf.active[i]) {
+          float target = seq_start_pos[i] + t * (kf.targets[i] - seq_start_pos[i]);
+          motors[i]->setTargetPosition(target);
+        }
+      }
+      if (t >= 1.0f) {
+        seq_interpolating = false;
+        Serial.print("SEQ_STATUS,"); Serial.print(seq_current);
+        Serial.print(","); Serial.print(seq_length);
+        Serial.println(",0");
+      }
+    }
   }
 
   float rc_pwm = rc.update(dt);

@@ -1,0 +1,753 @@
+"""
+Sequence / Trajectory Editor for AUTO_CURB_CLIMBING mode.
+
+Allows creating, editing, saving, loading, and executing keyframe sequences.
+Each keyframe specifies target positions for each of the 6 motors plus a
+duration (in ms) for linear interpolation from the previous keyframe.
+
+Motor order throughout: [RC, FC, ML, MR, ML_Carriage, MR_Carriage]
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import List, Optional
+
+from PyQt6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTableWidget,
+    QTableWidgetItem,
+    QPushButton,
+    QLabel,
+    QFileDialog,
+    QMessageBox,
+    QHeaderView,
+    QAbstractItemView,
+    QFrame,
+    QSizePolicy,
+    QSpinBox,
+)
+from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer
+from PyQt6.QtGui import QColor, QFont, QBrush
+
+from ..data.data_store import DataStore
+from ..serial_driver.serial_handler import SerialHandler
+from .theme import THEME, JOINT_COLORS
+from .scaling import SIZES, scaled
+
+
+# Motor names in order (matching firmware motor array)
+MOTOR_NAMES = ["RC", "FC", "ML", "MR", "ML_Car", "MR_Car"]
+NUM_MOTORS = 6
+
+# Column indices in the QTableWidget
+COL_LABEL = 0
+COL_RC = 1
+COL_FC = 2
+COL_ML = 3
+COL_MR = 4
+COL_ML_CAR = 5
+COL_MR_CAR = 6
+COL_DURATION = 7
+NUM_COLS = 8
+
+# Sentinel for "inactive" cells (motor not controlled in this keyframe)
+INACTIVE_TEXT = "--"
+
+
+class Keyframe:
+    """Data model for a single keyframe in a sequence."""
+
+    def __init__(self):
+        self.label: str = ""
+        self.targets: List[Optional[float]] = [None] * NUM_MOTORS  # None = inactive
+        self.duration_ms: int = 1000
+
+    def is_active(self, motor_idx: int) -> bool:
+        return self.targets[motor_idx] is not None
+
+    def to_dict(self) -> dict:
+        return {
+            "label": self.label,
+            "targets": [t if t is not None else None for t in self.targets],
+            "duration_ms": self.duration_ms,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Keyframe":
+        kf = cls()
+        kf.label = d.get("label", "")
+        raw_targets = d.get("targets", [None] * NUM_MOTORS)
+        kf.targets = [(float(t) if t is not None else None) for t in raw_targets]
+        kf.duration_ms = int(d.get("duration_ms", 1000))
+        return kf
+
+
+class SequenceEditor(QWidget):
+    """
+    Keyframe sequence editor widget.
+
+    Allows building sequences of motor position keyframes, uploading them to
+    the robot (entering AUTO_CURB_CLIMBING mode), and stepping through them.
+    """
+
+    # Emitted when sequence mode should be activated on the robot
+    sequence_mode_requested = pyqtSignal(bool)
+
+    def __init__(
+        self,
+        data_store: DataStore,
+        serial_handler: SerialHandler,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._data_store = data_store
+        self._serial_handler = serial_handler
+        self._keyframes: List[Keyframe] = []
+        self._current_file: Optional[str] = None
+
+        # Sequence execution state (mirrored from robot)
+        self._robot_step: int = -1
+        self._robot_total: int = 0
+        self._robot_interpolating: bool = False
+
+        # Upload state
+        self._upload_pending: List[int] = []  # queue of keyframe indices to ACK
+        self._upload_timer = QTimer(self)
+        self._upload_timer.setSingleShot(True)
+        self._upload_timer.timeout.connect(self._on_upload_timeout)
+
+        self._setup_ui()
+        self._wire_signals()
+        self._update_button_states()
+
+    # ------------------------------------------------------------------ #
+    #  UI construction                                                      #
+    # ------------------------------------------------------------------ #
+
+    def _setup_ui(self):
+        root = QVBoxLayout(self)
+        root.setSpacing(SIZES["spacing_small"])
+        root.setContentsMargins(
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+        )
+
+        root.addWidget(self._build_toolbar())
+        root.addWidget(self._build_table(), stretch=1)
+        root.addWidget(self._build_row_buttons())
+        root.addWidget(self._build_step_bar())
+        root.addWidget(self._build_status_bar())
+
+    def _build_toolbar(self) -> QFrame:
+        bar = QFrame()
+        bar.setStyleSheet(f"background-color: {THEME.surface0}; border-radius: 4px;")
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+        )
+        layout.setSpacing(SIZES["spacing_small"])
+
+        btn_style = f"""
+            QPushButton {{
+                background-color: {THEME.surface1};
+                color: {THEME.text};
+                border: 1px solid {THEME.surface2};
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: {SIZES["font_normal"]}pt;
+            }}
+            QPushButton:hover {{
+                background-color: {THEME.surface2};
+            }}
+            QPushButton:disabled {{
+                color: {THEME.overlay0};
+            }}
+        """
+
+        self._btn_new = QPushButton("New")
+        self._btn_new.setToolTip("Create a blank sequence")
+        self._btn_new.setStyleSheet(btn_style)
+        self._btn_new.clicked.connect(self._on_new)
+        layout.addWidget(self._btn_new)
+
+        self._btn_load = QPushButton("Load")
+        self._btn_load.setToolTip("Load sequence from JSON file")
+        self._btn_load.setStyleSheet(btn_style)
+        self._btn_load.clicked.connect(self._on_load)
+        layout.addWidget(self._btn_load)
+
+        self._btn_save = QPushButton("Save")
+        self._btn_save.setToolTip("Save sequence to JSON file")
+        self._btn_save.setStyleSheet(btn_style)
+        self._btn_save.clicked.connect(self._on_save)
+        layout.addWidget(self._btn_save)
+
+        self._btn_save_as = QPushButton("Save As…")
+        self._btn_save_as.setToolTip("Save sequence to a new JSON file")
+        self._btn_save_as.setStyleSheet(btn_style)
+        self._btn_save_as.clicked.connect(self._on_save_as)
+        layout.addWidget(self._btn_save_as)
+
+        layout.addSpacing(SIZES["spacing_medium"])
+
+        self._btn_send = QPushButton("Send to Robot")
+        self._btn_send.setToolTip(
+            "Enter AUTO_CURB_CLIMBING mode and upload all keyframes to the robot"
+        )
+        self._btn_send.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.blue};
+                color: {THEME.crust};
+                border-radius: 4px;
+                padding: 4px 12px;
+                font-weight: bold;
+                font-size: {SIZES["font_normal"]}pt;
+            }}
+            QPushButton:hover {{ background-color: {THEME.sapphire}; }}
+            QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
+        """)
+        self._btn_send.clicked.connect(self._on_send_to_robot)
+        layout.addWidget(self._btn_send)
+
+        self._btn_exit_seq = QPushButton("Exit Sequence")
+        self._btn_exit_seq.setToolTip("Send B1:0 to exit AUTO_CURB_CLIMBING mode")
+        self._btn_exit_seq.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.maroon};
+                color: {THEME.crust};
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: {SIZES["font_normal"]}pt;
+            }}
+            QPushButton:hover {{ background-color: {THEME.red}; }}
+            QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
+        """)
+        self._btn_exit_seq.clicked.connect(self._on_exit_sequence)
+        layout.addWidget(self._btn_exit_seq)
+
+        layout.addStretch()
+
+        # File name display
+        self._file_label = QLabel("No file")
+        self._file_label.setStyleSheet(
+            f"color: {THEME.subtext0}; font-style: italic; font-size: {SIZES['font_small']}pt;"
+        )
+        layout.addWidget(self._file_label)
+
+        return bar
+
+    def _build_table(self) -> QTableWidget:
+        headers = ["Label", "RC", "FC", "ML", "MR", "ML_Car", "MR_Car", "Duration (ms)"]
+        self._table = QTableWidget(0, NUM_COLS)
+        self._table.setHorizontalHeaderLabels(headers)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._table.setAlternatingRowColors(True)
+        self._table.verticalHeader().setVisible(True)
+        self._table.horizontalHeader().setSectionResizeMode(
+            COL_LABEL, QHeaderView.ResizeMode.Stretch
+        )
+        for col in range(COL_RC, COL_DURATION):
+            self._table.horizontalHeader().setSectionResizeMode(
+                col, QHeaderView.ResizeMode.ResizeToContents
+            )
+        self._table.horizontalHeader().setSectionResizeMode(
+            COL_DURATION, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {THEME.base};
+                color: {THEME.text};
+                gridline-color: {THEME.surface1};
+                border: 1px solid {THEME.surface1};
+                font-size: {SIZES["font_normal"]}pt;
+            }}
+            QTableWidget::item {{
+                color: {THEME.text};
+            }}
+            QTableWidget::item:alternate {{
+                background-color: {THEME.mantle};
+                color: {THEME.text};
+            }}
+            QTableWidget::item:selected,
+            QTableWidget::item:selected:alternate {{
+                background-color: {THEME.blue};
+                color: {THEME.base};
+            }}
+            QHeaderView::section {{
+                background-color: {THEME.surface0};
+                color: {THEME.subtext1};
+                border: 1px solid {THEME.surface1};
+                padding: 4px;
+                font-weight: bold;
+            }}
+        """)
+
+        # Color motor column headers to match joint accent colors
+        for motor_idx, col in enumerate(range(COL_RC, COL_DURATION)):
+            item = self._table.horizontalHeaderItem(col)
+            if item:
+                item.setForeground(QBrush(QColor(JOINT_COLORS[motor_idx])))
+
+        self._table.itemChanged.connect(self._on_table_item_changed)
+        return self._table
+
+    def _build_row_buttons(self) -> QWidget:
+        w = QWidget()
+        layout = QHBoxLayout(w)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(SIZES["spacing_small"])
+
+        small_style = f"""
+            QPushButton {{
+                background-color: {THEME.surface1};
+                color: {THEME.text};
+                border: 1px solid {THEME.surface2};
+                border-radius: 3px;
+                padding: 3px 8px;
+                font-size: {SIZES["font_small"]}pt;
+            }}
+            QPushButton:hover {{ background-color: {THEME.surface2}; }}
+            QPushButton:disabled {{ color: {THEME.overlay0}; }}
+        """
+
+        self._btn_add = QPushButton("+ Add Keyframe")
+        self._btn_add.setStyleSheet(small_style)
+        self._btn_add.clicked.connect(self._on_add_keyframe)
+        layout.addWidget(self._btn_add)
+
+        self._btn_remove = QPushButton("− Remove Selected")
+        self._btn_remove.setStyleSheet(small_style)
+        self._btn_remove.clicked.connect(self._on_remove_keyframe)
+        layout.addWidget(self._btn_remove)
+
+        self._btn_capture = QPushButton("⊙ Capture Current Positions")
+        self._btn_capture.setToolTip(
+            "Fill selected row with live motor positions from telemetry"
+        )
+        self._btn_capture.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.teal};
+                color: {THEME.crust};
+                border-radius: 3px;
+                padding: 3px 10px;
+                font-size: {SIZES["font_small"]}pt;
+            }}
+            QPushButton:hover {{ background-color: {THEME.green}; }}
+            QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
+        """)
+        self._btn_capture.clicked.connect(self._on_capture_positions)
+        layout.addWidget(self._btn_capture)
+
+        layout.addStretch()
+        return w
+
+    def _build_step_bar(self) -> QFrame:
+        bar = QFrame()
+        bar.setStyleSheet(f"background-color: {THEME.surface0}; border-radius: 4px;")
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+            SIZES["margin_small"],
+        )
+        layout.setSpacing(SIZES["spacing_medium"])
+
+        layout.addWidget(QLabel("Step:"))
+
+        self._btn_step_bwd = QPushButton("◀  Step Back")
+        self._btn_step_bwd.setToolTip("Step backward to the previous keyframe  (<)")
+        self._btn_step_bwd.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.peach};
+                color: {THEME.crust};
+                border-radius: 4px;
+                padding: 5px 14px;
+                font-weight: bold;
+                font-size: {SIZES["font_normal"]}pt;
+            }}
+            QPushButton:hover {{ background-color: {THEME.yellow}; }}
+            QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
+        """)
+        self._btn_step_bwd.clicked.connect(self._on_step_backward)
+        layout.addWidget(self._btn_step_bwd)
+
+        self._btn_step_fwd = QPushButton("Step Fwd  ▶")
+        self._btn_step_fwd.setToolTip("Step forward to the next keyframe  (>)")
+        self._btn_step_fwd.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.green};
+                color: {THEME.crust};
+                border-radius: 4px;
+                padding: 5px 14px;
+                font-weight: bold;
+                font-size: {SIZES["font_normal"]}pt;
+            }}
+            QPushButton:hover {{ background-color: {THEME.teal}; }}
+            QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
+        """)
+        self._btn_step_fwd.clicked.connect(self._on_step_forward)
+        layout.addWidget(self._btn_step_fwd)
+
+        layout.addStretch()
+        return bar
+
+    def _build_status_bar(self) -> QLabel:
+        self._status_label = QLabel("No sequence active")
+        self._status_label.setStyleSheet(
+            f"color: {THEME.subtext1}; font-size: {SIZES['font_small']}pt;"
+            f" padding: 2px 4px; background-color: {THEME.mantle}; border-radius: 3px;"
+        )
+        self._status_label.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._status_label.setFixedHeight(scaled(22))
+        return self._status_label
+
+    # ------------------------------------------------------------------ #
+    #  Signal wiring                                                        #
+    # ------------------------------------------------------------------ #
+
+    def _wire_signals(self):
+        self._serial_handler.seq_ack_received.connect(self._on_seq_ack)
+        self._serial_handler.seq_status_received.connect(self._on_seq_status)
+
+    # ------------------------------------------------------------------ #
+    #  Table population                                                     #
+    # ------------------------------------------------------------------ #
+
+    def _populate_table(self):
+        """Rebuild the entire table from self._keyframes."""
+        self._table.blockSignals(True)
+        self._table.setRowCount(len(self._keyframes))
+        for row, kf in enumerate(self._keyframes):
+            self._set_row(row, kf)
+        self._table.blockSignals(False)
+        self._highlight_active_step()
+
+    def _set_row(self, row: int, kf: Keyframe):
+        """Write one keyframe into a table row."""
+        self._table.blockSignals(True)
+
+        label_item = QTableWidgetItem(kf.label or f"Step {row}")
+        self._table.setItem(row, COL_LABEL, label_item)
+
+        for motor_idx in range(NUM_MOTORS):
+            col = COL_RC + motor_idx
+            val = kf.targets[motor_idx]
+            if val is None:
+                item = QTableWidgetItem(INACTIVE_TEXT)
+                item.setForeground(QBrush(QColor(THEME.overlay0)))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            else:
+                item = QTableWidgetItem(f"{val:.1f}")
+                item.setForeground(QBrush(QColor(JOINT_COLORS[motor_idx])))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._table.setItem(row, col, item)
+
+        dur_item = QTableWidgetItem(str(kf.duration_ms))
+        dur_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._table.setItem(row, COL_DURATION, dur_item)
+
+        self._table.blockSignals(False)
+
+    def _highlight_active_step(self):
+        """Bold the row currently active on the robot."""
+        normal_font = QFont()
+        bold_font = QFont()
+        bold_font.setBold(True)
+
+        for row in range(self._table.rowCount()):
+            font = bold_font if row == self._robot_step else normal_font
+            for col in range(NUM_COLS):
+                item = self._table.item(row, col)
+                if item:
+                    item.setFont(font)
+
+    # ------------------------------------------------------------------ #
+    #  Table → data model sync                                             #
+    # ------------------------------------------------------------------ #
+
+    @pyqtSlot(QTableWidgetItem)
+    def _on_table_item_changed(self, item: QTableWidgetItem):
+        row = item.row()
+        col = item.column()
+        if row < 0 or row >= len(self._keyframes):
+            return
+        kf = self._keyframes[row]
+        text = item.text().strip()
+
+        if col == COL_LABEL:
+            kf.label = text
+
+        elif COL_RC <= col <= COL_MR_CAR:
+            motor_idx = col - COL_RC
+            if text == INACTIVE_TEXT or text == "" or text == "-":
+                kf.targets[motor_idx] = None
+                item.setForeground(QBrush(QColor(THEME.overlay0)))
+                item.setText(INACTIVE_TEXT)
+            else:
+                try:
+                    kf.targets[motor_idx] = float(text)
+                    item.setForeground(QBrush(QColor(JOINT_COLORS[motor_idx])))
+                except ValueError:
+                    # Restore previous value
+                    prev = kf.targets[motor_idx]
+                    item.setText(f"{prev:.1f}" if prev is not None else INACTIVE_TEXT)
+
+        elif col == COL_DURATION:
+            try:
+                kf.duration_ms = max(0, int(float(text)))
+                item.setText(str(kf.duration_ms))
+            except ValueError:
+                item.setText(str(kf.duration_ms))
+
+    # ------------------------------------------------------------------ #
+    #  Toolbar actions                                                      #
+    # ------------------------------------------------------------------ #
+
+    def _on_new(self):
+        if self._keyframes:
+            reply = QMessageBox.question(
+                self,
+                "New Sequence",
+                "Discard current sequence and start fresh?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        self._keyframes = []
+        self._current_file = None
+        self._file_label.setText("New sequence (unsaved)")
+        self._populate_table()
+        self._update_button_states()
+
+    def _on_load(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Load Sequence", "", "JSON Files (*.json);;All Files (*)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+            keyframes_data = data.get(
+                "keyframes", data if isinstance(data, list) else []
+            )
+            self._keyframes = [Keyframe.from_dict(d) for d in keyframes_data]
+            self._current_file = path
+            self._file_label.setText(os.path.basename(path))
+            self._populate_table()
+            self._update_button_states()
+        except Exception as e:
+            QMessageBox.critical(self, "Load Error", f"Failed to load sequence:\n{e}")
+
+    def _on_save(self):
+        if self._current_file:
+            self._save_to_file(self._current_file)
+        else:
+            self._on_save_as()
+
+    def _on_save_as(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Sequence", "", "JSON Files (*.json);;All Files (*)"
+        )
+        if not path:
+            return
+        if not path.endswith(".json"):
+            path += ".json"
+        self._save_to_file(path)
+
+    def _save_to_file(self, path: str):
+        try:
+            data = {
+                "name": os.path.splitext(os.path.basename(path))[0],
+                "keyframes": [kf.to_dict() for kf in self._keyframes],
+            }
+            with open(path, "w") as f:
+                json.dump(data, f, indent=2)
+            self._current_file = path
+            self._file_label.setText(os.path.basename(path))
+            self._set_status(f"Saved to {os.path.basename(path)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Save Error", f"Failed to save sequence:\n{e}")
+
+    def _on_send_to_robot(self):
+        if not self._keyframes:
+            QMessageBox.warning(
+                self, "No Sequence", "Add at least one keyframe before sending."
+            )
+            return
+
+        # Enter sequence mode on the robot
+        self._serial_handler.enter_sequence_mode(True)
+
+        # Build the upload queue and send all keyframes
+        self._upload_pending = list(range(len(self._keyframes)))
+        self._set_status(f"Uploading {len(self._keyframes)} keyframe(s)…")
+
+        for idx, kf in enumerate(self._keyframes):
+            targets = [t if t is not None else 0.0 for t in kf.targets]
+            active = [t is not None for t in kf.targets]
+            self._serial_handler.send_keyframe(idx, targets, active, kf.duration_ms)
+
+        # Start a timeout — if not all ACKs arrive within 3s, warn the user
+        self._upload_timer.start(3000)
+        self._update_button_states()
+
+    def _on_exit_sequence(self):
+        self._serial_handler.enter_sequence_mode(False)
+        self._robot_step = -1
+        self._robot_total = 0
+        self._robot_interpolating = False
+        self._highlight_active_step()
+        self._set_status("Exited sequence mode")
+        self._update_button_states()
+
+    # ------------------------------------------------------------------ #
+    #  Row management                                                       #
+    # ------------------------------------------------------------------ #
+
+    def _on_add_keyframe(self):
+        kf = Keyframe()
+        kf.label = f"Step {len(self._keyframes)}"
+        # Pre-fill with current live positions if available
+        self._apply_live_positions(kf)
+        self._keyframes.append(kf)
+        row = len(self._keyframes) - 1
+        self._table.insertRow(row)
+        self._set_row(row, kf)
+        self._table.selectRow(row)
+        self._update_button_states()
+
+    def _on_remove_keyframe(self):
+        rows = self._table.selectedItems()
+        if not rows:
+            return
+        row = self._table.currentRow()
+        if 0 <= row < len(self._keyframes):
+            self._keyframes.pop(row)
+            self._table.removeRow(row)
+            self._update_button_states()
+
+    def _on_capture_positions(self):
+        """Fill selected row with live motor positions from telemetry."""
+        row = self._table.currentRow()
+        if row < 0 or row >= len(self._keyframes):
+            QMessageBox.information(self, "Capture Positions", "Select a row first.")
+            return
+        kf = self._keyframes[row]
+        self._apply_live_positions(kf)
+        self._table.blockSignals(True)
+        self._set_row(row, kf)
+        self._table.blockSignals(False)
+        self._set_status(f"Captured live positions into Step {row}")
+
+    def _apply_live_positions(self, kf: Keyframe):
+        """Read live telemetry positions into a keyframe's targets."""
+        for i in range(NUM_MOTORS):
+            joint_data = self._data_store.get_joint(i + 1)
+            if joint_data is not None:
+                kf.targets[i] = round(joint_data.current_position, 1)
+
+    # ------------------------------------------------------------------ #
+    #  Step commands                                                        #
+    # ------------------------------------------------------------------ #
+
+    def _on_step_forward(self):
+        self._serial_handler.seq_step_forward()
+        self._set_status("Stepping forward…")
+
+    def _on_step_backward(self):
+        self._serial_handler.seq_step_backward()
+        self._set_status("Stepping backward…")
+
+    # ------------------------------------------------------------------ #
+    #  Robot response handlers                                             #
+    # ------------------------------------------------------------------ #
+
+    @pyqtSlot(int)
+    def _on_seq_ack(self, step_idx: int):
+        """Called when the robot ACKs a keyframe upload."""
+        if step_idx in self._upload_pending:
+            self._upload_pending.remove(step_idx)
+        if not self._upload_pending:
+            self._upload_timer.stop()
+            self._set_status(
+                f"Upload complete — {len(self._keyframes)} keyframe(s) ready.  "
+                "Press Step Fwd to start."
+            )
+            self._update_button_states()
+
+    @pyqtSlot(int, int, bool)
+    def _on_seq_status(self, current_step: int, total_steps: int, interpolating: bool):
+        """Called when the robot sends a SEQ_STATUS update."""
+        self._robot_step = current_step
+        self._robot_total = total_steps
+        self._robot_interpolating = interpolating
+        self._highlight_active_step()
+
+        if interpolating:
+            self._set_status(
+                f"Step {current_step + 1}/{total_steps} — Interpolating…",
+                color=THEME.yellow,
+            )
+        else:
+            self._set_status(
+                f"Step {current_step + 1}/{total_steps} — Ready",
+                color=THEME.green,
+            )
+        self._update_button_states()
+
+    def _on_upload_timeout(self):
+        if self._upload_pending:
+            self._set_status(
+                f"Warning: no ACK for keyframe(s) {self._upload_pending}",
+                color=THEME.red,
+            )
+            self._upload_pending = []
+            self._update_button_states()
+
+    # ------------------------------------------------------------------ #
+    #  Button state management                                             #
+    # ------------------------------------------------------------------ #
+
+    def _update_button_states(self):
+        has_kf = bool(self._keyframes)
+        uploading = bool(self._upload_pending)
+        seq_active = self._robot_total > 0  # robot has a loaded sequence
+
+        self._btn_save.setEnabled(has_kf)
+        self._btn_save_as.setEnabled(has_kf)
+        self._btn_send.setEnabled(has_kf and not uploading)
+        self._btn_exit_seq.setEnabled(seq_active)
+        self._btn_remove.setEnabled(has_kf)
+        self._btn_capture.setEnabled(has_kf)
+
+        can_step = seq_active and not self._robot_interpolating
+        self._btn_step_fwd.setEnabled(
+            can_step and (self._robot_step < self._robot_total - 1)
+        )
+        self._btn_step_bwd.setEnabled(can_step and (self._robot_step > 0))
+
+    # ------------------------------------------------------------------ #
+    #  Status helpers                                                       #
+    # ------------------------------------------------------------------ #
+
+    def _set_status(self, text: str, color: str = ""):
+        self._status_label.setText(text)
+        c = color or THEME.subtext1
+        self._status_label.setStyleSheet(
+            f"color: {c}; font-size: {SIZES['font_small']}pt;"
+            f" padding: 2px 4px; background-color: {THEME.mantle}; border-radius: 3px;"
+        )

@@ -121,12 +121,30 @@ class ConfigData:
     vel_max_ramp_rate: float = 0.0
 
 
+@dataclass
+class SeqAckData:
+    """ACK response after a keyframe is successfully uploaded."""
+
+    step_idx: int
+
+
+@dataclass
+class SeqStatusData:
+    """Status response after a step command or interpolation completion."""
+
+    current_step: int
+    total_steps: int
+    interpolating: bool
+
+
 class ProtocolParser:
     """Parse incoming serial data from Teensy."""
 
     # Matches: TELEMETRY,timestamp,state,<values>
     ENCODER_PATTERN = re.compile(r"^TELEMETRY,(\d+),(\d+),(.+)$")
     CONFIG_PATTERN = re.compile(r"^CONFIG,(\d+),(.+)$")
+    SEQ_STATUS_PATTERN = re.compile(r"^SEQ_STATUS,(\d+),(\d+),([01])$")
+    SEQ_ACK_PATTERN = re.compile(r"^SEQ_ACK,(\d+)$")
 
     NUM_JOINTS = 6
 
@@ -176,6 +194,28 @@ class ProtocolParser:
                         config_data.pos_max_ramp_rate = values[13]
                         config_data.vel_max_ramp_rate = values[14]
                     return config_data
+            except (ValueError, IndexError):
+                pass
+            return None
+
+        # Try SEQ_STATUS
+        seq_status_match = cls.SEQ_STATUS_PATTERN.match(line)
+        if seq_status_match:
+            try:
+                return SeqStatusData(
+                    current_step=int(seq_status_match.group(1)),
+                    total_steps=int(seq_status_match.group(2)),
+                    interpolating=bool(int(seq_status_match.group(3))),
+                )
+            except (ValueError, IndexError):
+                pass
+            return None
+
+        # Try SEQ_ACK
+        seq_ack_match = cls.SEQ_ACK_PATTERN.match(line)
+        if seq_ack_match:
+            try:
+                return SeqAckData(step_idx=int(seq_ack_match.group(1)))
             except (ValueError, IndexError):
                 pass
             return None
@@ -464,3 +504,34 @@ class ProtocolEncoder:
         """
         cmd = f"O{joint_id}:{desired_position:.2f}\n"
         return cmd.encode("ascii")
+
+    @staticmethod
+    def enter_sequence_mode(enable: bool) -> bytes:
+        """Enter or exit AUTO_CURB_CLIMBING sequence mode."""
+        val = 1 if enable else 0
+        return f"B1:{val}\n".encode("ascii")
+
+    @staticmethod
+    def send_keyframe(
+        index: int, targets: list, active: list, duration_ms: int
+    ) -> bytes:
+        """
+        Upload one keyframe to the robot.
+        index: 0-based keyframe index
+        targets: list of 6 floats [rc, fc, ml, mr, ml_carriage, mr_carriage]
+        active: list of 6 bools — whether each motor is controlled by this keyframe
+        duration_ms: interpolation duration in milliseconds
+        """
+        t_str = ",".join(f"{t:.2f}" for t in targets)
+        a_str = ",".join(str(int(bool(a))) for a in active)
+        return f"J{index}:{t_str},{a_str},{duration_ms}\n".encode("ascii")
+
+    @staticmethod
+    def seq_step_forward() -> bytes:
+        """Step forward to the next keyframe."""
+        return b">\n"
+
+    @staticmethod
+    def seq_step_backward() -> bytes:
+        """Step backward to the previous keyframe."""
+        return b"<\n"

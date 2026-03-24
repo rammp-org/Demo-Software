@@ -33,6 +33,10 @@ enum CommandType {
   CMD_LEVEL_MODE,  // e.g. L1:1 (On), L1:0 (Off)
   CMD_LEVEL_PITCH, // e.g. A1:<pitch>
   CMD_LEVEL_ROLL,  // e.g. A2:<roll>
+  CMD_SEQ_MODE,       // e.g. B1:1 (enter sequence mode), B1:0 (exit)
+  CMD_SEQ_KEYFRAME,   // e.g. J<idx>:<t1>,<t2>,<t3>,<t4>,<t5>,<t6>,<a1>,<a2>,<a3>,<a4>,<a5>,<a6>,<dur_ms>
+  CMD_SEQ_STEP_FWD,   // e.g. > (step forward to next keyframe)
+  CMD_SEQ_STEP_BWD,   // e.g. < (step backward to previous keyframe)
   CMD_UNKNOWN,
   CMD_NONE
 };
@@ -55,6 +59,10 @@ public:
 
   // Reset watchdog timer manually if needed
   void feedWatchdog();
+
+  // The raw substring after the colon for the last parsed command.
+  // Used by Base.ino to extract the full CSV payload for CMD_SEQ_KEYFRAME.
+  String last_payload;
 
 private:
   unsigned long last_heartbeat;

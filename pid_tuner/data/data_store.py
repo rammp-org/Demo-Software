@@ -330,6 +330,9 @@ class DataStore(QObject):
     config_updated = pyqtSignal(int)  # Emits joint_id when config is loaded
     leveling_updated = pyqtSignal()  # Emitted when leveling debug data is updated
     strain_gauge_updated = pyqtSignal()  # Emitted when strain gauge values are updated
+    seq_status_updated = pyqtSignal(
+        int, int, bool
+    )  # current_step, total_steps, interpolating
 
     NUM_JOINTS = 6
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz

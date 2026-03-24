@@ -1678,42 +1678,64 @@ class ControlPanel(QWidget):
         actual_amplitude = base_amplitude * percent / 100
         self._execute_timed_step(actual_amplitude)
 
+    def _get_step_center(self, joint_data) -> float:
+        """Return the current actual value to center a step around, based on mode."""
+        if self._current_mode == MODE_POSITION:
+            return joint_data.current_position
+        elif self._current_mode == MODE_VELOCITY:
+            return joint_data.current_velocity
+        else:
+            return 0.0  # Open loop: steps are absolute PWM offsets from 0
+
     def _execute_timed_step(self, amplitude: float):
-        """Execute a timed step: send target, wait duration, return to zero."""
+        """Execute a timed step: send center+amplitude, wait duration, return to center."""
         duration = self._get_float_from_lineedit(self._step_duration, 0.5)
         joint_id = self._data_store.selected_joint
         linked_joint_id = self._data_store.linked_joint
         invert = self._invert_linked_cb.isChecked()
 
-        # Update primary target input display to match step
-        self._target_input.setText(str(amplitude))
+        # Capture the current actual position/velocity as the center to step around
+        joint_data = self._data_store.get_selected_joint_data()
+        self._step_center = self._get_step_center(joint_data)
+        target = self._step_center + amplitude
 
-        # Send step command primary
-        self._serial_handler.set_target(joint_id, amplitude)
-        self._data_store.set_target(joint_id, amplitude)
+        # Update primary target input display
+        self._target_input.setText(f"{target:.4g}")
 
-        # Send to linked if active
+        # Send step command to primary joint
+        self._serial_handler.set_target(joint_id, target)
+        self._data_store.set_target(joint_id, target)
+
+        # Send to linked joint if active, centered on its own current value
         if linked_joint_id != 0:
+            linked_data = self._data_store.get_joint(linked_joint_id)
+            if linked_data is not None:
+                self._step_linked_center = self._get_step_center(linked_data)
+            else:
+                self._step_linked_center = 0.0
             linked_amp = -amplitude if invert else amplitude
-            self._linked_target_input.setText(str(linked_amp))
-            self._serial_handler.set_target(linked_joint_id, linked_amp)
-            self._data_store.set_target(linked_joint_id, linked_amp)
+            linked_target = self._step_linked_center + linked_amp
+            self._linked_target_input.setText(f"{linked_target:.4g}")
+            self._serial_handler.set_target(linked_joint_id, linked_target)
+            self._data_store.set_target(linked_joint_id, linked_target)
 
-        # Start timer to return to zero
+        # Start timer to return to center
         self._step_timer.start(int(duration * 1000))
 
     def _on_step_complete(self):
-        """Handle step completion - return to zero."""
+        """Handle step completion - return to pre-step center."""
         joint_id = self._data_store.selected_joint
-        self._serial_handler.set_target(joint_id, 0)
-        self._target_input.setText("0")
-        self._data_store.set_target(joint_id, 0)
+        center = getattr(self, "_step_center", 0.0)
+        self._serial_handler.set_target(joint_id, center)
+        self._target_input.setText(f"{center:.4g}")
+        self._data_store.set_target(joint_id, center)
 
         linked_joint_id = self._data_store.linked_joint
         if linked_joint_id != 0:
-            self._serial_handler.set_target(linked_joint_id, 0)
-            self._linked_target_input.setText("0")
-            self._data_store.set_target(linked_joint_id, 0)
+            linked_center = getattr(self, "_step_linked_center", 0.0)
+            self._serial_handler.set_target(linked_joint_id, linked_center)
+            self._linked_target_input.setText(f"{linked_center:.4g}")
+            self._data_store.set_target(linked_joint_id, linked_center)
 
     def _on_start_sine(self):
         """Start sine wave input."""

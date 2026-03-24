@@ -8,6 +8,7 @@ from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from cornell_feeding_interfaces.action import CornellActionsPlaceHolder
+from std_srvs.srv import SetBool
 
 
 class DrinkingNode(rclpy.node.Node):
@@ -16,6 +17,12 @@ class DrinkingNode(rclpy.node.Node):
         self.get_logger().info("Mock Drinking Node has been started.")
 
         self._action_group = ReentrantCallbackGroup()
+        self.create_service(
+            SetBool,
+            "/arm/drink/detection/enable",
+            self._srv_detection_enable,
+            callback_group=self._action_group,
+        )
         # Action Server for PickUpAndOrder
         self._pickup_and_order_action_server = ActionServer(
             self,
@@ -58,13 +65,21 @@ class DrinkingNode(rclpy.node.Node):
         self._mock_action_result = True  # default to True
         self._mock_action_reject = False  # default to accept action request
 
+    def _srv_detection_enable(self, request, response):
+        if request.data:
+            self.get_logger().info("Drink detection enabled.")
+        else:
+            self.get_logger().info("Drink detection disabled.")
+        response.success = True
+        return response
+
     def mock_action_result(self, result: bool):
         self._mock_action_result = result
 
     def mock_action_reject(self, reject: bool):
         self._mock_action_reject = reject
 
-    def publish_feecback(self, goal_handle) -> bool:
+    def publish_feedback(self, goal_handle) -> bool:
         feedback = CornellActionsPlaceHolder.Feedback()
         while self._action_counter > 0:
             feedback.status = str(self._action_counter)
@@ -72,6 +87,8 @@ class DrinkingNode(rclpy.node.Node):
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
                 return False
+            self._action_counter -= 1
+            self.get_logger().info(f"action counter left: {self._action_counter}")
             time.sleep(0.1)  # sleep 0.1s
         return True
 

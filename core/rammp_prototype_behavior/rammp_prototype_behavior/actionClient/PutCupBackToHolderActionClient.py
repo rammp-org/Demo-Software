@@ -22,14 +22,21 @@ class PutCupBackToHolderActionClient(ActionClientWrapper):
 
     def goal_callback(self, success: bool):
         if success:
-            self._node.get_logger().info("Goal accepted by the action server.")
+            self._node.get_logger().info(
+                "Goal PutCupBackToHolder accepted by the action server."
+            )
         else:
-            self._node.get_logger().warn("Goal rejected by the action server.")
+            self._node.get_logger().warn(
+                "Goal PutCupBackToHolder rejected by the action server."
+            )
             self._node.reqArmActionGoalFailed()
 
     def result_callback(self, success: bool):
         if success:
             self._node.get_logger().info("Successfully put cup back to holder.")
+            self._node.cupPlacedBack()
+            self._node.set_arm_mode_idle()  # set arm to idle after putting cup back to holder
+            self._node.finish_mock_task()  # for testing, will remove after testing
         else:
             self._node.get_logger().warn("Failed to put cup back to holder.")
             self._node.ArmActionFailed()

@@ -22,14 +22,19 @@ class PickUpAndOrderActionClient(ActionClientWrapper):
 
     def goal_callback(self, success: bool):
         if success:
-            self._node.get_logger().info("Goal accepted by the action server.")
+            self._node.get_logger().info(
+                "Goal PickUpAndOrder accepted by the action server."
+            )
         else:
-            self._node.get_logger().warn("Goal rejected by the action server.")
+            self._node.get_logger().warn(
+                "Goal PickUpAndOrder rejected by the action server."
+            )
             self._node.reqArmActionGoalFailed()
 
     def result_callback(self, success: bool):
         if success:
             self._node.get_logger().info("Successfully picked up and ordered.")
+            self._node.pickedUpCup()
         else:
             self._node.get_logger().warn("Failed to pick up and order cup.")
             self._node.ArmActionFailed()

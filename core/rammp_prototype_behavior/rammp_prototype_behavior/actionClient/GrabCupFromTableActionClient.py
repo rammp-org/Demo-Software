@@ -22,14 +22,21 @@ class GrabCupFromTableActionClient(ActionClientWrapper):
 
     def goal_callback(self, success: bool):
         if success:
-            self._node.get_logger().info("Goal accepted by the action server.")
+            self._node.get_logger().info(
+                "Goal GrabCupFromTable accepted by the action server."
+            )
         else:
-            self._node.get_logger().warn("Goal rejected by the action server.")
+            self._node.get_logger().warn(
+                "Goal GrabCupFromTable rejected by the action server."
+            )
             self._node.reqArmActionGoalFailed()
 
     def result_callback(self, success: bool):
         if success:
             self._node.get_logger().info("Successfully grabbed cup from table.")
+            self._node.receivedDrink()  # should enter home state after receiving drink
+            self._node.set_arm_mode_idle()  # set arm to idle after grabbing cup from table
+            self._node.finish_mock_task()  # for testing, will remove after testing
         else:
             self._node.get_logger().warn("Failed to grab cup from table.")
             self._node.ArmActionFailed()

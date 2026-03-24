@@ -22,14 +22,19 @@ class BringCupToMouthActionClient(ActionClientWrapper):
 
     def goal_callback(self, success: bool):
         if success:
-            self._node.get_logger().info("Goal accepted by the action server.")
+            self._node.get_logger().info(
+                "Goal BringCupToMouth accepted by the action server."
+            )
         else:
-            self._node.get_logger().warn("Goal rejected by the action server.")
+            self._node.get_logger().warn(
+                "Goal BringCupToMouth rejected by the action server."
+            )
             self._node.reqArmActionGoalFailed()
 
     def result_callback(self, success: bool):
         if success:
             self._node.get_logger().info("Successfully brought cup to mouth.")
+            self._node.readyForDrink()  # should enter readyForDrink state after bringing cup to mouth
         else:
             self._node.get_logger().warn("Failed to bring cup to mouth.")
             self._node.ArmActionFailed()

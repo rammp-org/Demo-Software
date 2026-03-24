@@ -33,9 +33,68 @@ class ArmMode(enum.IntEnum):
     MANUAL = SetMode.Request.MODE_MANUAL
 
 
+class MockTasks(enum.IntEnum):
+    OPEN_DOOR = 1
+    ORDER_DRINK = 2
+    RECEIVE_DRINK = 3
+    SIP_DRINK = 4
+    PLACE_CUP_BACK = 5
+    END_TASK = 6  # update this when adding new mock tasks
+
+
+class MockState:
+    def __init__(self, node: rclpy.node.Node):
+        self._node = node
+        self.is_mock_task_running = False
+        self.next_mock_task = MockTasks.OPEN_DOOR
+        self.current_mock_task = None
+        self.next_mock_wait_time_counter = 3
+
+    def run_next_mock_task(self):
+        if self.is_mock_task_running:
+            return
+        if self.next_mock_task is MockTasks.END_TASK:
+            self._node.get_logger().info("All mock tasks completed.")
+            self.next_mock_task = None
+            return
+        if self.next_mock_task is None:
+            return
+        if self.next_mock_wait_time_counter > 0:
+            self._node.get_logger().info(
+                f"Waiting for {self.next_mock_wait_time_counter} seconds before starting next mock task: {self.next_mock_task.name}"
+            )
+            self.next_mock_wait_time_counter -= 1
+            return
+        self.current_mock_task = self.next_mock_task
+        self.next_mock_task = MockTasks(self.next_mock_task.value + 1)
+        self.is_mock_task_running = True
+
+        if self.current_mock_task == MockTasks.OPEN_DOOR:
+            self._node.mock_open_door_request()
+        elif self.current_mock_task == MockTasks.ORDER_DRINK:
+            self._node.mock_order_drink_request()
+        elif self.current_mock_task == MockTasks.SIP_DRINK:
+            self._node.mock_sip_drink_request()
+        elif self.current_mock_task == MockTasks.PLACE_CUP_BACK:
+            self._node.mock_place_cup_back_to_holder_request()
+        elif self.current_mock_task == MockTasks.RECEIVE_DRINK:
+            self._node.mock_receive_drink_request()
+
+    def finish_current_mock_task(self):
+        self.is_mock_task_running = False
+        self.next_mock_wait_time_counter = (
+            3  # reset wait time counter for next mock task
+        )
+        self._node.get_logger().info(
+            f"Finished mock task: {self.current_mock_task.name}"
+        )
+        self.current_mock_task = None
+
+
 class SystemControl(rclpy.node.Node):
     def __init__(self):
         super().__init__("system_control")
+        self.get_logger().set_level(rclpy.logging.LoggingSeverity.INFO)
         self.get_logger().info("System Control Node has been started.")
         share_dir = get_package_share_directory("rammp_prototype_behavior")
         json_path = os.path.join(share_dir, "config/node_name.json")
@@ -43,9 +102,10 @@ class SystemControl(rclpy.node.Node):
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
 
+        self._mock_state = MockState(self)
+
         self._arm_status = ""
         self._cb_group = ReentrantCallbackGroup()
-        self._last_state = ""
         self.node_monitor = NodeNameMonitor(self, json_path, self.node_monitor_callback)
 
         self.init_subscribers()
@@ -53,14 +113,17 @@ class SystemControl(rclpy.node.Node):
         self.init_actions_clients()
         self.init_state_machine()
         self._test_timer = self.create_timer(
-            2.0, self.log_state, callback_group=self._cb_group
-        )  # run simple_test every 2 seconds for testing
+            1.0, self.mock_task, callback_group=self._cb_group
+        )
+        self._test_timer.cancel()  # cancel the timer and reset when system is ready
         # put test for asyncio actions here for now, will move to separate test file later
         # self.simple_test()
 
-    def log_state(self):
-        self._last_state = self.state
-        self.get_logger().info(f"Current state: {self.state}")
+    def mock_task(self):
+        self._mock_state.run_next_mock_task()
+
+    def finish_mock_task(self):
+        self._mock_state.finish_current_mock_task()
 
     ## mock testing functions
     def mock_open_door_request(self):
@@ -71,6 +134,107 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().info("then send reqOpenDoor trigger.")
         self.reqOpenDoor()  # should enter Arm_Door_raisingArm state
         self.get_logger().info("reqOpenDoor trigger sent.")
+
+    def mock_order_drink_request(self):
+        # for testing order drink action, will remove after testing
+        self.get_logger().info("Sending mock order drink request.")
+        self.get_logger().info("then send reqOrderDrink trigger.")
+        self.reqOrderDrink()  # should enter Arm_OrderDrink_pickCup state
+        self.get_logger().info("reqOrderDrink trigger sent.")
+
+    def mock_receive_drink_request(self):
+        # for testing receive drink action, will remove after testing
+        self.get_logger().info("Sending mock receive drink request.")
+        self.detectDrink()  # should enter Arm_OrderDrink_detectingDrink state
+        self.get_logger().info("detectDrink trigger sent.")
+
+    def mock_sip_drink_request(self):
+        # for testing sip drink action, will remove after testing
+        self.get_logger().info("Sending mock sip drink request.")
+        self.reqDrink()  # should enter Arm_Drink_sipping state
+        self.get_logger().info("reqSipDrink trigger sent.")
+
+    def mock_place_cup_back_to_holder_request(self):
+        # for testing place cup back to holder action, will remove after testing
+        self.get_logger().info("Sending mock place cup back to holder request.")
+        self.placeCupBack()  # should enter Arm_Drink_placingCupBack state
+        self.get_logger().info("placeCupBack trigger sent.")
+
+    # order drink state transition function calls
+    # ----------------------------------------------------------------
+    def on_enter_Arm_OrderDrink_pickUpCup(self):
+        self.get_logger().info("Picking up cup from table.")
+        self.set_arm_mode(
+            ArmMode.ORDER_DRINK
+        )  # set arm mode to order drink when picking up cup, will set specific arm preset in the action server later
+        self.pickup_and_order_client.send_goal()
+
+    def on_enter_Arm_OrderDrink_holdingCup(self):
+        self.get_logger().info("Holding cup, preparing to release cup.")
+        self.set_arm_mode(ArmMode.IDLE)
+        # mock wait for 5 seconds to simulate holding cup, will replace with actual logic later
+        self.get_logger().info("Mock holding cup for 5 seconds.")
+        self.get_clock().sleep_for(rclpy.duration.Duration(seconds=5))
+        self.releaseCupConfirm()  # should enter releasingCup state
+
+    def on_enter_Arm_OrderDrink_releasingCup(self):
+        self.get_logger().info("Releasing cup to holder.")
+        self.get_logger().info("close gripper first.")
+        self.close_gripper()  # close gripper to release cup
+
+        # mock wait for 1 seconds to simulate releasing cup, will replace with actual logic later
+        self.get_logger().info("Mock close gripper for 1 seconds.")
+        self.get_clock().sleep_for(rclpy.duration.Duration(seconds=1))
+
+        # move arm to home position after releasing cup to avoid potential collision when bringing cup to mouth later
+        self.get_logger().info("Move arm to home position after releasing cup.")
+        self.arm_preset_client.set_preset(ArmPreset.HOME)
+
+    def on_enter_Arm_OrderDrink_detectingDrink(self):
+        self.get_logger().info("Detecting drink to confirm if the drink is received.")
+        self.enable_cup_detection(True)  # enable cup detection
+        # mock wait for 5 seconds to simulate drink detection, will replace with actual logic later
+        self.get_logger().info("Mock detecting drink for 5 seconds.")
+        self.get_clock().sleep_for(rclpy.duration.Duration(seconds=5))
+        self.enable_cup_detection(
+            False
+        )  # disable cup detection after detection process
+        self.receiveDrinkConfirm()  # should enter receivingDrink state
+
+    def on_enter_Arm_OrderDrink_receivingDrink(self):
+        self.get_logger().info("Receiving drink.")
+        self.set_arm_mode(
+            ArmMode.ORDER_DRINK
+        )  # set arm mode to drinking when receiving drink, will set specific arm preset in the action server later
+        self.grab_cup_from_table_client.send_goal()  # reuse grab cup from table action to simulate receiving drink, will replace with actual pickup drink action later
+
+    def on_enter_Arm_Drink_bringCloser(self):
+        self.get_logger().info("Bringing cup closer to prepare for drinking.")
+        self.set_arm_mode(
+            ArmMode.DRINKING
+        )  # set arm mode to drinking when bringing cup to mouth, will set specific arm preset in the action server later
+        self.bring_cup_to_mouth_client.send_goal()  # send action goal to bring cup to mouth for drinking
+
+    def on_enter_Arm_Drink_sipping(self):
+        self.get_logger().info("Sipping drink.")
+        # mock wait for 5 seconds to simulate sipping drink, will replace with actual sipping logic later
+        self.get_logger().info("Mock sipping drink for 5 seconds.")
+        self.get_clock().sleep_for(rclpy.duration.Duration(seconds=5))
+        self.placeCupAway()  # should enter placingCupAway state
+
+    def on_enter_Arm_Drink_placingCupAway(self):
+        self.get_logger().info("Placing cup away after drinking.")
+        self.home_cup_client.send_goal()  # send action goal to move cup back to holder after drinking, will replace with actual place cup logic later
+
+    def on_enter_Arm_Drink_placingCupBack(self):
+        self.get_logger().info("Placing cup back to holder.")
+        self.set_arm_mode(
+            ArmMode.DRINKING
+        )  # set arm mode to DRINKING when placing cup back to holder, will set specific arm preset in the action server later
+        self.put_cup_back_to_holder_client.send_goal()  # send action goal to place cup back to holder, will replace with actual place cup back logic later
+
+    # ----------------------------------------------------------------
+    # end of order drink state transition function calls
 
     # door open state transition function calls
     def on_enter_Arm_Door_raisingArm(self):
@@ -98,7 +262,7 @@ class SystemControl(rclpy.node.Node):
         self.open_door_client.send_goal()
 
     def on_enter_Arm_retracted(self):
-        self.get_logger().info("Arm is retracted, ready for next command.")
+        self.get_logger().debug("Arm is retracted, ready for next command.")
         self.set_arm_mode(ArmMode.IDLE)
 
     # END of Door Open State Transition Functions
@@ -131,6 +295,9 @@ class SystemControl(rclpy.node.Node):
         self.door_button_detection_client = self.create_client(
             SetBool, "/arm/door/detection/enable", callback_group=self._service_cb_group
         )
+        self.cup_detection_client = self.create_client(
+            SetBool, "/arm/cup/detection/enable", callback_group=self._service_cb_group
+        )
 
     def init_actions_clients(self):
         self.arm_preset_client = ArmPresetActionClient(self)
@@ -141,6 +308,9 @@ class SystemControl(rclpy.node.Node):
         self.bring_cup_to_mouth_client = BringCupToMouthActionClient(self)
         self.open_door_client = OpenDoorActionClient(self)
 
+    def set_arm_mode_idle(self):
+        return self.set_arm_mode(ArmMode.IDLE)
+
     def set_arm_mode(self, mode: ArmMode) -> bool:
         req = SetMode.Request()
         req.mode = mode.value
@@ -148,7 +318,7 @@ class SystemControl(rclpy.node.Node):
         event = threading.Event()
         future.add_done_callback(lambda _: event.set())
         event.wait(timeout=5.0)
-        self.get_logger().info(
+        self.get_logger().debug(
             "set_arm_mode to " + mode.name + " result: " + str(future.result())
         )
         if future.result() is not None:
@@ -170,6 +340,18 @@ class SystemControl(rclpy.node.Node):
         req = SetBool.Request()
         req.data = enable
         future = self.door_button_detection_client.call_async(req)
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
+    def enable_cup_detection(self, enable: bool) -> bool:
+        req = SetBool.Request()
+        req.data = enable
+        future = self.cup_detection_client.call_async(req)
         event = threading.Event()
         future.add_done_callback(lambda _: event.set())
         event.wait(timeout=5.0)
@@ -201,7 +383,7 @@ class SystemControl(rclpy.node.Node):
             self.ready()  # trigger transition to Chair state when all nodes are ready
             # TODO: need check UI connection as well
             # wait 2 senconds to start mock testing here
-            self.mock_open_door_request()
+            self._test_timer.reset()  # reset and start the timer to run mock tasks
 
         else:
             self.get_logger().warn("Some nodes are missing!")
@@ -282,12 +464,13 @@ class SystemControl(rclpy.node.Node):
                     },
                     {
                         "name": "OrderDrink",
-                        "initial": "pickCup",
+                        "initial": "pickUpCup",
                         "children": [
-                            "pickCup",
-                            "releaseCup",
+                            "pickUpCup",
+                            "holdingCup",
+                            "releasingCup",
                             "detectingDrink",
-                            "pickingUpDrink",
+                            "receivingDrink",
                         ],
                     },
                     {
@@ -364,7 +547,11 @@ class SystemControl(rclpy.node.Node):
             },
             {
                 "trigger": "homed",
-                "source": ["Arm_homing", "Arm_cupStabilize_homing"],
+                "source": [
+                    "Arm_homing",
+                    "Arm_cupStabilize_homing",
+                    "Arm_OrderDrink_releasingCup",
+                ],
                 "dest": "Arm_home",
             },
             # open door
@@ -392,21 +579,26 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "reqOrderDrink",
                 "source": ["Arm_home", "Arm_retracted"],
-                "dest": "Arm_OrderDrink_pickCup",
+                "dest": "Arm_OrderDrink_pickUpCup",
+            },
+            {
+                "trigger": "pickedUpCup",
+                "source": "Arm_OrderDrink_pickUpCup",
+                "dest": "Arm_OrderDrink_holdingCup",
             },
             {
                 "trigger": "releaseCupConfirm",
-                "source": "Arm_OrderDrink_pickCup",
-                "dest": "Arm_OrderDrink_releaseCup",
+                "source": "Arm_OrderDrink_holdingCup",
+                "dest": "Arm_OrderDrink_releasingCup",
             },
             {
                 "trigger": "cupReleased",
-                "source": "Arm_OrderDrink_releaseCup",
-                "dest": "home",
+                "source": "Arm_OrderDrink_releasingCup",
+                "dest": "Arm_home",
             },
             {
                 "trigger": "detectDrink",
-                "source": "home",
+                "source": "Arm_home",
                 "dest": "Arm_OrderDrink_detectingDrink",
             },
             {
@@ -417,7 +609,7 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "receivedDrink",
                 "source": "Arm_OrderDrink_receivingDrink",
-                "dest": "home",
+                "dest": "Arm_home",
             },
             # stabilize cup
             {
@@ -433,7 +625,7 @@ class SystemControl(rclpy.node.Node):
             # drink
             {
                 "trigger": "reqDrink",
-                "source": "home",
+                "source": "Arm_home",
                 "dest": "Arm_Drink_bringCloser",
             },
             {
@@ -447,19 +639,19 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_Drink_placingCupAway",
             },
             {
-                "trigger": "cupPlaced",
+                "trigger": "homedCup",
                 "source": "Arm_Drink_placingCupAway",
-                "dest": "home",
+                "dest": "Arm_home",
             },
             {
                 "trigger": "placeCupBack",
-                "source": "home",
-                "dest": "placingCupBack",
+                "source": "Arm_home",
+                "dest": "Arm_Drink_placingCupBack",
             },
             {
                 "trigger": "cupPlacedBack",
-                "source": "placingCupBack",
-                "dest": "retracted",
+                "source": "Arm_Drink_placingCupBack",
+                "dest": "Arm_retracted",
             },
             # manual control
             {

@@ -59,7 +59,7 @@ class ActionClientWrapper:
         """
         try:
             await self._client.wait_for_server(timeout_sec=timeout)
-            self._node.get_logger().info(
+            self._node.get_logger().debug(
                 f"Action server '{self._action_name}' is available."
             )
             return True
@@ -88,12 +88,11 @@ class ActionClientWrapper:
             goal
         )  # no feedback callback here.
         send_goal_future.add_done_callback(self._send_goal_done_callback)
-        self._node.get_logger().info(
+        self._node.get_logger().debug(
             "Goal sent to action server, waiting for response..."
         )
 
     def _send_goal_done_callback(self, future: Future):
-        print("Received response from action server for goal request.")
         try:
             goal_handle: ClientGoalHandle = future.result()
             if not goal_handle.accepted:
@@ -101,7 +100,7 @@ class ActionClientWrapper:
                 self._action_running = False
                 self._goal_callback(False)
                 return
-            self._node.get_logger().info("Goal accepted by the action server.")
+            self._node.get_logger().debug("Goal accepted by the action server.")
             self.gh = goal_handle
 
             res_future = self.gh.get_result_async()
@@ -116,9 +115,8 @@ class ActionClientWrapper:
     def _on_result(self, future: Future):
         try:
             result = future.result().result
-            self._node.get_logger().info(f"Action completed with result: {result}")
             if result.success:
-                self._node.get_logger().info("Arm reached preset successfully.")
+                self._node.get_logger().debug("Arm reached preset successfully.")
                 self._result_callback(True)
             else:
                 self._node.get_logger().warn("Arm failed to reach preset.")
@@ -146,7 +144,7 @@ class ActionClientWrapper:
             return False
 
         if cancel_result.return_code == rclpy.action.GoalResponse.ACCEPTED:
-            self._node.get_logger().info(
+            self._node.get_logger().debug(
                 "Goal cancellation accepted by the action server."
             )
             self._cancel_callback(True)

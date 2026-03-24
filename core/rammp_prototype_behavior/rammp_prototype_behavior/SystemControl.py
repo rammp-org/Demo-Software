@@ -40,7 +40,10 @@ class MockTasks(enum.IntEnum):
     CUP_STABILIZE = 4
     SIP_DRINK = 5
     PLACE_CUP_BACK = 6
-    END_TASK = 7  # update this when adding new mock tasks
+    ARM_MANUAL_CONTROL = 7
+    ARM_HOME = 8
+    ARM_RETRACT = 9
+    END_TASK = 10  # update this when adding new mock tasks
 
 
 class MockState:
@@ -82,6 +85,12 @@ class MockState:
             self._node.mock_receive_drink_request()
         elif self.current_mock_task == MockTasks.CUP_STABILIZE:
             self._node.mock_cup_stabilizer_request()
+        elif self.current_mock_task == MockTasks.ARM_MANUAL_CONTROL:
+            self._node.mock_arm_manual_control_request()
+        elif self.current_mock_task == MockTasks.ARM_RETRACT:
+            self._node.mock_arm_retract_request()
+        elif self.current_mock_task == MockTasks.ARM_HOME:
+            self._node.mock_arm_home_request()
 
     def finish_current_mock_task(self):
         self.is_mock_task_running = False
@@ -92,6 +101,12 @@ class MockState:
             f"Finished mock task: {self.current_mock_task.name}"
         )
         self.current_mock_task = None
+
+    def is_mocking_arm_home(self) -> bool:
+        return self.current_mock_task == MockTasks.ARM_HOME
+
+    def is_mocking_arm_retract(self) -> bool:
+        return self.current_mock_task == MockTasks.ARM_RETRACT
 
 
 class SystemControl(rclpy.node.Node):
@@ -178,6 +193,47 @@ class SystemControl(rclpy.node.Node):
         # for testing cup stabilizer, will remove after testing
         self.get_logger().info("Sending mock cup stabilizer request.")
         self.reqStabilizeCup()  # should enter Arm_Drink_stabilizingCup state
+
+    def mock_arm_manual_control_request(self):
+        # for testing manual control of arm, will remove after testing
+        self.get_logger().info("Sending mock arm manual control request.")
+        self.reqManualControl()  # should enter Arm_manualControl state
+
+    def mock_arm_retract_request(self):
+        # for testing arm retract, will remove after testing
+        self.get_logger().info("Sending mock arm retract request.")
+        self.set_arm_mode_idle()  # set arm to idle before retracting to avoid potential interference with retracting process
+        self.arm_preset_client.set_preset(
+            ArmPreset.RETRACT
+        )  # should enter Arm_retracted state
+
+    def mock_arm_home_request(self):
+        # for testing arm home, will remove after testing
+        self.get_logger().info("Sending mock arm home request.")
+        self.set_arm_mode_idle()  # set arm to idle before moving to home position to avoid potential interference with homing process
+        self.arm_preset_client.set_preset(
+            ArmPreset.HOME
+        )  # should enter Arm_homed state
+
+    # ---------arm manual control state transition function calls------------------------
+    def on_enter_Arm_manual(self):
+        self.get_logger().info(
+            "Arm is in manual control mode, waiting for manual commands."
+        )
+        self.set_arm_mode(ArmMode.MANUAL)  # set arm mode to manual for manual control
+
+        # mock 5s manual control, then disable it
+        self.get_logger().info("Mock manual control for 5 seconds.")
+        self._mock_delay(
+            5.0, self.exitManualControl
+        )  # should enter Arm_retracted state after manual control for testing, will replace with actual logic to determine when to exit manual control later
+
+    def on_exit_Arm_manual(self):
+        self.get_logger().info("Exiting manual control mode, setting arm back to idle.")
+        self.set_arm_mode_idle()  # set arm back to idle after exiting manual control
+        self._mock_state.finish_current_mock_task()  # for testing, will remove after testing
+
+    # ---------end of arm manual control state transition function calls-----------------
 
     # ---------cup stabilizer state transition function calls------------------------
     def on_enter_Arm_cupStabilize_moving(self):
@@ -346,7 +402,9 @@ class SystemControl(rclpy.node.Node):
             SetBool, "/arm/door/detection/enable", callback_group=self._service_cb_group
         )
         self.cup_detection_client = self.create_client(
-            SetBool, "/arm/cup/detection/enable", callback_group=self._service_cb_group
+            SetBool,
+            "/arm/drink/detection/enable",
+            callback_group=self._service_cb_group,
         )
         self.cup_stabilizer_client = self.create_client(
             SetBool,

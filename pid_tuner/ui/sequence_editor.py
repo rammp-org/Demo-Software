@@ -683,6 +683,10 @@ class SequenceEditor(QWidget):
             self._upload_pending.remove(step_idx)
         if not self._upload_pending:
             self._upload_timer.stop()
+            # Mirror the known sequence state locally so step buttons enable
+            self._robot_total = len(self._keyframes)
+            self._robot_step = -1
+            self._robot_interpolating = False
             self._set_status(
                 f"Upload complete — {len(self._keyframes)} keyframe(s) ready.  "
                 "Press Step Fwd to start."

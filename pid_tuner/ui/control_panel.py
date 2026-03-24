@@ -406,10 +406,19 @@ class ControlPanel(QWidget):
     def _on_mode_confirmed(self, mode: int):
         """Update the mode banner when the data store reports a confirmed mode.
 
-        Currently unused directly — confirmation comes from CONFIG echo in
-        _on_config_updated.  Kept as a hook for future firmware telemetry support.
+        This fires when telemetry arrives with per-motor mode values (59-field
+        packet), so the banner reflects what the robot is actually doing, not
+        just what was last sent.
         """
-        pass
+        mode_name = MODE_NAMES.get(mode, "Unknown")
+        mode_color = MODE_COLORS.get(mode, THEME.overlay0)
+        self._mode_banner.setStyleSheet(f"""
+            QFrame {{
+                background-color: {mode_color};
+                border-radius: {scaled(4)}px;
+            }}
+        """)
+        self._mode_banner_label.setText(f"MODE: {mode_name.upper()}")
 
     def _create_status_group(self) -> CollapsibleGroupBox:
         """Create the current values display group."""
@@ -1501,9 +1510,10 @@ class ControlPanel(QWidget):
         if self._data_store.linked_joint != 0:
             self._serial_handler.set_mode(self._data_store.linked_joint, mode)
 
-        # Update local tracking for unit labels (send-side bookkeeping only)
+        # Update local tracking for unit labels (send-side bookkeeping only).
+        # Do NOT set data_store.control_mode here — that is set exclusively from
+        # incoming telemetry so the mode banner only reflects what the robot confirms.
         self._current_mode = mode
-        self._data_store.control_mode = mode  # keeps encoder overview in sync
         unit = MODE_UNITS.get(mode, "")
         self._target_unit_label.setText(unit)
         self._target_input_unit_label.setText(unit)
@@ -1628,23 +1638,8 @@ class ControlPanel(QWidget):
             self._serial_handler.set_pos_limit_max(linked_joint_id, limit)
 
     def _on_config_updated(self, joint_id: int):
-        """Update PID input fields when configuration is loaded from EEPROM.
-
-        A CONFIG echo is also the closest thing to a mode confirmation we have
-        from the robot, so we clear the 'pending' banner here.
-        """
+        """Update PID input fields when configuration is loaded from EEPROM."""
         if joint_id == self._data_store.selected_joint:
-            # Confirm the mode banner — robot has responded
-            mode_name = MODE_NAMES.get(self._current_mode, "Unknown")
-            mode_color = MODE_COLORS.get(self._current_mode, THEME.overlay0)
-            self._mode_banner.setStyleSheet(f"""
-                QFrame {{
-                    background-color: {mode_color};
-                    border-radius: {scaled(4)}px;
-                }}
-            """)
-            self._mode_banner_label.setText(f"MODE: {mode_name.upper()}")
-
             config = self._data_store.get_config(joint_id)
             if config is not None:
                 self._pos_p.setText(f"{config.pos_p:g}")

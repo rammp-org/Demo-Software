@@ -29,27 +29,25 @@ enum SystemState {
 };
 
 // Phase 4: System Telemetry
+// Motor order for all 6-element arrays: [rc, fc, ml, mr, ml_carriage, mr_carriage]
+// Limit switch order for limit_switches[4]: [ml_fwd, ml_bwd, mr_fwd, mr_bwd]
+// IMU order for imu[6]: [pitch, roll, yaw, ax, ay, az]
+// Quaternion order for quat[4]: [w, x, y, z]
+// Leveling order for leveling[5]: [pitch_err, roll_err, z_ml, z_rc, z_mr]
+// Strain gauge order for sg[4]: [rc, fc, ml, mr]
 struct SystemTelemetry {
   SystemState state;
-  float rc_pos, fc_pos;
-  float ml_pos, mr_pos;
-  float ml_carriage_pos, mr_carriage_pos;
-  float rc_vel, fc_vel;
-  float ml_vel, mr_vel;
-  float ml_carriage_vel, mr_carriage_vel;
-  float imu_pitch, imu_roll, imu_yaw;
-  float leveling_pitch_err;
-  float leveling_roll_err;
-  float z_target_ml;
-  float z_target_rc;
-  float z_target_mr;
-  // Strain gauge (load cell) readings — filtered ADC counts
-  float sg_rc_value;
-  float sg_fc_value;
-  float sg_ml_value;
-  float sg_mr_value;
-  // Control modes per motor (0=DISABLED/OPEN_LOOP, 1=VELOCITY, 2=POSITION)
-  int rc_mode, fc_mode, ml_mode, mr_mode, ml_carriage_mode, mr_carriage_mode;
+  float positions[6];
+  float velocities[6];
+  float pwms[6];
+  int   directions[6];
+  int   enc_directions[6];
+  bool  limit_switches[4];
+  float imu[6];
+  float quat[4];
+  float leveling[5];
+  float sg[4];
+  int   modes[6];
 };
 
 // Global State
@@ -107,174 +105,91 @@ static inline int toGuiMode(Motor::ControlMode m) {
   }
 }
 
-// Helper to update telemetry
+// Helper to update telemetry — iterates motor/gauge arrays to avoid per-field repetition
 void updateTelemetry() {
+  Motor      *motors[6] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+  StrainGauge *gauges[4] = {&sg_rc, &sg_fc, &sg_ml, &sg_mr};
+
   telemetry.state = current_state;
-  telemetry.rc_pos = rc.current_pos;
-  telemetry.fc_pos = fc.current_pos;
-  telemetry.ml_pos = ml.current_pos;
-  telemetry.mr_pos = mr.current_pos;
-  telemetry.ml_carriage_pos = ml_carriage.current_pos;
-  telemetry.mr_carriage_pos = mr_carriage.current_pos;
 
-  telemetry.rc_vel = rc.current_vel;
-  telemetry.fc_vel = fc.current_vel;
-  telemetry.ml_vel = ml.current_vel;
-  telemetry.mr_vel = mr.current_vel;
-  telemetry.ml_carriage_vel = ml_carriage.current_vel;
-  telemetry.mr_carriage_vel = mr_carriage.current_vel;
+  for (int i = 0; i < 6; i++) {
+    telemetry.positions[i]    = motors[i]->current_pos;
+    telemetry.velocities[i]   = motors[i]->current_vel;
+    telemetry.pwms[i]         = motors[i]->target_pwm;
+    telemetry.directions[i]   = motors[i]->getDirection();
+    telemetry.enc_directions[i] = motors[i]->getEncoderDirection();
+    telemetry.modes[i]        = toGuiMode(motors[i]->mode);
+  }
 
-  // Strain gauges
-  telemetry.sg_rc_value = sg_rc.getValue();
-  telemetry.sg_fc_value = sg_fc.getValue();
-  telemetry.sg_ml_value = sg_ml.getValue();
-  telemetry.sg_mr_value = sg_mr.getValue();
+  for (int i = 0; i < 4; i++) {
+    telemetry.sg[i] = gauges[i]->getValue();
+  }
 
-  // Control modes (mapped to GUI integers: 0=Open Loop, 1=Velocity, 2=Position)
-  telemetry.rc_mode         = toGuiMode(rc.mode);
-  telemetry.fc_mode         = toGuiMode(fc.mode);
-  telemetry.ml_mode         = toGuiMode(ml.mode);
-  telemetry.mr_mode         = toGuiMode(mr.mode);
-  telemetry.ml_carriage_mode = toGuiMode(ml_carriage.mode);
-  telemetry.mr_carriage_mode = toGuiMode(mr_carriage.mode);
+  telemetry.limit_switches[0] = ml_fwd_limit;
+  telemetry.limit_switches[1] = ml_bwd_limit;
+  telemetry.limit_switches[2] = mr_fwd_limit;
+  telemetry.limit_switches[3] = mr_bwd_limit;
+
+  // IMU: [pitch, roll, yaw, ax, ay, az]
+  telemetry.imu[0] = IMU.pitchf;
+  telemetry.imu[1] = IMU.rollf;
+  telemetry.imu[2] = IMU.yaw;
+  telemetry.imu[3] = IMU.ax;
+  telemetry.imu[4] = IMU.ay;
+  telemetry.imu[5] = IMU.az;
+
+  // Quaternion: [w, x, y, z]
+  telemetry.quat[0] = IMU.current_quat.w();
+  telemetry.quat[1] = IMU.current_quat.x();
+  telemetry.quat[2] = IMU.current_quat.y();
+  telemetry.quat[3] = IMU.current_quat.z();
 }
 
-// Helper to send telemetry
-// Extended format: 44 values (18 original + 6 dirs + 4 limits + 6 imu + 4 quat)
+// Helper to send telemetry — builds the full CSV line into a buffer, single Serial.print
+// Packet format (59 comma-separated values after the header):
+//   TELEMETRY,<ms>,<state>,
+//   <6 positions>,<6 velocities>,<6 pwms>,
+//   <6 motor dirs>,<6 enc dirs>,<4 limit switches>,
+//   <3 imu angles>,<3 imu accel>,<4 quaternion>,
+//   <5 leveling debug>,<4 strain gauges>,<6 control modes>
 void sendTelemetry() {
-  Serial.print("TELEMETRY,");
-  Serial.print(millis());
-  Serial.print(",");
-  Serial.print(telemetry.state);
-  Serial.print(",");
-  // Positions (6)
-  Serial.print(telemetry.rc_pos);
-  Serial.print(",");
-  Serial.print(telemetry.fc_pos);
-  Serial.print(",");
-  Serial.print(telemetry.ml_pos);
-  Serial.print(",");
-  Serial.print(telemetry.mr_pos);
-  Serial.print(",");
-  Serial.print(telemetry.ml_carriage_pos);
-  Serial.print(",");
-  Serial.print(telemetry.mr_carriage_pos);
-  Serial.print(",");
-  // Velocities (6)
-  Serial.print(telemetry.rc_vel);
-  Serial.print(",");
-  Serial.print(telemetry.fc_vel);
-  Serial.print(",");
-  Serial.print(telemetry.ml_vel);
-  Serial.print(",");
-  Serial.print(telemetry.mr_vel);
-  Serial.print(",");
-  Serial.print(telemetry.ml_carriage_vel);
-  Serial.print(",");
-  Serial.print(telemetry.mr_carriage_vel);
-  Serial.print(",");
-  // PWM Targets (6)
-  Serial.print(rc.target_pwm);
-  Serial.print(",");
-  Serial.print(fc.target_pwm);
-  Serial.print(",");
-  Serial.print(ml.target_pwm);
-  Serial.print(",");
-  Serial.print(mr.target_pwm);
-  Serial.print(",");
-  Serial.print(ml_carriage.target_pwm);
-  Serial.print(",");
-  Serial.print(mr_carriage.target_pwm);
-  Serial.print(",");
-  // Motor directions (6)
-  Serial.print(rc.getDirection());
-  Serial.print(",");
-  Serial.print(fc.getDirection());
-  Serial.print(",");
-  Serial.print(ml.getDirection());
-  Serial.print(",");
-  Serial.print(mr.getDirection());
-  Serial.print(",");
-  Serial.print(ml_carriage.getDirection());
-  Serial.print(",");
-  Serial.print(mr_carriage.getDirection());
-  Serial.print(",");
-  // Encoder directions (6)
-  Serial.print(rc.getEncoderDirection());
-  Serial.print(",");
-  Serial.print(fc.getEncoderDirection());
-  Serial.print(",");
-  Serial.print(ml.getEncoderDirection());
-  Serial.print(",");
-  Serial.print(mr.getEncoderDirection());
-  Serial.print(",");
-  Serial.print(ml_carriage.getEncoderDirection());
-  Serial.print(",");
-  Serial.print(mr_carriage.getEncoderDirection());
-  Serial.print(",");
+  char buf[640];
+  int  n = 0;
+
+  // Header
+  n += snprintf(buf + n, sizeof(buf) - n, "TELEMETRY,%lu,%d",
+                millis(), (int)telemetry.state);
+
+  // Per-motor groups (6 values each)
+  for (int i = 0; i < 6; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.positions[i]);
+  for (int i = 0; i < 6; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.velocities[i]);
+  for (int i = 0; i < 6; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.pwms[i]);
+  for (int i = 0; i < 6; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%d",   telemetry.directions[i]);
+  for (int i = 0; i < 6; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%d",   telemetry.enc_directions[i]);
+
   // Limit switches (4)
-  Serial.print(ml_fwd_limit ? 1 : 0);
-  Serial.print(",");
-  Serial.print(ml_bwd_limit ? 1 : 0);
-  Serial.print(",");
-  Serial.print(mr_fwd_limit ? 1 : 0);
-  Serial.print(",");
-  Serial.print(mr_bwd_limit ? 1 : 0);
-  Serial.print(",");
-  // IMU data (6)
-  Serial.print(IMU.pitchf, 2);
-  Serial.print(",");
-  Serial.print(IMU.rollf, 2);
-  Serial.print(",");
-  Serial.print(IMU.yaw, 2);
-  Serial.print(",");
-  Serial.print(IMU.ax, 3);
-  Serial.print(",");
-  Serial.print(IMU.ay, 3);
-  Serial.print(",");
-  Serial.print(IMU.az, 3);
-  Serial.print(",");
-  // Raw Quaternion (4)
-  Serial.print(IMU.current_quat.w(), 4);
-  Serial.print(",");
-  Serial.print(IMU.current_quat.x(), 4);
-  Serial.print(",");
-  Serial.print(IMU.current_quat.y(), 4);
-  Serial.print(",");
-  Serial.print(IMU.current_quat.z(), 4);
-  Serial.print(",");
-  // Leveling Debug (5)
-  Serial.print(telemetry.leveling_pitch_err, 4);
-  Serial.print(",");
-  Serial.print(telemetry.leveling_roll_err, 4);
-  Serial.print(",");
-  Serial.print(telemetry.z_target_ml, 4);
-  Serial.print(",");
-  Serial.print(telemetry.z_target_rc, 4);
-  Serial.print(",");
-  Serial.print(telemetry.z_target_mr, 4);
-  Serial.print(",");
-  // Strain gauges (4)
-  Serial.print(telemetry.sg_rc_value, 2);
-  Serial.print(",");
-  Serial.print(telemetry.sg_fc_value, 2);
-  Serial.print(",");
-  Serial.print(telemetry.sg_ml_value, 2);
-  Serial.print(",");
-  Serial.print(telemetry.sg_mr_value, 2);
-  Serial.print(",");
-  // Control modes (6) — 0=Open Loop, 1=Velocity, 2=Position
-  Serial.print(telemetry.rc_mode);
-  Serial.print(",");
-  Serial.print(telemetry.fc_mode);
-  Serial.print(",");
-  Serial.print(telemetry.ml_mode);
-  Serial.print(",");
-  Serial.print(telemetry.mr_mode);
-  Serial.print(",");
-  Serial.print(telemetry.ml_carriage_mode);
-  Serial.print(",");
-  Serial.println(telemetry.mr_carriage_mode);
+  for (int i = 0; i < 4; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%d", telemetry.limit_switches[i] ? 1 : 0);
+
+  // IMU angles (3 × 2dp) then accel (3 × 3dp)
+  for (int i = 0; i < 3; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.imu[i]);
+  for (int i = 3; i < 6; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%.3f", telemetry.imu[i]);
+
+  // Quaternion (4 × 4dp)
+  for (int i = 0; i < 4; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%.4f", telemetry.quat[i]);
+
+  // Leveling debug (5 × 4dp)
+  for (int i = 0; i < 5; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%.4f", telemetry.leveling[i]);
+
+  // Strain gauges (4 × 2dp)
+  for (int i = 0; i < 4; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.sg[i]);
+
+  // Control modes (6)
+  for (int i = 0; i < 6; i++) n += snprintf(buf + n, sizeof(buf) - n, ",%d",   telemetry.modes[i]);
+
+  // Terminate with newline
+  n += snprintf(buf + n, sizeof(buf) - n, "\n");
+
+  Serial.print(buf);
 }
 
 // --- Self Leveling Kinematics ---
@@ -393,12 +308,12 @@ void runSelfLeveling(float dt) {
   // FC is hardcoded to top of range
   fc.setTargetPosition(FC_MAX_TICKS);
 
-  // Store debug data for telemetry
-  telemetry.leveling_pitch_err = err_y;
-  telemetry.leveling_roll_err = err_x;
-  telemetry.z_target_ml = z_target_ml;
-  telemetry.z_target_rc = z_target_rc;
-  telemetry.z_target_mr = z_target_mr;
+  // Store debug data for telemetry — leveling[]: [pitch_err, roll_err, z_ml, z_rc, z_mr]
+  telemetry.leveling[0] = err_y;
+  telemetry.leveling[1] = err_x;
+  telemetry.leveling[2] = z_target_ml;
+  telemetry.leveling[3] = z_target_rc;
+  telemetry.leveling[4] = z_target_mr;
 }
 
 // Save all 6 motor configs (PID, dirs, limits, current position) to EEPROM

@@ -27,7 +27,9 @@ setup(
     entry_points={
         "console_scripts": [
             "control_node = rammp_prototype_driver.MEBot_control_node:main",
-            "control_node_test = rammp_prototype_driver.MEBot_control_node_test:main",
+            "dummy_flag = rammp_prototype_driver.dummy_flag_pub:main",
+            "test_server = rammp_prototype_driver.test_action_server:main",
+            "test_client = rammp_prototype_driver.test_action_client:main",
         ],
     },
 )

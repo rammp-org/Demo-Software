@@ -11,6 +11,9 @@
     },
     {
       "name": "/open_door_node"
+    },
+    {
+      "name": "/cup_stabilizer_node"
     }
   ]
 }

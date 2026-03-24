@@ -134,8 +134,6 @@ class SystemControl(rclpy.node.Node):
             1.0, self.mock_task, callback_group=self._cb_group
         )
         self._test_timer.cancel()  # cancel the timer and reset when system is ready
-        # put test for asyncio actions here for now, will move to separate test file later
-        # self.simple_test()
 
     def mock_task(self):
         self._mock_state.run_next_mock_task()
@@ -154,7 +152,7 @@ class SystemControl(rclpy.node.Node):
 
         timer.callback = _on_timeout
 
-    ## mock testing functions
+    ## ---------------------mock testing functions----------------------------------
     def mock_open_door_request(self):
         # for testing open door action, will remove after testing
         self.get_logger().info("Sending mock open door request.")
@@ -215,6 +213,15 @@ class SystemControl(rclpy.node.Node):
             ArmPreset.HOME
         )  # should enter Arm_homed state
 
+    ## -----------------------------end of mock testing functions------------------------
+
+    # ---------Arm Pause state transition function calls---------------------------------
+    def on_enter_Arm_Paused(self):
+        self.get_logger().info("Arm is paused. Waiting for resume command.")
+        self.set_arm_mode_idle()  # set arm mode to idle when paused to stop any ongoing arm action
+
+    # ---------End of Arm Pause state transition function calls--------------------------
+
     # ---------arm manual control state transition function calls------------------------
     def on_enter_Arm_manual(self):
         self.get_logger().info(
@@ -262,8 +269,7 @@ class SystemControl(rclpy.node.Node):
 
     # ---------end of cup stabilizer state transition function calls-----------------
 
-    # order drink state transition function calls
-    # ----------------------------------------------------------------
+    # ---------order drink state transition function calls------------------------
     def on_enter_Arm_OrderDrink_pickUpCup(self):
         self.get_logger().info("Picking up cup from table.")
         self.set_arm_mode(
@@ -338,14 +344,12 @@ class SystemControl(rclpy.node.Node):
         )  # set arm mode to DRINKING when placing cup back to holder, will set specific arm preset in the action server later
         self.put_cup_back_to_holder_client.send_goal()  # send action goal to place cup back to holder, will replace with actual place cup back logic later
 
-    # ----------------------------------------------------------------
-    # end of order drink state transition function calls
+    # --------------------end of order drink state transition function calls --------------------------
 
-    # door open state transition function calls
+    # --------------------door open state transition function calls------------------------
     def on_enter_Arm_Door_raisingArm(self):
         self.get_logger().info("Raising arm to home to open door.")
         self.arm_preset_client.set_preset(ArmPreset.HOME)
-        print("current state after request home:" + self.state)
 
     def on_enter_Arm_Door_detecting(self):
         self.get_logger().info("Detecting door button.")
@@ -371,7 +375,7 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().debug("Arm is retracted, ready for next command.")
         self.set_arm_mode(ArmMode.IDLE)
 
-    # END of Door Open State Transition Functions
+    # --------------------end of Door Open State Transition Functions------------------------
 
     def init_subscribers(self):
         self.arm_status_subscriber = self.create_subscription(
@@ -421,6 +425,7 @@ class SystemControl(rclpy.node.Node):
         self.bring_cup_to_mouth_client = BringCupToMouthActionClient(self)
         self.open_door_client = OpenDoorActionClient(self)
 
+    # ----------Helper functions to call services and actions for state transitions----------------
     def set_arm_mode_idle(self):
         return self.set_arm_mode(ArmMode.IDLE)
 
@@ -495,6 +500,9 @@ class SystemControl(rclpy.node.Node):
         else:
             return False
 
+    # ----------End of Helper functions to call services and actions for state transitions----------------
+
+    # ----------publisher callback functions to process messages and update internal state----------------
     def arm_status_callback(self, msg: DiagnosticStatus):
         # Placeholder for processing arm status messages
         if self._arm_status != msg.message:
@@ -514,7 +522,9 @@ class SystemControl(rclpy.node.Node):
             self.get_logger().warn("Some nodes are missing!")
             self.eStop()  # trigger transition to error state when nodes are missing
 
-    # state machine conditions
+    # ----------End of publisher callback functions to process messages and update internal state----------------
+
+    # ----------state machine conditions----------------
     def is_arm_state_good_for_driving(self):
         # Placeholder for actual logic to determine if the arm state is good for driving
         return True
@@ -539,7 +549,8 @@ class SystemControl(rclpy.node.Node):
         # Placeholder for actual logic to determine if the arm is retracted
         return True
 
-    # state machine callbacks
+    # ----------End of state machine conditions----------------
+    # ----------state machine callbacks----------------
     def on_enter_Chair(self):
         # for testing
         self.get_logger().info("Entering Chair state")
@@ -551,24 +562,9 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Arm(self):
         self.get_logger().info("Entering Arm state")
 
-    def simple_test(self):
-        self.get_logger().info("simple test:")
-        self.get_logger().info("current state:" + self.state)
-        self.get_logger().info("triggering ready")
-        self.ready()
-        while self.state != "Chair_SLOff":
-            self.get_logger().info("Waiting to enter Chair_SLOff state for testing...")
-            self.get_clock().sleep_for(rclpy.duration.Duration(seconds=1))
-        self.get_logger().info("current state:" + self.state)
-        self.get_logger().info("triggering reqArm")
-        self.reqArm()
-        self.get_logger().info("current state:" + self.state)
-        self.get_logger().info("simple test : request open door")
-        self.reqOpenDoor()  # should enter Arm_Door_raisingArm state
-        # self.arm_preset_client.set_preset(ArmPreset.HOME)
-        self.get_logger().info("current state:" + self.state)
+    # ----------End of state machine callbacks----------------
 
-    # state machine setup
+    # ----------state machine setup----------------
     def init_state_machine(self):
         states = [
             "init",
@@ -863,6 +859,8 @@ class SystemControl(rclpy.node.Node):
             ignore_invalid_triggers=True,
             queued=True,  # ensure thread safety for state transitions
         )
+
+    # ----------End of state machine setup----------------
 
 
 def main():

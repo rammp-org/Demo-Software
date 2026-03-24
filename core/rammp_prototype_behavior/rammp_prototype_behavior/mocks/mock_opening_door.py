@@ -14,7 +14,7 @@ from cmu_door_opener_interfaces.action import DoorOpenActionTypePlaceHolder
 class OpenDoor(rclpy.node.Node):
     def __init__(self):
         super().__init__("open_door_node")
-
+        self.get_logger().info("Mock Opening Door Node has been started.")
         self._mock_action_reject = False  # default to accept all goals
         self._mock_action_result = True  # default to successful execution
         self._action_running = False

@@ -6,17 +6,17 @@ The Teensy 4.1's EEPROM is used to durably store the PID tuning parameters, moto
 
 `hardware/rammp_prototype_driver/firmware/Base/src/ConfigStorage/ConfigStorage.h`
 
-| Address | Length (bytes) | Description |
-|---|---|---|
-| `0` | 2 | Magic Number `0xABCF`. Used to detect if EEPROM has been initialized. |
-| `10` | ~44 | Motor 1 Config (`MotorConfig` struct) |
-| `10 + (1 * 44)` | ~44 | Motor 2 Config |
-| `10 + (2 * 44)` | ~44 | Motor 3 Config |
-| ... | ... | ... |
+| Address         | Length (bytes) | Description                                                           |
+| --------------- | -------------- | --------------------------------------------------------------------- |
+| `0`             | 2              | Magic Number `0xABD0`. Used to detect if EEPROM has been initialized. |
+| `10`            | ~68            | Motor 1 Config (`MotorConfig` struct)                                 |
+| `10 + (1 * 68)` | ~68            | Motor 2 Config                                                        |
+| `10 + (2 * 68)` | ~68            | Motor 3 Config                                                        |
+| ...             | ...            | ...                                                                   |
 
 ## `MotorConfig` Struct
 
-Each joint saves the following 44 bytes:
+Each joint saves the following struct:
 
 ```cpp
 struct MotorConfig {
@@ -25,8 +25,10 @@ struct MotorConfig {
     float lpf_input_alpha;    // 0.0 to 1.0
     float pos_p, pos_i, pos_d, pos_ff; 
     float pos_lpf_alpha;      
+    float pos_max_ramp_rate;  // Maximum output change per second
     float vel_p, vel_i, vel_d, vel_ff;
     float vel_lpf_alpha;
+    float vel_max_ramp_rate;  // Maximum output change per second
     float saved_position;     // Float absolute position at last save
     int32_t pos_limit_min;    // Minimum encoder tick limit
     int32_t pos_limit_max;    // Maximum encoder tick limit
@@ -34,6 +36,7 @@ struct MotorConfig {
 ```
 
 ## Save Logic
+
 - Triggered manually from the Python GUI via the "Save Config" button (sends `K<id>`).
 - Saving `K0` iterates through and saves all 6 joints simultaneously.
 - When `Base.ino` initializes, it checks the Magic Number. If invalid (first run), it writes defaults.

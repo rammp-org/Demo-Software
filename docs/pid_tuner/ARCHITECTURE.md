@@ -26,6 +26,8 @@ flowchart TD
         EncoderOverview(EncoderOverview)
         SerialConsole(SerialConsole)
         IMU3DWidget(IMU3DWidget)
+        StrainGaugeDisplay(StrainGaugeDisplay)
+        ConfigViewer(ConfigViewer)
     end
 
     %% Data flowing IN (Telemetry)
@@ -33,6 +35,8 @@ flowchart TD
     DataStore -- "QtSignal(data_updated)" --> PlotWidget
     DataStore -- "QtSignal(data_updated)" --> EncoderOverview
     DataStore -- "QtSignal(imu_updated)" --> IMU3DWidget
+    DataStore -- "QtSignal(data_updated)" --> StrainGaugeDisplay
+    DataStore -- "QtSignal(config_updated)" --> ConfigViewer
     
     %% Raw Console feed
     ProtocolParser -- "QtSignal(raw_line_received)" --> SerialConsole
@@ -45,5 +49,5 @@ flowchart TD
 ## Design Principles
 
 1. **Thread Safety via Signals:** The `SerialHandler` lives in a `QThread`. It never touches UI elements directly. It emits `data_received(list)` which is queued to the Main Thread where `DataStore` ingests it.
-2. **Centralized State:** `DataStore` acts as the single source of truth. UI components (`PlotWidget`, `ControlPanel`) read from `DataStore` rather than caching their own copies of the robot state.
-3. **Decoupled UI:** The `MainWindow` instantiates the UI components, passing them references to `DataStore` and `SerialHandler`. Components hook up to the signals they care about.
+1. **Centralized State:** `DataStore` acts as the single source of truth. UI components (`PlotWidget`, `ControlPanel`) read from `DataStore` rather than caching their own copies of the robot state.
+1. **Decoupled UI:** The `MainWindow` instantiates the UI components, passing them references to `DataStore` and `SerialHandler`. Components hook up to the signals they care about.

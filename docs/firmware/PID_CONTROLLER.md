@@ -12,18 +12,19 @@ src/PIDController/
 
 ### Key Members
 
-| Member | Type | Description |
-|---|---|---|
-| `kp`, `ki`, `kd` | `float` | Proportional, Integral, Derivative gains |
-| `kff` | `float` | Feed-Forward gain |
-| `min_out`, `max_out` | `float` | Output clamp limits |
-| `scaling` | `float` | Gain divisor (see below) |
-| `integral` | `float` | Running integral accumulator |
-| `prev_error` | `float` | Error from the previous `compute()` call (for derivative) |
-| `lpf_alpha` | `float` | Output Low-Pass Filter coefficient (0–1, default `1.0` = no filter) |
-| `_filtered_output` | `float` (private) | LPF state variable |
+| Member               | Type              | Description                                                         |
+| -------------------- | ----------------- | ------------------------------------------------------------------- |
+| `kp`, `ki`, `kd`     | `float`           | Proportional, Integral, Derivative gains                            |
+| `kff`                | `float`           | Feed-Forward gain                                                   |
+| `min_out`, `max_out` | `float`           | Output clamp limits                                                 |
+| `max_ramp_rate`      | `float`           | Maximum rate of change of output per second (0.0 = unlimited)       |
+| `scaling`            | `float`           | Gain divisor (see below)                                            |
+| `integral`           | `float`           | Running integral accumulator                                        |
+| `prev_error`         | `float`           | Error from the previous `compute()` call (for derivative)           |
+| `lpf_alpha`          | `float`           | Output Low-Pass Filter coefficient (0–1, default `1.0` = no filter) |
+| `_filtered_output`   | `float` (private) | LPF state variable                                                  |
 
----
+______________________________________________________________________
 
 ## The `scaling` Divisor
 
@@ -45,14 +46,14 @@ float ff_out = kff / scaling * setpoint;
 
 **Why?** The two loops operate on very different numerical magnitudes. The Position PID works in encoder **ticks** (values in the thousands) and outputs a `target_vel` also in the tick-per-second range. The Velocity PID works on tick-per-second values and must output a normalized `[-1, 1]` PWM fraction. Rather than requiring the operator to mentally track these scale factors when entering gains in the UI, `scaling` absorbs the domain difference:
 
-| Loop | `scaling` | Effect |
-|---|---|---|
-| `pos_pid` | `1` | Gains entered directly in ticks/ticks units |
-| `vel_pid` | `10000` | Gains entered as if working with 10k-scale velocity values; output is automatically normalized to `[-1, 1]` |
+| Loop      | `scaling` | Effect                                                                                                      |
+| --------- | --------- | ----------------------------------------------------------------------------------------------------------- |
+| `pos_pid` | `1`       | Gains entered directly in ticks/ticks units                                                                 |
+| `vel_pid` | `10000`   | Gains entered as if working with 10k-scale velocity values; output is automatically normalized to `[-1, 1]` |
 
 This means `vel_pid` gains entered in the tuner GUI (`p1:0.5`, `v1:0.5`) do not need to be tiny fractions to produce valid PWM outputs — the `10000` divisor handles the normalization internally.
 
----
+______________________________________________________________________
 
 ## Compute Algorithm (Lines 9–48)
 
@@ -63,26 +64,32 @@ PIDController::compute(setpoint, measured, dt)
 ```
 
 ### Step 1 — Error
+
 ```cpp
 float error = setpoint - measured;
 ```
 
 ### Step 2 — Feed-Forward
+
 ```cpp
 float ff_out = kff / scaling * setpoint;
 ```
+
 Feed-forward is applied directly to the **setpoint**, not the error. This allows a stationary target (`error = 0`) to still produce a holding output proportional to position/velocity — useful for gravity compensation or velocity bias.
 
 ### Step 3 — Proportional
+
 ```cpp
 float p_out = kp / scaling * error;
 ```
 
 ### Step 4 — Integral with Conditional Anti-Windup
+
 ```cpp
 integral += error * dt;
 float i_out = ki / scaling * integral;
 ```
+
 The integrator accumulates **before** the output is clamped. Anti-windup is applied **after** summing all terms:
 
 ```cpp
@@ -100,20 +107,36 @@ if (output > max_out) {
 This is a **back-calculation / conditional integration** strategy: if the output would saturate, the integration step is reversed, preventing the integral from accumulating during saturation. This avoids the classic "windup" problem where the integrator builds up a large internal value that then causes overshoot when the system comes back into range.
 
 ### Step 5 — Derivative
+
 ```cpp
 float derivative = (error - prev_error) / dt;
 float d_out = kd / scaling * derivative;
 ```
+
 The derivative is computed on the **error** (not on `measured`). This means setpoint changes will cause a derivative kick. In practice, setpoints are changed relatively infrequently from the GUI, so this is acceptable.
 
-### Step 6 — Output Low-Pass Filter
+### Step 6 — Trapezoidal Ramp Rate Limit
+
+```cpp
+if (max_ramp_rate > 0.0f) {
+    float max_change = max_ramp_rate * dt;
+    if (output - _filtered_output > max_change) output = _filtered_output + max_change;
+    else if (_filtered_output - output > max_change) output = _filtered_output - max_change;
+}
+```
+
+If configured via `setRampRate()`, the output is constrained to change by no more than `max_ramp_rate * dt` per cycle. This effectively creates a trapezoidal motion profile, softening aggressive commands and preventing hard jerks to the motors.
+
+### Step 7 — Output Low-Pass Filter
+
 ```cpp
 _filtered_output += lpf_alpha * (output - _filtered_output);
 return _filtered_output;
 ```
+
 The LPF is applied to the **final output**, not the raw computed value. This smooths the PWM/velocity signal sent downstream. With `lpf_alpha = 1.0` (the default), the filter is a pass-through. Smaller values (e.g. `0.3`) increasingly smooth the output at the cost of additional phase lag.
 
----
+______________________________________________________________________
 
 ## Full Signal Flow Diagram
 
@@ -134,13 +157,15 @@ flowchart TD
 
     Sum --> Clamp{"output > max_out\nor < min_out?"}
     Clamp -- Yes --> Undo["Undo integral step\noutput = clamp(output)"]
-    Clamp -- No --> LPF
-    Undo --> LPF["LPF:\nfiltered += α × (output − filtered)"]
+    Clamp -- No --> Ramp Limit
+    Undo --> Ramp Limit["Ramp Rate Limit:\nClamp Δoutput ≤ max_change"]
+
+    Ramp Limit --> LPF["LPF:\nfiltered += α × (output − filtered)"]
 
     LPF --> Out[Return filtered output]
 ```
 
----
+______________________________________________________________________
 
 ## `reset()` (Lines 63–67)
 
@@ -156,7 +181,7 @@ void PIDController::reset() {
 
 Resetting the LPF state (`_filtered_output`) as well as the integrator ensures there is no "memory" of the previous operating point when the controller is re-armed. Without this, the LPF state would bleed a stale PWM value into the first output after a mode switch.
 
----
+______________________________________________________________________
 
 ## Instantiation in `Motor`
 

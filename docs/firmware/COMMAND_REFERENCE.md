@@ -8,7 +8,7 @@ src/CommandParser/
 └── CommandParser.cpp (92 lines)  — parse(), feedWatchdog(), isTimedOut()
 ```
 
----
+______________________________________________________________________
 
 ## Parsing Logic (Lines 14–91)
 
@@ -47,15 +47,15 @@ flowchart TD
 ### Parsing Steps on Newline
 
 1. Feed the watchdog — any successfully terminated line counts as a heartbeat.
-2. Check if buffer starts with `z` or `c` (single-character commands, no ID or value).
-3. Slice the first character as the `CommandType` discriminator.
-4. Scan for `:`. If absent → parse only `buffer[1..]` as integer `actuator_id`, `value = 0.0`.
-5. If `:` is present → parse `buffer[1..colon]` as `actuator_id`, `buffer[colon+1..]` as `float value`.
-6. Clear `buffer` and return the populated `RobotCommand`.
+1. Check if buffer starts with `z` or `c` (single-character commands, no ID or value).
+1. Slice the first character as the `CommandType` discriminator.
+1. Scan for `:`. If absent → parse only `buffer[1..]` as integer `actuator_id`, `value = 0.0`.
+1. If `:` is present → parse `buffer[1..colon]` as `actuator_id`, `buffer[colon+1..]` as `float value`.
+1. Clear `buffer` and return the populated `RobotCommand`.
 
 If no complete command is ready, returns `{CMD_NONE, -1, 0.0f}`.
 
----
+______________________________________________________________________
 
 ## `RobotCommand` Struct
 
@@ -67,42 +67,44 @@ struct RobotCommand {
 };
 ```
 
----
+______________________________________________________________________
 
 ## `CommandType` Enum — Full Reference
 
 All command types are defined in `CommandParser.h:6-35` and dispatched in `Base.ino:504-704`.
 
-| `CommandType` | Char | Format | Value Meaning | Notes |
-|---|---|---|---|---|
-| `CMD_T` | `T` | `T<id>:<val>` | PWM / velocity / position target (depends on mode) | Dispatches to `setTargetPWM`, `setTargetVelocity`, or `setTargetPosition` |
-| `CMD_M` | `M` | `M<id>:<val>` | `0`=Open Loop, `1`=Velocity, `2`=Position | Sets `Motor::ControlMode` |
-| `CMD_POS_P` | `P` | `P<id>:<val>` | Position Kp | |
-| `CMD_POS_I` | `I` | `I<id>:<val>` | Position Ki | |
-| `CMD_POS_D` | `D` | `D<id>:<val>` | Position Kd | |
-| `CMD_POS_FF` | `F` | `F<id>:<val>` | Position Feed-Forward | |
-| `CMD_VEL_P` | `p` | `p<id>:<val>` | Velocity Kp | Lowercase |
-| `CMD_VEL_I` | `i` | `i<id>:<val>` | Velocity Ki | Lowercase |
-| `CMD_VEL_D` | `d` | `d<id>:<val>` | Velocity Kd | Lowercase |
-| `CMD_VEL_FF` | `f` | `f<id>:<val>` | Velocity Feed-Forward | **Divided by 10000 before applying** — see note below |
-| `CMD_INPUT_LPF` | `l` | `l<id>:<val>` | Input LPF alpha (0–1) | Lowercase |
-| `CMD_POS_LPF` | `Q` | `Q<id>:<val>` | Position PID output LPF alpha | Uppercase |
-| `CMD_VEL_LPF` | `q` | `q<id>:<val>` | Velocity PID output LPF alpha | Lowercase |
-| `CMD_POS_MIN` | `n` | `n<id>:<val>` | Minimum position limit in ticks | Lowercase |
-| `CMD_POS_MAX` | `x` | `x<id>:<val>` | Maximum position limit in ticks | |
-| `CMD_R` | `R` | `R<id>` | Reset PID integrators and filter state | No value |
-| `CMD_HOME` | `H` | `H<id>` | Zero encoder for this joint | No value |
-| `CMD_DIR` | `V` | `V<id>` | Toggle motor direction | `V` = in**V**ert |
-| `CMD_ENC_DIR` | `E` | `E<id>` | Toggle encoder direction | No value |
-| `CMD_SAVE_CONFIG` | `K` | `K<id>` or `K0` | Save config to EEPROM. `K0` saves all 6 joints | No value |
-| `CMD_GET_CONFIG` | `G` | `G<id>` | Request CONFIG response for this joint | No value |
-| `CMD_Z` | `z` | `z` | ESTOP — disable all motors immediately | No ID, no value |
-| `CMD_C` | `c` | `c` | Clear ESTOP, return to IDLE | No ID, no value |
-| `CMD_LEVEL_MODE` | `L` | `L1:1` / `L1:0` | Enable (1) or disable (0) Self-Leveling mode | ID always `1` |
-| `CMD_LEVEL_PITCH` | `A` | `A1:<deg>` | Set self-leveling target pitch in degrees | ID = `1` — see note below |
-| `CMD_LEVEL_ROLL` | `A` | `A2:<deg>` | Set self-leveling target roll in degrees | ID = `2` — see note below |
-| `CMD_UNKNOWN` | — | — | Unrecognized command | Parser returns this for syntax errors |
-| `CMD_NONE` | — | — | No complete command yet this cycle | Default return when buffer has no newline |
+| `CommandType`     | Char | Format          | Value Meaning                                      | Notes                                                                     |
+| ----------------- | ---- | --------------- | -------------------------------------------------- | ------------------------------------------------------------------------- |
+| `CMD_T`           | `T`  | `T<id>:<val>`   | PWM / velocity / position target (depends on mode) | Dispatches to `setTargetPWM`, `setTargetVelocity`, or `setTargetPosition` |
+| `CMD_M`           | `M`  | `M<id>:<val>`   | `0`=Open Loop, `1`=Velocity, `2`=Position          | Sets `Motor::ControlMode`                                                 |
+| `CMD_POS_P`       | `P`  | `P<id>:<val>`   | Position Kp                                        |                                                                           |
+| `CMD_POS_I`       | `I`  | `I<id>:<val>`   | Position Ki                                        |                                                                           |
+| `CMD_POS_D`       | `D`  | `D<id>:<val>`   | Position Kd                                        |                                                                           |
+| `CMD_POS_FF`      | `F`  | `F<id>:<val>`   | Position Feed-Forward                              |                                                                           |
+| `CMD_VEL_P`       | `p`  | `p<id>:<val>`   | Velocity Kp                                        | Lowercase                                                                 |
+| `CMD_VEL_I`       | `i`  | `i<id>:<val>`   | Velocity Ki                                        | Lowercase                                                                 |
+| `CMD_VEL_D`       | `d`  | `d<id>:<val>`   | Velocity Kd                                        | Lowercase                                                                 |
+| `CMD_VEL_FF`      | `f`  | `f<id>:<val>`   | Velocity Feed-Forward                              | **Divided by 10000 before applying** — see note below                     |
+| `CMD_INPUT_LPF`   | `l`  | `l<id>:<val>`   | Input LPF alpha (0–1)                              | Lowercase                                                                 |
+| `CMD_POS_LPF`     | `Q`  | `Q<id>:<val>`   | Position PID output LPF alpha                      | Uppercase                                                                 |
+| `CMD_VEL_LPF`     | `q`  | `q<id>:<val>`   | Velocity PID output LPF alpha                      | Lowercase                                                                 |
+| `CMD_POS_RAMP`    | `U`  | `U<id>:<val>`   | Position PID output max ramp rate                  | Uppercase                                                                 |
+| `CMD_VEL_RAMP`    | `u`  | `u<id>:<val>`   | Velocity PID output max ramp rate                  | Lowercase                                                                 |
+| `CMD_POS_MIN`     | `n`  | `n<id>:<val>`   | Minimum position limit in ticks                    | Lowercase                                                                 |
+| `CMD_POS_MAX`     | `x`  | `x<id>:<val>`   | Maximum position limit in ticks                    |                                                                           |
+| `CMD_R`           | `R`  | `R<id>`         | Reset PID integrators and filter state             | No value                                                                  |
+| `CMD_HOME`        | `H`  | `H<id>`         | Zero encoder for this joint                        | No value                                                                  |
+| `CMD_DIR`         | `V`  | `V<id>`         | Toggle motor direction                             | `V` = in**V**ert                                                          |
+| `CMD_ENC_DIR`     | `E`  | `E<id>`         | Toggle encoder direction                           | No value                                                                  |
+| `CMD_SAVE_CONFIG` | `K`  | `K<id>` or `K0` | Save config to EEPROM. `K0` saves all 6 joints     | No value                                                                  |
+| `CMD_GET_CONFIG`  | `G`  | `G<id>`         | Request CONFIG response for this joint             | No value                                                                  |
+| `CMD_Z`           | `z`  | `z`             | ESTOP — disable all motors immediately             | No ID, no value                                                           |
+| `CMD_C`           | `c`  | `c`             | Clear ESTOP, return to IDLE                        | No ID, no value                                                           |
+| `CMD_LEVEL_MODE`  | `L`  | `L1:1` / `L1:0` | Enable (1) or disable (0) Self-Leveling mode       | ID always `1`                                                             |
+| `CMD_LEVEL_PITCH` | `A`  | `A1:<deg>`      | Set self-leveling target pitch in degrees          | ID = `1` — see note below                                                 |
+| `CMD_LEVEL_ROLL`  | `A`  | `A2:<deg>`      | Set self-leveling target roll in degrees           | ID = `2` — see note below                                                 |
+| `CMD_UNKNOWN`     | —    | —               | Unrecognized command                               | Parser returns this for syntax errors                                     |
+| `CMD_NONE`        | —    | —               | No complete command yet this cycle                 | Default return when buffer has no newline                                 |
 
 ### Velocity Feed-Forward Scaling Note
 
@@ -129,7 +131,7 @@ case 'A':
 
 This is the only place in the parser where `actuator_id` influences the `CommandType` itself rather than just indicating which motor to target. It means `A1` and `A2` are effectively distinct commands with different behaviors, not the same command applied to joints 1 and 2.
 
----
+______________________________________________________________________
 
 ## Watchdog Timer
 

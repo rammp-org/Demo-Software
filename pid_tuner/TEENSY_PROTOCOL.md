@@ -8,33 +8,36 @@ This document describes the serial communication protocol that must be implement
 - **Line Ending:** `\n` (newline)
 - **Encoding:** ASCII
 
----
+______________________________________________________________________
 
 ## Teensy -> PC: Encoder Data Output
 
 ### Format
+
 ```
 ENC:<timestamp_ms>,<enc1>,<enc2>,<enc3>,<enc4>,<enc5>,<enc6>,<enc7>,<enc8>,<enc9>,<enc10>,<enc11>,<enc12>\n
 ```
 
 ### Fields
-| Field | Description |
-|-------|-------------|
+
+| Field          | Description                                 |
+| -------------- | ------------------------------------------- |
 | `timestamp_ms` | Milliseconds since Teensy boot (`millis()`) |
-| `enc1` | Encoder 1: RC Top (signed long) |
-| `enc2` | Encoder 2: FC Bottom (signed long) |
-| `enc3` | Encoder 3: RC Bottom (signed long) |
-| `enc4` | Encoder 4: FC Top (signed long) |
-| `enc5` | Encoder 5: MR Back (signed long) |
-| `enc6` | Encoder 6: ML Front (signed long) |
-| `enc7` | Encoder 7: ML Back (signed long) |
-| `enc8` | Encoder 8: MR Front (signed long) |
-| `enc9` | Encoder 9: ML Drive Wheel (signed long) |
-| `enc10` | Encoder 10: MR Drive Wheel (signed long) |
-| `enc11` | Encoder 11: ML Carriage (signed long) |
-| `enc12` | Encoder 12: MR Carriage (signed long) |
+| `enc1`         | Encoder 1: RC Top (signed long)             |
+| `enc2`         | Encoder 2: FC Bottom (signed long)          |
+| `enc3`         | Encoder 3: RC Bottom (signed long)          |
+| `enc4`         | Encoder 4: FC Top (signed long)             |
+| `enc5`         | Encoder 5: MR Back (signed long)            |
+| `enc6`         | Encoder 6: ML Front (signed long)           |
+| `enc7`         | Encoder 7: ML Back (signed long)            |
+| `enc8`         | Encoder 8: MR Front (signed long)           |
+| `enc9`         | Encoder 9: ML Drive Wheel (signed long)     |
+| `enc10`        | Encoder 10: MR Drive Wheel (signed long)    |
+| `enc11`        | Encoder 11: ML Carriage (signed long)       |
+| `enc12`        | Encoder 12: MR Carriage (signed long)       |
 
 ### Example Output
+
 ```
 ENC:12345,100,-50,320,0,1500,-1200,800,900,15000,-15200,12000,-12500
 ```
@@ -75,72 +78,85 @@ void displaydata() {
 }
 ```
 
----
+______________________________________________________________________
 
 ## PC -> Teensy: Commands
 
 ### 1. Set Target Position
 
 **Format:**
+
 ```
 T<joint_id>:<target_ticks>\n
 ```
 
 **Fields:**
-| Field | Description |
-|-------|-------------|
-| `joint_id` | Joint number 1-12 |
+
+| Field          | Description                                       |
+| -------------- | ------------------------------------------------- |
+| `joint_id`     | Joint number 1-12                                 |
 | `target_ticks` | Target position in encoder ticks (signed integer) |
 
 **Example:**
+
 ```
 T7:1500
 ```
+
 Sets joint 7 (ML Back) target to 1500 ticks.
 
 ### 2. Step Input (Relative Change)
 
 **Format:**
+
 ```
 S<joint_id>:<step_ticks>\n
 ```
 
 **Fields:**
-| Field | Description |
-|-------|-------------|
-| `joint_id` | Joint number 1-12 |
+
+| Field        | Description                                  |
+| ------------ | -------------------------------------------- |
+| `joint_id`   | Joint number 1-12                            |
 | `step_ticks` | Step size in ticks (signed, can be negative) |
 
 **Example:**
+
 ```
 S7:100
 ```
+
 Add 100 ticks to joint 7's current target.
 
 ```
 S7:-100
 ```
+
 Subtract 100 ticks from joint 7's current target.
 
 ### 3. Start Sine Wave
 
 **Format:**
+
 ```
 W<joint_id>:<amplitude>,<frequency_hz>,<duration_s>\n
 ```
 
 **Fields:**
-| Field | Description |
-|-------|-------------|
-| `joint_id` | Joint number 1-12 |
-| `amplitude` | Amplitude in encoder ticks |
-| `frequency_hz` | Frequency in Hz (e.g., 0.500) |
-| `duration_s` | Duration in seconds (e.g., 10.0) |
+
+| Field          | Description                      |
+| -------------- | -------------------------------- |
+| `joint_id`     | Joint number 1-12                |
+| `amplitude`    | Amplitude in encoder ticks       |
+| `frequency_hz` | Frequency in Hz (e.g., 0.500)    |
+| `duration_s`   | Duration in seconds (e.g., 10.0) |
 
 **Example:**
+
 ```
 W7:500,0.500,10.0
 ```
+
 Start a sine wave on joint 7 with 500 tick amplitude, 0.5 Hz frequency, for 10 seconds.
 
 **Note:** The Python GUI generates sine wave targets locally and sends `T` commands at ~50Hz. This command is provided for firmware-side sine generation if preferred.
@@ -148,19 +164,23 @@ Start a sine wave on joint 7 with 500 tick amplitude, 0.5 Hz frequency, for 10 s
 ### 4. Stop Sine Wave
 
 **Format:**
+
 ```
 X<joint_id>\n
 ```
 
 **Example:**
+
 ```
 X7
 ```
+
 Stop any sine wave on joint 7.
 
 ### 5. Disable Motors (Emergency Stop)
 
 **Format:**
+
 ```
 z\n
 ```
@@ -169,12 +189,14 @@ z\n
 Sends the 'z' command which triggers `NO_MOVEMENT()` in the existing firmware, stopping all motor outputs. This is the same as the existing 'z' command in the firmware.
 
 **Example:**
+
 ```
 z
 ```
+
 Stop all motors immediately.
 
----
+______________________________________________________________________
 
 ## Implementation Example for Base.ino
 
@@ -268,35 +290,35 @@ void apply_target_to_joint(int joint, long target_ticks) {
 }
 ```
 
----
+______________________________________________________________________
 
 ## Joint Mapping Reference
 
-| Joint ID | Encoder Index | Variable | Description |
-|----------|---------------|----------|-------------|
-| 1 | encoder[1] | Enc2 | RC (Rear Caster) Top |
-| 2 | encoder[2] | Enc4 | FC (Front Caster) Bottom |
-| 3 | encoder[3] | Enc1 | RC Bottom (0-850) |
-| 4 | encoder[4] | Enc3 | FC Top |
-| 5 | encoder[5] | Enc12 | MR (Main Right) Back |
-| 6 | encoder[6] | Enc6 | ML (Main Left) Front |
-| 7 | encoder[7] | Enc11 | ML Back |
-| 8 | encoder[8] | Enc10 | MR Front |
-| 9 | encoder[9] | Enc5 | ML Drive Wheel |
-| 10 | encoder[10] | Enc8 | MR Drive Wheel |
-| 11 | encoder[11] | Enc7 | ML Carriage |
-| 12 | encoder[12] | Enc9 | MR Carriage |
+| Joint ID | Encoder Index | Variable | Description              |
+| -------- | ------------- | -------- | ------------------------ |
+| 1        | encoder\[1\]  | Enc2     | RC (Rear Caster) Top     |
+| 2        | encoder\[2\]  | Enc4     | FC (Front Caster) Bottom |
+| 3        | encoder\[3\]  | Enc1     | RC Bottom (0-850)        |
+| 4        | encoder\[4\]  | Enc3     | FC Top                   |
+| 5        | encoder\[5\]  | Enc12    | MR (Main Right) Back     |
+| 6        | encoder\[6\]  | Enc6     | ML (Main Left) Front     |
+| 7        | encoder\[7\]  | Enc11    | ML Back                  |
+| 8        | encoder\[8\]  | Enc10    | MR Front                 |
+| 9        | encoder\[9\]  | Enc5     | ML Drive Wheel           |
+| 10       | encoder\[10\] | Enc8     | MR Drive Wheel           |
+| 11       | encoder\[11\] | Enc7     | ML Carriage              |
+| 12       | encoder\[12\] | Enc9     | MR Carriage              |
 
----
+______________________________________________________________________
 
 ## Important Notes
 
 1. **Output Rate:** The `displaydata()` function is called every loop iteration (~200Hz with 5ms delay). This provides good data for PID tuning visualization.
 
-2. **Raw Ticks:** All values should be in raw encoder ticks (signed long) - no conversion to cm or other units.
+1. **Raw Ticks:** All values should be in raw encoder ticks (signed long) - no conversion to cm or other units.
 
-3. **Existing Commands:** The protocol is designed to be backward-compatible. Single-character commands (like '1', '2', 'q', 'a', etc.) will still work for existing functionality.
+1. **Existing Commands:** The protocol is designed to be backward-compatible. Single-character commands (like '1', '2', 'q', 'a', etc.) will still work for existing functionality.
 
-4. **Thread Safety:** The GUI sends commands at reasonable rates and waits for line completion, so no special buffering is required beyond Arduino's default.
+1. **Thread Safety:** The GUI sends commands at reasonable rates and waits for line completion, so no special buffering is required beyond Arduino's default.
 
-5. **Testing:** You can test the output format using the Arduino Serial Monitor before connecting the GUI.
+1. **Testing:** You can test the output format using the Arduino Serial Monitor before connecting the GUI.

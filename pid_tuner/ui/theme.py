@@ -8,7 +8,7 @@ https://github.com/catppuccin/catppuccin
 from dataclasses import dataclass
 from typing import Dict
 
-from .scaling import SIZES, scaled, scaled_font_size
+from .scaling import SIZES, scaled
 
 
 @dataclass
@@ -122,7 +122,6 @@ def get_application_stylesheet() -> str:
     # Get scaled sizes
     font_small = SIZES["font_small"]
     font_normal = SIZES["font_normal"]
-    font_medium = SIZES["font_medium"]
     margin_small = SIZES["margin_small"]
     margin_medium = SIZES["margin_medium"]
     spacing_small = SIZES["spacing_small"]

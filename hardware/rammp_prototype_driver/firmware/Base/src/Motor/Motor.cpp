@@ -39,33 +39,25 @@ void Motor::setTargetVelocity(float vel) { target_vel = vel; }
 
 void Motor::setTargetPWM(float pwm) { target_pwm = pwm; }
 
-void Motor::setDirection(int8_t dir) {
-  direction = (dir >= 0) ? 1 : -1;
-}
+void Motor::setDirection(int8_t dir) { direction = (dir >= 0) ? 1 : -1; }
 
-void Motor::toggleDirection() {
-  direction = -direction;
-}
+void Motor::toggleDirection() { direction = -direction; }
 
-int8_t Motor::getDirection() const {
-  return direction;
-}
+int8_t Motor::getDirection() const { return direction; }
 
 void Motor::setEncoderDirection(int8_t dir) {
   encoder_dir = (dir >= 0) ? 1 : -1;
 }
 
-void Motor::toggleEncoderDirection() {
-  encoder_dir = -encoder_dir;
-}
+void Motor::toggleEncoderDirection() { encoder_dir = -encoder_dir; }
 
-int8_t Motor::getEncoderDirection() const {
-  return encoder_dir;
-}
+int8_t Motor::getEncoderDirection() const { return encoder_dir; }
 
 void Motor::setInputLpfAlpha(float alpha) {
-  if (alpha < 0.0f) alpha = 0.0f;
-  if (alpha > 1.0f) alpha = 1.0f;
+  if (alpha < 0.0f)
+    alpha = 0.0f;
+  if (alpha > 1.0f)
+    alpha = 1.0f;
   this->lpf_input_alpha = alpha;
 }
 
@@ -80,12 +72,14 @@ void Motor::updateSensorData(float current_pos, float dt) {
   float raw_pos = current_pos * encoder_dir;
 
   // position input LPF
-  this->current_pos = this->current_pos + this->lpf_input_alpha * (raw_pos - this->current_pos);
+  this->current_pos =
+      this->current_pos + this->lpf_input_alpha * (raw_pos - this->current_pos);
 
   if (dt > 0.0f) {
     float raw_vel = (this->current_pos - this->prev_pos) / dt;
     // velocity input LPF
-    this->current_vel = this->current_vel + this->lpf_input_alpha * (raw_vel - this->current_vel);
+    this->current_vel = this->current_vel +
+                        this->lpf_input_alpha * (raw_vel - this->current_vel);
   }
   this->prev_pos = this->current_pos;
 }
@@ -121,8 +115,8 @@ float Motor::update(float dt) {
     }
 
     // Apply direction multiplier to final PWM output
-    scaled_target_pwm =
-        (int16_t)constrain(target_pwm * direction * this->PWM_SCALE, -32767, 32767);
+    scaled_target_pwm = (int16_t)constrain(
+        target_pwm * direction * this->PWM_SCALE, -32767, 32767);
     return scaled_target_pwm;
   }
 }

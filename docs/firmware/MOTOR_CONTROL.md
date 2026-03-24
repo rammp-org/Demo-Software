@@ -8,22 +8,22 @@ src/Motor/
 └── Motor.cpp (128 lines) — Mode dispatch, sensor update, PID execution, PWM scaling
 ```
 
----
+______________________________________________________________________
 
 ## Control Modes
 
 Each `Motor` has a `ControlMode` enum (`Motor.h:9`) that determines what `update(dt)` computes:
 
-| Mode | Value | Description |
-|---|---|---|
-| `DISABLED` | 0 | Motor is off. `update()` returns `0` immediately. All targets are zeroed. |
-| `OPEN_LOOP` | 1 | Target PWM is written directly. No PID computation. |
-| `VELOCITY_CONTROL` | 2 | Velocity PID computes PWM from `target_vel` and `current_vel`. |
-| `POSITION_CONTROL` | 3 | Position PID computes `target_vel` from position error; Velocity PID then computes PWM. |
+| Mode               | Value | Description                                                                             |
+| ------------------ | ----- | --------------------------------------------------------------------------------------- |
+| `DISABLED`         | 0     | Motor is off. `update()` returns `0` immediately. All targets are zeroed.               |
+| `OPEN_LOOP`        | 1     | Target PWM is written directly. No PID computation.                                     |
+| `VELOCITY_CONTROL` | 2     | Velocity PID computes PWM from `target_vel` and `current_vel`.                          |
+| `POSITION_CONTROL` | 3     | Position PID computes `target_vel` from position error; Velocity PID then computes PWM. |
 
 Mode changes are issued via the `M<id>:<mode>` serial command or internally by `runSelfLeveling()`. **Whenever the mode changes, both PID controllers are reset** (`Motor::setMode()`, `Motor.cpp:19-25`) to prevent stale integrator and filter state from causing a sudden output spike.
 
----
+______________________________________________________________________
 
 ## Cascaded PID Architecture
 
@@ -49,14 +49,14 @@ flowchart LR
 ```
 
 1. **Outer Loop (Position):** Computes `target_vel = pos_pid.compute(target_pos, current_pos, dt)`. Output range is `[-10000, 10000]` representing a target velocity in encoder ticks/second.
-2. **Inner Loop (Velocity):** Computes a normalized PWM fraction: `target_pwm = vel_pid.compute(target_vel, current_vel, dt)`. Output is `[-1.0, 1.0]` due to the `10000` scaling factor.
-3. **Output Scaling:** The normalized PWM is multiplied by the motor direction (`±1`) and `PWM_SCALE = 32767`, then constrained and cast to `int16_t`.
+1. **Inner Loop (Velocity):** Computes a normalized PWM fraction: `target_pwm = vel_pid.compute(target_vel, current_vel, dt)`. Output is `[-1.0, 1.0]` due to the `10000` scaling factor.
+1. **Output Scaling:** The normalized PWM is multiplied by the motor direction (`±1`) and `PWM_SCALE = 32767`, then constrained and cast to `int16_t`.
 
 The `VELOCITY_CONTROL` mode enters the cascade at step 2, skipping the position loop entirely.
 
 For the detailed PID algorithm (anti-windup, output LPF, feed-forward, scaling divisor), see [PID Controller](PID_CONTROLLER.md).
 
----
+______________________________________________________________________
 
 ## `Motor::update(dt)` — The Fallthrough Pattern (Lines 93–127)
 
@@ -85,7 +85,7 @@ default:
 
 `POSITION_CONTROL` computes a `target_vel` and falls into `VELOCITY_CONTROL`, which computes `target_pwm` and falls into `OPEN_LOOP`, which applies the final scaling. Each mode "adds" its computation to the chain and reuses the code below it.
 
----
+______________________________________________________________________
 
 ## Software Position Limits (Lines 114–121)
 
@@ -105,7 +105,7 @@ if (limits_enabled) {
 
 Set via commands `n<id>:<min>` and `x<id>:<max>`, or persisted to EEPROM with `K<id>`.
 
----
+______________________________________________________________________
 
 ## `disable()` — Safe Power-Off (Lines 27–34)
 
@@ -124,7 +124,7 @@ void Motor::disable() {
 
 Setting `target_pos = current_pos` is a critical safety detail. When ESTOP is cleared and the motor re-enables in `POSITION_CONTROL`, the position error will be exactly zero, so the motor will not lunge toward the last commanded position from before the ESTOP.
 
----
+______________________________________________________________________
 
 ## Sensor Update — `updateSensorData()` (Lines 78–91)
 
@@ -150,22 +150,22 @@ Velocity is numerically differentiated from filtered position, then the same IIR
 
 `lpf_input_alpha` (default `0.5`, range `0–1`) controls how aggressively this input filter smooths the position and velocity signals. Higher values track faster but pass more noise; lower values are smoother but add phase lag to the feedback.
 
----
+______________________________________________________________________
 
 ## Direction Multipliers
 
 Two independent direction controls exist per motor:
 
-| Member | Applies To | Effect |
-|---|---|---|
+| Member                | Applies To                 | Effect                                                                                                    |
+| --------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `encoder_dir` (+1/-1) | `updateSensorData()` input | Flips the logical sign of the encoder position. Corrects for encoders wired in reverse without re-wiring. |
-| `direction` (+1/-1) | `update()` final output | Flips the PWM sign sent to the RoboClaw. Corrects for motors wired in reverse without re-wiring. |
+| `direction` (+1/-1)   | `update()` final output    | Flips the PWM sign sent to the RoboClaw. Corrects for motors wired in reverse without re-wiring.          |
 
 These are independent so that the encoder and motor can be reversed separately. Both are persistent across reboots via EEPROM.
 
 Toggle via `V<id>` (motor direction) and `E<id>` (encoder direction) commands.
 
----
+______________________________________________________________________
 
 ## Hardware Limit Switches (in `Base.ino`)
 
@@ -183,23 +183,23 @@ This overrides any PWM computed by the PID, nulling it at the last moment. Like 
 
 Pin assignments are in `Constants.h`:
 
-| Switch | Pin | Joint | Direction |
-|---|---|---|---|
-| `CARRIAGE_SW1_PIN` | 23 | ML Carriage | Forward limit |
-| `CARRIAGE_SW2_PIN` | 22 | ML Carriage | Backward limit |
-| `CARRIAGE_SW3_PIN` | 13 | MR Carriage | Forward limit |
-| `CARRIAGE_SW4_PIN` | 33 | MR Carriage | Backward limit |
+| Switch             | Pin | Joint       | Direction      |
+| ------------------ | --- | ----------- | -------------- |
+| `CARRIAGE_SW1_PIN` | 23  | ML Carriage | Forward limit  |
+| `CARRIAGE_SW2_PIN` | 22  | ML Carriage | Backward limit |
+| `CARRIAGE_SW3_PIN` | 13  | MR Carriage | Forward limit  |
+| `CARRIAGE_SW4_PIN` | 33  | MR Carriage | Backward limit |
 
----
+______________________________________________________________________
 
 ## RoboClaw Dispatch (in `Base.ino`)
 
 After all PWM values are computed and limit-checked, they are written to the three RoboClaw motor controllers (Lines 752–783):
 
-| RoboClaw Instance | Serial Port | M1 | M2 |
-|---|---|---|---|
-| `roboclaw_main` | `Serial5` | `ml` (Main Left) | `mr` (Main Right) |
-| `roboclaw_casters` | `Serial4` | `rc` (Rear Caster) | `fc` (Front Caster) |
-| `roboclaw_carriages` | `Serial3` | `ml_carriage` | `mr_carriage` |
+| RoboClaw Instance    | Serial Port | M1                 | M2                  |
+| -------------------- | ----------- | ------------------ | ------------------- |
+| `roboclaw_main`      | `Serial5`   | `ml` (Main Left)   | `mr` (Main Right)   |
+| `roboclaw_casters`   | `Serial4`   | `rc` (Rear Caster) | `fc` (Front Caster) |
+| `roboclaw_carriages` | `Serial3`   | `ml_carriage`      | `mr_carriage`       |
 
 The PWM values are passed directly as `int16_t` to `DutyM1()` / `DutyM2()`, which accepts values in the range `[-32767, 32767]`. The `PWM_SCALE = 32767` constant in `Motor` maps the internal `[-1.0, 1.0]` normalized range to this hardware range.

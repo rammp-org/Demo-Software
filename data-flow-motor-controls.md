@@ -61,7 +61,7 @@ flowchart LR
     Telemetry --> Serial
 ```
 
----
+______________________________________________________________________
 
 ## Cascaded PID Control
 
@@ -138,7 +138,7 @@ flowchart TB
     Zero --> PWM
 ```
 
----
+______________________________________________________________________
 
 ## Hardware Mapping
 
@@ -177,13 +177,13 @@ flowchart LR
 
 ### Encoder → Motor Mapping
 
-| Motor | ID | Encoder Index | Description |
-|-------|:--:|:-------------:|-------------|
-| RC | 0 | `encoderf[3]` | Rear Caster |
-| FC | 1 | `encoderf[2]` | Front Caster |
-| ML | 2 | `encoderf[7]` | Main Left Wheel |
-| MR | 3 | `encoderf[5]` | Main Right Wheel |
-| ML_C | 4 | `encoderf[11]` | Left Carriage |
-| MR_C | 5 | `encoderf[12]` | Right Carriage |
+| Motor | ID  | Encoder Index  | Description      |
+| ----- | :-: | :------------: | ---------------- |
+| RC    |  0  | `encoderf[3]`  | Rear Caster      |
+| FC    |  1  | `encoderf[2]`  | Front Caster     |
+| ML    |  2  | `encoderf[7]`  | Main Left Wheel  |
+| MR    |  3  | `encoderf[5]`  | Main Right Wheel |
+| ML_C  |  4  | `encoderf[11]` | Left Carriage    |
+| MR_C  |  5  | `encoderf[12]` | Right Carriage   |
 
 > **Note**: Encoder indices may need verification against physical wiring.

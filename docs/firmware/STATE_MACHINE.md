@@ -16,7 +16,7 @@ enum SystemState {
 
 `CONFIGURATION` and `AUTO_CURB_CLIMBING` are reserved for future development and are present in the enum but have no dispatch logic in the current firmware.
 
----
+______________________________________________________________________
 
 ## State Transitions
 
@@ -39,7 +39,7 @@ stateDiagram-v2
     ESTOP --> IDLE : c command (Clear ESTOP)
 ```
 
----
+______________________________________________________________________
 
 ## State Behaviors
 
@@ -64,10 +64,12 @@ There is currently **no explicit `TUNER_MODE → IDLE` command** — the state m
 The highest-priority state. All motor activity stops immediately.
 
 **Trigger conditions:**
+
 - Manual: User sends `z` at any time from any state.
 - Automatic: `parser.isTimedOut()` returns `true` — no valid serial traffic received for 60 seconds.
 
 **Action on entry:** All 6 `Motor` instances are disabled via `Motor::disable()` which:
+
 - Zeros `target_pwm` and `target_vel`
 - Resets `target_pos = current_pos` (prevents jump on re-enable)
 - Clears PID integrators and filter state
@@ -95,7 +97,7 @@ Defined in the enum but not yet implemented. Intended for a future mode that all
 
 Defined in the enum but not yet implemented. Intended for a future autonomous behavior that sequences the leg actuators to climb over a curb using the IMU and limit switches as feedback.
 
----
+______________________________________________________________________
 
 ## State Machine Implementation in `Base.ino`
 

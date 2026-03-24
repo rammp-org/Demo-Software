@@ -100,31 +100,31 @@ uv run python run.py
 ### Connecting to Teensy
 
 1. Select the serial port from the dropdown (click "Refresh" to update)
-2. Select baud rate (default: 115200)
-3. Click "Connect"
+1. Select baud rate (default: 115200)
+1. Click "Connect"
 
 ### Using Simulation Mode
 
 To preview target signals before connecting to hardware:
 
 1. Click the **"Simulate"** button in the plot toolbar (turns green when active)
-2. Set targets or start a sine wave - they will be plotted in real-time
-3. Simulation mode auto-disables when you connect to a real device
+1. Set targets or start a sine wave - they will be plotted in real-time
+1. Simulation mode auto-disables when you connect to a real device
 
 ### Controls
 
-| Control | Description |
-|---------|-------------|
-| **Set Target** | Send absolute target(s) for the primary and (optional) linked joint |
-| **Use Current** | Copy current encoder position to target input |
-| **Set Zero** | Set target to 0 |
-| **Home Position** | Send 'H' command to zero the encoder |
-| **Flip Dir** | Send 'V' command to flip motor direction (saved to EEPROM) |
-| **Disable Motors** | Send 'z' command to disable all motors (ESTOP) |
-| **Step +/-** | Execute a timed step of configured amplitude and duration |
-| **Quick Steps** | One-click buttons for quick percentage-based steps |
-| **Start Sine** | Begin sine wave oscillation around current target |
-| **Stop Sine** | Stop sine wave and return to center position |
+| Control            | Description                                                         |
+| ------------------ | ------------------------------------------------------------------- |
+| **Set Target**     | Send absolute target(s) for the primary and (optional) linked joint |
+| **Use Current**    | Copy current encoder position to target input                       |
+| **Set Zero**       | Set target to 0                                                     |
+| **Home Position**  | Send 'H' command to zero the encoder                                |
+| **Flip Dir**       | Send 'V' command to flip motor direction (saved to EEPROM)          |
+| **Disable Motors** | Send 'z' command to disable all motors (ESTOP)                      |
+| **Step +/-**       | Execute a timed step of configured amplitude and duration           |
+| **Quick Steps**    | One-click buttons for quick percentage-based steps                  |
+| **Start Sine**     | Begin sine wave oscillation around current target                   |
+| **Stop Sine**      | Stop sine wave and return to center position                        |
 
 ## Serial Protocol
 
@@ -138,13 +138,13 @@ TELEMETRY,<timestamp_ms>,<state>,<6 pos>,<6 vel>,<6 pwm>,<6 dirs>,<4 limits>,<6 
 
 ### PC -> Teensy: Commands
 
-| Command | Format | Example | Description |
-|---------|--------|---------|-------------|
-| Target | `T<id>:<val>\n` | `T1:1500` | Set target for joint 1 |
-| Mode | `M<id>:<val>\n` | `M1:2` | Set mode (0:Open Loop, 1:Vel, 2:Pos) |
-| PID Config | `P<id>:<val>\n` | `P1:0.5` | Set Pos KP (`P`, `I`, `D`, `F`) or Vel KP (`p`, `i`, `d`, `f`) |
-| Home | `H<id>\n` | `H1` | Zero the encoder |
-| Direction | `V<id>\n` | `V1` | Toggle motor direction |
-| Reset | `R<id>\n` | `R1` | Clear integrator windup |
-| Disable | `z\n` | `z` | Emergency stop (disable all) |
-| Clear | `c\n` | `c` | Clear emergency stop |
+| Command    | Format          | Example   | Description                                                    |
+| ---------- | --------------- | --------- | -------------------------------------------------------------- |
+| Target     | `T<id>:<val>\n` | `T1:1500` | Set target for joint 1                                         |
+| Mode       | `M<id>:<val>\n` | `M1:2`    | Set mode (0:Open Loop, 1:Vel, 2:Pos)                           |
+| PID Config | `P<id>:<val>\n` | `P1:0.5`  | Set Pos KP (`P`, `I`, `D`, `F`) or Vel KP (`p`, `i`, `d`, `f`) |
+| Home       | `H<id>\n`       | `H1`      | Zero the encoder                                               |
+| Direction  | `V<id>\n`       | `V1`      | Toggle motor direction                                         |
+| Reset      | `R<id>\n`       | `R1`      | Clear integrator windup                                        |
+| Disable    | `z\n`           | `z`       | Emergency stop (disable all)                                   |
+| Clear      | `c\n`           | `c`       | Clear emergency stop                                           |

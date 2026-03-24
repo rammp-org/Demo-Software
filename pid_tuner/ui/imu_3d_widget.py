@@ -13,7 +13,7 @@ import pyqtgraph.opengl as gl
 
 from ..data.data_store import DataStore
 from .theme import THEME
-from .scaling import SIZES, scaled
+from .scaling import SIZES
 
 
 class ThickAxisItem(gl.GLLinePlotItem):

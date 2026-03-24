@@ -17,7 +17,7 @@ from PyQt6.QtCore import QTimer
 
 from ..data.data_store import DataStore
 from .theme import get_plot_colors, THEME
-from .scaling import SIZES, scaled
+from .scaling import SIZES
 
 
 class PlotWidget(QWidget):

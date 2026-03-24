@@ -2,7 +2,7 @@
 Strain gauge display widget showing 4 strain gauge readings as horizontal bars.
 """
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import pyqtSlot, Qt
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont
 
@@ -103,7 +103,6 @@ class StrainGaugeBar(QWidget):
         painter.setFont(font)
         value_text = f"{self._value:.1f}"
 
-        text_x = bar_rect_x + bar_width // 2
         text_width = bar_width
         painter.drawText(
             bar_rect_x,

@@ -5,16 +5,14 @@ Encoder overview widget showing all 6 encoder positions as horizontal bars.
 from PyQt6.QtWidgets import (
     QWidget,
     QHBoxLayout,
-    QVBoxLayout,
     QLabel,
-    QFrame,
     QSizePolicy,
 )
 from PyQt6.QtCore import pyqtSlot, pyqtSignal, Qt, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont
 
 from .theme import THEME, JOINT_COLORS
-from .scaling import SIZES, scaled, scaled_font_size
+from .scaling import SIZES, scaled
 from ..data.data_store import DataStore
 from ..data.joint_config import JOINTS
 

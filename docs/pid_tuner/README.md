@@ -3,7 +3,9 @@
 The PID Tuner is a PyQt6 application used to interface with the RAMMP / MEBot Teensy firmware. It provides a real-time dashboard for adjusting PID control loops, visualizing live data through high-speed plots, and testing various maneuvers (like sine sweeps and steps).
 
 ## Quick Start
+
 Make sure you have python 3 installed, then run:
+
 ```bash
 cd pid_tuner
 pip install -r requirements.txt

@@ -92,11 +92,11 @@ void PIDController::reset() {
 }
 
 void PIDController::setLpfAlpha(float alpha) {
-  if (alpha < 0.0f) alpha = 0.0f;
-  if (alpha > 1.0f) alpha = 1.0f;
+  if (alpha < 0.0f)
+    alpha = 0.0f;
+  if (alpha > 1.0f)
+    alpha = 1.0f;
   this->lpf_alpha = alpha;
 }
 
-float PIDController::getLpfAlpha() const {
-  return this->lpf_alpha;
-}
+float PIDController::getLpfAlpha() const { return this->lpf_alpha; }

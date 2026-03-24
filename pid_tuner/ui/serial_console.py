@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QTextCursor, QFont
 
-from .theme import THEME, get_console_stylesheet
+from .theme import get_console_stylesheet
 
 
 class SerialConsole(QWidget):

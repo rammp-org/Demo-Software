@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QStatusBar,
     QMessageBox,
-    QFrame,
     QSizePolicy,
 )
 from PyQt6.QtCore import Qt, QTimer, QSettings
@@ -27,7 +26,7 @@ from .control_panel import ControlPanel
 from .serial_console import SerialConsole
 from .state_indicator import StateIndicator
 from .encoder_overview import EncoderOverview
-from .theme import get_application_stylesheet, THEME
+from .theme import get_application_stylesheet
 from .scaling import SIZES, scaled
 
 

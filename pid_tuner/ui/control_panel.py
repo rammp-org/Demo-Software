@@ -13,14 +13,13 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QSpinBox,
-    QDoubleSpinBox,
     QScrollArea,
     QSizePolicy,
     QFrame,
     QCheckBox,
     QMenu,
 )
-from PyQt6.QtCore import pyqtSignal, pyqtSlot, QTimer, Qt, QSettings
+from PyQt6.QtCore import pyqtSignal, QTimer, Qt, QSettings
 from PyQt6.QtGui import QDoubleValidator, QAction
 import math
 import numpy as np
@@ -1382,8 +1381,6 @@ class ControlPanel(QWidget):
         if linked_joint_id != 0:
             # If the user typed something into the linked input, use it.
             # Otherwise use the primary target, potentially inverted.
-            linked_text = self._linked_target_input.text().strip()
-
             # Simple check: if the user actually wrote a different value specifically in the linked box
             # we should respect it. However, keeping them synced when using step inputs is usually desired.
             # Let's read whatever is currently in the linked_target_input field.

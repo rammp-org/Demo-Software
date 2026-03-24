@@ -14,13 +14,13 @@ public:
   float K = 0.08;
   float ax = 0.0, ay = 0.0, az = 0.0;
   Adafruit_BNO055 &bno_sensor;
-  
+
   imu::Quaternion current_quat;
 
   IMU_Class(Adafruit_BNO055 &);
   void initialize_BNO055_sensor();
   void retrieve_readings();
-  
+
   imu::Quaternion extractSwing(imu::Quaternion q);
 };
 

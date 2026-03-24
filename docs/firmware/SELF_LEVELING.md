@@ -4,13 +4,13 @@ The `runSelfLeveling(float dt)` function in `Base.ino` (Lines 207–312) impleme
 
 The algorithm takes the current IMU orientation, computes the angular error to a configurable target (pitch/roll), builds a 3D rotation matrix representing that error, applies it to the robot's chassis geometry, and dispatches the resulting leg height targets to the motor controllers.
 
----
+______________________________________________________________________
 
 ## Overview: What It Solves
 
 The MEBot has independently height-adjustable legs. When the robot is on a slope, these legs can be extended or retracted differentially to keep the chassis parallel to the ground (or any other target orientation). Self-leveling converts an angular orientation error into a set of target encoder positions for 5 of the 6 joints.
 
----
+______________________________________________________________________
 
 ## Step 1 — IMU Error Quaternion (Lines 216–245)
 
@@ -72,7 +72,7 @@ The deadband (~0.057°) prevents jitter when the error is near zero and would ot
 **Why use quaternions instead of working directly in Euler angles?**
 Using the quaternion error decomposition avoids the ±180° wraparound problem. If `q_meas` is at 175° Roll and `target_roll` is -175°, the Euler difference would be ±350° but the quaternion approach correctly returns a ±10° rotation — no discontinuity.
 
----
+______________________________________________________________________
 
 ## Step 2 — Rotation Matrix Construction (Lines 255–275)
 
@@ -91,7 +91,7 @@ The 4th row and column are the homogeneous convention — they allow the rotatio
 
 **Why hardcode Z = 9.5 cm?** This is the nominal Z height of the chassis contact points above the ground when the legs are at their neutral extension. This offset ensures the leg height targets computed by the matrix are absolute heights from ground, not pure rotational displacements.
 
----
+______________________________________________________________________
 
 ## Step 3 — Chassis Geometry Matrix (Lines 278–284)
 
@@ -108,16 +108,16 @@ double mebot[4][4] = {
 
 Column assignment (left to right):
 
-| Column | Joint | Description |
-|---|---|---|
-| 0 | `ml` | Main Left wheel — far left, rear |
-| 1 | `rc` | Rear Caster — right of center, rear |
-| 2 | `rc` | Rear Caster — left of center, rear (averaged with col 1) |
-| 3 | `mr` | Main Right wheel — far right, rear |
+| Column | Joint | Description                                              |
+| ------ | ----- | -------------------------------------------------------- |
+| 0      | `ml`  | Main Left wheel — far left, rear                         |
+| 1      | `rc`  | Rear Caster — right of center, rear                      |
+| 2      | `rc`  | Rear Caster — left of center, rear (averaged with col 1) |
+| 3      | `mr`  | Main Right wheel — far right, rear                       |
 
 > **Note:** Columns 1 and 2 both represent the rear caster's two contact points (or the left/right side of the caster footprint). They are averaged together to produce a single Z target for the rear caster actuator.
 
----
+______________________________________________________________________
 
 ## Step 4 — Matrix Multiplication (Lines 287–294)
 
@@ -136,7 +136,7 @@ for (int row = 0; row < 4; row++) {
 
 This applies the rotation to each leg's XY position. The result is a new set of 3D coordinates representing where each leg contact point needs to be after the tilt correction is applied. Row 2 of `newmebot` gives the required Z height for each column (contact point).
 
----
+______________________________________________________________________
 
 ## Step 5 — Target Extraction and Dispatch (Lines 297–311)
 
@@ -164,7 +164,7 @@ fc.setTargetPosition(FC_MAX_TICKS); // Hardcoded to 0.0 (FC_MAX_TICKS = 0.0f)
 
 This means during self-leveling, only `ml`, `mr`, and `rc` are actively computing geometry-derived targets. The carriages hold a near-zero retracted position, and `fc` is held at its top-of-range (`0.0` ticks, which due to encoder direction and range is the fully-extended position).
 
----
+______________________________________________________________________
 
 ## Full Data Flow
 
@@ -189,13 +189,13 @@ flowchart TD
     ExtractZ --> Carr["carriages.setTargetPosition()\n0.1cm × 17.5 (fixed)"]
 ```
 
----
+______________________________________________________________________
 
 ## Known Limitations and TODOs
 
-| Issue | Location | Notes |
-|---|---|---|
-| `CM_TO_TICKS = 17.5` is approximate | `Constants.h:23` | Comment says "Roughly 350 ticks per 20cm" — needs physical calibration per joint |
-| `FC_MAX_TICKS = 0.0f` | `Constants.h:28` | FC is hardcoded to tick value 0 — verify this is actually the top-of-range for FC's encoder direction |
-| Front caster not included in geometry | `Base.ino:307-311` | The `mebot` geometry matrix has 4 columns (ML, RC_L, RC_R, MR) — FC is not geometrically coupled. Its contribution to leveling is ignored |
-| `CM_TO_TICKS` is shared across all joints | `Constants.h` | Main wheels and casters likely have different linear travel per tick — per-joint calibration constants are needed |
+| Issue                                     | Location           | Notes                                                                                                                                     |
+| ----------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `CM_TO_TICKS = 17.5` is approximate       | `Constants.h:23`   | Comment says "Roughly 350 ticks per 20cm" — needs physical calibration per joint                                                          |
+| `FC_MAX_TICKS = 0.0f`                     | `Constants.h:28`   | FC is hardcoded to tick value 0 — verify this is actually the top-of-range for FC's encoder direction                                     |
+| Front caster not included in geometry     | `Base.ino:307-311` | The `mebot` geometry matrix has 4 columns (ML, RC_L, RC_R, MR) — FC is not geometrically coupled. Its contribution to leveling is ignored |
+| `CM_TO_TICKS` is shared across all joints | `Constants.h`      | Main wheels and casters likely have different linear travel per tick — per-joint calibration constants are needed                         |

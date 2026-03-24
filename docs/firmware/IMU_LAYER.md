@@ -3,9 +3,9 @@
 The `IMU_Class` (`src/IMU_Class/IMU_Class.cpp`) wraps the Adafruit BNO055 9-DOF IMU. Its primary responsibilities are:
 
 1. Reading raw quaternion and accelerometer data from the sensor each loop cycle.
-2. Converting quaternions to Euler angles while handling the BNO055's **upside-down physical mounting**.
-3. Producing a **yaw-free (swing) quaternion** for use by the self-leveling kinematics to avoid fighting the robot's heading.
-4. Applying an IIR low-pass filter to Euler angles with proper wraparound arithmetic.
+1. Converting quaternions to Euler angles while handling the BNO055's **upside-down physical mounting**.
+1. Producing a **yaw-free (swing) quaternion** for use by the self-leveling kinematics to avoid fighting the robot's heading.
+1. Applying an IIR low-pass filter to Euler angles with proper wraparound arithmetic.
 
 ## Class Overview
 
@@ -17,16 +17,16 @@ src/IMU_Class/
 
 ### Key Public Members
 
-| Member | Type | Description |
-|---|---|---|
-| `pitch`, `roll`, `yaw` | `float` | Raw (unfiltered) Euler angles in degrees |
-| `pitchf`, `rollf` | `float` | Low-pass filtered pitch and roll in degrees |
-| `pitchrd`, `rollrd` | `float` | Filtered pitch/roll converted to radians |
-| `ax`, `ay`, `az` | `float` | Linear acceleration vector (m/s²) |
-| `current_quat` | `imu::Quaternion` | Swing quaternion (yaw removed) for kinematics |
-| `K` | `float` | IIR filter coefficient for Euler angles (default `0.08`) |
+| Member                 | Type              | Description                                              |
+| ---------------------- | ----------------- | -------------------------------------------------------- |
+| `pitch`, `roll`, `yaw` | `float`           | Raw (unfiltered) Euler angles in degrees                 |
+| `pitchf`, `rollf`      | `float`           | Low-pass filtered pitch and roll in degrees              |
+| `pitchrd`, `rollrd`    | `float`           | Filtered pitch/roll converted to radians                 |
+| `ax`, `ay`, `az`       | `float`           | Linear acceleration vector (m/s²)                        |
+| `current_quat`         | `imu::Quaternion` | Swing quaternion (yaw removed) for kinematics            |
+| `K`                    | `float`           | IIR filter coefficient for Euler angles (default `0.08`) |
 
----
+______________________________________________________________________
 
 ## Initialization — `initialize_BNO055_sensor()` (Lines 5–19)
 
@@ -42,7 +42,7 @@ delay(100);
 
 > **Important:** Hardware axis remapping via the BNO055's built-in `setAxisRemap()` API was deliberately **removed**. It was found to scramble the quaternion axes in an unpredictable way. The upside-down mounting compensation is instead handled in software within `retrieve_readings()`.
 
----
+______________________________________________________________________
 
 ## `retrieve_readings()` — Full Pipeline (Lines 21–84)
 
@@ -106,7 +106,7 @@ double raw_yaw   = raw_z;
 
 The IMU is mounted upside down on the chassis. In this orientation, when the robot is resting flat, the BNO055 reports a Roll of approximately ±180° rather than 0°. Without correction, the self-leveling controller would try to command the robot to invert itself to reach a "flat" target of 0°.
 
-The fix shifts the zero point by adding 180° and then re-wrapping to the [-180, +180] range:
+The fix shifts the zero point by adding 180° and then re-wrapping to the \[-180, +180\] range:
 
 ```cpp
 raw_roll += 180.0;
@@ -142,7 +142,7 @@ rollrd  = -1.0 * rollf * (PI / 180.0);  // Note: rollrd sign is negated
 
 `rollrd` is negated relative to `rollf`. This sign convention matches the self-leveling kinematics controller's coordinate frame expectations.
 
----
+______________________________________________________________________
 
 ## `extractSwing()` — Yaw Decomposition (Lines 86–109)
 
@@ -183,18 +183,18 @@ if (twist_norm < 0.0001f) {
 
 `twist_norm` approaches zero only if the robot is pitched exactly 90° or more — i.e., nearly inverted. This guard prevents a divide-by-zero. In this edge case the function returns an identity quaternion (no rotation), which is a safe fallback to prevent the self-leveling controller from receiving NaN values and producing undefined PWM outputs.
 
----
+______________________________________________________________________
 
 ## IMU Data in Telemetry
 
 The following IMU fields are included in the 10Hz telemetry packet (see `docs/shared/SERIAL_PROTOCOL.md`):
 
-| Telemetry Field | Source Member | Notes |
-|---|---|---|
-| `pitch` | `IMU.pitchf` | Filtered, 2 decimal places |
-| `roll` | `IMU.rollf` | Filtered, 2 decimal places |
-| `yaw` | `IMU.yaw` | Unfiltered raw yaw, 2 decimal places |
-| `ax`, `ay`, `az` | `IMU.ax/ay/az` | Linear acceleration, 3 decimal places |
+| Telemetry Field        | Source Member      | Notes                                      |
+| ---------------------- | ------------------ | ------------------------------------------ |
+| `pitch`                | `IMU.pitchf`       | Filtered, 2 decimal places                 |
+| `roll`                 | `IMU.rollf`        | Filtered, 2 decimal places                 |
+| `yaw`                  | `IMU.yaw`          | Unfiltered raw yaw, 2 decimal places       |
+| `ax`, `ay`, `az`       | `IMU.ax/ay/az`     | Linear acceleration, 3 decimal places      |
 | `qw`, `qx`, `qy`, `qz` | `IMU.current_quat` | Swing quaternion (yaw=0), 4 decimal places |
 
 > **Note:** The telemetry quaternion is the **swing quaternion** (yaw removed), not the raw BNO055 quaternion. The Python GUI's 3D IMU visualization is therefore yaw-stabilized — it shows chassis tilt but will not rotate with the robot's heading.

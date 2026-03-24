@@ -35,18 +35,42 @@ void EncoderContainer::zeroEncoder(int index) {
   // Zero encoder by setting offset to current raw reading
   if (index >= 1 && index <= 12) {
     switch (index) {
-      case 1: encoder_offset[index] = Enc2.read(); break;
-      case 2: encoder_offset[index] = Enc4.read(); break;
-      case 3: encoder_offset[index] = Enc1.read(); break;
-      case 4: encoder_offset[index] = Enc3.read(); break;
-      case 5: encoder_offset[index] = Enc12.read(); break;
-      case 6: encoder_offset[index] = Enc6.read(); break;
-      case 7: encoder_offset[index] = Enc11.read(); break;
-      case 8: encoder_offset[index] = Enc10.read(); break;
-      case 9: encoder_offset[index] = Enc5.read(); break;
-      case 10: encoder_offset[index] = Enc8.read(); break;
-      case 11: encoder_offset[index] = Enc7.read(); break;
-      case 12: encoder_offset[index] = Enc9.read(); break;
+    case 1:
+      encoder_offset[index] = Enc2.read();
+      break;
+    case 2:
+      encoder_offset[index] = Enc4.read();
+      break;
+    case 3:
+      encoder_offset[index] = Enc1.read();
+      break;
+    case 4:
+      encoder_offset[index] = Enc3.read();
+      break;
+    case 5:
+      encoder_offset[index] = Enc12.read();
+      break;
+    case 6:
+      encoder_offset[index] = Enc6.read();
+      break;
+    case 7:
+      encoder_offset[index] = Enc11.read();
+      break;
+    case 8:
+      encoder_offset[index] = Enc10.read();
+      break;
+    case 9:
+      encoder_offset[index] = Enc5.read();
+      break;
+    case 10:
+      encoder_offset[index] = Enc8.read();
+      break;
+    case 11:
+      encoder_offset[index] = Enc7.read();
+      break;
+    case 12:
+      encoder_offset[index] = Enc9.read();
+      break;
     }
     // Also reset filtered value to prevent jumps
     encoderf[index] = 0;
@@ -57,24 +81,38 @@ void EncoderContainer::setOffset(int index, signed long offset) {
   if (index >= 1 && index <= 12) {
     encoder_offset[index] = offset;
     // Immediately update the filtered value to match the new logical position
-    encoderf[index] = (signed long)(getRawReading(index) - encoder_offset[index]);
+    encoderf[index] =
+        (signed long)(getRawReading(index) - encoder_offset[index]);
   }
 }
 
 signed long EncoderContainer::getRawReading(int index) {
   switch (index) {
-    case 1: return Enc2.read();
-    case 2: return Enc4.read();
-    case 3: return Enc1.read();
-    case 4: return Enc3.read();
-    case 5: return Enc12.read();
-    case 6: return Enc6.read();
-    case 7: return Enc11.read();
-    case 8: return Enc10.read();
-    case 9: return Enc5.read();
-    case 10: return Enc8.read();
-    case 11: return Enc7.read();
-    case 12: return Enc9.read();
-    default: return 0;
+  case 1:
+    return Enc2.read();
+  case 2:
+    return Enc4.read();
+  case 3:
+    return Enc1.read();
+  case 4:
+    return Enc3.read();
+  case 5:
+    return Enc12.read();
+  case 6:
+    return Enc6.read();
+  case 7:
+    return Enc11.read();
+  case 8:
+    return Enc10.read();
+  case 9:
+    return Enc5.read();
+  case 10:
+    return Enc8.read();
+  case 11:
+    return Enc7.read();
+  case 12:
+    return Enc9.read();
+  default:
+    return 0;
   }
 }

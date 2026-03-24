@@ -29,7 +29,7 @@ public:
 
   // Compute cascaded control, returns PWM required
   float update(float dt);
-  
+
   // Motor direction control
   void setDirection(int8_t dir);
   void toggleDirection();
@@ -48,13 +48,13 @@ public:
   void setInputLpfAlpha(float alpha);
 
   const float PWM_SCALE = 32767;
-  
+
   // Motor direction: 1 = normal, -1 = inverted
   int8_t direction = 1;
-  
+
   // Encoder direction: 1 = normal, -1 = inverted
   int8_t encoder_dir = 1;
-  
+
   // Encoder direction control
   void setEncoderDirection(int8_t dir);
   void toggleEncoderDirection();

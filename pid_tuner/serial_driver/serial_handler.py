@@ -7,7 +7,7 @@ Uses batched emission to prevent GUI overload from fast serial data.
 
 import threading
 import time
-from typing import Optional, Callable, List
+from typing import Optional, List
 from queue import Queue, Empty
 
 import serial

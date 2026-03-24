@@ -20,7 +20,7 @@ extern RoboClaw roboclaw_carriages;
 
 // TODO: Tune these conversion factors later
 // Roughly 350 ticks per 20cm of travel -> 17.5 ticks/cm
-const float CM_TO_TICKS = 17.5f; 
+const float CM_TO_TICKS = 17.5f;
 const float ML_CM_TO_TICKS = CM_TO_TICKS;
 const float MR_CM_TO_TICKS = CM_TO_TICKS;
 const float RC_CM_TO_TICKS = CM_TO_TICKS;

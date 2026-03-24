@@ -48,16 +48,16 @@ flowchart TB
 
 ## Communication Protocol Highlights
 
-- **Downlink (PC -> Teensy):** Short ASCII commands. E.g., `T3:1000` (Set Target for Joint 3 to 1000 ticks), `P1:5.2` (Set Position P gain for Joint 1 to 5.2). 
+- **Downlink (PC -> Teensy):** Short ASCII commands. E.g., `T3:1000` (Set Target for Joint 3 to 1000 ticks), `P1:5.2` (Set Position P gain for Joint 1 to 5.2).
 - **Uplink (Teensy -> PC):** Dense telemetry strings emitted at 10Hz. E.g., `TELEMETRY,<millis>,<state>,<pos1..6>,<vel1..6>,...`.
 - **Heartbeat:** If the Python app disconnects or crashes, a watchdog timer (500ms) on the Teensy triggers an immediate ESTOP, cutting power to the RoboClaws.
 
 ## Component Responsibilities
 
-| Component | Responsibilities |
-| --- | --- |
-| **Python GUI** | Visualizing telemetry (plots, 3D IMU), exposing tuning knobs, managing configurations. |
-| **Command Parser** | Translating ASCII bytes to structured `RobotCommand` structs, feeding the watchdog. |
-| **State Machine** | Managing `IDLE`, `TUNER_MODE`, `ESTOP`, `SELF_LEVELING` modes safely. |
-| **Motor Class** | Cascaded PID loops (Position & Velocity), limit switch enforcement, direction abstraction. |
-| **Config Storage** | Abstracting EEPROM to save/load PID gains, limits, and offsets persistently. |
+| Component          | Responsibilities                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| **Python GUI**     | Visualizing telemetry (plots, 3D IMU), exposing tuning knobs, managing configurations.     |
+| **Command Parser** | Translating ASCII bytes to structured `RobotCommand` structs, feeding the watchdog.        |
+| **State Machine**  | Managing `IDLE`, `TUNER_MODE`, `ESTOP`, `SELF_LEVELING` modes safely.                      |
+| **Motor Class**    | Cascaded PID loops (Position & Velocity), limit switch enforcement, direction abstraction. |
+| **Config Storage** | Abstracting EEPROM to save/load PID gains, limits, and offsets persistently.               |

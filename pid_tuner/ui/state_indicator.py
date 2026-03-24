@@ -2,8 +2,8 @@
 State indicator widget showing the current system state.
 """
 
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QFrame
-from PyQt6.QtCore import pyqtSlot, QTimer, Qt
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel
+from PyQt6.QtCore import pyqtSlot, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush
 
 from .theme import THEME, STATE_COLORS, STATE_NAMES

@@ -68,7 +68,14 @@ class gamepadNode(Node):
             "joint_6",
         ]
         point = JointTrajectoryPoint()
-        point.positions = [0.0, 0.26, 2.26, 0.0, 0.95, 0.0]  # Gen3 Home
+        point.positions = [
+            0.0,
+            0.26,
+            2.26,
+            0.0,
+            0.95,
+            0.0,
+        ]  # Gen3 Home    --> may need to be adjusted for 7 dof arm
         point.time_from_start = Duration(sec=3, nanosec=0)
         msg.points.append(point)
 
@@ -77,7 +84,9 @@ class gamepadNode(Node):
 
         # C. Switch back to Twist after move (Simplified: call again after delay)
         # In a real app, you'd wait for trajectory completion.
-        self.create_timer(4.0, self.reactivate_twist)
+        self.create_timer(
+            4.0, self.reactivate_twist
+        )  # is this timer/callback meant to run indef every 4s? Why?
 
     def reactivate_twist(self):
         req = SwitchController.Request()
@@ -100,8 +109,8 @@ class gamepadNode(Node):
 
             # 1. Look up transform from World to End Effector
             transform = self.tf_buffer.lookup_transform(
-                "end_effector_link",  # may need to change
-                "world",  # may need to change
+                "end_effector_link",  # may need to change  --> actual frame name for kinova gen3, may need to change
+                "world",  # may need to change  --> actual frame name for kinova gen3, may need to change
                 rclpy.time.Time(),
             )
 
@@ -114,7 +123,9 @@ class gamepadNode(Node):
             # 2. Create a Vector3Stamped for the Linear Joystick Input
             # do_transform_vector3 REQUIREs the .vector attribute found in Stamped messages
             world_linear_stamped = Vector3Stamped()
-            world_linear_stamped.header.frame_id = "world"  # may need to change
+            world_linear_stamped.header.frame_id = (
+                "world"  # actual frame name for kinova gen3, may need to change
+            )
             world_linear_stamped.vector.x = (
                 msg.axes[1] * scale
             )  # Map to your specific axis

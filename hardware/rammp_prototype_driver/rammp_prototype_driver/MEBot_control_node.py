@@ -1,6 +1,7 @@
 import ast
 import math
 from enum import IntEnum
+import asyncio
 
 import rclpy
 import serial
@@ -334,9 +335,30 @@ class MEBotControlNode(Node):
             # content
             pass
 
-    def curb_traverse_action_callback(self, goal, response):
-        # content
-        return response
+    async def curb_traverse_action_callback(self, goal):
+        if goal.data == 1:
+            self.write_serial_data("c\n")
+        if goal.data == 0:
+            self.write_serial_data("d\n")
+
+        feedback_msg = CurbTraverse.Feedback()
+        result = CurbTraverse.Result()
+
+        # Poll CA_flag until the final step is reached
+        while self.CA_flag != 6:
+            if goal.is_cancel_requested:
+                goal.canceled()
+                result.success = False
+                return result
+
+            feedback_msg.ca_flag = self.CA_flag
+            goal.publish_feedback(feedback_msg)
+
+            await asyncio.sleep(0.05)  # yield to executor, adjust to your control rate
+
+        goal.succeed()
+        result.success = True
+        return result
 
     def drive_enable_callback(self, request, response):
         if request.data:

@@ -40,19 +40,20 @@ float PIDController::compute(float setpoint, float measured, float dt) {
     clamped = true;
   }
 
-  // Apply trapezoidal ramp rate limit if enabled
+  // Apply trapezoidal ramp rate limit if enabled.
+  // Note: does NOT set clamped — ramp limiting is intentional rate control,
+  // not output saturation. Triggering anti-windup here would prevent the
+  // integrator from accumulating and permanently starve the output.
   if (max_ramp_rate > 0.0f) {
     float max_change = max_ramp_rate * dt;
     if (output - _prev_output > max_change) {
       output = _prev_output + max_change;
-      clamped = true;
     } else if (output - _prev_output < -max_change) {
       output = _prev_output - max_change;
-      clamped = true;
     }
   }
 
-  // Anti-windup: undo integration if we hit any limit
+  // Anti-windup: undo integration only if the output hit hard min/max limits
   if (clamped) {
     integral -= error * dt;
   }

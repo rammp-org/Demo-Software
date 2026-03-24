@@ -572,6 +572,7 @@ void loop() {
       Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
       for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
         motors[i]->setMode(Motor::POSITION_CONTROL);
+        motors[i]->setTargetPosition(motors[i]->current_pos); // hold in place — prevents driving to 0
         seq_start_pos[i] = motors[i]->current_pos;
       }
       Serial.println("SEQ: Entered AUTO_CURB_CLIMBING mode");

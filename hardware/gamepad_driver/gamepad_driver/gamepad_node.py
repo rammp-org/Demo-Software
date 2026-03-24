@@ -35,7 +35,7 @@ class gamepadNode(Node):
         )
 
         # Arm Velocity Publisher
-        self.twist_pub = self.create_publisher(Twist, "twist", 10)
+        self.twist_pub = self.create_publisher(Twist, "/twist_controller/commands", 10)
         self.home_pub = self.create_publisher(
             JointTrajectory, "/joint_trajectory_controller/joint_trajectory", 10
         )

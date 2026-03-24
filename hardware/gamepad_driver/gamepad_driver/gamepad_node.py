@@ -66,6 +66,7 @@ class gamepadNode(Node):
             "joint_4",
             "joint_5",
             "joint_6",
+            "joint_7",
         ]
         point = JointTrajectoryPoint()
         point.positions = [
@@ -74,6 +75,7 @@ class gamepadNode(Node):
             2.26,
             0.0,
             0.95,
+            0.0,
             0.0,
         ]  # Gen3 Home    --> may need to be adjusted for 7 dof arm
         point.time_from_start = Duration(sec=3, nanosec=0)

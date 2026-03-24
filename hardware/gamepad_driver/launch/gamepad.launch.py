@@ -17,9 +17,9 @@ def generate_launch_description():
         ),
         launch_arguments={
             "robot_ip": "192.168.1.10",
-            "dof": "6",
-            "gripper": "",
-            "use_fake_hardware": "true",
+            "dof": "7",
+            "gripper": "robotiq_2f_85",
+            # "use_fake_hardware": "true",
         }.items(),
     )
 

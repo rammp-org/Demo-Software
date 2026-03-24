@@ -48,9 +48,13 @@ class ArmPresetActionClient(ActionClientWrapper):
             if self._current_preset == ArmPreset.HOME:
                 if (
                     self._node.state == "Arm_OrderDrink_releasingCup"
+                    or self._node.state == "Arm_cupStabilize_homing"
                 ):  # for testing, will remove after testing
                     self._node.finish_mock_task()
+
                 self._node.homed()
+            elif self._current_preset == ArmPreset.CUP_STABILIZE:
+                self._node.cupStable()  # should enter cup stabilized state after reaching cup stabilize preset
         else:
             self._node.get_logger().warn(
                 f"Arm failed to reach preset {self._current_preset.name}."

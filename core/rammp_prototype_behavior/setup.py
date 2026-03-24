@@ -33,6 +33,7 @@ setup(
             "mock_arm_driver = rammp_prototype_behavior.mocks.mock_arm_driver:main",
             "mock_drinking_node = rammp_prototype_behavior.mocks.mock_drinking_node:main",
             "mock_opening_door = rammp_prototype_behavior.mocks.mock_opening_door:main",
+            "mock_cup_stabilizer = rammp_prototype_behavior.mocks.mock_cup_stablizer:main",
         ],
     },
 )

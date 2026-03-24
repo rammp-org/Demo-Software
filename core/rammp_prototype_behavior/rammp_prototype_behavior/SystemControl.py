@@ -37,9 +37,10 @@ class MockTasks(enum.IntEnum):
     OPEN_DOOR = 1
     ORDER_DRINK = 2
     RECEIVE_DRINK = 3
-    SIP_DRINK = 4
-    PLACE_CUP_BACK = 5
-    END_TASK = 6  # update this when adding new mock tasks
+    CUP_STABILIZE = 4
+    SIP_DRINK = 5
+    PLACE_CUP_BACK = 6
+    END_TASK = 7  # update this when adding new mock tasks
 
 
 class MockState:
@@ -79,6 +80,8 @@ class MockState:
             self._node.mock_place_cup_back_to_holder_request()
         elif self.current_mock_task == MockTasks.RECEIVE_DRINK:
             self._node.mock_receive_drink_request()
+        elif self.current_mock_task == MockTasks.CUP_STABILIZE:
+            self._node.mock_cup_stabilizer_request()
 
     def finish_current_mock_task(self):
         self.is_mock_task_running = False
@@ -125,6 +128,17 @@ class SystemControl(rclpy.node.Node):
     def finish_mock_task(self):
         self._mock_state.finish_current_mock_task()
 
+    def _mock_delay(self, seconds, callback):
+        """Non-blocking delay: creates a one-shot timer that calls `callback` after `seconds`."""
+        timer = self.create_timer(seconds, lambda: None, callback_group=self._cb_group)
+
+        def _on_timeout():
+            timer.cancel()
+            self.destroy_timer(timer)
+            callback()
+
+        timer.callback = _on_timeout
+
     ## mock testing functions
     def mock_open_door_request(self):
         # for testing open door action, will remove after testing
@@ -160,6 +174,38 @@ class SystemControl(rclpy.node.Node):
         self.placeCupBack()  # should enter Arm_Drink_placingCupBack state
         self.get_logger().info("placeCupBack trigger sent.")
 
+    def mock_cup_stabilizer_request(self):
+        # for testing cup stabilizer, will remove after testing
+        self.get_logger().info("Sending mock cup stabilizer request.")
+        self.reqStabilizeCup()  # should enter Arm_Drink_stabilizingCup state
+
+    # ---------cup stabilizer state transition function calls------------------------
+    def on_enter_Arm_cupStabilize_moving(self):
+        self.get_logger().info("Moving arm to cup stabilize position.")
+        self.arm_preset_client.set_preset(ArmPreset.CUP_STABILIZE)
+
+    def on_enter_Arm_cupStabilize_stabilizing(self):
+        self.get_logger().info("Arm is stabilizing cup.")
+        self.set_arm_mode(
+            ArmMode.CUP_STABILIZE
+        )  # set arm mode to cup stabilize when stabilizing cup, will set specific arm preset in the action server later
+        self.enable_cup_stabilizer(True)  # enable cup stabilizer to stabilize the cup
+
+        self.get_logger().info("Mock stabilizing cup for 5 seconds.")
+        self._mock_delay(
+            5.0, self.reqCupStabilizeOff
+        )  # should enter Arm_cupStabilize_homing state after stabilizing cup for testing, will replace with actual logic to determine when to turn off cup stabilizer later
+
+    def on_enter_Arm_cupStabilize_homing(self):
+        self.get_logger().info("Homing arm after cup stabilization.")
+        self.set_arm_mode_idle()  # set arm to idle before homing to avoid potential interference with homing process
+        self.enable_cup_stabilizer(False)  # disable cup stabilizer to allow arm to home
+        self.arm_preset_client.set_preset(
+            ArmPreset.HOME
+        )  # move arm back to home after stabilizing cup
+
+    # ---------end of cup stabilizer state transition function calls-----------------
+
     # order drink state transition function calls
     # ----------------------------------------------------------------
     def on_enter_Arm_OrderDrink_pickUpCup(self):
@@ -174,8 +220,7 @@ class SystemControl(rclpy.node.Node):
         self.set_arm_mode(ArmMode.IDLE)
         # mock wait for 5 seconds to simulate holding cup, will replace with actual logic later
         self.get_logger().info("Mock holding cup for 5 seconds.")
-        self.get_clock().sleep_for(rclpy.duration.Duration(seconds=5))
-        self.releaseCupConfirm()  # should enter releasingCup state
+        self._mock_delay(5.0, self.releaseCupConfirm)  # should enter releasingCup state
 
     def on_enter_Arm_OrderDrink_releasingCup(self):
         self.get_logger().info("Releasing cup to holder.")
@@ -184,22 +229,27 @@ class SystemControl(rclpy.node.Node):
 
         # mock wait for 1 seconds to simulate releasing cup, will replace with actual logic later
         self.get_logger().info("Mock close gripper for 1 seconds.")
-        self.get_clock().sleep_for(rclpy.duration.Duration(seconds=1))
 
-        # move arm to home position after releasing cup to avoid potential collision when bringing cup to mouth later
-        self.get_logger().info("Move arm to home position after releasing cup.")
-        self.arm_preset_client.set_preset(ArmPreset.HOME)
+        def _after_gripper_delay():
+            # move arm to home position after releasing cup to avoid potential collision when bringing cup to mouth later
+            self.get_logger().info("Move arm to home position after releasing cup.")
+            self.arm_preset_client.set_preset(ArmPreset.HOME)
+
+        self._mock_delay(1.0, _after_gripper_delay)
 
     def on_enter_Arm_OrderDrink_detectingDrink(self):
         self.get_logger().info("Detecting drink to confirm if the drink is received.")
         self.enable_cup_detection(True)  # enable cup detection
         # mock wait for 5 seconds to simulate drink detection, will replace with actual logic later
         self.get_logger().info("Mock detecting drink for 5 seconds.")
-        self.get_clock().sleep_for(rclpy.duration.Duration(seconds=5))
-        self.enable_cup_detection(
-            False
-        )  # disable cup detection after detection process
-        self.receiveDrinkConfirm()  # should enter receivingDrink state
+
+        def _after_drink_detect():
+            self.enable_cup_detection(
+                False
+            )  # disable cup detection after detection process
+            self.receiveDrinkConfirm()  # should enter receivingDrink state
+
+        self._mock_delay(5.0, _after_drink_detect)
 
     def on_enter_Arm_OrderDrink_receivingDrink(self):
         self.get_logger().info("Receiving drink.")
@@ -219,8 +269,7 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().info("Sipping drink.")
         # mock wait for 5 seconds to simulate sipping drink, will replace with actual sipping logic later
         self.get_logger().info("Mock sipping drink for 5 seconds.")
-        self.get_clock().sleep_for(rclpy.duration.Duration(seconds=5))
-        self.placeCupAway()  # should enter placingCupAway state
+        self._mock_delay(5.0, self.placeCupAway)  # should enter placingCupAway state
 
     def on_enter_Arm_Drink_placingCupAway(self):
         self.get_logger().info("Placing cup away after drinking.")
@@ -249,8 +298,9 @@ class SystemControl(rclpy.node.Node):
             self.ArmActionFailed()
         # mock wait for 5 seconds to simulate door button detection, will replace with actual detection logic later
         self.get_logger().info("Mock detecting door button for 5 seconds.")
-        self.get_clock().sleep_for(rclpy.duration.Duration(seconds=5))
-        self.openDoorConfirm()  # should enter Arm_Door_opening state
+        self._mock_delay(
+            5.0, self.openDoorConfirm
+        )  # should enter Arm_Door_opening state
 
     def on_enter_Arm_Door_opening(self):
         self.get_logger().info("Sending open door action goal.")
@@ -297,6 +347,11 @@ class SystemControl(rclpy.node.Node):
         )
         self.cup_detection_client = self.create_client(
             SetBool, "/arm/cup/detection/enable", callback_group=self._service_cb_group
+        )
+        self.cup_stabilizer_client = self.create_client(
+            SetBool,
+            "/arm/drink/stabilize/enable",
+            callback_group=self._service_cb_group,
         )
 
     def init_actions_clients(self):
@@ -352,6 +407,18 @@ class SystemControl(rclpy.node.Node):
         req = SetBool.Request()
         req.data = enable
         future = self.cup_detection_client.call_async(req)
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
+    def enable_cup_stabilizer(self, enable: bool) -> bool:
+        req = SetBool.Request()
+        req.data = enable
+        future = self.cup_stabilizer_client.call_async(req)
         event = threading.Event()
         future.add_done_callback(lambda _: event.set())
         event.wait(timeout=5.0)
@@ -486,7 +553,7 @@ class SystemControl(rclpy.node.Node):
                     {
                         "name": "cupStabilize",
                         "initial": "moving",
-                        "children": ["moving", "stable", "homing"],
+                        "children": ["moving", "stabilizing", "homing"],
                     },
                     "paused",  # arm error, will pause arm to maintain current state.
                 ],
@@ -537,12 +604,12 @@ class SystemControl(rclpy.node.Node):
             },  # request action, but fail to start action, pause arm to maintain current state and allow for retry or other recovery actions
             {
                 "trigger": "reqHome",
-                "source": ["Arm_retracted", "Arm_paused", "Arm_cupStabilize_stable"],
+                "source": ["Arm_retracted", "Arm_paused"],
                 "dest": "Arm_homing",
             },
             {
-                "trigger": "reqHome",
-                "source": "Arm_cupStabilize_stable",
+                "trigger": "reqCupStabilizeOff",
+                "source": "Arm_cupStabilize_stabilizing",
                 "dest": "Arm_cupStabilize_homing",
             },
             {
@@ -614,13 +681,13 @@ class SystemControl(rclpy.node.Node):
             # stabilize cup
             {
                 "trigger": "reqStabilizeCup",
-                "source": "Arm_OrderDrink_ordered",
+                "source": "Arm_home",
                 "dest": "Arm_cupStabilize_moving",
             },
             {
                 "trigger": "cupStable",
                 "source": "Arm_cupStabilize_moving",
-                "dest": "Arm_cupStabilize_stable",
+                "dest": "Arm_cupStabilize_stabilizing",
             },
             # drink
             {
@@ -679,7 +746,7 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "reqArm",
                 "source": "Chair",
-                "dest": "Arm_cupStabilize_stable",
+                "dest": "Arm_cupStabilize_stabilizing",
                 "conditions": "is_arm_stable_cup",
             },
             {

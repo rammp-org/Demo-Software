@@ -19,6 +19,7 @@ from rclpy.node import Node
 from rclpy.action import ActionServer, ActionClient
 from rclpy.callback_groups import ReentrantCallbackGroup
 from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped, TwistStamped
+from diagnostic_msgs.msg import DiagnosticStatus
 from sensor_msgs.msg import JointState
 from scipy.spatial.transform import Rotation
 
@@ -52,6 +53,12 @@ class ButtonPushController(Node):
         self._latest_joint_state = None
         self.create_subscription(
             JointState, '/arm/joint_states', self._cb_joint_state, 10
+        )
+
+        # Arm status (mode)
+        self.latest_arm_status = None
+        self.create_subscription(
+            DiagnosticStatus, '/arm/status', self._cb_arm_status, 10
         )
 
         # End-effector force from arm_driver
@@ -93,6 +100,9 @@ class ButtonPushController(Node):
 
     def _cb_button_info(self, msg: ButtonInfo):
         self.latest_button_info = msg
+
+    def _cb_arm_status(self, msg: DiagnosticStatus):
+        self.latest_arm_status = msg.message  # e.g. "OPEN_DOOR", "IDLE"
 
     def _cb_joint_state(self, msg: JointState):
         self._latest_joint_state = msg
@@ -147,6 +157,18 @@ class ButtonPushController(Node):
         result = DoorOpen.Result()
 
         self.get_logger().info('=== /arm/door/open action received ===')
+
+        # Check arm is in OPEN_DOOR mode
+        self.get_logger().info(f'[STEP 0] Arm status: {self.latest_arm_status}')
+        if self.latest_arm_status != 'OPEN_DOOR':
+            result.success = False
+            result.message = (
+                f'Arm is not in OPEN_DOOR mode (current: {self.latest_arm_status}). '
+                'Set mode first via /arm/set_mode.'
+            )
+            self.get_logger().error(f'[STEP 0] ABORT: {result.message}')
+            goal_handle.abort()
+            return result
 
         # --- 1. Grab the latest ButtonInfo ---
         info = self.latest_button_info

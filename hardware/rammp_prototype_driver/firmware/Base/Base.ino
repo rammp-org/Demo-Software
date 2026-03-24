@@ -48,6 +48,8 @@ struct SystemTelemetry {
   float sg_fc_value;
   float sg_ml_value;
   float sg_mr_value;
+  // Control modes per motor (0=DISABLED/OPEN_LOOP, 1=VELOCITY, 2=POSITION)
+  int rc_mode, fc_mode, ml_mode, mr_mode, ml_carriage_mode, mr_carriage_mode;
 };
 
 // Global State
@@ -96,6 +98,15 @@ int16_t scaled_mrc_pwm;
 int16_t scaled_ml_pwm;
 int16_t scaled_mr_pwm;
 
+// Map firmware ControlMode enum to GUI mode integers (0=Open Loop, 1=Velocity, 2=Position)
+static inline int toGuiMode(Motor::ControlMode m) {
+  switch (m) {
+    case Motor::VELOCITY_CONTROL:  return 1;
+    case Motor::POSITION_CONTROL:  return 2;
+    default:                       return 0; // DISABLED or OPEN_LOOP
+  }
+}
+
 // Helper to update telemetry
 void updateTelemetry() {
   telemetry.state = current_state;
@@ -118,6 +129,14 @@ void updateTelemetry() {
   telemetry.sg_fc_value = sg_fc.getValue();
   telemetry.sg_ml_value = sg_ml.getValue();
   telemetry.sg_mr_value = sg_mr.getValue();
+
+  // Control modes (mapped to GUI integers: 0=Open Loop, 1=Velocity, 2=Position)
+  telemetry.rc_mode         = toGuiMode(rc.mode);
+  telemetry.fc_mode         = toGuiMode(fc.mode);
+  telemetry.ml_mode         = toGuiMode(ml.mode);
+  telemetry.mr_mode         = toGuiMode(mr.mode);
+  telemetry.ml_carriage_mode = toGuiMode(ml_carriage.mode);
+  telemetry.mr_carriage_mode = toGuiMode(mr_carriage.mode);
 }
 
 // Helper to send telemetry
@@ -242,7 +261,20 @@ void sendTelemetry() {
   Serial.print(",");
   Serial.print(telemetry.sg_ml_value, 2);
   Serial.print(",");
-  Serial.println(telemetry.sg_mr_value, 2);
+  Serial.print(telemetry.sg_mr_value, 2);
+  Serial.print(",");
+  // Control modes (6) — 0=Open Loop, 1=Velocity, 2=Position
+  Serial.print(telemetry.rc_mode);
+  Serial.print(",");
+  Serial.print(telemetry.fc_mode);
+  Serial.print(",");
+  Serial.print(telemetry.ml_mode);
+  Serial.print(",");
+  Serial.print(telemetry.mr_mode);
+  Serial.print(",");
+  Serial.print(telemetry.ml_carriage_mode);
+  Serial.print(",");
+  Serial.println(telemetry.mr_carriage_mode);
 }
 
 // --- Self Leveling Kinematics ---

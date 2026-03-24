@@ -344,7 +344,10 @@ class DataStore(QObject):
         ]
         self._selected_joint: int = 1
         self._linked_joint: int = 0  # 0 means none
-        self._control_mode: int = 0  # 0: Open, 1: Vel, 2: Pos
+        self._control_mode: int = 0  # 0: Open, 1: Vel, 2: Pos (for selected joint)
+        self._control_modes: List[int] = [
+            0
+        ] * self.NUM_JOINTS  # per-joint modes from telemetry
         self._simulation_mode: bool = False
         self._current_state: int = 0  # System state from telemetry
 
@@ -452,6 +455,8 @@ class DataStore(QObject):
         """Set the currently selected joint (1-indexed)."""
         if 1 <= joint_id <= self.NUM_JOINTS:
             self._selected_joint = joint_id
+            # Sync mode banner to the newly selected joint's last-known mode
+            self.control_mode = self._control_modes[joint_id - 1]
 
     @property
     def linked_joint(self) -> int:
@@ -697,6 +702,13 @@ class DataStore(QObject):
         self._sg_ml_value = data.sg_ml_value
         self._sg_mr_value = data.sg_mr_value
         self.strain_gauge_updated.emit()
+
+        # Update per-joint control modes from telemetry (59-field packet onward)
+        if getattr(data, "control_mode_values", None):
+            for i, mode in enumerate(data.control_mode_values[: self.NUM_JOINTS]):
+                self._control_modes[i] = mode
+            # Update the selected-joint mode — the property setter emits mode_changed if changed
+            self.control_mode = self._control_modes[self._selected_joint - 1]
 
         # Store motor directions
         if data.direction_values:

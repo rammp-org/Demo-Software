@@ -85,6 +85,9 @@ class EncoderData:
     sg_ml_value: float = 0.0
     sg_mr_value: float = 0.0
 
+    # Control modes per motor (0=Open Loop, 1=Velocity, 2=Position)
+    control_mode_values: List[int] = field(default_factory=list)
+
     @property
     def num_joints(self) -> int:
         return len(self.position_values)
@@ -223,6 +226,9 @@ class ProtocolParser:
                         data.sg_fc_value = values[50]
                         data.sg_ml_value = values[51]
                         data.sg_mr_value = values[52]
+                    # Support 59-value format with per-motor control modes
+                    if len(values) >= 59:
+                        data.control_mode_values = [int(v) for v in values[53:59]]
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:

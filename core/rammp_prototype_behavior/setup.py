@@ -1,3 +1,5 @@
+from glob import glob
+
 from setuptools import find_packages, setup
 
 package_name = "rammp_prototype_behavior"
@@ -9,6 +11,7 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
+        ("share/" + package_name + "/config", glob("config/*.json")),
     ],
     install_requires=["setuptools", "transitions"],
     zip_safe=True,
@@ -23,10 +26,14 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "test_nn_monitor = rammp_prototype_behavior.test_nn_monitor:main",  # just for testing
-            "test_node1 = rammp_prototype_behavior.test_node1:main",  # just for testing
-            "test_node2 = rammp_prototype_behavior.test_node2:main",  # just for testing
+            "test_nn_monitor = rammp_prototype_behavior.test.test_nn_monitor:main",  # just for testing
+            "test_node1 = rammp_prototype_behavior.test.test_node1:main",  # just for testing
+            "test_node2 = rammp_prototype_behavior.test.test_node2:main",  # just for testing
             "system_control = rammp_prototype_behavior.SystemControl:main",
+            "mock_arm_driver = rammp_prototype_behavior.mocks.mock_arm_driver:main",
+            "mock_drinking_node = rammp_prototype_behavior.mocks.mock_drinking_node:main",
+            "mock_opening_door = rammp_prototype_behavior.mocks.mock_opening_door:main",
+            "mock_cup_stabilizer = rammp_prototype_behavior.mocks.mock_cup_stablizer:main",
         ],
     },
 )

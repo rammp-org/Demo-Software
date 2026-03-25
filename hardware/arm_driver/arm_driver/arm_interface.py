@@ -319,7 +319,7 @@ class KinovaArm:
 
         ee_pos, ee_vel, ee_force = (
             np.zeros(7),
-            np.zeros(7),
+            np.zeros(6),
             np.zeros(6),
         )
 
@@ -351,6 +351,7 @@ class KinovaArm:
             base_feedback.base.tool_twist_linear_y,
             base_feedback.base.tool_twist_linear_z,
         )
+        # Provide velocity as 3 angular velocity components in tool frame
         tool_rot_vel = np.array(
             [
                 base_feedback.base.tool_twist_angular_x,
@@ -358,7 +359,7 @@ class KinovaArm:
                 base_feedback.base.tool_twist_angular_z,
             ]
         )
-        ee_vel[3:] = R.from_euler("xyz", np.deg2rad(tool_rot_vel)).as_quat()
+        ee_vel[3:] = tool_rot_vel
 
         ee_force[:3] = (
             base_feedback.base.tool_external_wrench_force_x,
@@ -377,6 +378,8 @@ class KinovaArm:
             "velocity": dq,
             "effort": tau,
             "ee_pos": ee_pos,
+            "ee_vel": ee_vel,
+            "ee_force": ee_force,
             "gripper_pos": gripper_pos,
         }
 

@@ -137,6 +137,15 @@ git checkout -b hotfix/critical-sensor-fix
 
 **Back-port to dev: CRITICAL.** Immediately merge the hotfix branch (or main) into dev so the bug doesn't reappear in the next release cycle.
 
+# Adding Third-Party Dependencies
+
+When adding a new package to `third_party/`, you often only need a subset of the packages in that repo (e.g. just the description, not hardware drivers). To exclude unwanted packages from colcon builds:
+
+1. Add the package paths (relative to repo root) to [`colcon_ignore_packages.txt`](colcon_ignore_packages.txt).
+1. Re-run `setup.sh` — it reads that file and generates the `COLCON_IGNORE` files locally.
+
+Do **not** add `COLCON_IGNORE` files directly inside a submodule. Those are workspace artifacts and have no relevance to the upstream repo. They are `.gitignore`d in this repo to prevent accidental commits.
+
 # FAQ
 
 ## Do I lose my history with Squash and Merge?

@@ -1,0 +1,13 @@
+{
+  "nodes": [
+    {
+      "name": "/test_nn_monitor"
+    },
+    {
+      "name": "/test_node1"
+    },
+    {
+      "name": "/test_node2"
+    }
+  ]
+}

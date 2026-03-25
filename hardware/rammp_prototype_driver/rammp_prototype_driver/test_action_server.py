@@ -1,5 +1,3 @@
-import asyncio
-
 import rclpy
 from rammp_prototype_interfaces.action import CurbTraverse
 
@@ -7,6 +5,7 @@ from rammp_prototype_interfaces.action import CurbTraverse
 from rclpy.action import ActionServer
 from rclpy.node import Node
 from std_msgs.msg import Int64
+import time
 
 
 class TestActionServer(Node):
@@ -25,7 +24,7 @@ class TestActionServer(Node):
     def dummy_sub_callback(self, msg):
         self.CA_flag = msg.data
 
-    async def curb_traverse_action_callback(self, goal):
+    def curb_traverse_action_callback(self, goal):
         if goal.request.direction == 1:
             self.get_logger().info("Curb Ascending enabled")
         if goal.request.direction == 0:
@@ -45,7 +44,7 @@ class TestActionServer(Node):
             feedback_msg.ca_flag = self.CA_flag
             goal.publish_feedback(feedback_msg)
 
-            await asyncio.sleep(0.05)  # yield to executor, adjust to your control rate
+            time.sleep(0.05)
 
         goal.succeed()
         result.success = True

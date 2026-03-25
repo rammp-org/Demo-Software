@@ -2,10 +2,6 @@
 	path = third_party/OrbbecSDK_ROS2
 	url = https://github.com/orbbec/OrbbecSDK_ROS2.git
 	branch = v2-main
-[submodule "third_party/ros2_robotiq_gripper"]
-	path = third_party/ros2_robotiq_gripper
-	url = https://github.com/PickNikRobotics/ros2_robotiq_gripper.git
-	ignore = untracked
 [submodule "third_party/luci-ros2-grpc"]
 	path = third_party/luci-ros2-grpc
 	url = git@github.com:rammp-org/luci-ros2-grpc.git

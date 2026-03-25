@@ -26,9 +26,9 @@ class TestActionServer(Node):
         self.CA_flag = msg.data
 
     async def curb_traverse_action_callback(self, goal):
-        if goal.direction == 1:
+        if goal.request.direction == 1:
             self.get_logger().info("Curb Ascending enabled")
-        if goal.direction == 0:
+        if goal.request.direction == 0:
             self.get_logger().info("Curb Descending enabled")
 
         feedback_msg = CurbTraverse.Feedback()

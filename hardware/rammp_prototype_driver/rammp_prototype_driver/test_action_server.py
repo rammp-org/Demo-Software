@@ -13,7 +13,7 @@ class TestActionServer(Node):
     def __init__(self):
         super().__init__("test_action_server")
 
-        self.CA_flag
+        self.CA_flag = 0
         self.curb_traverse_action = ActionServer(
             self, CurbTraverse, "curb_traverse", self.curb_traverse_action_callback
         )

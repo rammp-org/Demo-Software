@@ -282,6 +282,7 @@ class SystemControl(rclpy.node.Node):
         self.base_drive_enable(False)  # disable base drive to pause curb traverse
 
     # -----------------------end of curb navigation transtion functions----------------------
+
     # ---------Arm Pause state transition function calls---------------------------------
     def on_enter_Arm_Paused(self):
         self.get_logger().info("Arm is paused. Waiting for resume command.")
@@ -766,7 +767,7 @@ class SystemControl(rclpy.node.Node):
             {
                 "name": "Nav",
                 "initial": "detecting",
-                "children": ["detecting", "traverse", "finished", "paused"],
+                "children": ["detecting", "traverse", "paused"],
             },
             "Error",  # system error state, will require reset to recover
         ]
@@ -776,7 +777,6 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "retract",
                 "source": [
-                    "Arm_Drink_finished",
                     "Arm_paused",
                     "Arm_home",
                 ],

@@ -14,7 +14,7 @@ class DummyCAFlagNode(Node):
         msg = Int64()
         msg.data = 1
         self.dummy_pub.publish(msg)
-        time.sleep(2)
+        time.sleep(5)
         msg.data = 6
         self.dummy_flag_pub.publish(msg)
 

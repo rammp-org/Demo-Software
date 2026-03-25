@@ -16,7 +16,7 @@ class DummyCAFlagNode(Node):
         self.dummy_pub.publish(msg)
         time.sleep(5)
         msg.data = 6
-        self.dummy_flag_pub.publish(msg)
+        self.dummy_pub.publish(msg)
 
 
 def main(args=None):

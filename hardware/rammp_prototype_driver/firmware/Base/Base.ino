@@ -101,10 +101,6 @@ Motor mr;
 Motor ml_carriage;
 Motor mr_carriage;
 
-// Wheel angle vals
-float pneupitch;
-float pneuroll;
-
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
 StrainGauge sg_rc(RC_LOADCELL_PIN, 0.5f);
 StrainGauge sg_fc(FC_LOADCELL_PIN, 0.6f);
@@ -278,13 +274,8 @@ void runSelfLeveling(float dt) {
     err_y = asin(sinp) * (180.0 / PI); // Pitch error mapped to Y
 
   // Convert exact, continuous error angles to radians
-  float dpitchrd = (err_x - pneupitch) / DG; // BNO X = Robot Pitch
-  float drollrd = (err_y - pneuroll) / DG;   // BNO Y = Robot Roll
-
-  Serial.print("dpitchrd: ");
-  Serial.println(dpitchrd);
-  Serial.print("drollrd: ");
-  Serial.println(drollrd);
+  float dpitchrd = err_x / DG; // BNO X = Robot Pitch
+  float drollrd = err_y / DG;  // BNO Y = Robot Roll
 
   // Deadband to prevent jitter
   if (fabs(dpitchrd) < 0.001)
@@ -292,21 +283,47 @@ void runSelfLeveling(float dt) {
   if (fabs(drollrd) < 0.001)
     drollrd = 0.0;
 
+  // --- Forward Kinematics offset ---
+  // Compute the pitch/roll that the current wheel heights impose on the
+  // chassis geometry.  Without this offset the controller commands all legs
+  // to a uniform baseline (9.5 cm) when the IMU error reaches zero, which
+  // undoes any slope correction.  Adding the FK offset keeps the rotation-
+  // matrix targets consistent with the current leg differential on uneven
+  // ground so the motors hold position once the chassis is level.
+  //
+  // Derivation (linearised from the mebot geometry matrix):
+  //   z ≈ -pitch·x + roll·y + baseline
+  //   ML  (x=-34, y=-31):  z_ml = 34·p - 31·r + c
+  //   RC  (x=+34, y=  0):  z_rc = -34·p       + c   (avg of RC_L / RC_R)
+  //   MR  (x=-34, y=+31):  z_mr = 34·p + 31·r + c
+  //   ⇒  pitch_fk = ((z_ml + z_mr)/2 − z_rc) / 68
+  //   ⇒  roll_fk  = (z_mr − z_ml) / 62
+  float z_cur_ml = ml.current_pos / ML_CM_TO_TICKS;
+  float z_cur_rc = rc.current_pos / RC_CM_TO_TICKS;
+  float z_cur_mr = mr.current_pos / MR_CM_TO_TICKS;
+
+  float pitch_fk = ((z_cur_ml + z_cur_mr) / 2.0f - z_cur_rc) / 68.0f;
+  float roll_fk = (z_cur_mr - z_cur_ml) / 62.0f;
+
+  // Combine IMU error with FK offset for slope-aware correction
+  float dpitch_total = dpitchrd + pitch_fk;
+  float droll_total = drollrd + roll_fk;
+
   // Build rotation matrix (combining pitch and roll)
   double rotm[4][4] = {0};
-  rotm[0][0] = cos(dpitchrd);
+  rotm[0][0] = cos(dpitch_total);
   rotm[0][1] = 0.0;
-  rotm[0][2] = sin(dpitchrd);
+  rotm[0][2] = sin(dpitch_total);
   rotm[0][3] = 0.0;
 
-  rotm[1][0] = sin(drollrd) * sin(dpitchrd);
-  rotm[1][1] = cos(drollrd);
-  rotm[1][2] = -1 * sin(drollrd) * cos(dpitchrd);
+  rotm[1][0] = sin(droll_total) * sin(dpitch_total);
+  rotm[1][1] = cos(droll_total);
+  rotm[1][2] = -1 * sin(droll_total) * cos(dpitch_total);
   rotm[1][3] = 0.0;
 
-  rotm[2][0] = -1 * cos(drollrd) * sin(dpitchrd);
-  rotm[2][1] = sin(drollrd);
-  rotm[2][2] = cos(drollrd) * cos(dpitchrd);
+  rotm[2][0] = -1 * cos(droll_total) * sin(dpitch_total);
+  rotm[2][1] = sin(droll_total);
+  rotm[2][2] = cos(droll_total) * cos(dpitch_total);
   rotm[2][3] = 9.5; // Baseline Z height (cm)
 
   rotm[3][0] = 0.0;
@@ -340,17 +357,17 @@ void runSelfLeveling(float dt) {
   float z_target_mr = newmebot[2][3];
 
   // Dispatch targets in ticks
-  // ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
-  // mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
-  // rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
+  ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
+  mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
+  rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
 
-  // // Hold carriages steady
-  // // TODO: Convert encoder ticks to ticks/cm
-  // ml_carriage.setTargetPosition(100);
-  // mr_carriage.setTargetPosition(100);
+  // Hold carriages steady
+  // TODO: Convert encoder ticks to ticks/cm
+  ml_carriage.setTargetPosition(12000);
+  mr_carriage.setTargetPosition(12000);
 
-  // // FC is hardcoded to top of range
-  // fc.setTargetPosition(FC_MAX_TICKS);
+  // FC is hardcoded to top of range
+  fc.setTargetPosition(FC_MAX_TICKS);
 
   // Store debug data for telemetry — leveling[]: [pitch_err, roll_err, z_ml,
   // z_rc, z_mr]
@@ -1111,30 +1128,6 @@ void loop() {
     last_telem_time = millis();
     sendTelemetry();
   }
-
-  // TODO: remove this
-  pneuroll = atan2((mr.current_pos / MR_CM_TO_TICKS) -
-                       (ml.current_pos / ML_CM_TO_TICKS),
-                   62) *
-             DG;
-  pneupitch = atan2(((ml.current_pos / ML_CM_TO_TICKS) +
-                     (mr.current_pos / MR_CM_TO_TICKS)) /
-                            2 -
-                        (rc.current_pos / RC_CM_TO_TICKS),
-                    68) *
-              DG;
-
-  Serial.print("pneupitch: ");
-  Serial.println(pneupitch);
-  Serial.print("pneuroll: ");
-  Serial.println(pneuroll);
-
-  Serial.print("MR current pos: ");
-  Serial.println(mr.current_pos / MR_CM_TO_TICKS);
-  Serial.print("ML current pos: ");
-  Serial.println(ml.current_pos / ML_CM_TO_TICKS);
-  Serial.print("RC current pos: ");
-  Serial.println(rc.current_pos / RC_CM_TO_TICKS);
 
   // TODO: Stabilize timing loop
   delayMicroseconds(5000);

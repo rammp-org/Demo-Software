@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Int64
+import time
 
 
 class DummyCAFlagNode(Node):
@@ -13,6 +14,9 @@ class DummyCAFlagNode(Node):
         msg = Int64()
         msg.data = 1
         self.dummy_pub.publish(msg)
+        time.sleep(2)
+        msg.data = 6
+        self.dummy_flag_pub.publish(msg)
 
 
 def main(args=None):

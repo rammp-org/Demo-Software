@@ -229,6 +229,9 @@ void sendTelemetry() {
 
 // --- Self Leveling Kinematics ---
 // Ported from legacy Base_old_self_leveling.ino
+
+// TODO: check if carriages are not forward, casters not up, etc. then add
+// sequence to safely move to correct positions
 void runSelfLeveling(float dt) {
   // Set all actively controlled motors to POSITION_CONTROL mode
   rc.setMode(Motor::POSITION_CONTROL);
@@ -302,7 +305,7 @@ void runSelfLeveling(float dt) {
   float z_cur_rc = rc.current_pos / RC_CM_TO_TICKS;
   float z_cur_mr = mr.current_pos / MR_CM_TO_TICKS;
 
-  float pitch_fk = ((z_cur_ml + z_cur_mr) / 2.0f - z_cur_rc) / 68.0f;
+  float pitch_fk = -((z_cur_ml + z_cur_mr) / 2.0f - z_cur_rc) / 68.0f;
   float roll_fk = (z_cur_mr - z_cur_ml) / 62.0f;
 
   // Combine IMU error with FK offset for slope-aware correction
@@ -394,17 +397,17 @@ void runSelfLeveling(float dt) {
   Serial.println(z_target_mr * MR_CM_TO_TICKS, 1);
 
   // Dispatch targets in ticks — commented out for math verification
-  // ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
-  // mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
-  // rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
+  ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
+  mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
+  rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
 
   // Hold carriages steady
   // TODO: Convert encoder ticks to ticks/cm
-  // ml_carriage.setTargetPosition(100);
-  // mr_carriage.setTargetPosition(100);
+  ml_carriage.setTargetPosition(100);
+  mr_carriage.setTargetPosition(100);
 
   // FC is hardcoded to top of range
-  // fc.setTargetPosition(FC_MAX_TICKS);
+  fc.setTargetPosition(FC_MAX_TICKS);
 
   // Store debug data for telemetry — leveling[]: [pitch_err, roll_err, z_ml,
   // z_rc, z_mr]

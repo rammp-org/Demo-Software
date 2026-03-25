@@ -21,9 +21,9 @@ extern RoboClaw roboclaw_carriages;
 // TODO: Tune these conversion factors later
 // Roughly 350 ticks per 20cm of travel -> 17.5 ticks/cm
 const float CM_TO_TICKS = 17.5f;
-const float ML_CM_TO_TICKS = CM_TO_TICKS;
-const float MR_CM_TO_TICKS = CM_TO_TICKS;
-const float RC_CM_TO_TICKS = CM_TO_TICKS;
+const float ML_CM_TO_TICKS = 383 / 19.05;
+const float MR_CM_TO_TICKS = 402 / 19.05;
+const float RC_CM_TO_TICKS = 700 / 19.05;
 const float CARRIAGE_CM_TO_TICKS = CM_TO_TICKS;
 const float FC_MAX_TICKS = 0.0f; // Hardcoded top-of-range for front caster
 

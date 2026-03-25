@@ -20,8 +20,17 @@ def generate_launch_description():
         "launch",
         "gemini_330_series.launch.py",
     )
+
+    # Path to the camera configuration YAML file
+    camera_config = os.path.join(
+        get_package_share_directory("rammp_prototype_bringup"),
+        "config",
+        "camera_config.yaml",
+    )
+
     return LaunchDescription(
         [
+            # ── Enable / disable flags ─────────────────────────────────────
             DeclareLaunchArgument(
                 "disable_realsense",
                 default_value="false",
@@ -62,6 +71,7 @@ def generate_launch_description():
                             "unite_imu_method": "2",
                             "pointcloud.enable": "false",
                             "log_level": "warn",
+                            "params_file": camera_config,
                         }.items(),
                         condition=UnlessCondition(
                             LaunchConfiguration("disable_realsense")
@@ -105,6 +115,7 @@ def generate_launch_description():
                     "exposure_range_mode": "ultimate",
                     "laser_energy_level": "4",
                     "enable_ir_auto_exposure": "true",
+                    "params_file": camera_config,
                 }.items(),
                 condition=UnlessCondition(LaunchConfiguration("disable_orbbec")),
             ),

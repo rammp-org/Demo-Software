@@ -23,6 +23,7 @@ class TestActionServer(Node):
 
     def dummy_sub_callback(self, msg):
         self.CA_flag = msg.data
+        self.get_logger().info(msg.data)
 
     def curb_traverse_action_callback(self, goal):
         if goal.request.direction == 1:

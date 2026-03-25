@@ -1,7 +1,8 @@
 import ast
 import math
 from enum import IntEnum
-import asyncio
+from rclpy.executors import MultiThreadedExecutor
+import time
 
 import rclpy
 import serial
@@ -335,10 +336,10 @@ class MEBotControlNode(Node):
             # content
             pass
 
-    async def curb_traverse_action_callback(self, goal):
-        if goal.data == 1:
+    def curb_traverse_action_callback(self, goal):
+        if goal.request.direction == 1:
             self.write_serial_data("c\n")
-        if goal.data == 0:
+        if goal.request.direction == 0:
             self.write_serial_data("d\n")
 
         feedback_msg = CurbTraverse.Feedback()
@@ -354,7 +355,7 @@ class MEBotControlNode(Node):
             feedback_msg.ca_flag = self.CA_flag
             goal.publish_feedback(feedback_msg)
 
-            await asyncio.sleep(0.05)  # yield to executor, adjust to your control rate
+            time.sleep(0.05)
 
         goal.succeed()
         result.success = True
@@ -385,7 +386,11 @@ class MEBotControlNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = MEBotControlNode()
-    rclpy.spin(node)
+    executor = MultiThreadedExecutor()  # for action server
+    executor.add_node(node)
+
+    executor.spin()
+
     rclpy.shutdown()
 
 

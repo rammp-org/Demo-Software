@@ -3,16 +3,16 @@ import asyncio
 
 from rclpy.node import Node
 from cornell_feeding_interfaces.action import CornellActionsPlaceHolder
-from .ActionClientWrapper import ActionClientWrapper
+from .action_client_wrapper import ActionClientWrapper
 
 
-class PickUpAndOrderActionClient(ActionClientWrapper):
+class GrabCupFromTableActionClient(ActionClientWrapper):
     def __init__(
         self,
         node: Node,
     ):
         super().__init__(
-            "/arm/drink/PickupAndOrder",
+            "/arm/drink/GrabCupFromTable",
             CornellActionsPlaceHolder,
             self.goal_callback,
             self.result_callback,
@@ -23,20 +23,22 @@ class PickUpAndOrderActionClient(ActionClientWrapper):
     def goal_callback(self, success: bool):
         if success:
             self._node.get_logger().info(
-                "Goal PickUpAndOrder accepted by the action server."
+                "Goal GrabCupFromTable accepted by the action server."
             )
         else:
             self._node.get_logger().warn(
-                "Goal PickUpAndOrder rejected by the action server."
+                "Goal GrabCupFromTable rejected by the action server."
             )
             self._node.reqArmActionGoalFailed()
 
     def result_callback(self, success: bool):
         if success:
-            self._node.get_logger().info("Successfully picked up and ordered.")
-            self._node.pickedUpCup()
+            self._node.get_logger().info("Successfully grabbed cup from table.")
+            self._node.receivedDrink()  # should enter home state after receiving drink
+            self._node.set_arm_mode_idle()  # set arm to idle after grabbing cup from table
+            self._node.finish_mock_task()  # for testing, will remove after testing
         else:
-            self._node.get_logger().warn("Failed to pick up and order cup.")
+            self._node.get_logger().warn("Failed to grab cup from table.")
             self._node.ArmActionFailed()
 
     def cancel_callback(self, success: bool):

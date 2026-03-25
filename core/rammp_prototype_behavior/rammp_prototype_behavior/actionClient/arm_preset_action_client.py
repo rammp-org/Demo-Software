@@ -4,7 +4,7 @@ import enum
 
 from rclpy.node import Node
 from arm_interfaces.action import ReachPreset
-from .ActionClientWrapper import ActionClientWrapper
+from .action_client_wrapper import ActionClientWrapper
 
 
 class ArmPreset(enum.IntEnum):

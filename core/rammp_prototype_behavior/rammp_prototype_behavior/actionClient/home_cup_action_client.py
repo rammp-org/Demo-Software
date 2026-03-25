@@ -3,16 +3,16 @@ import asyncio
 
 from rclpy.node import Node
 from cornell_feeding_interfaces.action import CornellActionsPlaceHolder
-from .ActionClientWrapper import ActionClientWrapper
+from .action_client_wrapper import ActionClientWrapper
 
 
-class GrabCupFromTableActionClient(ActionClientWrapper):
+class HomeCupActionClient(ActionClientWrapper):
     def __init__(
         self,
         node: Node,
     ):
         super().__init__(
-            "/arm/drink/GrabCupFromTable",
+            "/arm/drink/HomeCup",
             CornellActionsPlaceHolder,
             self.goal_callback,
             self.result_callback,
@@ -22,23 +22,19 @@ class GrabCupFromTableActionClient(ActionClientWrapper):
 
     def goal_callback(self, success: bool):
         if success:
-            self._node.get_logger().info(
-                "Goal GrabCupFromTable accepted by the action server."
-            )
+            self._node.get_logger().info("Goal HomeCup accepted by the action server.")
         else:
-            self._node.get_logger().warn(
-                "Goal GrabCupFromTable rejected by the action server."
-            )
+            self._node.get_logger().warn("Goal HomeCup rejected by the action server.")
             self._node.reqArmActionGoalFailed()
 
     def result_callback(self, success: bool):
         if success:
-            self._node.get_logger().info("Successfully grabbed cup from table.")
-            self._node.receivedDrink()  # should enter home state after receiving drink
-            self._node.set_arm_mode_idle()  # set arm to idle after grabbing cup from table
+            self._node.get_logger().info("Successfully homed cup.")
+            self._node.homedCup()  # should enter homed state after homing cup
+            self._node.set_arm_mode_idle()  # set arm to idle after homing cup
             self._node.finish_mock_task()  # for testing, will remove after testing
         else:
-            self._node.get_logger().warn("Failed to grab cup from table.")
+            self._node.get_logger().warn("Failed to home cup.")
             self._node.ArmActionFailed()
 
     def cancel_callback(self, success: bool):

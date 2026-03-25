@@ -10,14 +10,16 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
 import os
-from .actionClient.ArmPresetActionClient import ArmPreset, ArmPresetActionClient
-from .actionClient.BringCupToMouthActionClient import BringCupToMouthActionClient
-from .actionClient.GrabCupFromTableActionClient import GrabCupFromTableActionClient
-from .actionClient.HomeCupActionClient import HomeCupActionClient
-from .actionClient.PickUpAndOrderActionClient import PickUpAndOrderActionClient
-from .actionClient.PutCupBackToHolderActionClient import PutCupBackToHolderActionClient
-from .actionClient.OpenDoorActionClient import OpenDoorActionClient
-from .actionClient.ChairCurbTraverseActionClient import (
+from .actionClient.arm_preset_action_client import ArmPreset, ArmPresetActionClient
+from .actionClient.bring_cup_to_mouth_action_client import BringCupToMouthActionClient
+from .actionClient.grab_cup_from_table_action_client import GrabCupFromTableActionClient
+from .actionClient.home_cup_action_client import HomeCupActionClient
+from .actionClient.pick_up_and_order_action_client import PickUpAndOrderActionClient
+from .actionClient.pub_cup_back_to_holder_action_client import (
+    PutCupBackToHolderActionClient,
+)
+from .actionClient.open_door_action_client import OpenDoorActionClient
+from .actionClient.chair_crub_traverse_action_client import (
     CurbTraverseDirection,
     ChairCurbTraverseActionClient,
 )
@@ -131,7 +133,7 @@ class SystemControl(rclpy.node.Node):
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
 
-        self._mock_state = MockState(self, starting_task=MockTasks.BASE_CONTROL)
+        self._mock_state = MockState(self, starting_task=MockTasks.OPEN_DOOR)
 
         self._arm_status = ""
         self._cb_group = ReentrantCallbackGroup()

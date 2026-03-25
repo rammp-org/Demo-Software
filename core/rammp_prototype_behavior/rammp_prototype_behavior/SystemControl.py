@@ -16,6 +16,10 @@ from .actionClient.HomeCupActionClient import HomeCupActionClient
 from .actionClient.PickUpAndOrderActionClient import PickUpAndOrderActionClient
 from .actionClient.PutCupBackToHolderActionClient import PutCupBackToHolderActionClient
 from .actionClient.OpenDoorActionClient import OpenDoorActionClient
+from .actionClient.ChairCurbTraverseActionClient import (
+    CurbTraverseDirection,
+    ChairCurbTraverseActionClient,
+)
 from transitions.extensions import HierarchicalMachine as Machine
 from .node_name_monitor import NodeNameMonitor
 from ament_index_python.packages import get_package_share_directory
@@ -418,6 +422,21 @@ class SystemControl(rclpy.node.Node):
             "/arm/drink/stabilize/enable",
             callback_group=self._service_cb_group,
         )
+        self.curb_detection_client = self.create_client(
+            SetBool,
+            "/nav/curb/detect",
+            callback_group=self._service_cb_group,
+        )
+        self.base_drive_enable_client = self.create_client(
+            SetBool,
+            "/base/drive_enable",
+            callback_group=self._service_cb_group,
+        )
+        self.base_self_leveling_client = self.create_client(
+            SetBool,
+            "/base/self_level_enable",
+            callback_group=self._service_cb_group,
+        )
 
     def init_actions_clients(self):
         self.arm_preset_client = ArmPresetActionClient(self)
@@ -427,6 +446,7 @@ class SystemControl(rclpy.node.Node):
         self.put_cup_back_to_holder_client = PutCupBackToHolderActionClient(self)
         self.bring_cup_to_mouth_client = BringCupToMouthActionClient(self)
         self.open_door_client = OpenDoorActionClient(self)
+        self.curb_traverse_client = ChairCurbTraverseActionClient(self)
 
     # ----------Helper functions to call services and actions for state transitions----------------
     def set_arm_mode_idle(self):
@@ -514,6 +534,51 @@ class SystemControl(rclpy.node.Node):
             return future.result().success
         else:
             return False
+
+    def enable_curb_detection(self, enable: bool) -> bool:
+        req = SetBool.Request()
+        req.data = enable
+        future = self.curb_detection_client.call_async(req)
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
+        if not future.done():
+            return False
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
+    def base_drive_enable(self, enable: bool) -> bool:
+        req = SetBool.Request()
+        req.data = enable
+        future = self.base_drive_enable_client.call_async(req)
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
+        if not future.done():
+            return False
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
+    def base_self_leveling_enable(self, enable: bool) -> bool:
+        req = SetBool.Request()
+        req.data = enable
+        future = self.base_self_leveling_client.call_async(req)
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
+        if not future.done():
+            return False
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
+    def request_curb_traverse(self, direction: CurbTraverseDirection):
+        self.curb_traverse_client.send_goal(direction)
 
     # ----------End of Helper functions to call services and actions for state transitions----------------
 

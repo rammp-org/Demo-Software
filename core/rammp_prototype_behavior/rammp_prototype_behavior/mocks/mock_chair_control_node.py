@@ -52,9 +52,9 @@ class SerialField(IntEnum):
     SPEED_MR = 19
 
 
-class MEBotControlNode(Node):
+class BaseControlNode(Node):
     def __init__(self):
-        super().__init__("MEBot_control_node")
+        super().__init__("base_control_node")
 
         # # serial init
         # self.declare_parameter("serial_port", "/dev/ttyACM0")
@@ -128,11 +128,11 @@ class MEBotControlNode(Node):
     def _init_services(self):
         # services
         self.drive_enable_service = self.create_service(
-            SetBool, "drive_enable", self.drive_enable_callback
+            SetBool, "/base/drive_enable", self.drive_enable_callback
         )
 
         self.self_level_enable_service = self.create_service(
-            SetBool, "self_level_enable", self.self_level_enable_callback
+            SetBool, "/base/self_level_enable", self.self_level_enable_callback
         )
 
     def _init_actions(self):
@@ -414,7 +414,7 @@ class MEBotControlNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = MEBotControlNode()
+    node = BaseControlNode()
     rclpy.spin(node)
     rclpy.shutdown()
 

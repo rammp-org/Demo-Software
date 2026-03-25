@@ -309,6 +309,29 @@ void runSelfLeveling(float dt) {
   float dpitch_total = dpitchrd + pitch_fk;
   float droll_total = drollrd + roll_fk;
 
+  // --- Debug: verify FK math before enabling motor dispatch ---
+  Serial.print("self-level-calc: z_cur ML=");
+  Serial.print(z_cur_ml, 3);
+  Serial.print(" RC=");
+  Serial.print(z_cur_rc, 3);
+  Serial.print(" MR=");
+  Serial.println(z_cur_mr, 3);
+
+  Serial.print("self-level-calc: IMU err pitch=");
+  Serial.print(dpitchrd, 4);
+  Serial.print(" roll=");
+  Serial.println(drollrd, 4);
+
+  Serial.print("self-level-calc: FK pitch=");
+  Serial.print(pitch_fk, 4);
+  Serial.print(" roll=");
+  Serial.println(roll_fk, 4);
+
+  Serial.print("self-level-calc: total pitch=");
+  Serial.print(dpitch_total, 4);
+  Serial.print(" roll=");
+  Serial.println(droll_total, 4);
+
   // Build rotation matrix (combining pitch and roll)
   double rotm[4][4] = {0};
   rotm[0][0] = cos(dpitch_total);
@@ -356,18 +379,32 @@ void runSelfLeveling(float dt) {
                       2.0; // Average left/right caster height
   float z_target_mr = newmebot[2][3];
 
-  // Dispatch targets in ticks
-  ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
-  mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
-  rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
+  Serial.print("self-level-calc: z_target ML=");
+  Serial.print(z_target_ml, 3);
+  Serial.print(" RC=");
+  Serial.print(z_target_rc, 3);
+  Serial.print(" MR=");
+  Serial.println(z_target_mr, 3);
+
+  Serial.print("self-level-calc: ticks ML=");
+  Serial.print(z_target_ml * ML_CM_TO_TICKS, 1);
+  Serial.print(" RC=");
+  Serial.print(z_target_rc * RC_CM_TO_TICKS, 1);
+  Serial.print(" MR=");
+  Serial.println(z_target_mr * MR_CM_TO_TICKS, 1);
+
+  // Dispatch targets in ticks — commented out for math verification
+  // ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
+  // mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
+  // rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
 
   // Hold carriages steady
   // TODO: Convert encoder ticks to ticks/cm
-  ml_carriage.setTargetPosition(12000);
-  mr_carriage.setTargetPosition(12000);
+  // ml_carriage.setTargetPosition(100);
+  // mr_carriage.setTargetPosition(100);
 
   // FC is hardcoded to top of range
-  fc.setTargetPosition(FC_MAX_TICKS);
+  // fc.setTargetPosition(FC_MAX_TICKS);
 
   // Store debug data for telemetry — leveling[]: [pitch_err, roll_err, z_ml,
   // z_rc, z_mr]

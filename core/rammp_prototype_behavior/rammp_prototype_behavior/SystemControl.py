@@ -1,6 +1,7 @@
 import asyncio
 import enum
 import threading
+from std_msgs.msg import String
 
 import rclpy
 import rclpy.action
@@ -47,14 +48,16 @@ class MockTasks(enum.IntEnum):
     ARM_MANUAL_CONTROL = 7
     ARM_HOME = 8
     ARM_RETRACT = 9
-    END_TASK = 10  # update this when adding new mock tasks
+    BASE_CONTROL = 10
+    BASE_CURB_TRAVERSE = 11
+    END_TASK = 12  # update this when adding new mock tasks
 
 
 class MockState:
-    def __init__(self, node: rclpy.node.Node):
+    def __init__(self, node: rclpy.node.Node, starting_task=MockTasks.OPEN_DOOR):
         self._node = node
         self.is_mock_task_running = False
-        self.next_mock_task = MockTasks.OPEN_DOOR
+        self.next_mock_task = starting_task
         self.current_mock_task = None
         self.next_mock_wait_time_counter = 3
 
@@ -95,6 +98,10 @@ class MockState:
             self._node.mock_arm_retract_request()
         elif self.current_mock_task == MockTasks.ARM_HOME:
             self._node.mock_arm_home_request()
+        elif self.current_mock_task == MockTasks.BASE_CONTROL:
+            self._node.mock_base_control_request()
+        elif self.current_mock_task == MockTasks.BASE_CURB_TRAVERSE:
+            self._node.mock_base_curb_navigation_traverse_request()
 
     def finish_current_mock_task(self):
         self.is_mock_task_running = False
@@ -124,12 +131,15 @@ class SystemControl(rclpy.node.Node):
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
 
-        self._mock_state = MockState(self)
+        self._mock_state = MockState(self, starting_task=MockTasks.BASE_CONTROL)
 
         self._arm_status = ""
         self._cb_group = ReentrantCallbackGroup()
         self.node_monitor = NodeNameMonitor(self, json_path, self.node_monitor_callback)
 
+        self.curb_traverse_direction = None  # to store curb traverse direction for testing, will remove after testing
+
+        self.init_publisher()
         self.init_subscribers()
         self.init_services_clients()
         self.init_actions_clients()
@@ -220,8 +230,58 @@ class SystemControl(rclpy.node.Node):
             ArmPreset.HOME
         )  # should enter Arm_homed state
 
+    def mock_base_control_request(self):
+        # for testing manual control of base, will remove after testing
+        self.get_logger().info("Sending mock base manual control request.")
+        self.reqChair()
+        self.request_manual_seat_control("elevate up")
+        self._mock_delay(0.5, lambda: self.request_manual_seat_control("elevate down"))
+        self._mock_delay(1.0, lambda: self.base_drive_enable(True))
+        self._mock_delay(1.5, lambda: self.base_drive_enable(False))
+
+        self._mock_delay(2.0, lambda: self.base_self_leveling_enable(True))
+        self._mock_delay(2.5, lambda: self.base_self_leveling_enable(False))
+        self._mock_delay(
+            3.0, lambda: self._mock_state.finish_current_mock_task()
+        )  # finish mock base control task after testing
+
+    def mock_base_curb_navigation_traverse_request(self):
+        # for testing curb traverse action, will remove after testing
+        self.get_logger().info("Sending curb Navigation request.")
+        self.curb_traverse_direction = CurbTraverseDirection.ASCEND  # set curb traverse direction for testing, will replace with actual logic to determine traverse direction later
+        self.reqNav()
+
     ## -----------------------------end of mock testing functions------------------------
 
+    # -----------------------curb navigation transtion functions-----------------------------
+    def on_enter_Nav_detecting(self):
+        self.enable_curb_detection(
+            True
+        )  # enable curb detection to detect curb for navigation
+        self.get_logger().info("Detecting curb to prepare for navigation.")
+        self.get_logger().info("Mock detecting curb for 5 seconds.")
+        self._mock_delay(
+            5.0, self.startTraverseConfirm
+        )  # should enter Nav_traverse state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
+
+    def on_enter_Nav_traverse(self):
+        self.get_logger().info("Starting curb traverse.")
+        self.base_self_leveling_enable(False)
+        self.enable_curb_detection(
+            False
+        )  # disable curb detection to avoid interference during curb traverse
+        self.curb_traverse_client.send_goal(
+            self.curb_traverse_direction
+        )  # send action goal to start curb traverse, will replace with actual logic to determine traverse direction later
+        self.curb_traverse_direction = (
+            None  # reset curb traverse direction after sending action goal
+        )
+
+    def on_enter_Nav_paused(self):
+        self.get_logger().info("Curb traverse paused. Waiting for resume command.")
+        self.base_drive_enable(False)  # disable base drive to pause curb traverse
+
+    # -----------------------end of curb navigation transtion functions----------------------
     # ---------Arm Pause state transition function calls---------------------------------
     def on_enter_Arm_Paused(self):
         self.get_logger().info("Arm is paused. Waiting for resume command.")
@@ -383,6 +443,12 @@ class SystemControl(rclpy.node.Node):
         self.set_arm_mode(ArmMode.IDLE)
 
     # --------------------end of Door Open State Transition Functions------------------------
+
+    def init_publisher(self):
+        # publishers
+        self.base_manual_seat_control_publisher = self.create_publisher(
+            String, "/base/manual_seat_control", 10
+        )  # message type is placeholder
 
     def init_subscribers(self):
         self.arm_status_subscriber = self.create_subscription(
@@ -580,6 +646,11 @@ class SystemControl(rclpy.node.Node):
     def request_curb_traverse(self, direction: CurbTraverseDirection):
         self.curb_traverse_client.send_goal(direction)
 
+    def request_manual_seat_control(self, command: str):
+        msg = String()
+        msg.data = command
+        self.base_manual_seat_control_publisher.publish(msg)
+
     # ----------End of Helper functions to call services and actions for state transitions----------------
 
     # ----------publisher callback functions to process messages and update internal state----------------
@@ -695,7 +766,7 @@ class SystemControl(rclpy.node.Node):
             {
                 "name": "Nav",
                 "initial": "detecting",
-                "children": ["detecting", "detected", "traverse", "finished", "paused"],
+                "children": ["detecting", "traverse", "finished", "paused"],
             },
             "Error",  # system error state, will require reset to recover
         ]
@@ -895,7 +966,7 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_home",
                 "conditions": "is_arm_holding_drink",
             },
-            {"trigger": "reqtNav", "source": "Chair", "dest": "Nav"},
+            {"trigger": "reqNav", "source": "Chair", "dest": "Nav"},
             {
                 "trigger": "reqChair",
                 "source": "Arm",
@@ -914,19 +985,14 @@ class SystemControl(rclpy.node.Node):
             {"trigger": "seatControl", "source": "Chair_SLOff", "dest": "Chair_SLOff"},
             # navigation sub state transitions
             {
-                "trigger": "curbDetected",
-                "source": "Nav_detecting",
-                "dest": "Nav_detected",
-            },
-            {
                 "trigger": "startTraverseConfirm",
-                "source": "Nav_detected",
+                "source": "Nav_detecting",
                 "dest": "Nav_traverse",
             },
             {
                 "trigger": "traverseComplete",
                 "source": "Nav_traverse",
-                "dest": "Nav_finished",
+                "dest": "Chair",
             },
             {"trigger": "reqNavCancel", "source": "Nav_traverse", "dest": "Nav_paused"},
         ]

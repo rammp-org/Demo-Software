@@ -7,10 +7,10 @@ from rammp_prototype_interfaces.action import CurbTraverse
 
 # custom msgs/srvs
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
-from rclpy.action import ActionServer
+from rclpy.action import ActionServer, GoalResponse
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, String
 from std_srvs.srv import SetBool
 
 
@@ -119,6 +119,9 @@ class BaseControlNode(Node):
         self.prev_speed_MR = 0.0
         self.current_speed_MR = 0.0
 
+        # mock variables for testing
+        self._mock_action_result = True  # whether the mock action should succeed or fail, can be set via service calls for testing different scenarios
+        self._mock_action_reject = False
         #### Init all ROS interfaces
         self._init_services()
         self._init_actions()
@@ -137,9 +140,8 @@ class BaseControlNode(Node):
 
     def _init_actions(self):
         # actions
-        self._action_running = True
-        self._action_counter = 20  # 2s action time.
-
+        self._action_running = False
+        self._action_counter = 0
         self.curb_traverse_action = ActionServer(
             self,
             CurbTraverse,
@@ -151,7 +153,7 @@ class BaseControlNode(Node):
     def _init_subscribers(self):
         # subscriptions
         self.manual_seat_control_subscription = self.create_subscription(
-            Bool, "manual_seat_control", self.manual_seat_control_callback, 10
+            String, "/base/manual_seat_control", self.manual_seat_control_callback, 10
         )  # message type is placeholder
 
         self.estop_subscription = self.create_subscription(
@@ -350,7 +352,9 @@ class BaseControlNode(Node):
         feedback = CurbTraverse.Feedback()
         while self._action_counter > 0:
             self.get_logger().info("action counter left: " + str(self._action_counter))
-            feedback.status = str(self._action_counter)
+            feedback.ca_flag = (
+                0  # mock feedback, can be updated with actual data if needed
+            )
             goal_handle.publish_feedback(feedback)
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
@@ -387,8 +391,8 @@ class BaseControlNode(Node):
             self.get_logger().warn(
                 "Another action is already running. Rejecting new goal request."
             )
-            return CurbTraverse.GoalResponse.REJECT
-        return CurbTraverse.GoalResponse.ACCEPT
+            return GoalResponse.REJECT
+        return GoalResponse.ACCEPT
 
     def drive_enable_callback(self, request, response):
         if request.data:

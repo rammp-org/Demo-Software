@@ -96,10 +96,10 @@ class ActionClientWrapper:
         try:
             result = future.result().result
             if result.success:
-                self._node.get_logger().debug("Arm reached preset successfully.")
+                self._node.get_logger().debug("Action completed successfully.")
                 self._result_callback(True)
             else:
-                self._node.get_logger().warn("Arm failed to reach preset.")
+                self._node.get_logger().warn("Action failed.")
                 self._result_callback(False)
         except Exception as e:
             self._node.get_logger().error(f"Exception while getting result: {e}")

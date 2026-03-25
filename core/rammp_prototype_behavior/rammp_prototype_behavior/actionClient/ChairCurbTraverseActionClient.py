@@ -35,29 +35,28 @@ class ChairCurbTraverseActionClient(ActionClientWrapper):
             self._node.get_logger().warn(
                 "Goal CurbTraverse rejected by the action server."
             )
-            self._node.reqArmActionGoalFailed()
+            self._node.reqNavCancel()
 
     def result_callback(self, success: bool):
         if success:
             self._node.get_logger().info("Successfully completed CurbTraverse.")
-            self._node.homedCup()  # should enter homed state after homing cup
-            self._node.set_arm_mode_idle()  # set arm to idle after homing cup
+            self._node.traverseComplete()
             self._node.finish_mock_task()  # for testing, will remove after testing
         else:
             self._node.get_logger().warn("Failed to complete CurbTraverse.")
-            self._node.ArmActionFailed()
+            self._node.reqNavCancel()
 
     def cancel_callback(self, success: bool):
         if success:
             self._node.get_logger().info(
                 "Goal cancellation accepted by the action server."
             )
-            self._node.reqArmActionCancelSuccess()
+            self._node.reqNavCancel()
         else:
             self._node.get_logger().warn(
                 "Goal cancellation rejected by the action server."
             )
-            self._node.reqArmActionCancelFailed()
+            self._node.reqNavCancel()
 
     def send_goal(self, direction: CurbTraverseDirection):
         goal = CurbTraverse.Goal()

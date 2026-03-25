@@ -40,9 +40,6 @@ else
     echo "gRPC already installed, skipping build."
 fi
 
-echo "=== Installing protobuf ==="
-$SUDO apt-get install -y libprotobuf-dev
-
 echo "=== Registering custom rosdep sources ==="
 echo "yaml ${ROSDEP_YAML}" | $SUDO tee "${ROSDEP_SOURCE}"
 

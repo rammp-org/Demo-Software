@@ -29,7 +29,6 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
-            # ── Enable / disable flags ─────────────────────────────────────
             DeclareLaunchArgument(
                 "disable_realsense",
                 default_value="false",
@@ -40,7 +39,6 @@ def generate_launch_description():
                 default_value="false",
                 description="Set to true to disable the nav Orbbec camera.",
             ),
-            # ── Serial number overrides ────────────────────────────────────
             DeclareLaunchArgument(
                 "wrist_camera_serial",
                 default_value="",
@@ -51,7 +49,6 @@ def generate_launch_description():
                 default_value="",
                 description="Serial number of the Orbbec Gemini 336L navigation camera.",
             ),
-            # ── Wrist camera (RealSense D435i) ─────────────────────────────
             TimerAction(
                 period=8.0,
                 actions=[
@@ -68,7 +65,6 @@ def generate_launch_description():
                     )
                 ],
             ),
-            # ── Nav camera (Orbbec Gemini 336L) ────────────────────────────
             TimerAction(
                 period=8.0,
                 actions=[

@@ -20,47 +20,46 @@ def generate_launch_description():
         "launch",
         "gemini_330_series.launch.py",
     )
+
+    camera_config = os.path.join(
+        get_package_share_directory("rammp_prototype_bringup"),
+        "config",
+        "camera_config.yaml",
+    )
+
     return LaunchDescription(
         [
+            # ── Enable / disable flags ─────────────────────────────────────
             DeclareLaunchArgument(
                 "disable_realsense",
                 default_value="false",
-                description="Set to true to disable realsense",
+                description="Set to true to disable the wrist RealSense camera.",
             ),
             DeclareLaunchArgument(
                 "disable_orbbec",
                 default_value="false",
-                description="Set to true to disable orbbec",
+                description="Set to true to disable the nav Orbbec camera.",
             ),
-            # ── Wrist camera serial (RealSense D435i) ─────────────────────
+            # ── Serial number overrides ────────────────────────────────────
             DeclareLaunchArgument(
                 "wrist_camera_serial",
                 default_value="",
                 description="Serial number of the RealSense D435i wrist camera.",
             ),
-            # ── nav camera serial (Orbbec Gemini 336L) ───────────────
             DeclareLaunchArgument(
                 "nav_camera_serial",
                 default_value="",
                 description="Serial number of the Orbbec Gemini 336L navigation camera.",
             ),
-            # ── Wrist camera (RealSense D435i) ────────────────────────────
+            # ── Wrist camera (RealSense D435i) ─────────────────────────────
             TimerAction(
                 period=8.0,
                 actions=[
                     IncludeLaunchDescription(
                         PythonLaunchDescriptionSource(realsense_launch),
                         launch_arguments={
-                            "camera_name": "wrist",
                             "serial_no": LaunchConfiguration("wrist_camera_serial"),
-                            "base_frame_id": "wrist_camera_link",
-                            "rgb_camera.profile": "640x480x30",
-                            "depth_module.profile": "640x480x30",
-                            "align_depth.enable": "true",
-                            "enable_gyro": "true",
-                            "enable_accel": "true",
-                            "unite_imu_method": "2",
-                            "pointcloud.enable": "false",
+                            "params_file": camera_config,
                             "log_level": "warn",
                         }.items(),
                         condition=UnlessCondition(
@@ -69,44 +68,21 @@ def generate_launch_description():
                     )
                 ],
             ),
-            # ── nav camera (Orbbec Gemini 336L) ──────────────────────
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(orbbec_launch),
-                launch_arguments={
-                    "camera_name": "nav",
-                    "serial_number": LaunchConfiguration("nav_camera_serial"),
-                    "base_frame_id": "nav_camera_link",
-                    "enable_point_cloud": "true",
-                    "enable_hole_filling_filter": "false",
-                    "hole_filling_filter_mode": "NEAREST_NEIGHBOR_MAX",
-                    "enable_spatial_filter": "true",
-                    "spatial_filter_magnitude": "1",
-                    "spatial_filter_alpha": "0.5",
-                    "spatial_filter_diff_threshold": "25",
-                    "enable_temporal_filter": "true",
-                    "temporal_filter_diff_threshold": "0.3",
-                    "temporal_filter_weight": "0.4",
-                    "enable_noise_removal_filter": "true",
-                    "noise_removal_filter_min_diff": "128",
-                    "noise_removal_filter_max_size": "100",
-                    "enable_threshold_filter": "false",
-                    "threshold_filter_min": "100",
-                    "threshold_filter_max": "10000",
-                    "enable_hdr_merge": "true",
-                    "depth_width": "640",
-                    "depth_height": "400",
-                    "depth_fps": "30",
-                    "depth_registration": "true",
-                    "color_width": "640",
-                    "color_height": "400",
-                    "enable_accel": "true",
-                    "enable_gyro": "true",
-                    "color_fps": "30",
-                    "exposure_range_mode": "ultimate",
-                    "laser_energy_level": "4",
-                    "enable_ir_auto_exposure": "true",
-                }.items(),
-                condition=UnlessCondition(LaunchConfiguration("disable_orbbec")),
+            # ── Nav camera (Orbbec Gemini 336L) ────────────────────────────
+            TimerAction(
+                period=8.0,
+                actions=[
+                    IncludeLaunchDescription(
+                        PythonLaunchDescriptionSource(orbbec_launch),
+                        launch_arguments={
+                            "serial_number": LaunchConfiguration("nav_camera_serial"),
+                            "params_file": camera_config,
+                        }.items(),
+                        condition=UnlessCondition(
+                            LaunchConfiguration("disable_orbbec")
+                        ),
+                    )
+                ],
             ),
         ]
     )

@@ -1,0 +1,32 @@
+# camera_config.yaml
+# ============================================================
+# April Demo Camera Configuration
+# ============================================================
+# Specifies the camera parameters for launching the cameras
+# for the demo. Loaded by camera.launch.py via params_file.
+#
+# Override at launch time:
+#   ros2 launch rammp_prototype_bringup camera.launch.py \
+#       disable_realsense:=true
+#       disable_orbbec:=true
+#       wrist_camera_serial:=<SN>
+#       nav_camera_serial:=<SN>
+# ============================================================
+
+# ── Enable / Disable flags ────────────────────────────────────
+disable_realsense: false    # true = skip wrist camera entirely
+disable_orbbec: false       # true = skip nav camera entirely
+
+# ── Wrist Camera — Intel RealSense D435i ──────────────────────
+/wrist:
+  ros__parameters:
+    camera_name: "wrist"                # Namespace → topics at /wrist/
+    base_frame_id: "wrist_camera_link"  # Must match URDF link name
+    serial_no: ""                       # Leave empty to auto-select
+
+# ── Nav Camera — Orbbec Gemini 336L ──────────────────────────
+/nav:
+  ros__parameters:
+    camera_name: "nav"                  # Namespace → topics at /nav/
+    base_frame_id: "nav_camera_link"    # Must match URDF link name
+    serial_number: ""                   # Leave empty to auto-select

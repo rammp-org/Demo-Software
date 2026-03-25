@@ -42,6 +42,9 @@ log/
 .DS_Store
 Thumbs.db
 
+# Linter artifacts
+.ruff_cache
+
 # Documentation
 # (Usually you want to keep docs, but skip generated Doxygen output)
 docs/_build/

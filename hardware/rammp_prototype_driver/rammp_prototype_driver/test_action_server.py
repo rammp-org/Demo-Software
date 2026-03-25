@@ -6,6 +6,7 @@ from rclpy.action import ActionServer
 from rclpy.node import Node
 from std_msgs.msg import Int64
 import time
+from rclpy.executors import MultiThreadedExecutor
 
 
 class TestActionServer(Node):
@@ -56,7 +57,12 @@ class TestActionServer(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = TestActionServer()
-    rclpy.spin(node)
+
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+
+    executor.spin()
+
     rclpy.shutdown()
 
 

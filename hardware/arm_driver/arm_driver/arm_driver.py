@@ -658,6 +658,9 @@ class ArmDriverNode(rclpy.node.Node):
 
         if self._arm:
             state = self._arm.get_state()
+            joint_msg.name = [
+                f"joint_{i + 1}" for i in range(self._arm.actuator_count)
+            ] + ["robotiq_85_left_knuckle_joint"]
             joint_msg.position = state["position"].tolist() + [state["gripper_pos"]]
             joint_msg.velocity = state["velocity"].tolist() + [0.0]
             joint_msg.effort = state["effort"].tolist() + [0.0]

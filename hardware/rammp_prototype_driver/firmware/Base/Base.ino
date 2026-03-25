@@ -74,7 +74,7 @@
 //-----------------------------
 Adafruit_BNO055 bno;
 
-// IMU_Class IMU = IMU_Class(bno);
+IMU_Class IMU = IMU_Class(bno);
 
 EncoderContainer EContr;
 
@@ -272,7 +272,7 @@ void setup() {
 
   set_calculation_constants();
   initialize_digital_pins();
-  //    IMU.initialize_BNO055_sensor();
+  IMU.initialize_BNO055_sensor();
 
   delay(1000);
   bno.setExtCrystalUse(true);
@@ -298,7 +298,7 @@ void loop() {
   FC.retrieve_lc_reading();
   RC.retrieve_lc_reading();
 
-  //    IMU.retrieve_readings();
+  IMU.retrieve_readings();
   EContr.retrieve_readings();
 
   // carriage switches, sw1 = leftback, sw2 = leftfront, sw3 = rightfront, sw4 =
@@ -316,6 +316,8 @@ void loop() {
   calculate_pitch_and_roll_angle();
 
   get_GUI_input_from_serial();
+  Serial.print("Action: ");
+  Serial.println(action);
 
   /* The method below is for getting input using bluetooth, keeping it for now
    */
@@ -328,7 +330,7 @@ void loop() {
   motor_controller.carriage_limits_switch();
   motor_controller.set_positions_for_MWs_and_RC();
 
-  //  displaydata();
+  displaydata();
 
   // Reduce delay to increase frequency. Currently set to 8ms
   delay(5);
@@ -536,7 +538,7 @@ void select_mode_based_on_GUI_command() {
 }
 
 void select_controller_based_on_model() {
-  //    IMU.am = IMU.am + 0.005;
+  IMU.am = IMU.am + 0.005;
   switch (mode) {
   case 1: // dev mode
     individual_motor_FF();
@@ -575,37 +577,36 @@ void displaydata() {
   String PIout = "[";
 
   // IMU
-  PIout += "0,";
-  PIout += "0,";
-  PIout += "0,";
-  PIout += "0,";
-  PIout += "0,";
-  //
-  //    //current encoder counters
-  PIout += "0,";
-  PIout += "0,";
+  PIout += String(IMU.pitchf + 3.0) + ',';
+  PIout += String(IMU.rollf) + ',';
+  PIout += String(IMU.ax) + ',';
+  PIout += String(IMU.ay) + ',';
+  PIout += String(IMU.az) + ',';
+
+  // Encoders
+  PIout += String(FC.pos) + ',';
+  PIout += String(RC.pos) + ',';
+  PIout += String(MR.pos) + ',';
+  PIout += String(ML.pos) + ',';
   PIout += String(MR.carriage.pos) + ',';
   PIout += String(ML.carriage.pos) + ',';
-  //
-  //    //loadcell readings
-  PIout += "0,";
-  PIout += "0,";
-  PIout += "0,";
-  //
-  //
-  //    //wheel positions
-  PIout += "0,";
-  PIout += "0,";
-  //
-  //    //ca_flag
-  PIout += "0,";
-  //
-  //    //apptime
-  PIout += "0,";
-  //
-  //    //velocity
-  PIout += "0,";
-  PIout += "0,";
+  PIout += String(ML.wheel_pos) + ',';
+  PIout += String(MR.wheel_pos) + ',';
+
+  // loadcell readings
+  PIout += String(FC.loadcell) + ',';
+  PIout += String(MR.loadcell) + ',';
+  PIout += String(ML.loadcell) + ',';
+
+  // ca_flag
+  PIout += String(CA_flag) + ',';
+
+  // apptime
+  PIout += "0,"; // placeholder
+
+  // velocity
+  PIout += String(ML.speed_drivef) + ',';
+  PIout += String(MR.speed_drivef) + ',';
 
   // acceleration will be calculated in sensor_data_pub
   // tilt can be calculated using pitch and roll in sensor_data_pub

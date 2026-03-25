@@ -22,7 +22,6 @@ CLAUDE.md
 install/
 build/
 log/
-COLCON_IGNORE
 
 # Python artifacts
 **/__pycache__/

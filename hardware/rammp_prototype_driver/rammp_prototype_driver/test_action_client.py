@@ -23,7 +23,7 @@ class TestActionClient(Node):
 
     def goal_response_callback(self, future):
         goal = future.result()
-        if not goal.accepted():
+        if not goal.accepted:
             self.get_logger().info("Goal rejected")
             return
         self.get_logger().info("Goal accepted")

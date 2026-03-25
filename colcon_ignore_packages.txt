@@ -1,5 +1,0 @@
-# Packages to exclude from colcon builds.
-# One relative path per line. setup.sh generates COLCON_IGNORE files in each.
-third_party/ros2_robotiq_gripper/robotiq_controllers
-third_party/ros2_robotiq_gripper/robotiq_driver
-third_party/ros2_robotiq_gripper/robotiq_hardware_tests

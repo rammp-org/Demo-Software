@@ -93,6 +93,8 @@ class EncoderData:
     mr_drive_pos: float = 0.0
     ml_drive_vel: float = 0.0
     mr_drive_vel: float = 0.0
+    ml_drive_pwm: float = 0.0
+    mr_drive_pwm: float = 0.0
 
     @property
     def num_joints(self) -> int:
@@ -281,6 +283,9 @@ class ProtocolParser:
                         data.mr_drive_pos = values[60]
                         data.ml_drive_vel = values[61]
                         data.mr_drive_vel = values[62]
+                    if len(values) >= 65:
+                        data.ml_drive_pwm = values[63]
+                        data.mr_drive_pwm = values[64]
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:

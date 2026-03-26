@@ -276,6 +276,19 @@ class DriveWheelDisplay(QWidget):
         self.left_arc.set_velocity(self.data_store.ml_drive_vel)
         self.right_arc.set_velocity(self.data_store.mr_drive_vel)
 
+        if self._luci.is_connected:
+            ml_pwm = self.data_store.ml_drive_pwm
+            mr_pwm = self.data_store.mr_drive_pwm
+
+            if abs(ml_pwm) > 0.001 or abs(mr_pwm) > 0.001:
+                fb = int(((ml_pwm + mr_pwm) / 2.0) * 100.0)
+                lr = int(((mr_pwm - ml_pwm) / 2.0) * 100.0)
+                fb = max(-100, min(100, fb))
+                lr = max(-100, min(100, lr))
+                self._luci.set_drive(fb, lr)
+            else:
+                self._luci.set_drive(0, 0)
+
     def shutdown(self):
         if self._luci.is_connected:
             self._luci.disconnect()

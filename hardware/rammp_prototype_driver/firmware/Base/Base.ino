@@ -50,6 +50,7 @@ struct SystemTelemetry {
   int modes[6];
   float drive_positions[2];
   float drive_velocities[2];
+  float drive_pwms[2];
 };
 
 // Global State
@@ -174,6 +175,8 @@ void updateTelemetry() {
   telemetry.drive_positions[1] = mr_drive.current_pos;
   telemetry.drive_velocities[0] = ml_drive.current_vel;
   telemetry.drive_velocities[1] = mr_drive.current_vel;
+  telemetry.drive_pwms[0] = ml_drive.target_pwm;
+  telemetry.drive_pwms[1] = mr_drive.target_pwm;
 }
 
 // Helper to send telemetry — builds the full CSV line into a buffer, single
@@ -184,7 +187,7 @@ void updateTelemetry() {
 //   <3 imu angles>,<3 imu accel>,<4 quaternion>,
 //   <5 leveling debug>,<4 strain gauges>,<6 control modes>
 void sendTelemetry() {
-  char buf[700];
+  char buf[740];
   int n = 0;
 
   // Header
@@ -234,6 +237,8 @@ void sendTelemetry() {
     n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_positions[i]);
   for (int i = 0; i < 2; i++)
     n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_velocities[i]);
+  for (int i = 0; i < 2; i++)
+    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_pwms[i]);
 
   n += snprintf(buf + n, sizeof(buf) - n, "\n");
 
@@ -1187,6 +1192,8 @@ void loop() {
   float mr_pwm = mr.update(dt);
   float mlc_pwm = ml_carriage.update(dt);
   float mrc_pwm = mr_carriage.update(dt);
+  float mld_pwm = ml_drive.update(dt);
+  float mrd_pwm = mr_drive.update(dt);
 
   // read limit switches (store in globals for telemetry)
   ml_fwd_limit = !digitalRead(CARRIAGE_SW1_PIN); // Active low

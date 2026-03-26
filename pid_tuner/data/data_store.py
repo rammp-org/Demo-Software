@@ -388,6 +388,8 @@ class DataStore(QObject):
         self._mr_drive_pos: float = 0.0
         self._ml_drive_vel: float = 0.0
         self._mr_drive_vel: float = 0.0
+        self._ml_drive_pwm: float = 0.0
+        self._mr_drive_pwm: float = 0.0
 
         # Motor directions (6 motors)
         self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1]
@@ -629,8 +631,15 @@ class DataStore(QObject):
 
     @property
     def mr_drive_vel(self) -> float:
-        """Get MR drive wheel velocity."""
         return self._mr_drive_vel
+
+    @property
+    def ml_drive_pwm(self) -> float:
+        return self._ml_drive_pwm
+
+    @property
+    def mr_drive_pwm(self) -> float:
+        return self._mr_drive_pwm
 
     @property
     def motor_directions(self) -> List[int]:
@@ -738,6 +747,9 @@ class DataStore(QObject):
             self._mr_drive_pos = data.mr_drive_pos
             self._ml_drive_vel = data.ml_drive_vel
             self._mr_drive_vel = data.mr_drive_vel
+        if hasattr(data, "ml_drive_pwm"):
+            self._ml_drive_pwm = data.ml_drive_pwm
+            self._mr_drive_pwm = data.mr_drive_pwm
 
         # Update per-joint control modes from telemetry (59-field packet onward)
         if getattr(data, "control_mode_values", None):

@@ -72,6 +72,7 @@ class gamepadNode(Node):
 
         if not goal_handle.accepted:
             self.get_logger().info("Goal rejected")
+            self.send_manual_control_request()
             return
 
         self.get_logger().info("Goal accepeted")
@@ -86,6 +87,7 @@ class gamepadNode(Node):
     def result_callback(self, future):
         result = future.result().result
         self.get_logger().info(f"Result: {result.success}")
+        self.send_manual_control_request()
 
     def send_manual_control_request(self):
         # Wait until service is available

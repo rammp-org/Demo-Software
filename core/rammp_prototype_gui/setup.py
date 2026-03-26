@@ -22,6 +22,6 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": ["GuiMonitor = rammp_prototype_gui.GuiMonitor:main"],
+        "console_scripts": ["GuiBridge = rammp_prototype_gui.Gui_bridge:main"],
     },
 )

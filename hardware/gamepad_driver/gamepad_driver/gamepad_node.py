@@ -35,7 +35,7 @@ class gamepadNode(Node):
         )
 
         # Arm Velocity Publisher
-        self.twist_pub = self.create_publisher(Twist, "/twist_controller/commands", 10)
+        self.twist_pub = self.create_publisher(Twist, "/arm/xbox/twist", 10)
         self.home_pub = self.create_publisher(
             JointTrajectory, "/joint_trajectory_controller/joint_trajectory", 10
         )
@@ -151,20 +151,20 @@ class gamepadNode(Node):
 
             self.twist_pub.publish(final_twist)
 
-            # --- HOME BUTTON LOGIC ---
-            # msg.buttons[3] is typically X or Square
-            if msg.buttons[3] == 1 and self.last_home_button_state == 0:
-                self.go_home()
-            self.last_home_button_state = msg.buttons[3]
+            # # --- HOME BUTTON LOGIC ---
+            # # msg.buttons[3] is typically X or Square
+            # if msg.buttons[3] == 1 and self.last_home_button_state == 0:
+            #     self.go_home()
+            # self.last_home_button_state = msg.buttons[3]
 
-            # --- Gripper Control (Buttons) ---
-            # msg.buttons[6] = A (Close), msg.buttons[7] = B (Open)
-            if msg.buttons[4] == 1 and self.last_button_state[4] == 0:
-                self.send_gripper_goal(0.8)  # 0.8 = Fully Closed
-            elif msg.buttons[5] == 1 and self.last_button_state[5] == 0:
-                self.send_gripper_goal(0.0)  # 0.0 = Fully Open
+            # # --- Gripper Control (Buttons) ---
+            # # msg.buttons[6] = A (Close), msg.buttons[7] = B (Open)
+            # if msg.buttons[4] == 1 and self.last_button_state[4] == 0:
+            #     self.send_gripper_goal(0.8)  # 0.8 = Fully Closed
+            # elif msg.buttons[5] == 1 and self.last_button_state[5] == 0:
+            #     self.send_gripper_goal(0.0)  # 0.0 = Fully Open
 
-            self.last_button_state = msg.buttons
+            # self.last_button_state = msg.buttons
 
         except (
             tf2_ros.LookupException,

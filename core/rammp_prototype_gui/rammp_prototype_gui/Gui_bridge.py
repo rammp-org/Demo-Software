@@ -44,7 +44,8 @@ class GuiBridge(Node):
 
         self.ue = UnrealRemoteWebsocket(host=self.host, preset=self.ue_preset)
         self.stream_sender = StreamSender(host=self.host, port=30030)
-        self.stream_timer = self.create_timer(0.1, self.check_streamer_connection)
+        self.stream_check_timer = self.create_timer(1.0, self.check_streamer_connection)
+        self.update_ue_timer = self.create_timer(0.1, self.ue_update)
 
         self._cb_group = ReentrantCallbackGroup()
         self.arm_joints = None
@@ -65,8 +66,8 @@ class GuiBridge(Node):
         self.init_subscriber()
         self.init_service()
 
-        self.test_ue_counter = 0
-        self.test_ue_timer = self.create_timer(0.1, self.test_ue)
+        # self.test_ue_counter = 0
+        # self.test_ue_timer = self.create_timer(0.1, self.test_ue)
 
     def init_service(self):
         # make service client for user input, request should be string
@@ -118,27 +119,24 @@ class GuiBridge(Node):
         elif not self.ue.is_connected() and self.stream_sender.is_connected():
             self.stream_sender.disconnect()
 
-        # if self.stream_sender.is_connected():
-        #     print ("StreamSender is connected, sending stream data...")
-
     def arm_joint_state_callback(self, msg):
         self.arm_joints = msg
 
     def base_joint_state_callback(self, msg):
         self.base_joints = msg
 
-    def test_ue(self):
-        if self.ue.is_connected():
-            self.test_ue_counter += 1
-            # if self.test_ue_counter == 5:
-            #     print("UE connection test successful, calling Mebot function...")
-            #     self.ue.call_function("setJoints", {'Values': [10, 10, 10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10]})
-            # if self.test_ue_counter == 3:
-            #     print("get UE preset functions and properties...")
-            #     self.ue.get_preset_functions_porperties()
-            self.set_ui_joints()
-        else:
-            self.test_ue_counter = 0
+    # def test_ue(self):
+    #     if self.ue.is_connected():
+    #         self.test_ue_counter += 1
+    #         # if self.test_ue_counter == 5:
+    #         #     print("UE connection test successful, calling Mebot function...")
+    #         #     self.ue.call_function("setJoints", {'Values': [10, 10, 10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10]})
+    #         # if self.test_ue_counter == 3:
+    #         #     print("get UE preset functions and properties...")
+    #         #     self.ue.get_preset_functions_porperties()
+    #         self.set_ui_joints()
+    #     else:
+    #         self.test_ue_counter = 0
 
     def set_ui_joints(self):
         arr = [0.0] * 53
@@ -153,7 +151,7 @@ class GuiBridge(Node):
         chair_mr_carriage_index = 4  # index for chair movement carriage joint
         chair_ml_wheel_index = 2  # index for chair movement wheel joint
         chair_mr_wheel_index = 9  # index for chair movement wheel joint
-        if len(self.base_joints.position) >= 8:
+        if self.base_joints is not None and len(self.base_joints.position) >= 8:
             for i in range(7):  # Only take the first 7 joints for the arm joint
                 arr[arm_joint_index_offset + i] = (
                     self.arm_joints.position[i] * 180.0 / 3.14159
@@ -170,7 +168,7 @@ class GuiBridge(Node):
             arr[arm_gripper_joint_right_index] = (
                 0.0 if self.arm_joints.position[7] < 0.01 else 45.0
             )
-        if len(self.base_joints.position) >= 8:
+        if self.base_joints is not None and len(self.base_joints.position) >= 8:
             arr[chair_fc_joint_index] = self.base_joints.position[0] * 180.0 / 3.14159
             arr[chair_rc_joint_index] = self.base_joints.position[1] * 180.0 / 3.14159
             arr[chair_mr_joint_index] = self.base_joints.position[2] * 180.0 / 3.14159
@@ -182,8 +180,14 @@ class GuiBridge(Node):
 
         self.ue.call_function("setJoints", {"Values": arr})
 
-    def set_system_state(self):
-        self.ue.call_function("setSystemState", {"Values": self._system_state})
+    def send_system_state_to_ue(self):
+        if self.ue.is_connected():
+            self.ue.call_function("setSystemState", {"Values": self._system_state})
+
+    def ue_update(self):
+        if self.ue.is_connected():
+            self.send_system_state_to_ue()
+            self.set_ui_joints()
 
     def publish_connection_status(self):
         msg = Bool()
@@ -206,8 +210,10 @@ class GuiBridge(Node):
         super().destroy_node()
 
     def system_state_callback(self, msg):
-        state = msg.data
-        print(f"Received system state: {state}")
+        if self._system_state is None or self._system_state != msg.data:
+            self.get_logger().info("Received new system state: " + msg.data)
+            self._system_state = msg.data
+            self.send_system_state_to_ue()
         self._system_state = msg.data
 
     def write_data_to_shm(self, index, data):

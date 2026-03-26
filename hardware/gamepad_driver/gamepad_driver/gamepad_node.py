@@ -6,12 +6,12 @@ from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Vector3, Vector3Stamped
 import tf2_ros
 from tf2_geometry_msgs import do_transform_vector3
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from trajectory_msgs.msg import JointTrajectory
 from controller_manager_msgs.srv import SwitchController
-from builtin_interfaces.msg import Duration
 from rclpy.action import ActionClient
 from control_msgs.action import GripperCommand
 from arm_interfaces.srv import SetMode
+from arm_interfaces.action import ReachPreset
 
 
 class gamepadNode(Node):
@@ -46,6 +46,7 @@ class gamepadNode(Node):
             self, GripperCommand, "/robotiq_gripper_controller/gripper_cmd"
         )
 
+        self.homing_client = ActionClient(self, ReachPreset, "/arm/reach_preset")
         self.client = self.create_client(SetMode, "/arm/set_mode")
 
         self.send_manual_control_request()  # upon init, be in manual mode
@@ -55,45 +56,36 @@ class gamepadNode(Node):
         pass
 
     def go_home(self):
-        # A. Switch to Trajectory Controller
-        req = SwitchController.Request()
-        req.activate_controllers = ["joint_trajectory_controller"]
-        req.deactivate_controllers = ["twist_controller"]
-        req.strictness = 1  # STRICT
-        self.switch_client.call_async(req)
+        self.homing_client.wait_for_server()
 
-        # B. Send Home Trajectory
-        msg = JointTrajectory()
-        msg.joint_names = [
-            "joint_1",
-            "joint_2",
-            "joint_3",
-            "joint_4",
-            "joint_5",
-            "joint_6",
-            "joint_7",
-        ]
-        point = JointTrajectoryPoint()
-        point.positions = [
-            0.0,
-            0.26,
-            2.26,
-            0.0,
-            0.95,
-            0.0,
-            0.0,
-        ]  # Gen3 Home    --> may need to be adjusted for 7 dof arm
-        point.time_from_start = Duration(sec=3, nanosec=0)
-        msg.points.append(point)
+        goal_msg = ReachPreset.Goal()
+        goal_msg.preset = 0
 
-        self.get_logger().info("Homing... Waiting 4s.")
-        self.home_pub.publish(msg)
+        self.send_goal_future = self.homing_client.send_goal_async(
+            goal_msg, feedback_callback=self.feedback_callback
+        )
 
-        # C. Switch back to Twist after move (Simplified: call again after delay)
-        # In a real app, you'd wait for trajectory completion.
-        self.create_timer(
-            4.0, self.reactivate_twist
-        )  # is this timer/callback meant to run indef every 4s? Why?
+        self.send_goal_future.add_done_callback(self.goal_response_callback)
+
+    def goal_response_callback(self, future):
+        goal_handle = future.result()
+
+        if not goal_handle.accepted:
+            self.get_logger().info("Goal rejected")
+            return
+
+        self.get_logger().info("Goal accepeted")
+
+        self._get_result_future = goal_handle.get_result_async()
+        self._get_result_future.add_done_callback(self.result_callback)
+
+    def feedback_callback(self, feedback_msg):
+        feedback = feedback_msg.feedback
+        self.get_logger().info(f"Feedback: {feedback.joint_states}")
+
+    def result_callback(self, future):
+        result = future.result().result
+        self.get_logger().info(f"Result: {result.success}")
 
     def send_manual_control_request(self):
         # Wait until service is available
@@ -121,10 +113,10 @@ class gamepadNode(Node):
 
     def joy_callback(self, msg):  # includes twist publishing
         # --- PRINTING AXES ---
-        axes_str = " | ".join(
-            [f"Axis {i}: {val:.2f}" for i, val in enumerate(msg.axes)]
-        )
-        self.get_logger().info(f"Readings: {axes_str}")
+        # axes_str = " | ".join(
+        #     [f"Axis {i}: {val:.2f}" for i, val in enumerate(msg.axes)]
+        # )
+        # self.get_logger().info(f"Readings: {axes_str}")
         try:
             # --- Arm Control (Twist) ---
             # twist = Twist() Not used anywhere??
@@ -173,11 +165,11 @@ class gamepadNode(Node):
 
             self.twist_pub.publish(final_twist)
 
-            # # --- HOME BUTTON LOGIC ---
-            # # msg.buttons[3] is typically X or Square
-            # if msg.buttons[3] == 1 and self.last_home_button_state == 0:
-            #     self.go_home()
-            # self.last_home_button_state = msg.buttons[3]
+            # --- HOME BUTTON LOGIC ---
+            # msg.buttons[3] is typically X or Square
+            if msg.buttons[3] == 1 and self.last_home_button_state == 0:
+                self.go_home()
+            self.last_home_button_state = msg.buttons[3]
 
             # # --- Gripper Control (Buttons) ---
             # # msg.buttons[6] = A (Close), msg.buttons[7] = B (Open)

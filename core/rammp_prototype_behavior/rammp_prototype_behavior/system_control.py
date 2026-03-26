@@ -19,7 +19,7 @@ from .actionClient.pub_cup_back_to_holder_action_client import (
     PutCupBackToHolderActionClient,
 )
 from .actionClient.open_door_action_client import OpenDoorActionClient
-from .actionClient.chair_crub_traverse_action_client import (
+from .actionClient.chair_curb_traverse_action_client import (
     CurbTraverseDirection,
     ChairCurbTraverseActionClient,
 )

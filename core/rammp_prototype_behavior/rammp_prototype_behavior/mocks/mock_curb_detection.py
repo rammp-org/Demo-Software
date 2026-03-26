@@ -18,7 +18,7 @@ class PerceptionCurbDetectionNode(rclpy.node.Node):
         self.cb_group = ReentrantCallbackGroup()
         self.create_service(
             SetBool,
-            "nav/curb/detect",
+            "/nav/curb/detect",
             self._srv_detection_enable,
             callback_group=self.cb_group,
         )

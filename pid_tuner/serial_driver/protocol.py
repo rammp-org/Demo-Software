@@ -88,6 +88,12 @@ class EncoderData:
     # Control modes per motor (0=Open Loop, 1=Velocity, 2=Position)
     control_mode_values: List[int] = field(default_factory=list)
 
+    # Drive wheel telemetry
+    ml_drive_pos: float = 0.0
+    mr_drive_pos: float = 0.0
+    ml_drive_vel: float = 0.0
+    mr_drive_vel: float = 0.0
+
     @property
     def num_joints(self) -> int:
         return len(self.position_values)
@@ -269,6 +275,12 @@ class ProtocolParser:
                     # Support 59-value format with per-motor control modes
                     if len(values) >= 59:
                         data.control_mode_values = [int(v) for v in values[53:59]]
+                    # Support 63-value format with drive wheel telemetry
+                    if len(values) >= 63:
+                        data.ml_drive_pos = values[59]
+                        data.mr_drive_pos = values[60]
+                        data.ml_drive_vel = values[61]
+                        data.mr_drive_vel = values[62]
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:

@@ -305,7 +305,7 @@ class SequenceEditor(QWidget):
                 item.setForeground(QBrush(QColor(JOINT_COLORS[motor_idx])))
 
         self._table.itemChanged.connect(self._on_table_item_changed)
-        self._table.itemSelectionChanged.connect(self._update_button_states)
+        self._table.itemSelectionChanged.connect(self._on_table_selection_changed)
         self._table.cellDoubleClicked.connect(self._on_table_cell_double_clicked)
         return self._table
 
@@ -605,7 +605,11 @@ class SequenceEditor(QWidget):
 
     def _on_load(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Load Sequence", "", "JSON Files (*.json);;All Files (*)"
+            self,
+            "Load Sequence",
+            "",
+            "JSON Files (*.json);;All Files (*)",
+            options=QFileDialog.Option.DontUseNativeDialog,
         )
         if not path:
             return
@@ -632,7 +636,11 @@ class SequenceEditor(QWidget):
 
     def _on_save_as(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Sequence", "", "JSON Files (*.json);;All Files (*)"
+            self,
+            "Save Sequence",
+            "",
+            "JSON Files (*.json);;All Files (*)",
+            options=QFileDialog.Option.DontUseNativeDialog,
         )
         if not path:
             return
@@ -713,7 +721,7 @@ class SequenceEditor(QWidget):
             QMessageBox.information(self, "Insert Keyframe", "Select a row first.")
             return
         kf = Keyframe()
-        kf.label = f"Step {row}"
+        kf.label = "New Step"
         self._apply_live_positions(kf)
         self._keyframes.insert(row, kf)
         self._populate_table()
@@ -771,14 +779,23 @@ class SequenceEditor(QWidget):
             self._serial_handler.seq_goto(step_idx)
             self._set_status(f"Jumping to step {step_idx + 1}…")
 
+    def _on_table_selection_changed(self):
+        row = self._table.currentRow()
+        if row >= 0 and row <= self._spin_step_goto.maximum():
+            self._spin_step_goto.blockSignals(True)
+            self._spin_step_goto.setValue(row)
+            self._spin_step_goto.blockSignals(False)
+        self._update_button_states()
+
     @pyqtSlot(int, int)
     def _on_table_cell_double_clicked(self, row: int, _col: int):
-        if not self._uploaded or self._robot_interpolating:
+        if self._uploaded and not self._robot_interpolating:
+            self._table.closePersistentEditor(self._table.currentItem())
+            if 0 <= row < len(self._keyframes):
+                self._spin_step_goto.setValue(row)
+                self._serial_handler.seq_goto(row)
+                self._set_status(f"Jumping to step {row + 1}…")
             return
-        if 0 <= row < len(self._keyframes):
-            self._spin_step_goto.setValue(row)
-            self._serial_handler.seq_goto(row)
-            self._set_status(f"Jumping to step {row + 1}…")
 
     # ------------------------------------------------------------------ #
     #  Robot response handlers                                             #
@@ -866,6 +883,14 @@ class SequenceEditor(QWidget):
             can_step and (self._robot_step < self._robot_total - 1)
         )
         self._btn_step_bwd.setEnabled(can_step and (self._robot_step > 0))
+
+        if self._uploaded:
+            self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        else:
+            self._table.setEditTriggers(
+                QAbstractItemView.EditTrigger.DoubleClicked
+                | QAbstractItemView.EditTrigger.EditKeyPressed
+            )
 
         goto_idx = self._spin_step_goto.value()
         can_goto = (

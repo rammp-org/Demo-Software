@@ -30,6 +30,7 @@ from .control_panel import ControlPanel
 from .serial_console import SerialConsole
 from .state_indicator import StateIndicator
 from .encoder_overview import EncoderOverview
+from .drive_wheel_display import DriveWheelDisplay
 from .sequence_editor import SequenceEditor
 from .theme import get_application_stylesheet, THEME
 from .scaling import SIZES, scaled
@@ -55,10 +56,6 @@ class MainWindow(QMainWindow):
         self._keepalive_timer = QTimer(self)
         self._keepalive_timer.setInterval(400)
         self._keepalive_timer.timeout.connect(self._on_keepalive_tick)
-
-        self._connect_config_load_timer = QTimer(self)
-        self._connect_config_load_timer.timeout.connect(self._load_next_connect_config)
-        self._connect_config_queue: list[int] = []
 
         # Connect serial signals
         self._serial_handler.data_received.connect(self._on_data_received)
@@ -109,10 +106,19 @@ class MainWindow(QMainWindow):
         # Top bar - connection, joint selection, and state indicator
         main_layout.addWidget(self._create_top_bar())
 
-        # Encoder overview bar
+        # Encoder overview bar and Drive Wheel Display
+        overview_layout = QHBoxLayout()
+        overview_layout.setContentsMargins(0, 0, 0, 0)
+        overview_layout.setSpacing(SIZES["spacing_medium"])
+
         self._encoder_overview = EncoderOverview(self._data_store, self._serial_handler)
         self._encoder_overview.joint_selected.connect(self._on_encoder_bar_clicked)
-        main_layout.addWidget(self._encoder_overview)
+        overview_layout.addWidget(self._encoder_overview, stretch=1)
+
+        self._drive_wheel_display = DriveWheelDisplay(self._data_store)
+        overview_layout.addWidget(self._drive_wheel_display)
+
+        main_layout.addLayout(overview_layout)
 
         # Main content area with vertical splitter (plot+console on left, controls on right)
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -457,26 +463,15 @@ class MainWindow(QMainWindow):
             # Turn off simulation mode when connected to real device
             self._data_store.simulation_mode = False
             self._plot_widget.set_simulation_mode(False)
-            QTimer.singleShot(500, self._start_connect_config_load)
+            QTimer.singleShot(500, self._autoload_config)
         else:
             self._connection_label.setText("Disconnected")
             self._connection_label.setStyleSheet("color: red;")
-            self._connect_config_load_timer.stop()
-            self._connect_config_queue = []
 
-    def _start_connect_config_load(self):
+    def _autoload_config(self):
         if not self._serial_handler.is_connected:
             return
-        self._connect_config_queue = list(range(1, 7))
-        self._connect_config_load_timer.start(10000)
-
-    def _load_next_connect_config(self):
-        if not self._connect_config_queue:
-            self._connect_config_load_timer.stop()
-            return
-
-        joint_id = self._connect_config_queue.pop(0)
-        self._serial_handler.get_config(joint_id)
+        self._control_panel._config_viewer._on_load_all()
 
     def _on_data_received(self, data):
         """Handle incoming encoder data."""

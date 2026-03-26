@@ -383,6 +383,12 @@ class DataStore(QObject):
         self._sg_ml_value: float = 0.0
         self._sg_mr_value: float = 0.0
 
+        # Drive wheel telemetry
+        self._ml_drive_pos: float = 0.0
+        self._mr_drive_pos: float = 0.0
+        self._ml_drive_vel: float = 0.0
+        self._mr_drive_vel: float = 0.0
+
         # Motor directions (6 motors)
         self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1]
         self._encoder_directions: List[int] = [1, 1, 1, 1, 1, 1]
@@ -607,6 +613,26 @@ class DataStore(QObject):
         return self._sg_mr_value
 
     @property
+    def ml_drive_pos(self) -> float:
+        """Get ML drive wheel position."""
+        return self._ml_drive_pos
+
+    @property
+    def mr_drive_pos(self) -> float:
+        """Get MR drive wheel position."""
+        return self._mr_drive_pos
+
+    @property
+    def ml_drive_vel(self) -> float:
+        """Get ML drive wheel velocity."""
+        return self._ml_drive_vel
+
+    @property
+    def mr_drive_vel(self) -> float:
+        """Get MR drive wheel velocity."""
+        return self._mr_drive_vel
+
+    @property
     def motor_directions(self) -> List[int]:
         """Get motor directions (1 or -1 for each of 6 motors)."""
         return self._motor_directions
@@ -705,6 +731,13 @@ class DataStore(QObject):
         self._sg_ml_value = data.sg_ml_value
         self._sg_mr_value = data.sg_mr_value
         self.strain_gauge_updated.emit()
+
+        # Store drive wheel telemetry (present from the 63-field packet onward)
+        if hasattr(data, "ml_drive_pos"):
+            self._ml_drive_pos = data.ml_drive_pos
+            self._mr_drive_pos = data.mr_drive_pos
+            self._ml_drive_vel = data.ml_drive_vel
+            self._mr_drive_vel = data.mr_drive_vel
 
         # Update per-joint control modes from telemetry (59-field packet onward)
         if getattr(data, "control_mode_values", None):

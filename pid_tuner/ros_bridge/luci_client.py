@@ -51,6 +51,7 @@ def _compute_zone(fb: int, lr: int) -> int:
 class LuciClient(QObject):
     connected_changed = pyqtSignal(bool)
     error_occurred = pyqtSignal(str)
+    _ready_from_thread = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -62,6 +63,7 @@ class LuciClient(QObject):
         self._heartbeat_timer = QTimer(self)
         self._heartbeat_timer.setInterval(50)
         self._heartbeat_timer.timeout.connect(self._send_heartbeat)
+        self._ready_from_thread.connect(self._finish_connect)
         self._fb = 0
         self._lr = 0
 
@@ -93,6 +95,9 @@ class LuciClient(QObject):
         self._topic = roslibpy.Topic(self._ros, JOYSTICK_TOPIC, JOYSTICK_MSG_TYPE)
         self._topic.advertise()
         self._connected = True
+        self._ready_from_thread.emit()
+
+    def _finish_connect(self):
         self.connected_changed.emit(True)
         self._enable_auto_input()
         self._heartbeat_timer.start()

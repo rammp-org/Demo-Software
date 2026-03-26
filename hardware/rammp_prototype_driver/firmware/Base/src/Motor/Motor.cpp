@@ -94,23 +94,28 @@ float Motor::update(float dt) {
     return 0.0f;
 
   case POSITION_CONTROL:
-    // Output of position PID is target velocity
+    if (limits_enabled) {
+      if (target_pos < pos_limit_min)
+        target_pos = pos_limit_min;
+      else if (target_pos > pos_limit_max)
+        target_pos = pos_limit_max;
+    }
     target_vel = pos_pid.compute(target_pos, current_pos, dt);
     // Fallthrough to velocity control
 
   case VELOCITY_CONTROL:
-    // Output of velocity PID is target PWM
     target_pwm = vel_pid.compute(target_vel, current_vel, dt);
     // Fallthrough to PWM output
 
   case OPEN_LOOP:
   default:
-    // Limit switch software implementation
     if (limits_enabled) {
       if (current_pos <= pos_limit_min && target_pwm < 0) {
         target_pwm = 0.0f;
+        vel_pid.reset();
       } else if (current_pos >= pos_limit_max && target_pwm > 0) {
         target_pwm = 0.0f;
+        vel_pid.reset();
       }
     }
 

@@ -320,7 +320,9 @@ class KinovaArm:
         ee_pos, ee_vel, ee_force = (
             np.zeros(7),
             np.zeros(6),
-            np.zeros(6),
+            np.zeros(
+                3
+            ),  # We are only using force from the end effector wrench, not torque, so this is 3D not 6D
         )
 
         # Robot joint state

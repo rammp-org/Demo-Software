@@ -11,6 +11,7 @@ from controller_manager_msgs.srv import SwitchController
 from builtin_interfaces.msg import Duration
 from rclpy.action import ActionClient
 from control_msgs.action import GripperCommand
+from arm_interfaces.srv import SetMode
 
 
 class gamepadNode(Node):
@@ -44,6 +45,10 @@ class gamepadNode(Node):
         self.gripper_client = ActionClient(
             self, GripperCommand, "/robotiq_gripper_controller/gripper_cmd"
         )
+
+        self.client = self.create_client(SetMode, "/arm/set_mode")
+
+        self.send_manual_control_request()  # upon init, be in manual mode
 
     def estop_pub(self):
         # msg = Bool()
@@ -89,6 +94,23 @@ class gamepadNode(Node):
         self.create_timer(
             4.0, self.reactivate_twist
         )  # is this timer/callback meant to run indef every 4s? Why?
+
+    def send_manual_control_request(self):
+        # Wait until service is available
+        while not self.client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info("Service not available, waiting...")
+
+        request = SetMode.Request()
+        request.mode = 5
+        future = self.client.call_async(request)
+        future.add_done_callback(self.handle_service_response)
+
+    def handle_service_response(self, future):  # can be use by any service client
+        response = future.result()
+        if response.success:
+            self.get_logger().info("Service call success")
+        else:
+            self.get_logger().info("Service call failed")
 
     def reactivate_twist(self):
         req = SwitchController.Request()

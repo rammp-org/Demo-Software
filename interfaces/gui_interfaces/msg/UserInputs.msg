@@ -1,34 +1,53 @@
 # Enum-like string constants (use these names in code)
 
-# Chair control / entry points
-string CHAIR_CONTROL_MAIN="ChairControl/main"
+# chair control / entry points
+string CHAIR_CONTROL_MAIN="chair/main"
 
-# Chair features
-string CHAIR_SELFLEVELING_ON="Chair/SelfLeveling/On"
-string CHAIR_SELFLEVELING_OFF="Chair/SelfLeveling/Off"
+# chair features
+string CHAIR_SELFLEVELING_ON="chair/selfLeveling/on"
+string CHAIR_SELFLEVELING_OFF="chair/selfLeveling/off"
+string CHAIR_SEAT_ELEVATE_UP="chair/seat/elevate/up"
+string CHAIR_SEAT_ELEVATE_DOWN="chair/seat/elevate/down"
+string CHAIR_SEAT_RECLINE_FORWARD="chair/seat/recline/forward"
+string CHAIR_SEAT_ELEVATE_RECLINE_BACK="chair/seat/recline/back"
 
-# Curb navigation
-string CHAIR_CURB_NAVIGATION="Chair/Curb/Navigation"
-string CHAIR_CURB_ASCEND="Chair/Curb/Ascend"
-string CHAIR_CURB_DESCEND="Chair/Curb/Descend"
-string CHAIR_CURB_CANCEL="Chair/Curb/Cancel"
 
-# Arm control / entry points
-string ARM_CONTROL_MAIN="ArmControl/main"
+# curb navigation
+string CHAIR_CURB_NAVIGATION="chair/curb/navigation"
+string CHAIR_CURB_ASCEND="chair/curb/Ascend"
+string CHAIR_CURB_DESCEND="chair/curb/Descend"
+string CHAIR_CURB_CANCEL="chair/curb/cancel"
 
-# Arm modes / tasks
-string ARM_RETRACT="Arm/Retract"
-string ARM_MANUAL="Arm/Manual"
-string ARM_OPEN_DOOR_DETECT="Arm/OpenDoor/Detect"
-string ARM_OPEN_DOOR_CONFIRM="Arm/OpenDoor/Confirm"
-string ARM_ORDER_DRINK_PLACE_ORDER="Arm/OrderDrink/PlaceOrder"
-string ARM_ORDER_DRINK_CONFIRM="Arm/OrderDrink/Confirm"
-string ARM_DRINKING="Arm/Drinking"
-string ARM_CUP_STABLE="Arm/CupStable"
-string ARM_CANCEL="Arm/Cancel"
+# arm control / entry points
+string ARM_CONTROL_MAIN="arm/main"
+
+# arm modes / tasks
+string ARM_RETRACT="arm/retract"
+string ARM_HOME="arm/home"
+string ARM_MANUAL_ON="arm/manual/on"
+string ARM_MANUAL_OFF="arm/manual/off"
+# arm/open door
+string ARM_OPEN_DOOR="arm/openDoor/start"
+string ARM_OPEN_DOOR_CONFIRM="arm/openDoor/confirm"
+# arm/order drink
+string ARM_ORDER_DRINK="arm/orderDrink/start"
+string ARM_ORDER_DRINK_RELEASE_CUP="arm/orderDrink/releaseCup"
+string ARM_ORDER_DRINK_RECEIVE="arm/orderDrink/receive/start"
+string ARM_ORDER_DRINK_RECEIVE_CONFIRM="arm/orderDrink/receive/comfirm"
+# arm/cup stablilize
+string ARM_CUP_STABLE_ON="arm/cupStable/on"
+string ARM_CUP_STABLE_OFF="arm/cupStable/off"
+# arm/sipping drink
+string ARM_DRINKING_START="arm/drinking/start"
+string ARM_DRINKING_FINISH="arm/drinking/finish"
+# arm/plack cup back to holder
+string ARM_CUP_BACK="arm/cup/back"
+# general arm cancel
+string ARM_CANCEL="arm/cancel"
 
 # System
-string RESET="Reset"
+string RESET="system/reset"
+string ESTOP="system/stop"
 
 # The actual payload. Producers must set this to one of the constants above.
 string value

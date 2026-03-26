@@ -11,7 +11,7 @@ def generate_launch_description():
     description_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
-                get_package_share_directory("rammp_protoype_description"),
+                get_package_share_directory("rammp_prototype_description"),
                 "launch",
                 "description.launch.py",
             )

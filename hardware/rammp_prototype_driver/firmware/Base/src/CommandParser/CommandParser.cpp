@@ -30,6 +30,9 @@ RobotCommand CommandParser::parse(Stream &serial) {
         cmd.type = CMD_SEQ_STEP_FWD;
       } else if (buffer.charAt(0) == '<') {
         cmd.type = CMD_SEQ_STEP_BWD;
+      } else if (buffer.charAt(0) == '@' && buffer.length() >= 2) {
+        cmd.type = CMD_SEQ_GOTO;
+        cmd.actuator_id = buffer.substring(1).toInt();
       } else if (buffer.length() >= 2) { // Need at least R<id> or X<id>:<val>
         char type_char = buffer.charAt(0);
         int colon_idx = buffer.indexOf(':');

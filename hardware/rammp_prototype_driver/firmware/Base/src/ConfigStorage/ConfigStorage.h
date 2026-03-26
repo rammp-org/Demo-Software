@@ -29,10 +29,10 @@ struct MotorConfig {
 class ConfigStorage {
 public:
   static const uint16_t MAGIC_NUMBER =
-      0xABD0; // Bumped: added max_ramp_rate fields
+      0xABD1; // Bumped: expanded to 8 motors (added drive wheels)
   static const int MAGIC_ADDR = 0;
   static const int CONFIG_START_ADDR = 10;
-  static const int NUM_MOTORS = 6;
+  static const int NUM_MOTORS = 8;
 
   // Initialize storage, check validity
   static void begin();

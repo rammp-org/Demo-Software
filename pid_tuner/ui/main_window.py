@@ -582,8 +582,8 @@ class MainWindow(QMainWindow):
         self._settings.setValue("last_joint", self._joint_combo.currentIndex())
 
     def closeEvent(self, a0):
-        """Handle window close event."""
         self._save_settings()
+        self._drive_wheel_display.shutdown()
         self._serial_handler.disconnect_port()
         if a0 is not None:
             a0.accept()

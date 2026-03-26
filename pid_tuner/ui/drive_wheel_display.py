@@ -1,9 +1,21 @@
 import math
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel
+from typing import Optional
+
+from PyQt6.QtWidgets import (
+    QWidget,
+    QHBoxLayout,
+    QVBoxLayout,
+    QLabel,
+    QPushButton,
+    QGridLayout,
+    QLineEdit,
+    QFrame,
+)
 from PyQt6.QtCore import Qt, QTimer, QRectF
 from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QPainterPath
 
 from ..data.data_store import DataStore
+from ..ros_bridge.luci_client import LuciClient
 from .theme import THEME
 from .scaling import scaled, SIZES
 
@@ -93,28 +105,177 @@ class ArcTachometer(QWidget):
         )
 
 
+DRIVE_SPEED = 50
+
+_DPAD_BTN = f"""
+    QPushButton {{
+        background-color: {THEME.surface1};
+        color: {THEME.text};
+        border: 1px solid {THEME.surface2};
+        border-radius: 4px;
+        font-size: {SIZES["font_normal"]}pt;
+        font-weight: bold;
+        min-width: {scaled(36)}px;
+        min-height: {scaled(28)}px;
+    }}
+    QPushButton:hover {{ background-color: {THEME.surface2}; }}
+    QPushButton:pressed {{ background-color: {THEME.blue}; color: {THEME.crust}; }}
+    QPushButton:disabled {{ color: {THEME.overlay0}; }}
+"""
+
+
 class DriveWheelDisplay(QWidget):
     def __init__(self, data_store: DataStore, parent=None):
         super().__init__(parent)
         self.data_store = data_store
+        self._luci = LuciClient(self)
+        self._luci.connected_changed.connect(self._on_luci_connection_changed)
+        self._luci.error_occurred.connect(self._on_luci_error)
 
-        self.init_ui()
+        self._init_ui()
 
-        self.update_timer = QTimer(self)
-        self.update_timer.timeout.connect(self.update_display)
-        self.update_timer.start(100)
+        self._update_timer = QTimer(self)
+        self._update_timer.timeout.connect(self._update_display)
+        self._update_timer.start(100)
 
-    def init_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(scaled(10))
+    def _init_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(scaled(4))
 
+        arc_row = QHBoxLayout()
+        arc_row.setSpacing(scaled(10))
         self.left_arc = ArcTachometer("L")
         self.right_arc = ArcTachometer("R")
+        arc_row.addWidget(self.left_arc)
+        arc_row.addWidget(self.right_arc)
+        root.addLayout(arc_row)
 
-        layout.addWidget(self.left_arc)
-        layout.addWidget(self.right_arc)
+        conn_row = QHBoxLayout()
+        conn_row.setSpacing(scaled(4))
 
-    def update_display(self):
+        self._host_input = QLineEdit("192.168.0.112")
+        self._host_input.setFixedWidth(scaled(120))
+        self._host_input.setPlaceholderText("Jetson IP")
+        self._host_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {THEME.surface0};
+                color: {THEME.text};
+                border: 1px solid {THEME.surface2};
+                border-radius: 3px;
+                padding: 2px 4px;
+                font-size: {SIZES["font_small"]}pt;
+            }}
+        """)
+        conn_row.addWidget(self._host_input)
+
+        self._btn_connect = QPushButton("Connect LUCI")
+        self._btn_connect.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.green};
+                color: {THEME.crust};
+                border-radius: 3px;
+                padding: 3px 8px;
+                font-size: {SIZES["font_small"]}pt;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: {THEME.teal}; }}
+            QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
+        """)
+        self._btn_connect.clicked.connect(self._on_connect_clicked)
+        conn_row.addWidget(self._btn_connect)
+
+        self._luci_status = QLabel("Disconnected")
+        self._luci_status.setStyleSheet(
+            f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
+        )
+        conn_row.addWidget(self._luci_status)
+        conn_row.addStretch()
+        root.addLayout(conn_row)
+
+        dpad = QGridLayout()
+        dpad.setSpacing(scaled(2))
+
+        self._btn_fwd = QPushButton("▲")
+        self._btn_fwd.setStyleSheet(_DPAD_BTN)
+        self._btn_fwd.pressed.connect(lambda: self._luci.set_drive(DRIVE_SPEED, 0))
+        self._btn_fwd.released.connect(self._luci.stop)
+        self._btn_fwd.setEnabled(False)
+        dpad.addWidget(self._btn_fwd, 0, 1)
+
+        self._btn_left = QPushButton("◀")
+        self._btn_left.setStyleSheet(_DPAD_BTN)
+        self._btn_left.pressed.connect(lambda: self._luci.set_drive(0, -DRIVE_SPEED))
+        self._btn_left.released.connect(self._luci.stop)
+        self._btn_left.setEnabled(False)
+        dpad.addWidget(self._btn_left, 1, 0)
+
+        self._btn_stop = QPushButton("■")
+        self._btn_stop.setStyleSheet(_DPAD_BTN)
+        self._btn_stop.clicked.connect(self._luci.stop)
+        self._btn_stop.setEnabled(False)
+        dpad.addWidget(self._btn_stop, 1, 1)
+
+        self._btn_right = QPushButton("▶")
+        self._btn_right.setStyleSheet(_DPAD_BTN)
+        self._btn_right.pressed.connect(lambda: self._luci.set_drive(0, DRIVE_SPEED))
+        self._btn_right.released.connect(self._luci.stop)
+        self._btn_right.setEnabled(False)
+        dpad.addWidget(self._btn_right, 1, 2)
+
+        self._btn_bwd = QPushButton("▼")
+        self._btn_bwd.setStyleSheet(_DPAD_BTN)
+        self._btn_bwd.pressed.connect(lambda: self._luci.set_drive(-DRIVE_SPEED, 0))
+        self._btn_bwd.released.connect(self._luci.stop)
+        self._btn_bwd.setEnabled(False)
+        dpad.addWidget(self._btn_bwd, 2, 1)
+
+        root.addLayout(dpad)
+
+    def _on_connect_clicked(self):
+        if self._luci.is_connected:
+            self._luci.disconnect()
+        else:
+            host = self._host_input.text().strip()
+            if host:
+                self._luci_status.setText("Connecting…")
+                self._btn_connect.setEnabled(False)
+                self._luci.connect(host)
+
+    def _on_luci_connection_changed(self, connected: bool):
+        self._btn_connect.setEnabled(True)
+        for btn in (
+            self._btn_fwd,
+            self._btn_bwd,
+            self._btn_left,
+            self._btn_right,
+            self._btn_stop,
+        ):
+            btn.setEnabled(connected)
+        if connected:
+            self._btn_connect.setText("Disconnect")
+            self._luci_status.setText("Connected")
+            self._luci_status.setStyleSheet(
+                f"color: {THEME.green}; font-size: {SIZES['font_small']}pt;"
+            )
+        else:
+            self._btn_connect.setText("Connect LUCI")
+            self._luci_status.setText("Disconnected")
+            self._luci_status.setStyleSheet(
+                f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
+            )
+
+    def _on_luci_error(self, msg: str):
+        self._btn_connect.setEnabled(True)
+        self._luci_status.setText(msg)
+        self._luci_status.setStyleSheet(
+            f"color: {THEME.red}; font-size: {SIZES['font_small']}pt;"
+        )
+
+    def _update_display(self):
         self.left_arc.set_velocity(self.data_store.ml_drive_vel)
         self.right_arc.set_velocity(self.data_store.mr_drive_vel)
+
+    def shutdown(self):
+        if self._luci.is_connected:
+            self._luci.disconnect()

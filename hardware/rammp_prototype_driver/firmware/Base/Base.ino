@@ -48,6 +48,8 @@ struct SystemTelemetry {
   float leveling[5];
   float sg[4];
   int modes[6];
+  float drive_positions[2];
+  float drive_velocities[2];
 };
 
 // Global State
@@ -93,13 +95,15 @@ RoboClaw roboclaw_carriages(&Serial3, 10000); // Serial3
 RoboClaw roboclaw_casters(&Serial4, 10000);   // Serial4
 RoboClaw roboclaw_main(&Serial5, 10000);      // Serial5
 
-// Instantiate the 6 Motor objects
+// Instantiate the 6 actuated Motor objects + 2 encoder-only drive wheels
 Motor rc;
 Motor fc;
 Motor ml;
 Motor mr;
 Motor ml_carriage;
 Motor mr_carriage;
+Motor ml_drive;
+Motor mr_drive;
 
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
 StrainGauge sg_rc(RC_LOADCELL_PIN, 0.5f);
@@ -165,6 +169,11 @@ void updateTelemetry() {
   telemetry.quat[1] = IMU.current_quat.x();
   telemetry.quat[2] = IMU.current_quat.y();
   telemetry.quat[3] = IMU.current_quat.z();
+
+  telemetry.drive_positions[0] = ml_drive.current_pos;
+  telemetry.drive_positions[1] = mr_drive.current_pos;
+  telemetry.drive_velocities[0] = ml_drive.current_vel;
+  telemetry.drive_velocities[1] = mr_drive.current_vel;
 }
 
 // Helper to send telemetry — builds the full CSV line into a buffer, single
@@ -175,7 +184,7 @@ void updateTelemetry() {
 //   <3 imu angles>,<3 imu accel>,<4 quaternion>,
 //   <5 leveling debug>,<4 strain gauges>,<6 control modes>
 void sendTelemetry() {
-  char buf[640];
+  char buf[700];
   int n = 0;
 
   // Header
@@ -221,7 +230,11 @@ void sendTelemetry() {
   for (int i = 0; i < 6; i++)
     n += snprintf(buf + n, sizeof(buf) - n, ",%d", telemetry.modes[i]);
 
-  // Terminate with newline
+  for (int i = 0; i < 2; i++)
+    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_positions[i]);
+  for (int i = 0; i < 2; i++)
+    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_velocities[i]);
+
   n += snprintf(buf + n, sizeof(buf) - n, "\n");
 
   Serial.print(buf);
@@ -230,8 +243,10 @@ void sendTelemetry() {
 // --- Self Leveling Kinematics ---
 // Ported from legacy Base_old_self_leveling.ino
 
-// TODO: check if carriages are not forward, casters not up, etc. then add
-// sequence to safely move to correct positions
+// Carriage target position for self-leveling (both carriages must be here)
+const float CARRIAGE_LEVEL_TARGET = 100.0f;
+const float CARRIAGE_LEVEL_TOLERANCE = 200.0f; // ticks
+
 void runSelfLeveling(float dt) {
   // Set all actively controlled motors to POSITION_CONTROL mode
   rc.setMode(Motor::POSITION_CONTROL);
@@ -240,6 +255,27 @@ void runSelfLeveling(float dt) {
   ml_carriage.setMode(Motor::POSITION_CONTROL);
   mr_carriage.setMode(Motor::POSITION_CONTROL);
   fc.setMode(Motor::POSITION_CONTROL);
+
+  // --- Carriage pre-check ---
+  // Both carriages must be at the front of the robot before the leveling
+  // geometry is valid. Drive them to target and skip the IK math until
+  // they arrive within tolerance.
+  ml_carriage.setTargetPosition(CARRIAGE_LEVEL_TARGET);
+  mr_carriage.setTargetPosition(CARRIAGE_LEVEL_TARGET);
+
+  bool ml_carr_ready =
+      fabs(ml_carriage.current_pos - CARRIAGE_LEVEL_TARGET) < CARRIAGE_LEVEL_TOLERANCE;
+  bool mr_carr_ready =
+      fabs(mr_carriage.current_pos - CARRIAGE_LEVEL_TARGET) < CARRIAGE_LEVEL_TOLERANCE;
+
+  if (!ml_carr_ready || !mr_carr_ready) {
+    // Carriages still moving — hold other actuators at current position
+    rc.setTargetPosition(rc.current_pos);
+    ml.setTargetPosition(ml.current_pos);
+    mr.setTargetPosition(mr.current_pos);
+    fc.setTargetPosition(fc.current_pos);
+    return; // Skip leveling math until carriages are in place
+  }
 
   // Get raw orientation from IMU
   imu::Quaternion q_meas = IMU.current_quat;
@@ -397,17 +433,12 @@ void runSelfLeveling(float dt) {
   Serial.println(z_target_mr * MR_CM_TO_TICKS, 1);
 
   // Dispatch targets in ticks — commented out for math verification
-  ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
-  mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
-  rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
+  // ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
+  // mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
+  // rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
 
-  // Hold carriages steady
-  // TODO: Convert encoder ticks to ticks/cm
-  ml_carriage.setTargetPosition(100);
-  mr_carriage.setTargetPosition(100);
-
-  // FC is hardcoded to top of range
-  fc.setTargetPosition(FC_MAX_TICKS);
+  // Carriages and FC are driven by the carriage pre-check guard above
+  // fc.setTargetPosition(FC_MAX_TICKS);
 
   // Store debug data for telemetry — leveling[]: [pitch_err, roll_err, z_ml,
   // z_rc, z_mr]
@@ -420,8 +451,9 @@ void runSelfLeveling(float dt) {
 
 // Save all 6 motor configs (PID, dirs, limits, current position) to EEPROM
 void saveAllMotorConfigs() {
-  Motor *all_motors[6] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
-  for (int i = 0; i < 6; i++) {
+  Motor *all_motors[8] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
+                          &ml_drive, &mr_drive};
+  for (int i = 0; i < 8; i++) {
     Motor *m = all_motors[i];
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
     conf.motor_dir = m->getDirection();
@@ -518,13 +550,13 @@ void setup() {
   // Initialize ConfigStorage and load saved motor configurations
   ConfigStorage::begin();
 
-  Motor *all_motors[6] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
-  for (int i = 0; i < 6; i++) {
+  Motor *all_motors[8] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
+                          &ml_drive, &mr_drive};
+  for (int i = 0; i < 8; i++) {
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
     all_motors[i]->setDirection(conf.motor_dir);
     all_motors[i]->setEncoderDirection(conf.encoder_dir);
     all_motors[i]->setInputLpfAlpha(conf.lpf_input_alpha);
-    // Load PID values into PIDController objects
     all_motors[i]->pos_pid.kp = conf.pos_p;
     all_motors[i]->pos_pid.ki = conf.pos_i;
     all_motors[i]->pos_pid.kd = conf.pos_d;
@@ -541,9 +573,6 @@ void setup() {
 
     all_motors[i]->updateLimits(conf.pos_limit_min, conf.pos_limit_max);
 
-    // Restore encoder offset so the filtered position resumes from
-    // saved_position. Map motor index (0-5) to encoder container index,
-    // matching updateSensorData().
     int enc_idx = 0;
     switch (i) {
     case 0:
@@ -564,6 +593,12 @@ void setup() {
     case 5:
       enc_idx = 12;
       break; // mr_carriage -> encoderf[12]
+    case 6:
+      enc_idx = 9;
+      break; // ml_drive -> encoderf[9]
+    case 7:
+      enc_idx = 10;
+      break; // mr_drive -> encoderf[10]
     }
 
     // saved_position is the logical position (after encoder_dir flip).
@@ -608,6 +643,8 @@ void loop() {
   mr.updateSensorData(EContr.encoderf[5], dt);
   ml_carriage.updateSensorData(EContr.encoderf[11], dt);
   mr_carriage.updateSensorData(EContr.encoderf[12], dt);
+  ml_drive.updateSensorData(EContr.encoderf[9], dt);
+  mr_drive.updateSensorData(EContr.encoderf[10], dt);
 
   // 2. Parse Comms
   RobotCommand cmd = parser.parse(Serial);
@@ -723,6 +760,12 @@ void loop() {
         break;
       case 5:
         m = &mr_carriage;
+        break;
+      case 6:
+        m = &ml_drive;
+        break;
+      case 7:
+        m = &mr_drive;
         break;
       }
 
@@ -859,6 +902,12 @@ void loop() {
           case 6:
             enc_idx = 12;
             break; // mr_carriage -> encoderf[12]
+          case 7:
+            enc_idx = 9;
+            break; // ml_drive -> encoderf[9]
+          case 8:
+            enc_idx = 10;
+            break; // mr_drive -> encoderf[10]
           }
           EContr.zeroEncoder(enc_idx);
           m->pos_pid.reset();
@@ -1059,6 +1108,23 @@ void loop() {
     } else if (cmd.type == CMD_SEQ_STEP_BWD) {
       if (!seq_interpolating && seq_current > 0) {
         seq_current--;
+        Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc,          &ml,
+                                         &mr, &ml_carriage, &mr_carriage};
+        for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+          seq_start_pos[i] = motors[i]->current_pos;
+        }
+        seq_interp_start = millis();
+        seq_interpolating = true;
+        Serial.print("SEQ_STATUS,");
+        Serial.print(seq_current);
+        Serial.print(",");
+        Serial.print(seq_length);
+        Serial.println(",1");
+      }
+    } else if (cmd.type == CMD_SEQ_GOTO) {
+      int target_step = cmd.actuator_id;
+      if (!seq_interpolating && target_step >= 0 && target_step < seq_length) {
+        seq_current = target_step;
         Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc,          &ml,
                                          &mr, &ml_carriage, &mr_carriage};
         for (int i = 0; i < SEQ_NUM_MOTORS; i++) {

@@ -37,6 +37,7 @@ enum CommandType {
   CMD_SEQ_KEYFRAME,   // e.g. J<idx>:<t1>,<t2>,<t3>,<t4>,<t5>,<t6>,<a1>,<a2>,<a3>,<a4>,<a5>,<a6>,<dur_ms>
   CMD_SEQ_STEP_FWD,   // e.g. > (step forward to next keyframe)
   CMD_SEQ_STEP_BWD,   // e.g. < (step backward to previous keyframe)
+  CMD_SEQ_GOTO,       // e.g. @<idx> (jump directly to keyframe index)
   CMD_UNKNOWN,
   CMD_NONE
 };

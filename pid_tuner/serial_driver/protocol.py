@@ -535,3 +535,7 @@ class ProtocolEncoder:
     def seq_step_backward() -> bytes:
         """Step backward to the previous keyframe."""
         return b"<\n"
+
+    @staticmethod
+    def seq_goto(step_idx: int) -> bytes:
+        return f"@{step_idx}\n".encode("ascii")

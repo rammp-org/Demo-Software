@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QSizePolicy,
+    QPushButton,
 )
 from PyQt6.QtCore import pyqtSlot, pyqtSignal, Qt, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont
@@ -15,6 +16,7 @@ from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
 from ..data.data_store import DataStore
 from ..data.joint_config import JOINTS
+from ..serial_driver.serial_handler import SerialHandler
 
 # Mode colors for indicator dots
 MODE_OPEN_LOOP = 0
@@ -32,6 +34,7 @@ class EncoderBar(QWidget):
     """A single horizontal bar representing an encoder position."""
 
     clicked = pyqtSignal(int)  # Emits joint_id when clicked
+    jog_requested = pyqtSignal(int, float)
 
     # Default range for the bar (can be adjusted)
     DEFAULT_MIN = -50.0
@@ -61,6 +64,44 @@ class EncoderBar(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
+        self._left_jog_btn = QPushButton("◀", self)
+        self._right_jog_btn = QPushButton("▶", self)
+        self._setup_jog_buttons()
+
+    def _setup_jog_buttons(self):
+        button_style = f"""
+            QPushButton {{
+                background-color: {THEME.surface1};
+                color: {THEME.text};
+                border: 1px solid {THEME.surface2};
+                border-radius: {scaled(2)}px;
+                font-size: {SIZES["font_small"]}pt;
+                padding: 0px;
+            }}
+            QPushButton:hover {{
+                background-color: {THEME.surface2};
+            }}
+            QPushButton:pressed {{
+                background-color: {THEME.blue};
+                color: {THEME.crust};
+            }}
+        """
+        btn_w = scaled(18)
+        btn_h = scaled(16)
+
+        for btn in (self._left_jog_btn, self._right_jog_btn):
+            btn.setFixedSize(btn_w, btn_h)
+            btn.setStyleSheet(button_style)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self._left_jog_btn.clicked.connect(lambda: self._emit_jog_request(-1.0))
+        self._right_jog_btn.clicked.connect(lambda: self._emit_jog_request(1.0))
+
+    def _emit_jog_request(self, direction: float):
+        range_span = self._max_val - self._min_val
+        step_mag = abs(0.05 * range_span) if range_span != 0 else 50.0
+        self.jog_requested.emit(self._joint_id, direction * step_mag)
+
     def set_value(self, value: float):
         """Set the current encoder value."""
         self._value = value
@@ -88,11 +129,11 @@ class EncoderBar(QWidget):
         self._mode = mode
         self.update()
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, a0):
         """Handle mouse click to select this joint."""
         self.clicked.emit(self._joint_id)
 
-    def paintEvent(self, event):
+    def paintEvent(self, a0):
         """Paint the encoder bar."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -105,6 +146,14 @@ class EncoderBar(QWidget):
         value_width = scaled(55)
         bar_left = label_width + scaled(4)
         bar_width = width - bar_left - value_width - scaled(8)
+        bar_right = bar_left + max(0, bar_width)
+
+        y = (height - self._left_jog_btn.height()) // 2
+        self._left_jog_btn.move(bar_left + scaled(2), y)
+        self._right_jog_btn.move(
+            bar_right - self._right_jog_btn.width() - scaled(2),
+            y,
+        )
 
         # Draw selection highlight
         if self._selected:
@@ -293,9 +342,12 @@ class EncoderOverview(QWidget):
 
     UPDATE_INTERVAL_MS = 100  # 10 Hz update rate
 
-    def __init__(self, data_store: DataStore, parent=None):
+    def __init__(
+        self, data_store: DataStore, serial_handler: SerialHandler, parent=None
+    ):
         super().__init__(parent)
         self._data_store = data_store
+        self._serial_handler = serial_handler
         self._bars = []
         self._selected_joint = 1
 
@@ -335,6 +387,7 @@ class EncoderOverview(QWidget):
                 color=color,
             )
             bar.clicked.connect(self._on_bar_clicked)
+            bar.jog_requested.connect(self._on_jog_requested)
             self._bars.append(bar)
             layout.addWidget(bar)
 
@@ -364,6 +417,17 @@ class EncoderOverview(QWidget):
         """Handle bar click to select joint."""
         self.set_selected_joint(joint_id)
         self.joint_selected.emit(joint_id)
+
+    def _on_jog_requested(self, joint_id: int, step_size: float):
+        self._serial_handler.set_mode(joint_id, MODE_POSITION)
+
+        joint_data = self._data_store.get_joint(joint_id)
+        if joint_data is None:
+            return
+
+        new_target = joint_data.current_position + step_size
+        self._serial_handler.set_target(joint_id, new_target)
+        self._data_store.set_target(joint_id, new_target)
 
     @pyqtSlot(int)
     def set_selected_joint(self, joint_id: int):

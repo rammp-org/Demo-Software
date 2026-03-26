@@ -111,8 +111,10 @@ class SequenceEditor(QWidget):
 
         # Sequence execution state (mirrored from robot)
         self._robot_step: int = -1
+        self._prev_robot_step: int = -1
         self._robot_total: int = 0
         self._robot_interpolating: bool = False
+        self._uploaded: bool = False
 
         # Upload state
         self._upload_pending: List[int] = []  # queue of keyframe indices to ACK
@@ -252,17 +254,21 @@ class SequenceEditor(QWidget):
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._table.setAlternatingRowColors(True)
-        self._table.verticalHeader().setVisible(True)
-        self._table.horizontalHeader().setSectionResizeMode(
-            COL_LABEL, QHeaderView.ResizeMode.Stretch
-        )
-        for col in range(COL_RC, COL_DURATION):
-            self._table.horizontalHeader().setSectionResizeMode(
-                col, QHeaderView.ResizeMode.ResizeToContents
+        vertical_header = self._table.verticalHeader()
+        horizontal_header = self._table.horizontalHeader()
+        if vertical_header is not None:
+            vertical_header.setVisible(True)
+        if horizontal_header is not None:
+            horizontal_header.setSectionResizeMode(
+                COL_LABEL, QHeaderView.ResizeMode.Stretch
             )
-        self._table.horizontalHeader().setSectionResizeMode(
-            COL_DURATION, QHeaderView.ResizeMode.ResizeToContents
-        )
+            for col in range(COL_RC, COL_DURATION):
+                horizontal_header.setSectionResizeMode(
+                    col, QHeaderView.ResizeMode.ResizeToContents
+                )
+            horizontal_header.setSectionResizeMode(
+                COL_DURATION, QHeaderView.ResizeMode.ResizeToContents
+            )
         self._table.setStyleSheet(f"""
             QTableWidget {{
                 background-color: {THEME.base};
@@ -299,6 +305,8 @@ class SequenceEditor(QWidget):
                 item.setForeground(QBrush(QColor(JOINT_COLORS[motor_idx])))
 
         self._table.itemChanged.connect(self._on_table_item_changed)
+        self._table.itemSelectionChanged.connect(self._update_button_states)
+        self._table.cellDoubleClicked.connect(self._on_table_cell_double_clicked)
         return self._table
 
     def _build_row_buttons(self) -> QWidget:
@@ -324,6 +332,11 @@ class SequenceEditor(QWidget):
         self._btn_add.setStyleSheet(small_style)
         self._btn_add.clicked.connect(self._on_add_keyframe)
         layout.addWidget(self._btn_add)
+
+        self._btn_insert = QPushButton("↥ Insert Above")
+        self._btn_insert.setStyleSheet(small_style)
+        self._btn_insert.clicked.connect(self._on_insert_keyframe_above)
+        layout.addWidget(self._btn_insert)
 
         self._btn_remove = QPushButton("− Remove Selected")
         self._btn_remove.setStyleSheet(small_style)
@@ -399,6 +412,34 @@ class SequenceEditor(QWidget):
         self._btn_step_fwd.clicked.connect(self._on_step_forward)
         layout.addWidget(self._btn_step_fwd)
 
+        self._btn_step_goto = QPushButton("Go To")
+        self._btn_step_goto.setToolTip(
+            "Jump directly to selected keyframe index  (@idx)"
+        )
+        self._btn_step_goto.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.blue};
+                color: {THEME.crust};
+                border-radius: 4px;
+                padding: 5px 12px;
+                font-weight: bold;
+                font-size: {SIZES["font_normal"]}pt;
+            }}
+            QPushButton:hover {{ background-color: {THEME.sapphire}; }}
+            QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
+        """)
+        self._btn_step_goto.clicked.connect(self._on_step_goto)
+        layout.addWidget(self._btn_step_goto)
+
+        self._spin_step_goto = QSpinBox()
+        self._spin_step_goto.setRange(0, 0)
+        self._spin_step_goto.setFixedWidth(scaled(80))
+        self._spin_step_goto.setToolTip("0-based keyframe index")
+        self._spin_step_goto.valueChanged.connect(
+            lambda _v: self._update_button_states()
+        )
+        layout.addWidget(self._spin_step_goto)
+
         layout.addStretch()
         return bar
 
@@ -433,6 +474,7 @@ class SequenceEditor(QWidget):
         for row, kf in enumerate(self._keyframes):
             self._set_row(row, kf)
         self._table.blockSignals(False)
+        self._sync_step_goto_range()
         self._highlight_active_step()
 
     def _set_row(self, row: int, kf: Keyframe):
@@ -467,12 +509,37 @@ class SequenceEditor(QWidget):
         bold_font = QFont()
         bold_font.setBold(True)
 
+        direction = 0
+        if self._prev_robot_step > self._robot_step:
+            direction = -1
+        elif self._prev_robot_step < self._robot_step:
+            direction = 1
+
+        back_tint = QColor(THEME.blue).lighter(180)
+        fwd_tint = QColor(THEME.green).lighter(180)
+
         for row in range(self._table.rowCount()):
             font = bold_font if row == self._robot_step else normal_font
             for col in range(NUM_COLS):
                 item = self._table.item(row, col)
                 if item:
                     item.setFont(font)
+                    item.setBackground(QBrush())
+                    if row == self._robot_step:
+                        if direction < 0:
+                            item.setBackground(QBrush(back_tint))
+                        elif direction > 0:
+                            item.setBackground(QBrush(fwd_tint))
+
+    def _sync_step_goto_range(self):
+        max_idx = max(0, len(self._keyframes) - 1)
+        self._spin_step_goto.blockSignals(True)
+        self._spin_step_goto.setRange(0, max_idx)
+        if self._robot_step >= 0 and self._robot_step <= max_idx:
+            self._spin_step_goto.setValue(self._robot_step)
+        elif self._spin_step_goto.value() > max_idx:
+            self._spin_step_goto.setValue(max_idx)
+        self._spin_step_goto.blockSignals(False)
 
     # ------------------------------------------------------------------ #
     #  Table → data model sync                                             #
@@ -512,6 +579,9 @@ class SequenceEditor(QWidget):
             except ValueError:
                 item.setText(str(kf.duration_ms))
 
+        self._uploaded = False
+        self._update_button_states()
+
     # ------------------------------------------------------------------ #
     #  Toolbar actions                                                      #
     # ------------------------------------------------------------------ #
@@ -527,6 +597,7 @@ class SequenceEditor(QWidget):
             if reply != QMessageBox.StandardButton.Yes:
                 return
         self._keyframes = []
+        self._uploaded = False
         self._current_file = None
         self._file_label.setText("New sequence (unsaved)")
         self._populate_table()
@@ -545,6 +616,7 @@ class SequenceEditor(QWidget):
                 "keyframes", data if isinstance(data, list) else []
             )
             self._keyframes = [Keyframe.from_dict(d) for d in keyframes_data]
+            self._uploaded = False
             self._current_file = path
             self._file_label.setText(os.path.basename(path))
             self._populate_table()
@@ -591,6 +663,7 @@ class SequenceEditor(QWidget):
 
         # Enter sequence mode on the robot
         self._serial_handler.enter_sequence_mode(True)
+        self._uploaded = False
 
         # Build the upload queue and send all keyframes
         self._upload_pending = list(range(len(self._keyframes)))
@@ -607,7 +680,9 @@ class SequenceEditor(QWidget):
 
     def _on_exit_sequence(self):
         self._serial_handler.enter_sequence_mode(False)
+        self._uploaded = False
         self._robot_step = -1
+        self._prev_robot_step = -1
         self._robot_total = 0
         self._robot_interpolating = False
         self._highlight_active_step()
@@ -628,6 +703,22 @@ class SequenceEditor(QWidget):
         self._table.insertRow(row)
         self._set_row(row, kf)
         self._table.selectRow(row)
+        self._uploaded = False
+        self._sync_step_goto_range()
+        self._update_button_states()
+
+    def _on_insert_keyframe_above(self):
+        row = self._table.currentRow()
+        if row < 0 or row >= len(self._keyframes):
+            QMessageBox.information(self, "Insert Keyframe", "Select a row first.")
+            return
+        kf = Keyframe()
+        kf.label = f"Step {row}"
+        self._apply_live_positions(kf)
+        self._keyframes.insert(row, kf)
+        self._populate_table()
+        self._table.selectRow(row)
+        self._uploaded = False
         self._update_button_states()
 
     def _on_remove_keyframe(self):
@@ -638,6 +729,8 @@ class SequenceEditor(QWidget):
         if 0 <= row < len(self._keyframes):
             self._keyframes.pop(row)
             self._table.removeRow(row)
+            self._uploaded = False
+            self._sync_step_goto_range()
             self._update_button_states()
 
     def _on_capture_positions(self):
@@ -672,6 +765,21 @@ class SequenceEditor(QWidget):
         self._serial_handler.seq_step_backward()
         self._set_status("Stepping backward…")
 
+    def _on_step_goto(self):
+        step_idx = self._spin_step_goto.value()
+        if 0 <= step_idx < len(self._keyframes):
+            self._serial_handler.seq_goto(step_idx)
+            self._set_status(f"Jumping to step {step_idx + 1}…")
+
+    @pyqtSlot(int, int)
+    def _on_table_cell_double_clicked(self, row: int, _col: int):
+        if not self._uploaded or self._robot_interpolating:
+            return
+        if 0 <= row < len(self._keyframes):
+            self._spin_step_goto.setValue(row)
+            self._serial_handler.seq_goto(row)
+            self._set_status(f"Jumping to step {row + 1}…")
+
     # ------------------------------------------------------------------ #
     #  Robot response handlers                                             #
     # ------------------------------------------------------------------ #
@@ -686,7 +794,9 @@ class SequenceEditor(QWidget):
             # Mirror the known sequence state locally so step buttons enable
             self._robot_total = len(self._keyframes)
             self._robot_step = -1
+            self._prev_robot_step = -1
             self._robot_interpolating = False
+            self._uploaded = True
             self._set_status(
                 f"Upload complete — {len(self._keyframes)} keyframe(s) ready.  "
                 "Press Step Fwd to start."
@@ -696,20 +806,32 @@ class SequenceEditor(QWidget):
     @pyqtSlot(int, int, bool)
     def _on_seq_status(self, current_step: int, total_steps: int, interpolating: bool):
         """Called when the robot sends a SEQ_STATUS update."""
+        self._prev_robot_step = self._robot_step
         self._robot_step = current_step
         self._robot_total = total_steps
         self._robot_interpolating = interpolating
+        self._uploaded = total_steps > 0
+        self._sync_step_goto_range()
         self._highlight_active_step()
+
+        status_prefix = ""
+        status_color = THEME.green
+        if self._prev_robot_step > self._robot_step:
+            status_prefix = "↑ "
+            status_color = THEME.blue
+        elif self._prev_robot_step < self._robot_step:
+            status_prefix = "↓ "
+            status_color = THEME.green
 
         if interpolating:
             self._set_status(
-                f"Step {current_step + 1}/{total_steps} — Interpolating…",
+                f"{status_prefix}Step {current_step + 1}/{total_steps} — Interpolating…",
                 color=THEME.yellow,
             )
         else:
             self._set_status(
-                f"Step {current_step + 1}/{total_steps} — Ready",
-                color=THEME.green,
+                f"{status_prefix}Step {current_step + 1}/{total_steps} — Ready",
+                color=status_color,
             )
         self._update_button_states()
 
@@ -736,6 +858,7 @@ class SequenceEditor(QWidget):
         self._btn_send.setEnabled(has_kf and not uploading)
         self._btn_exit_seq.setEnabled(seq_active)
         self._btn_remove.setEnabled(has_kf)
+        self._btn_insert.setEnabled(has_kf and self._table.currentRow() >= 0)
         self._btn_capture.setEnabled(has_kf)
 
         can_step = seq_active and not self._robot_interpolating
@@ -743,6 +866,14 @@ class SequenceEditor(QWidget):
             can_step and (self._robot_step < self._robot_total - 1)
         )
         self._btn_step_bwd.setEnabled(can_step and (self._robot_step > 0))
+
+        goto_idx = self._spin_step_goto.value()
+        can_goto = (
+            self._uploaded
+            and not self._robot_interpolating
+            and 0 <= goto_idx < len(self._keyframes)
+        )
+        self._btn_step_goto.setEnabled(can_goto)
 
     # ------------------------------------------------------------------ #
     #  Status helpers                                                       #

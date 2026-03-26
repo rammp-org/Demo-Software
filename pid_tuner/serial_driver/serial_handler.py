@@ -94,7 +94,7 @@ class SerialHandler(QObject):
             True if connection successful, False otherwise
         """
         if self.is_connected:
-            self.disconnect()
+            self.disconnect_port()
 
         try:
             self._serial = serial.Serial(
@@ -116,7 +116,7 @@ class SerialHandler(QObject):
             self.error_occurred.emit(f"Failed to connect: {e}")
             return False
 
-    def disconnect(self):
+    def disconnect_port(self):
         """Disconnect from serial port."""
         self._running = False
 
@@ -142,6 +142,9 @@ class SerialHandler(QObject):
             command: Command bytes to send
         """
         self._command_queue.put(command)
+
+    def _send_command(self, command: bytes):
+        self.send_command(command)
 
     def set_target(self, joint_id: int, target_cm: float):
         """Send target position command."""
@@ -308,7 +311,7 @@ class SerialHandler(QObject):
             time.sleep(0.001)
 
         # Cleanup on exit
-        self.disconnect()
+        self.disconnect_port()
 
     def _process_commands(self):
         """Send any queued commands."""
@@ -388,3 +391,6 @@ class SerialHandler(QObject):
     def seq_step_backward(self):
         """Step backward to the previous keyframe."""
         self.send_command(ProtocolEncoder.seq_step_backward())
+
+    def seq_goto(self, step_idx: int):
+        self._send_command(ProtocolEncoder.seq_goto(step_idx))

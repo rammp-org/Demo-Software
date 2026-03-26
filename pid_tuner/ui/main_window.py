@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QFrame,
     QTabWidget,
+    QCheckBox,
 )
 from PyQt6.QtCore import Qt, QTimer, QSettings
 from PyQt6.QtGui import QShortcut, QKeySequence
@@ -51,6 +52,13 @@ class MainWindow(QMainWindow):
         # Create core components
         self._data_store = DataStore()
         self._serial_handler = SerialHandler()
+        self._keepalive_timer = QTimer(self)
+        self._keepalive_timer.setInterval(400)
+        self._keepalive_timer.timeout.connect(self._on_keepalive_tick)
+
+        self._connect_config_load_timer = QTimer(self)
+        self._connect_config_load_timer.timeout.connect(self._load_next_connect_config)
+        self._connect_config_queue: list[int] = []
 
         # Connect serial signals
         self._serial_handler.data_received.connect(self._on_data_received)
@@ -102,7 +110,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self._create_top_bar())
 
         # Encoder overview bar
-        self._encoder_overview = EncoderOverview(self._data_store)
+        self._encoder_overview = EncoderOverview(self._data_store, self._serial_handler)
         self._encoder_overview.joint_selected.connect(self._on_encoder_bar_clicked)
         main_layout.addWidget(self._encoder_overview)
 
@@ -240,11 +248,36 @@ class MainWindow(QMainWindow):
         clear_btn.clicked.connect(self._on_clear_estop)
         layout.addWidget(clear_btn)
 
+        self._keepalive_checkbox = QCheckBox("Keep Alive")
+        self._keepalive_checkbox.setStyleSheet(f"""
+            QCheckBox {{
+                color: {THEME.text};
+                font-weight: bold;
+                font-size: {SIZES["font_large"]}pt;
+                spacing: {scaled(6)}px;
+            }}
+            QCheckBox::indicator {{
+                width: {scaled(18)}px;
+                height: {scaled(18)}px;
+                border: 1px solid {THEME.surface2};
+                border-radius: {scaled(3)}px;
+                background-color: {THEME.base};
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {THEME.green};
+                border-color: {THEME.green};
+            }}
+        """)
+        self._keepalive_checkbox.toggled.connect(self._on_keepalive_toggled)
+        layout.addWidget(self._keepalive_checkbox)
+
         layout.addStretch()
 
         # Keyboard shortcuts
-        QShortcut(QKeySequence("z"), self, activated=self._on_estop)
-        QShortcut(QKeySequence("c"), self, activated=self._on_clear_estop)
+        self._estop_shortcut = QShortcut(QKeySequence("z"), self)
+        self._estop_shortcut.activated.connect(self._on_estop)
+        self._clear_estop_shortcut = QShortcut(QKeySequence("c"), self)
+        self._clear_estop_shortcut.activated.connect(self._on_clear_estop)
 
         return bar
 
@@ -255,6 +288,18 @@ class MainWindow(QMainWindow):
     def _on_clear_estop(self):
         """Send clear ESTOP command."""
         self._serial_handler.clear_estop()
+
+    def _on_keepalive_toggled(self, enabled: bool):
+        if enabled:
+            self._keepalive_timer.start()
+        else:
+            self._keepalive_timer.stop()
+
+    def _on_keepalive_tick(self):
+        if not self._serial_handler.is_connected:
+            return
+        if self._data_store.current_state != 4:
+            self._serial_handler.clear_estop()
 
     def _create_top_bar(self) -> QWidget:
         """Create the top control bar."""
@@ -395,7 +440,7 @@ class MainWindow(QMainWindow):
 
     def _on_disconnect(self):
         """Handle disconnect button click."""
-        self._serial_handler.disconnect()
+        self._serial_handler.disconnect_port()
         self._status_bar.showMessage("Disconnected", 3000)
 
     def _on_connection_changed(self, connected: bool):
@@ -412,9 +457,26 @@ class MainWindow(QMainWindow):
             # Turn off simulation mode when connected to real device
             self._data_store.simulation_mode = False
             self._plot_widget.set_simulation_mode(False)
+            QTimer.singleShot(500, self._start_connect_config_load)
         else:
             self._connection_label.setText("Disconnected")
             self._connection_label.setStyleSheet("color: red;")
+            self._connect_config_load_timer.stop()
+            self._connect_config_queue = []
+
+    def _start_connect_config_load(self):
+        if not self._serial_handler.is_connected:
+            return
+        self._connect_config_queue = list(range(1, 7))
+        self._connect_config_load_timer.start(10000)
+
+    def _load_next_connect_config(self):
+        if not self._connect_config_queue:
+            self._connect_config_load_timer.stop()
+            return
+
+        joint_id = self._connect_config_queue.pop(0)
+        self._serial_handler.get_config(joint_id)
 
     def _on_data_received(self, data):
         """Handle incoming encoder data."""
@@ -524,8 +586,9 @@ class MainWindow(QMainWindow):
         self._settings.setValue("last_baud", self._baud_combo.currentText())
         self._settings.setValue("last_joint", self._joint_combo.currentIndex())
 
-    def closeEvent(self, event):
+    def closeEvent(self, a0):
         """Handle window close event."""
         self._save_settings()
-        self._serial_handler.disconnect()
-        event.accept()
+        self._serial_handler.disconnect_port()
+        if a0 is not None:
+            a0.accept()

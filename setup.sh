@@ -12,6 +12,32 @@ echo "=== Updating apt ==="
 $SUDO apt-get update -q
 echo "=== Installing Orbbec ROS2 binary ==="
 $SUDO apt-get install -y ros-humble-orbbec-camera
+
+echo "=== Installing gRPC ==="
+export MY_INSTALL_DIR="${MY_INSTALL_DIR:-$HOME/.local}"
+mkdir -p $MY_INSTALL_DIR
+export PATH="$MY_INSTALL_DIR/bin:$PATH"
+
+if [ ! -f "$MY_INSTALL_DIR/lib/libgrpc.a" ]; then
+    echo "gRPC not found, building from source..."
+    git clone -b v1.56.2 https://github.com/grpc/grpc /tmp/grpc \
+      && cd /tmp/grpc \
+      && git submodule update --init \
+      && mkdir -p cmake/build \
+      && cd cmake/build \
+      && cmake -DgRPC_INSTALL=ON \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DgRPC_BUILD_TESTS=OFF \
+      -DgRPC_PROTOBUF_PROVIDER=module \
+      -DCMAKE_INSTALL_PREFIX=$MY_INSTALL_DIR \
+      ../.. \
+      && make -j$(nproc) \
+      && make install \
+      && cd $REPO_ROOT
+else
+    echo "gRPC already installed, skipping build."
+fi
+
 echo "=== Registering custom rosdep sources ==="
 echo "yaml ${ROSDEP_YAML}" | $SUDO tee "${ROSDEP_SOURCE}"
 echo "=== Updating rosdep ==="

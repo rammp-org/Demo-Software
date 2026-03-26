@@ -1,4 +1,3 @@
-# Enum-like string constants (use these names in code)
 
 # chair control / entry points
 string CHAIR_CONTROL_MAIN="chair/main"
@@ -10,6 +9,7 @@ string CHAIR_SEAT_ELEVATE_UP="chair/seat/elevate/up"
 string CHAIR_SEAT_ELEVATE_DOWN="chair/seat/elevate/down"
 string CHAIR_SEAT_RECLINE_FORWARD="chair/seat/recline/forward"
 string CHAIR_SEAT_ELEVATE_RECLINE_BACK="chair/seat/recline/back"
+string CHAIR_SEAT_HOME="chair/seat/home"
 
 
 # curb navigation
@@ -49,5 +49,10 @@ string ARM_CANCEL="arm/cancel"
 string RESET="system/reset"
 string ESTOP="system/stop"
 
-# The actual payload. Producers must set this to one of the constants above.
-string value
+
+# Request message
+string input
+---
+# Response message
+bool success
+string message

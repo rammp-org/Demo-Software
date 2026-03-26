@@ -24,7 +24,7 @@ endif()
 
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/UserInputs.msg"
+  "srv/UserInputs.srv"
 )
 
 ament_export_dependencies(rosidl_default_runtime)

@@ -58,4 +58,9 @@ rosdep install \
   --ignore-src -r -y \
   --skip-keys "python3-kortex-api python3-pinocchio python3-scipy"
 
+echo "=== Configuring RMW environment ==="
+if ! grep -q 'RMW_IMPLEMENTATION' ~/.bashrc; then
+  echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> ~/.bashrc
+fi
+
 echo "=== Setup complete ==="

@@ -77,13 +77,15 @@ def generate_launch_description():
                 ],
             ),
             # ── Nav camera (Orbbec Gemini 336L) ──────────────────────
-            GroupAction(
-                condition=UnlessCondition(LaunchConfiguration("disable_orbbec")),
+            TimerAction(
+                period=8.0,
                 actions=[
-                    PushRosNamespace("camera"),
-                    TimerAction(
-                        period=8.0,
+                    GroupAction(
+                        condition=UnlessCondition(
+                            LaunchConfiguration("disable_orbbec")
+                        ),
                         actions=[
+                            PushRosNamespace("camera"),
                             IncludeLaunchDescription(
                                 PythonLaunchDescriptionSource(orbbec_launch),
                                 launch_arguments={
@@ -122,9 +124,9 @@ def generate_launch_description():
                                     "laser_energy_level": "4",
                                     "enable_ir_auto_exposure": "true",
                                 }.items(),
-                            )
+                            ),
                         ],
-                    ),
+                    )
                 ],
             ),
         ]

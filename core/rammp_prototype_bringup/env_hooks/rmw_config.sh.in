@@ -1,3 +1,0 @@
-bashif [ -z "$RMW_IMPLEMENTATION" ]; then
-  export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-fi

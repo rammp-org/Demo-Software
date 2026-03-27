@@ -70,9 +70,11 @@ class SerialHandler(QObject):
         self._batch_timer.timeout.connect(self._emit_batched_data)
         self._batch_timer.start(self.BATCH_INTERVAL_MS)
 
+    def __del__(self):
+        self.disconnect_port()
+
     @property
     def is_connected(self) -> bool:
-        """Check if serial port is connected and open."""
         with self._lock:
             return self._serial is not None and self._serial.is_open
 

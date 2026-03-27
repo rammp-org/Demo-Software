@@ -162,11 +162,22 @@ class LuciClient(QObject):
         if self._auto_input_enabled:
             self._disable_auto_input()
         if self._topic:
-            self._topic.unadvertise()
+            try:
+                self._topic.unadvertise()
+            except Exception:
+                pass
             self._topic = None
-        if self._ros and self._ros.is_connected:
-            threading.Thread(target=self._ros.close, daemon=True).start()
-        self._ros = None
+        if self._ros:
+            ros = self._ros
+            self._ros = None
+            try:
+                ros.close()
+            except Exception:
+                pass
+            try:
+                ros.terminate()
+            except Exception:
+                pass
         self._connected = False
         self._auto_input_enabled = False
         self.connected_changed.emit(False)

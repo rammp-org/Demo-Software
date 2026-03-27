@@ -3,6 +3,8 @@ import mmap
 import rclpy
 import time
 
+from dataclasses import dataclass
+
 from rclpy.node import Node
 from std_msgs.msg import String
 from std_msgs.msg import Bool
@@ -11,6 +13,52 @@ from .streaming.sender import StreamSender
 from gui_interfaces.srv import UserInputs
 from sensor_msgs.msg import JointState
 from rclpy.callback_groups import ReentrantCallbackGroup
+
+
+@dataclass
+class Vector:
+    X: float
+    Y: float
+    Z: float
+
+
+@dataclass
+class Quaternion:
+    X: float
+    Y: float
+    Z: float
+    W: float
+
+
+@dataclass
+class Transform:
+    Translation: Vector
+    Rotation: Quaternion
+    Scale3D: Vector
+
+
+@dataclass
+class CurbInfo:
+    Distance: float
+    Height: float
+    Pose: Transform
+    Success: bool
+    Message: str
+
+
+@dataclass
+class CupInfo:
+    Pose: Transform
+    Success: bool
+    Message: str
+
+
+@dataclass
+class ButtonInfo:
+    BoundingBox: list[float]  # [x_min, y_min, x_max, y_max] in pixel coordinates
+    Confidence: float
+    Pose: Transform
+    CanPress: bool
 
 
 class GuiBridge(Node):
@@ -23,7 +71,7 @@ class GuiBridge(Node):
         print("Gui_bridge node has been started.")
         GuiBridge.instance = self
 
-        self.declare_parameter("ue_host", "192.168.1.21")
+        self.declare_parameter("ue_host", "192.168.68.65")
         self.host = self.get_parameter("ue_host").get_parameter_value().string_value
 
         self.declare_parameter("use_shared_memory", False)
@@ -50,6 +98,7 @@ class GuiBridge(Node):
         self._cb_group = ReentrantCallbackGroup()
         self.arm_joints = None
         self.base_joints = None
+        self._system_state = None
 
         if self.use_shared_memory:
             # Create shared memory and map it
@@ -66,8 +115,8 @@ class GuiBridge(Node):
         self.init_subscriber()
         self.init_service()
 
-        # self.test_ue_counter = 0
-        # self.test_ue_timer = self.create_timer(0.1, self.test_ue)
+        self.test_ue_counter = 0
+        self.test_ue_timer = self.create_timer(1.0, self.test_ue)
 
     def init_service(self):
         # make service client for user input, request should be string
@@ -125,18 +174,37 @@ class GuiBridge(Node):
     def base_joint_state_callback(self, msg):
         self.base_joints = msg
 
-    # def test_ue(self):
-    #     if self.ue.is_connected():
-    #         self.test_ue_counter += 1
-    #         # if self.test_ue_counter == 5:
-    #         #     print("UE connection test successful, calling Mebot function...")
-    #         #     self.ue.call_function("setJoints", {'Values': [10, 10, 10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10]})
-    #         # if self.test_ue_counter == 3:
-    #         #     print("get UE preset functions and properties...")
-    #         #     self.ue.get_preset_functions_porperties()
-    #         self.set_ui_joints()
-    #     else:
-    #         self.test_ue_counter = 0
+    def test_ue(self):
+        if self.ue.is_connected():
+            self.test_ue_counter += 1
+            # if self.test_ue_counter == 5:
+            #     print("UE connection test successful, calling Mebot function...")
+            #     self.ue.call_function("setJoints", {'Values': [10, 10, 10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10]})
+            if self.test_ue_counter == 3:
+                print("get UE preset functions and properties...")
+                self.ue.get_preset_functions_porperties()
+            # self.set_ui_joints()
+            if self.test_ue_counter == 4:
+                self._system_state = "TestState"
+            if self.test_ue_counter == 5:
+                self._system_state = None
+                print("Testing sending curb info to UE...               ")
+                curbInfo = CurbInfo(
+                    Distance=0.5,
+                    Height=0.2,
+                    Pose=Transform(
+                        Translation=Vector(X=1.0, Y=2.0, Z=3.0),
+                        Rotation=Quaternion(X=0.0, Y=0.0, Z=0.0, W=1.0),
+                        Scale=Vector(X=1.0, Y=1.0, Z=1.0),
+                    ),
+                    Success=True,
+                    Message="Curb info updated successfully",
+                )
+                # print("CurbInfo to send:", asdict(curbInfo))
+
+                self.update_curb_info(curbInfo)
+        else:
+            self.test_ue_counter = 0
 
     def set_ui_joints(self):
         arr = [0.0] * 53
@@ -178,11 +246,95 @@ class GuiBridge(Node):
             arr[chair_ml_wheel_index] = self.base_joints.position[6] * 180.0 / 3.14159
             arr[chair_mr_wheel_index] = self.base_joints.position[7] * 180.0 / 3.14159
 
-        self.ue.call_function("setJoints", {"Values": arr})
+        if self.base_joints is not None and self.arm_joints is not None:
+            self.ue.call_function("setJoints", {"Values": arr})
 
     def send_system_state_to_ue(self):
+        if self.ue.is_connected() and self._system_state is not None:
+            self.ue.call_function(
+                "UpdateSystemState", {"SystemState": str(self._system_state)}
+            )
+
+    def update_curb_info(self, curb_info: CurbInfo):
         if self.ue.is_connected():
-            self.ue.call_function("setSystemState", {"Values": self._system_state})
+            curbInfoDict = {
+                "Message": curb_info.Message,
+                "Success": curb_info.Success,
+                "Pose": {
+                    "Translation": {
+                        "X": curb_info.Pose.Translation.X,
+                        "Y": curb_info.Pose.Translation.Y,
+                        "Z": curb_info.Pose.Translation.Z,
+                    },
+                    "Rotation": {
+                        "X": curb_info.Pose.Rotation.X,
+                        "Y": curb_info.Pose.Rotation.Y,
+                        "Z": curb_info.Pose.Rotation.Z,
+                        "W": curb_info.Pose.Rotation.W,
+                    },
+                    "Scale3D": {
+                        "X": curb_info.Pose.Scale3D.X,
+                        "Y": curb_info.Pose.Scale3D.Y,
+                        "Z": curb_info.Pose.Scale3D.Z,
+                    },
+                },
+                "Distance": curb_info.Distance,
+                "Height": curb_info.Height,
+            }
+            self.ue.call_function("UpdateCurbInfo", curbInfoDict)
+
+    def update_cup_info(self, cup_info: CupInfo):
+        if self.ue.is_connected():
+            cupInfoDict = {
+                "Message": cup_info.Message,
+                "Success": cup_info.Success,
+                "Pose": {
+                    "Translation": {
+                        "X": cup_info.Pose.Translation.X,
+                        "Y": cup_info.Pose.Translation.Y,
+                        "Z": cup_info.Pose.Translation.Z,
+                    },
+                    "Rotation": {
+                        "X": cup_info.Pose.Rotation.X,
+                        "Y": cup_info.Pose.Rotation.Y,
+                        "Z": cup_info.Pose.Rotation.Z,
+                        "W": cup_info.Pose.Rotation.W,
+                    },
+                    "Scale3D": {
+                        "X": cup_info.Pose.Scale3D.X,
+                        "Y": cup_info.Pose.Scale3D.Y,
+                        "Z": cup_info.Pose.Scale3D.Z,
+                    },
+                },
+            }
+            self.ue.call_function("UpdateCupInfo", cupInfoDict)
+
+    def update_button_info(self, button_info: ButtonInfo):
+        if self.ue.is_connected():
+            buttonInfoDict = {
+                "BoundingBox": button_info.BoundingBox,
+                "Confidence": button_info.Confidence,
+                "CanPress": button_info.CanPress,
+                "Pose": {
+                    "Translation": {
+                        "X": button_info.Pose.Translation.X,
+                        "Y": button_info.Pose.Translation.Y,
+                        "Z": button_info.Pose.Translation.Z,
+                    },
+                    "Rotation": {
+                        "X": button_info.Pose.Rotation.X,
+                        "Y": button_info.Pose.Rotation.Y,
+                        "Z": button_info.Pose.Rotation.Z,
+                        "W": button_info.Pose.Rotation.W,
+                    },
+                    "Scale3D": {
+                        "X": button_info.Pose.Scale3D.X,
+                        "Y": button_info.Pose.Scale3D.Y,
+                        "Z": button_info.Pose.Scale3D.Z,
+                    },
+                },
+            }
+            self.ue.call_function("UpdateButtonInfo", buttonInfoDict)
 
     def ue_update(self):
         if self.ue.is_connected():

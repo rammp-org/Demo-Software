@@ -107,6 +107,7 @@ class UnrealRemoteWebsocket:
             "Parameters": parameters,
         }
         async with self._send_lock:
+            print(f"Sending payload: {json.dumps(payload)}")
             await self.ws_client.send(json.dumps(payload))
             try:
                 resp = await asyncio.wait_for(

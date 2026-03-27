@@ -23,14 +23,20 @@ string CHAIR_SELFLEVELING_ON="chair/selfLeveling/on"
 string CHAIR_SELFLEVELING_OFF="chair/selfLeveling/off"
 string CHAIR_SEAT_ELEVATE_UP="chair/seat/elevate/up"
 string CHAIR_SEAT_ELEVATE_DOWN="chair/seat/elevate/down"
+string CHAIR_SEAT_ELEVATE_HOME="chair/seat/elevate/home"
 string CHAIR_SEAT_RECLINE_FORWARD="chair/seat/recline/forward"
 string CHAIR_SEAT_ELEVATE_RECLINE_BACK="chair/seat/recline/back"
+string CHAIR_SEAT_ELEVATE_RECLINE_HOME="chair/seat/recline/home"
+string CHAIR_SEAT_ELEVATE_LTILT_LEFT="chair/seat/lateralTilt/left"
+string CHAIR_SEAT_ELEVATE_LTILT_RIGHT="chair/seat/lateralTilt/right"
+string CHAIR_SEAT_ELEVATE_LTILT_HOME="chair/seat/lateralTilt/home"
+string CHAIR_SEAT_HOME="chair/seat/home"
 
 
 # curb navigation
 string CHAIR_CURB_NAVIGATION="chair/curb/navigation"
-string CHAIR_CURB_ASCEND="chair/curb/Ascend"
-string CHAIR_CURB_DESCEND="chair/curb/Descend"
+string CHAIR_CURB_ASCEND="chair/curb/ascend"
+string CHAIR_CURB_DESCEND="chair/curb/descend"
 string CHAIR_CURB_CANCEL="chair/curb/cancel"
 
 # arm control / entry points

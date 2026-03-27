@@ -555,26 +555,30 @@ void setup() {
   // Initialize ConfigStorage and load saved motor configurations
   ConfigStorage::begin();
 
+  auto safe_f = [](float v) -> float {
+    return (isnan(v) || isinf(v)) ? 0.0f : v;
+  };
+
   Motor *all_motors[8] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
                           &ml_drive, &mr_drive};
   for (int i = 0; i < 8; i++) {
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
     all_motors[i]->setDirection(conf.motor_dir);
     all_motors[i]->setEncoderDirection(conf.encoder_dir);
-    all_motors[i]->setInputLpfAlpha(conf.lpf_input_alpha);
-    all_motors[i]->pos_pid.kp = conf.pos_p;
-    all_motors[i]->pos_pid.ki = conf.pos_i;
-    all_motors[i]->pos_pid.kd = conf.pos_d;
-    all_motors[i]->pos_pid.setFeedForward(conf.pos_ff);
-    all_motors[i]->pos_pid.setLpfAlpha(conf.pos_lpf_alpha);
-    all_motors[i]->pos_pid.setRampRate(conf.pos_max_ramp_rate);
+    all_motors[i]->setInputLpfAlpha(safe_f(conf.lpf_input_alpha));
+    all_motors[i]->pos_pid.kp = safe_f(conf.pos_p);
+    all_motors[i]->pos_pid.ki = safe_f(conf.pos_i);
+    all_motors[i]->pos_pid.kd = safe_f(conf.pos_d);
+    all_motors[i]->pos_pid.setFeedForward(safe_f(conf.pos_ff));
+    all_motors[i]->pos_pid.setLpfAlpha(safe_f(conf.pos_lpf_alpha));
+    all_motors[i]->pos_pid.setRampRate(safe_f(conf.pos_max_ramp_rate));
 
-    all_motors[i]->vel_pid.kp = conf.vel_p;
-    all_motors[i]->vel_pid.ki = conf.vel_i;
-    all_motors[i]->vel_pid.kd = conf.vel_d;
-    all_motors[i]->vel_pid.setFeedForward(conf.vel_ff);
-    all_motors[i]->vel_pid.setLpfAlpha(conf.vel_lpf_alpha);
-    all_motors[i]->vel_pid.setRampRate(conf.vel_max_ramp_rate);
+    all_motors[i]->vel_pid.kp = safe_f(conf.vel_p);
+    all_motors[i]->vel_pid.ki = safe_f(conf.vel_i);
+    all_motors[i]->vel_pid.kd = safe_f(conf.vel_d);
+    all_motors[i]->vel_pid.setFeedForward(safe_f(conf.vel_ff));
+    all_motors[i]->vel_pid.setLpfAlpha(safe_f(conf.vel_lpf_alpha));
+    all_motors[i]->vel_pid.setRampRate(safe_f(conf.vel_max_ramp_rate));
 
     all_motors[i]->updateLimits(conf.pos_limit_min, conf.pos_limit_max);
 
@@ -610,7 +614,8 @@ void setup() {
     // Divide by encoder_dir to recover the raw tick count, then set the
     // offset so that (raw_reading - offset) == saved_position.
     // Guard: encoder_dir is validated to ±1 by loadMotorConfig; check anyway.
-    if (conf.encoder_dir != 0) {
+    if (conf.encoder_dir != 0 &&
+        !isnan(conf.saved_position) && !isinf(conf.saved_position)) {
       EContr.encoder_offset[enc_idx] =
           EContr.getRawReading(enc_idx) -
           (signed long)(conf.saved_position / (float)conf.encoder_dir);

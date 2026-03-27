@@ -46,22 +46,27 @@ class gamepadNode(Node):
             self, GripperCommand, "/robotiq_gripper_controller/gripper_cmd"
         )
 
-        self.homing_client = ActionClient(self, ReachPreset, "/arm/reach_preset")
-        self.client = self.create_client(SetMode, "/arm/set_mode")
+        self.preset_client = ActionClient(self, ReachPreset, "/arm/reach_preset")
+        self.in_preset_mode = False
 
+        self.manual_client = self.create_client(SetMode, "/arm/set_mode")
         self.send_manual_control_request()  # upon init, be in manual mode
 
     def estop_pub(self):
         # msg = Bool()
         pass
 
-    def go_home(self):
-        self.homing_client.wait_for_server()
+    def send_preset(self, value):
+        if self.in_preset_mode:
+            return
+        self.in_preset_mode = True
+
+        self.preset_client.wait_for_server()
 
         goal_msg = ReachPreset.Goal()
-        goal_msg.preset = 0
+        goal_msg.preset = value
 
-        self.send_goal_future = self.homing_client.send_goal_async(
+        self.send_goal_future = self.preset_client.send_goal_async(
             goal_msg, feedback_callback=self.feedback_callback
         )
 
@@ -72,6 +77,7 @@ class gamepadNode(Node):
 
         if not goal_handle.accepted:
             self.get_logger().info("Goal rejected")
+            self.in_preset_mode = False
             self.send_manual_control_request()
             return
 
@@ -87,16 +93,17 @@ class gamepadNode(Node):
     def result_callback(self, future):
         result = future.result().result
         self.get_logger().info(f"Result: {result.success}")
+        self.in_preset_mode = False
         self.send_manual_control_request()
 
     def send_manual_control_request(self):
         # Wait until service is available
-        while not self.client.wait_for_service(timeout_sec=1.0):
+        while not self.manual_client.client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info("Service not available, waiting...")
 
         request = SetMode.Request()
         request.mode = 5
-        future = self.client.call_async(request)
+        future = self.manual_client.call_async(request)
         future.add_done_callback(self.handle_service_response)
 
     def handle_service_response(self, future):  # can be use by any service client
@@ -169,9 +176,19 @@ class gamepadNode(Node):
 
             # --- HOME BUTTON LOGIC ---
             # msg.buttons[3] is typically X or Square
-            if msg.buttons[3] == 1 and self.last_home_button_state == 0:
-                self.go_home()
-            self.last_home_button_state = msg.buttons[3]
+            if msg.buttons[0] == 1 and self.last_button_state[0] == 0:
+                self.send_preset(0)
+            if msg.buttons[1] == 1 and self.last_button_state[1] == 0:
+                self.send_preset(1)
+            if msg.buttons[2] == 1 and self.last_button_state[2] == 0:
+                self.send_preset(2)
+            if msg.buttons[3] == 1 and self.last_button_state[3] == 0:
+                self.send_preset(3)
+
+            self.last_button_state[0] = msg.buttons[0]
+            self.last_button_state[1] = msg.buttons[1]
+            self.last_button_state[2] = msg.buttons[2]
+            self.last_button_state[3] = msg.buttons[3]
 
             # # --- Gripper Control (Buttons) ---
             # # msg.buttons[6] = A (Close), msg.buttons[7] = B (Open)

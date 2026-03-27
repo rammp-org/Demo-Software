@@ -7,11 +7,10 @@ from geometry_msgs.msg import Vector3, Vector3Stamped
 import tf2_ros
 from tf2_geometry_msgs import do_transform_vector3
 from trajectory_msgs.msg import JointTrajectory
-from controller_manager_msgs.srv import SwitchController
 from rclpy.action import ActionClient
-from control_msgs.action import GripperCommand
 from arm_interfaces.srv import SetMode
 from arm_interfaces.action import ReachPreset
+from std_srvs.srv import Trigger
 
 
 class gamepadNode(Node):
@@ -30,21 +29,14 @@ class gamepadNode(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        # Controller Switcher Client
-        self.switch_client = self.create_client(
-            SwitchController, "/controller_manager/switch_controller"
-        )
-
         # Arm Velocity Publisher
         self.twist_pub = self.create_publisher(Twist, "/arm/xbox/twist", 10)
         self.home_pub = self.create_publisher(
             JointTrajectory, "/joint_trajectory_controller/joint_trajectory", 10
         )
 
-        # Gripper Action Client
-        self.gripper_client = ActionClient(
-            self, GripperCommand, "/robotiq_gripper_controller/gripper_cmd"
-        )
+        self.open_gripper_client = self.create_client(Trigger, "/arm/open_gripper")
+        self.close_gripper_client = self.create_client(Trigger, "/arm/close_gripper")
 
         self.preset_client = ActionClient(self, ReachPreset, "/arm/reach_preset")
         self.in_preset_mode = False
@@ -96,9 +88,23 @@ class gamepadNode(Node):
         self.in_preset_mode = False
         self.send_manual_control_request()
 
+    def openGripper(self):
+        self.open_gripper_client.wait_for_service()
+
+        request = Trigger.Request()
+        future = self.open_gripper_client.call_async(request)
+        future.add_done_callback(self.handle_service_response)
+
+    def closeGripper(self):
+        self.close_gripper_client.wait_for_service()
+
+        request = Trigger.Request()
+        future = self.close_gripper_client.call_async(request)
+        future.add_done_callback(self.handle_service_response)
+
     def send_manual_control_request(self):
         # Wait until service is available
-        while not self.manual_client.client.wait_for_service(timeout_sec=1.0):
+        while not self.manual_client.wait_for_service():
             self.get_logger().info("Service not available, waiting...")
 
         request = SetMode.Request()
@@ -112,13 +118,6 @@ class gamepadNode(Node):
             self.get_logger().info("Service call success")
         else:
             self.get_logger().info("Service call failed")
-
-    def reactivate_twist(self):
-        req = SwitchController.Request()
-        req.activate_controllers = ["twist_controller"]
-        req.deactivate_controllers = ["joint_trajectory_controller"]
-        self.switch_client.call_async(req)
-        self.get_logger().info("Joystick Control Reactivated.")
 
     def joy_callback(self, msg):  # includes twist publishing
         # --- PRINTING AXES ---
@@ -185,19 +184,14 @@ class gamepadNode(Node):
             if msg.buttons[3] == 1 and self.last_button_state[3] == 0:
                 self.send_preset(3)
 
-            self.last_button_state[0] = msg.buttons[0]
-            self.last_button_state[1] = msg.buttons[1]
-            self.last_button_state[2] = msg.buttons[2]
-            self.last_button_state[3] = msg.buttons[3]
+            # --- Gripper Control (Buttons) ---
+            # msg.buttons[6] = A (Close), msg.buttons[7] = B (Open)
+            if msg.buttons[4] == 1 and self.last_button_state[4] == 0:
+                self.closeGripper()
+            elif msg.buttons[5] == 1 and self.last_button_state[5] == 0:
+                self.openGripper()
 
-            # # --- Gripper Control (Buttons) ---
-            # # msg.buttons[6] = A (Close), msg.buttons[7] = B (Open)
-            # if msg.buttons[4] == 1 and self.last_button_state[4] == 0:
-            #     self.send_gripper_goal(0.8)  # 0.8 = Fully Closed
-            # elif msg.buttons[5] == 1 and self.last_button_state[5] == 0:
-            #     self.send_gripper_goal(0.0)  # 0.0 = Fully Open
-
-            # self.last_button_state = msg.buttons
+            self.last_button_state = list(msg.buttons)
 
         except (
             tf2_ros.LookupException,
@@ -207,16 +201,6 @@ class gamepadNode(Node):
             self.get_logger().warn(f"Waiting for TF: {e}", throttle_duration_sec=2.0)
         except Exception as e:
             self.get_logger().error(f"Unexpected Error: {e}")
-
-    def send_gripper_goal(self, position):
-        if not self.gripper_client.wait_for_server(timeout_sec=1.0):
-            self.get_logger().error("Gripper action server not available")
-            return
-
-        goal_msg = GripperCommand.Goal()
-        goal_msg.command.position = position
-        goal_msg.command.max_effort = 100.0
-        self.gripper_client.send_goal_async(goal_msg)
 
 
 def main(args=None):

@@ -666,6 +666,16 @@ class ArmDriverNode(rclpy.node.Node):
         stamp = self.get_clock().now().to_msg()
 
         joint_msg = JointState()
+        joint_msg.name = [
+            "joint_1",
+            "joint_2",
+            "joint_3",
+            "joint_4",
+            "joint_5",
+            "joint_6",
+            "joint_7",
+            "gripper",
+        ]
         joint_msg.header.stamp = stamp
         force_msg = Vector3Stamped()
         vel_msg = TwistStamped()

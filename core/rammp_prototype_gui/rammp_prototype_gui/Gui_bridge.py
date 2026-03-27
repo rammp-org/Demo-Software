@@ -3,6 +3,7 @@ import mmap
 import rclpy
 import time
 import enum
+import threading
 
 from dataclasses import dataclass
 
@@ -172,24 +173,25 @@ class GuiBridge(Node):
 
     def send_user_input(self, input: str):
         self.get_logger().info(f"Sending user input to ROS: {input}")
-        # if self.user_input_service_client.wait_for_service(timeout_sec=1.0):
-        #     request = UserInputs.Request()
-        #     request.input = input
-        #     future = self.user_input_service_client.call_async(request)
-        #     event = threading.Event()
-        #     future.add_done_callback(lambda _: event.set())
-        #     event.wait(timeout=5.0)
-        #     if not future.done():
-        #         self.get_logger().error("User input service call timed out.")
-        #         return False
-        #     if future.result() is not None:
-        #         self.get_logger().info(f"User input '{input}' sent successfully.")
-        #         return future.result().success
-        #     else:
-        #         self.get_logger().error("User input service call failed.")
-        #         return False
-        # else:
-        #     self.get_logger().error("User input service is not available.")
+        if self.user_input_service_client.wait_for_service(timeout_sec=1.0):
+            request = UserInputs.Request()
+            request.input = input
+            future = self.user_input_service_client.call_async(request)
+            event = threading.Event()
+            future.add_done_callback(lambda _: event.set())
+            event.wait(timeout=5.0)
+            if not future.done():
+                self.get_logger().error("User input service call timed out.")
+                return False
+            if future.result() is not None:
+                self.get_logger().info(f"User input '{input}' sent successfully.")
+                return future.result().success
+            else:
+                self.get_logger().error("User input service call failed.")
+                return False
+        else:
+            self.get_logger().error("User input service is not available.")
+            return False
 
     def init_publisher(self):
         # make publisher for user input, message should be string

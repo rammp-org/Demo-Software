@@ -334,7 +334,7 @@ class DataStore(QObject):
         int, int, bool
     )  # current_step, total_steps, interpolating
 
-    NUM_JOINTS = 6
+    NUM_JOINTS = 8
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
     SIMULATION_UPDATE_MS = 20  # 50 Hz simulation rate
     DATA_UPDATE_THROTTLE_MS = 50  # Max 20Hz for data_updated signal
@@ -392,8 +392,8 @@ class DataStore(QObject):
         self._mr_drive_pwm: float = 0.0
 
         # Motor directions (6 motors)
-        self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1]
-        self._encoder_directions: List[int] = [1, 1, 1, 1, 1, 1]
+        self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1, 1, 1]
+        self._encoder_directions: List[int] = [1, 1, 1, 1, 1, 1, 1, 1]
 
         # PID configurations (dict of joint_id -> ConfigData)
         self._configs: dict = {}

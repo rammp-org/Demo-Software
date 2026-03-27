@@ -93,6 +93,8 @@ JOINT_COLORS = [
     THEME.green,  # Joint 4: MR
     THEME.sapphire,  # Joint 5: ML_Carriage
     THEME.mauve,  # Joint 6: MR_Carriage
+    THEME.teal,  # Joint 7: ML_Drive
+    THEME.flamingo,  # Joint 8: MR_Drive
 ]
 
 # State colors

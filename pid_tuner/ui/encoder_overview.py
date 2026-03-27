@@ -5,6 +5,7 @@ Encoder overview widget showing all 6 encoder positions as horizontal bars.
 from PyQt6.QtWidgets import (
     QWidget,
     QHBoxLayout,
+    QVBoxLayout,
     QLabel,
     QSizePolicy,
     QPushButton,
@@ -358,29 +359,26 @@ class EncoderOverview(QWidget):
         self._data_store.limits_updated.connect(self._update_limits)
         self._data_store.config_updated.connect(self._on_config_updated)
 
+    BARS_PER_ROW = 4
+
     def _setup_ui(self):
-        """Set up the widget layout."""
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(
+        root = QVBoxLayout(self)
+        root.setContentsMargins(
             SIZES["margin_medium"],
             SIZES["margin_small"],
             SIZES["margin_medium"],
             SIZES["margin_small"],
         )
-        layout.setSpacing(SIZES["spacing_medium"])
+        root.setSpacing(SIZES["spacing_small"])
 
-        # Title label
-        title = QLabel("Encoders:")
-        title.setStyleSheet(
-            f"color: {THEME.subtext1}; font-weight: bold; font-size: {SIZES['font_small']}pt;"
-        )
-        title.setFixedWidth(scaled(60))
-        layout.addWidget(title)
-
-        # Create bars for each joint
+        row_layout = None
         for i, joint in enumerate(JOINTS):
-            color = JOINT_COLORS[i] if i < len(JOINT_COLORS) else THEME.text
+            if i % self.BARS_PER_ROW == 0:
+                row_layout = QHBoxLayout()
+                row_layout.setSpacing(SIZES["spacing_small"])
+                root.addLayout(row_layout)
 
+            color = JOINT_COLORS[i] if i < len(JOINT_COLORS) else THEME.text
             bar = EncoderBar(
                 joint_id=joint.id,
                 name=joint.short_name,
@@ -389,13 +387,11 @@ class EncoderOverview(QWidget):
             bar.clicked.connect(self._on_bar_clicked)
             bar.jog_requested.connect(self._on_jog_requested)
             self._bars.append(bar)
-            layout.addWidget(bar)
+            row_layout.addWidget(bar)
 
-        # Set first bar as selected
         if self._bars:
             self._bars[0].set_selected(True)
 
-        # Bootstrap bar ranges from any configs already loaded in DataStore
         for joint in JOINTS:
             self._on_config_updated(joint.id)
 

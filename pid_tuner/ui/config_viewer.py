@@ -227,7 +227,7 @@ class ConfigViewerWidget(QWidget):
 
     def _on_load_all(self):
         """Load configuration from all 6 motors sequentially."""
-        self._load_queue = list(range(1, 7))  # Joints 1-6
+        self._load_queue = list(range(1, len(JOINTS) + 1))
         self._info_label.setText("Loading configurations...")
         self._load_all_btn.setEnabled(False)
 

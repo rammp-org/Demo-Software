@@ -154,7 +154,7 @@ class ProtocolParser:
     SEQ_STATUS_PATTERN = re.compile(r"^SEQ_STATUS,(\d+),(\d+),([01])$")
     SEQ_ACK_PATTERN = re.compile(r"^SEQ_ACK,(\d+)$")
 
-    NUM_JOINTS = 6
+    NUM_JOINTS = 8
 
     @classmethod
     def parse_line(cls, line: str):

@@ -53,7 +53,7 @@ string ARM_CANCEL="arm/cancel"
 # System
 string RESET="system/reset"
 string ESTOP="system/stop"
-String CONFIRM="system/confirm"
+string CONFIRM="system/confirm"
 string CANCEL="system/cancel"
 
 

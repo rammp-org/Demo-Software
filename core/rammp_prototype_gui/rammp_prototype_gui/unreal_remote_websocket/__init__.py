@@ -64,10 +64,16 @@ class UnrealRemoteWebsocket:
                     print("Preset registration sent.")
                     async for message in ws:
                         command = json.loads(message)
+                        # print(f"Received command from UE: {json.dumps(command)}")
                         if "ResponseCode" in command:
                             await self._response_queue.put(command)
                         if "ChangedFields" in command:
-                            await self._value_change_queue.put(command["ChangedFields"])
+                            await self._value_change_queue.put(
+                                command["ChangedFields"][0]
+                            )
+                            print(
+                                f"Received value change from UE: {command['ChangedFields'][0]}"
+                            )
                         # print(f"Received command from Ethernet GUI: {command}")
                         if self.ws_shutdown:
                             break
@@ -181,13 +187,16 @@ class UnrealRemoteWebsocket:
                 changes = await asyncio.wait_for(
                     self._value_change_queue.get(), timeout=1.0
                 )
+                changes_json = (
+                    json.loads(changes) if isinstance(changes, str) else changes
+                )
+
                 if (
-                    changes.have_key("PropertyLabel")
-                    and changes.have_key("PropertyValue")
-                ) and changes.get("PropertyLabel") == "UserInput":
+                    "PropertyLabel" in changes_json and "PropertyValue" in changes_json
+                ) and changes_json.get("PropertyLabel") == "UserInput":
                     if self.user_input_callback is not None:
-                        self.user_input_callback(changes["UserInput"])
-                print(f"Parsed value changes: {changes}")
+                        self.user_input_callback(changes_json.get("PropertyValue"))
+                    # print(f"Userinput: {changes_json.get('PropertyValue')}")
             except asyncio.TimeoutError:
                 pass
 

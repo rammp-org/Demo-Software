@@ -2,6 +2,7 @@ import posix_ipc
 import mmap
 import rclpy
 import time
+import enum
 
 from dataclasses import dataclass
 
@@ -61,6 +62,47 @@ class ButtonInfo:
     CanPress: bool
 
 
+class UserInputString(enum.Enum):
+    # get all userinput from UserInputs.srv file as enum
+    CHAIR_CONTROL_MAIN = UserInputs.Request.CHAIR_CONTROL_MAIN
+    CHAIR_SELFLEVELING_ON = UserInputs.Request.CHAIR_SELFLEVELING_ON
+    CHAIR_SELFLEVELING_OFF = UserInputs.Request.CHAIR_SELFLEVELING_OFF
+    CHAIR_SEAT_ELEVATE_UP = UserInputs.Request.CHAIR_SEAT_ELEVATE_UP
+    CHAIR_SEAT_ELEVATE_DOWN = UserInputs.Request.CHAIR_SEAT_ELEVATE_DOWN
+    CHAIR_SEAT_ELEVATE_HOME = UserInputs.Request.CHAIR_SEAT_ELEVATE_HOME
+    CHAIR_SEAT_RECLINE_FORWARD = UserInputs.Request.CHAIR_SEAT_RECLINE_FORWARD
+    CHAIR_SEAT_ELEVATE_RECLINE_BACK = UserInputs.Request.CHAIR_SEAT_ELEVATE_RECLINE_BACK
+    CHAIR_SEAT_ELEVATE_RECLINE_HOME = UserInputs.Request.CHAIR_SEAT_ELEVATE_RECLINE_HOME
+    CHAIR_SEAT_ELEVATE_LTILT_LEFT = UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_LEFT
+    CHAIR_SEAT_ELEVATE_LTILT_RIGHT = UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_RIGHT
+    CHAIR_SEAT_ELEVATE_LTILT_HOME = UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_HOME
+    CHAIR_CURB_NAVIGATION = UserInputs.Request.CHAIR_CURB_NAVIGATION
+    CHAIR_CURB_ASCEND = UserInputs.Request.CHAIR_CURB_ASCEND
+    CHAIR_CURB_DESCEND = UserInputs.Request.CHAIR_CURB_DESCEND
+    CHAIR_CURB_CANCEL = UserInputs.Request.CHAIR_CURB_CANCEL
+    ARM_CONTROL_MAIN = UserInputs.Request.ARM_CONTROL_MAIN
+    ARM_RETRACT = UserInputs.Request.ARM_RETRACT
+    ARM_HOME = UserInputs.Request.ARM_HOME
+    ARM_MANUAL_ON = UserInputs.Request.ARM_MANUAL_ON
+    ARM_MANUAL_OFF = UserInputs.Request.ARM_MANUAL_OFF
+    ARM_OPEN_DOOR = UserInputs.Request.ARM_OPEN_DOOR
+    ARM_OPEN_DOOR_CONFIRM = UserInputs.Request.ARM_OPEN_DOOR_CONFIRM
+    ARM_ORDER_DRINK = UserInputs.Request.ARM_ORDER_DRINK
+    ARM_ORDER_DRINK_RELEASE_CUP = UserInputs.Request.ARM_ORDER_DRINK_RELEASE_CUP
+    ARM_ORDER_DRINK_RECEIVE = UserInputs.Request.ARM_ORDER_DRINK_RECEIVE
+    ARM_ORDER_DRINK_RECEIVE_CONFIRM = UserInputs.Request.ARM_ORDER_DRINK_RECEIVE_CONFIRM
+    ARM_CUP_STABLE_ON = UserInputs.Request.ARM_CUP_STABLE_ON
+    ARM_CUP_STABLE_OFF = UserInputs.Request.ARM_CUP_STABLE_OFF
+    ARM_DRINKING_START = UserInputs.Request.ARM_DRINKING_START
+    ARM_DRINKING_FINISH = UserInputs.Request.ARM_DRINKING_FINISH
+    ARM_CUP_BACK = UserInputs.Request.ARM_CUP_BACK
+    ARM_CANCEL = UserInputs.Request.ARM_CANCEL
+    RESET = UserInputs.Request.RESET
+    ESTOP = UserInputs.Request.ESTOP
+    CONFIRM = UserInputs.Request.CONFIRM
+    CANCEL = UserInputs.Request.CANCEL
+
+
 class GuiBridge(Node):
     instance = None
 
@@ -90,7 +132,11 @@ class GuiBridge(Node):
         )
         print(f"Using UE host: {self.host}, UE preset: {self.ue_preset}")
 
-        self.ue = UnrealRemoteWebsocket(host=self.host, preset=self.ue_preset)
+        self.ue = UnrealRemoteWebsocket(
+            host=self.host,
+            preset=self.ue_preset,
+            user_input_callback=self.user_input_callback,
+        )
         self.stream_sender = StreamSender(host=self.host, port=30030)
         self.stream_check_timer = self.create_timer(1.0, self.check_streamer_connection)
         self.update_ue_timer = self.create_timer(0.1, self.ue_update)
@@ -123,6 +169,27 @@ class GuiBridge(Node):
         self.user_input_service_client = self.create_client(
             UserInputs, "/GuiBridge/receive_input", callback_group=self._cb_group
         )
+
+    def send_user_input(self, input: str):
+        self.get_logger().info(f"Sending user input to ROS: {input}")
+        # if self.user_input_service_client.wait_for_service(timeout_sec=1.0):
+        #     request = UserInputs.Request()
+        #     request.input = input
+        #     future = self.user_input_service_client.call_async(request)
+        #     event = threading.Event()
+        #     future.add_done_callback(lambda _: event.set())
+        #     event.wait(timeout=5.0)
+        #     if not future.done():
+        #         self.get_logger().error("User input service call timed out.")
+        #         return False
+        #     if future.result() is not None:
+        #         self.get_logger().info(f"User input '{input}' sent successfully.")
+        #         return future.result().success
+        #     else:
+        #         self.get_logger().error("User input service call failed.")
+        #         return False
+        # else:
+        #     self.get_logger().error("User input service is not available.")
 
     def init_publisher(self):
         # make publisher for user input, message should be string
@@ -195,7 +262,7 @@ class GuiBridge(Node):
                     Pose=Transform(
                         Translation=Vector(X=1.0, Y=2.0, Z=3.0),
                         Rotation=Quaternion(X=0.0, Y=0.0, Z=0.0, W=1.0),
-                        Scale=Vector(X=1.0, Y=1.0, Z=1.0),
+                        Scale3D=Vector(X=1.0, Y=1.0, Z=1.0),
                     ),
                     Success=True,
                     Message="Curb info updated successfully",
@@ -379,6 +446,8 @@ class GuiBridge(Node):
         self.get_logger().info(f"Received user input: {input}")
         # Here you can process the user input and send it to UE if needed
         # For example, you can call a UE function with the user input as parameter
+        if input in (item.value for item in UserInputString):
+            self.send_user_input(input)
 
 
 def main():

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 import asyncio
 import websockets
 import threading
@@ -15,6 +15,9 @@ class UnrealRemoteError(Exception):
     """Raised when a remote control API call fails."""
 
     pass
+
+
+UserInputCallback = Callable[[str], None]
 
 
 class UnrealRemoteWebsocket:
@@ -32,6 +35,7 @@ class UnrealRemoteWebsocket:
         ws_port: int = 30020,
         preset: Optional[str] = None,
         timeout: float = 1.0,
+        user_input_callback: Optional[UserInputCallback] = None,
     ):
         self.base_url = f"ws://{host}:{ws_port}"
         self.loop = asyncio.new_event_loop()
@@ -42,6 +46,7 @@ class UnrealRemoteWebsocket:
         self._value_change_queue = Queue()  # For unsolicited value changes from UE
         self._send_lock = Lock()  # serialize sends
         self.ws_client = None
+        self.user_input_callback = user_input_callback
 
         t = threading.Thread(target=self.start_async_loop, daemon=True)
         t.start()
@@ -176,6 +181,12 @@ class UnrealRemoteWebsocket:
                 changes = await asyncio.wait_for(
                     self._value_change_queue.get(), timeout=1.0
                 )
+                if (
+                    changes.have_key("PropertyLabel")
+                    and changes.have_key("PropertyValue")
+                ) and changes.get("PropertyLabel") == "UserInput":
+                    if self.user_input_callback is not None:
+                        self.user_input_callback(changes["UserInput"])
                 print(f"Parsed value changes: {changes}")
             except asyncio.TimeoutError:
                 pass

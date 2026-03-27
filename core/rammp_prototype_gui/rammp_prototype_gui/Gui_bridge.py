@@ -375,6 +375,11 @@ class GuiBridge(Node):
             self.mapfile.write(data.encode("utf-8"))
             self.mapfile.flush()
 
+    def user_input_callback(self, input: str):
+        self.get_logger().info(f"Received user input: {input}")
+        # Here you can process the user input and send it to UE if needed
+        # For example, you can call a UE function with the user input as parameter
+
 
 def main():
     rclpy.init()

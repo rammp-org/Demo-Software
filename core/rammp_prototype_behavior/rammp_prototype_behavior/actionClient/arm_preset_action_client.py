@@ -58,11 +58,9 @@ class ArmPresetActionClient(ActionClientWrapper):
                 self._node.homed()
             elif self._current_preset == ArmPreset.CUP_STABILIZE:
                 self._node.cupStable()  # should enter cup stabilized state after reaching cup stabilize preset
-            elif (
-                self._current_preset == ArmPreset.RETRACT
-                and self._node._mock_state.is_mocking_arm_retract()
-            ):
-                self._node._mock_state.finish_current_mock_task()  # finish mock arm retract task after reaching retract preset
+            elif self._current_preset == ArmPreset.RETRACT:
+                if self._node._mock_state.is_mocking_arm_retract():
+                    self._node._mock_state.finish_current_mock_task()  # finish mock arm retract task after reaching retract preset
                 self._node.retracted()  # should enter arm retracted state after reaching retract preset when mocking arm retract
         else:
             self._node.get_logger().warn(

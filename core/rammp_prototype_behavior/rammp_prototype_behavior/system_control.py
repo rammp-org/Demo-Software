@@ -23,6 +23,7 @@ from .actionClient.chair_curb_traverse_action_client import (
     CurbTraverseDirection,
     ChairCurbTraverseActionClient,
 )
+from gui_interfaces.srv import UserInputs
 from transitions.extensions import HierarchicalMachine as Machine
 from .node_name_monitor import NodeNameMonitor
 from ament_index_python.packages import get_package_share_directory
@@ -140,12 +141,12 @@ class SystemControl(rclpy.node.Node):
         self.node_monitor = NodeNameMonitor(self, json_path, self.node_monitor_callback)
 
         self.curb_traverse_direction = None  # to store curb traverse direction for testing, will remove after testing
+        self.init_state_machine()
 
         self.init_publisher()
         self.init_subscribers()
-        self.init_services_clients()
+        self.init_services()
         self.init_actions_clients()
-        self.init_state_machine()
         self._test_timer = self.create_timer(
             1.0, self.mock_task, callback_group=self._cb_group
         )
@@ -279,10 +280,6 @@ class SystemControl(rclpy.node.Node):
             None  # reset curb traverse direction after sending action goal
         )
 
-    def on_enter_Nav_paused(self):
-        self.get_logger().info("Curb traverse paused. Waiting for resume command.")
-        self.base_drive_enable(False)  # disable base drive to pause curb traverse
-
     # -----------------------end of curb navigation transtion functions----------------------
 
     # ---------Arm Pause state transition function calls---------------------------------
@@ -299,7 +296,7 @@ class SystemControl(rclpy.node.Node):
         )
         self.set_arm_mode(ArmMode.MANUAL)  # set arm mode to manual for manual control
 
-        # mock 5s manual control, then disable it
+        # mock 5s manual control, then disable it TODO: remove mock
         self.get_logger().info("Mock manual control for 5 seconds.")
         self._mock_delay(
             5.0, self.exitManualControl
@@ -414,6 +411,18 @@ class SystemControl(rclpy.node.Node):
         )  # set arm mode to DRINKING when placing cup back to holder, will set specific arm preset in the action server later
         self.put_cup_back_to_holder_client.send_goal()  # send action goal to place cup back to holder, will replace with actual place cup back logic later
 
+    def on_enter_Chair_SLOff(self):
+        self.get_logger().info("Self-leveling is turned off.")
+        self.base_self_leveling_enable(
+            False
+        )  # disable self-leveling when entering SLOff state
+
+    def on_enter_Chair_SLOn(self):
+        self.get_logger().info("Self-leveling is turned on.")
+        self.base_self_leveling_enable(
+            True
+        )  # enable self-leveling when entering SLOn state
+
     # --------------------end of order drink state transition function calls --------------------------
 
     # --------------------door open state transition function calls------------------------
@@ -445,6 +454,22 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().debug("Arm is retracted, ready for next command.")
         self.set_arm_mode(ArmMode.IDLE)
 
+    def on_enter_Nav_paused(self):
+        self.get_logger().debug("Navigation is paused.")
+        self.base_drive_enable(False)  # disable base drive to pause navigation
+        self.curb_traverse_client.cancel_goal()
+        self.curb_traverse_direction = (
+            None  # reset curb traverse direction when navigation is paused
+        )
+
+    def on_enter_Arm_retracting(self):
+        self.get_logger().info("Retracting arm to prepare for next action.")
+        self.arm_preset_client.set_preset(ArmPreset.RETRACT)
+
+    def on_enter_Arm_homing(self):
+        self.get_logger().info("Moving arm to home position.")
+        self.arm_preset_client.set_preset(ArmPreset.HOME)
+
     # --------------------end of Door Open State Transition Functions------------------------
 
     def init_publisher(self):
@@ -452,6 +477,18 @@ class SystemControl(rclpy.node.Node):
         self.base_manual_seat_control_publisher = self.create_publisher(
             String, "/base/manual_seat_control", 10
         )  # message type is placeholder
+        self.system_state_publisher = self.create_publisher(
+            String, "/system/state", 10
+        )  # message type is placeholder
+        self.system_state_publisher_timer = self.create_timer(
+            0.1, self.publish_system_state, callback_group=self._cb_group
+        )
+
+    def publish_system_state(self):
+        # Placeholder for publishing system state, will replace with actual system state message later
+        msg = String()
+        msg.data = self.state
+        self.system_state_publisher.publish(msg)
 
     def init_subscribers(self):
         self.arm_status_subscriber = self.create_subscription(
@@ -461,8 +498,15 @@ class SystemControl(rclpy.node.Node):
             10,
             callback_group=self._cb_group,
         )
+        self.Gui_connection_subscriber = self.create_subscription(
+            bool,
+            "/GuiBridge/gui_connection",
+            self.Gui_connection_callback,
+            10,
+            callback_group=self._cb_group,
+        )
 
-    def init_services_clients(self):
+    def init_services(self):
         self._service_cb_group = ReentrantCallbackGroup()
         self.set_mode_client = self.create_client(
             SetMode, "/arm/set_mode", callback_group=self._service_cb_group
@@ -505,6 +549,12 @@ class SystemControl(rclpy.node.Node):
             SetBool,
             "/base/self_level_enable",
             callback_group=self._service_cb_group,
+        )
+        self.create_service(
+            UserInputs,
+            "/GuiBridge/receive_input",
+            self._srv_user_inputs_callback,
+            callback_group=self._callback_group,
         )
 
     def init_actions_clients(self):
@@ -656,12 +706,105 @@ class SystemControl(rclpy.node.Node):
 
     # ----------End of Helper functions to call services and actions for state transitions----------------
 
-    # ----------publisher callback functions to process messages and update internal state----------------
+    # ----------publisher / service callback functions to process messages and update internal state----------------
     def arm_status_callback(self, msg: DiagnosticStatus):
         # Placeholder for processing arm status messages
         if self._arm_status != msg.message:
             self.get_logger().info(f" arm status: {self._arm_status} --> {msg.message}")
             self._arm_status = msg.message
+
+    def Gui_connection_callback(self, msg: bool):
+        # Placeholder for processing GUI connection status, will replace with actual logic to handle GUI connection status later
+        if msg:
+            self.get_logger().info("GUI is connected.")
+        else:
+            self.get_logger().warn("GUI is disconnected.")
+
+    def _srv_user_inputs_callback(
+        self, request: UserInputs.Request, response: UserInputs.Response
+    ):
+        # Placeholder for processing user inputs from GUI, will replace with actual logic to handle different user inputs later
+        self.get_logger().info(f"Received user input: {request.input}")
+        match request.input:
+            case UserInputs.Request.CHAIR_CONTROL_MAIN:
+                self.reqChair()
+            case UserInputs.Request.CHAIR_SELFLEVELING_ON:
+                self.enableSL()
+            case UserInputs.Request.CHAIR_SELFLEVELING_OFF:
+                self.disableSL()
+            case (
+                UserInputs.Request.CHAIR_SEAT_ELEVATE_UP
+                | UserInputs.Request.CHAIR_SEAT_ELEVATE_DOWN
+                | UserInputs.Request.CHAIR_SEAT_ELEVATE_HOME
+                | UserInputs.Request.CHAIR_SEAT_RECLINE_FORWARD
+                | UserInputs.Request.CHAIR_SEAT_ELEVATE_RECLINE_BACK
+                | UserInputs.Request.CHAIR_SEAT_ELEVATE_RECLINE_HOME
+                | UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_LEFT
+                | UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_RIGHT
+                | UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_HOME
+                | UserInputs.Request.CHAIR_SEAT_HOME
+            ):
+                self.request_manual_seat_control(request.input.name)
+            case UserInputs.Request.CHAIR_CURB_NAVIGATION:
+                self.reqNav()
+            case UserInputs.Request.CHAIR_CURB_ASCEND:
+                self.curb_traverse_direction = CurbTraverseDirection.ASCEND
+                self.startTraverseConfirm()  # should enter Nav_traverse state and start curb traverse action for testing, will replace with actual logic to determine when to start curb traverse later
+            case UserInputs.Request.CHAIR_CURB_DESCEND:
+                self.curb_traverse_direction = CurbTraverseDirection.DESCEND
+                self.startTraverseConfirm()  # should enter Nav_traverse state and start curb traverse action for testing, will replace with actual logic to determine when to start curb traverse later
+            case UserInputs.Request.CHAIR_CURB_CANCEL:
+                self.reqNavCancel()  # should enter Nav_paused state and pause curb traverse for testing, will replace with actual logic to determine when to pause curb traverse later
+            case UserInputs.Request.ARM_CONTROL_MAIN:
+                self.reqArm()
+            case UserInputs.Request.ARM_RETRACT:
+                self.retract()
+            case UserInputs.Request.ARM_HOME:
+                self.reqHome()
+            case UserInputs.Request.ARM_MANUAL_ON:
+                self.reqManualControl()
+            case UserInputs.Request.ARM_MANUAL_OFF:
+                self.exitManualControl()
+            case UserInputs.Request.ARM_OPEN_DOOR:
+                self.reqOpenDoor()
+            case UserInputs.Request.ARM_OPEN_DOOR_CONFIRM:
+                self.openDoorConfirm()
+            case UserInputs.Request.ARM_ORDER_DRINK:
+                self.reqOrderDrink()
+            case UserInputs.Request.ARM_ORDER_DRINK_RELEASE_CUP:
+                self.releaseCupConfirm()
+            case UserInputs.Request.ARM_ORDER_DRINK_RECEIVE:
+                self.detectDrink()
+            case UserInputs.Request.ARM_ORDER_DRINK_RECEIVE_CONFIRM:
+                self.receiveDrinkConfirm()
+            case UserInputs.Request.ARM_CUP_STABLE_ON:
+                self.reqStabilizeCup()
+            case UserInputs.Request.ARM_CUP_STABLE_OFF:
+                self.reqCupStabilizeOff()
+            case UserInputs.Request.ARM_DRINKING_START:
+                self.reqDrink()
+            case UserInputs.Request.ARM_DRINKING_FINISH:
+                self.placeCupAway()
+            case UserInputs.Request.ARM_CUP_BACK:
+                self.placeCupBack()
+            case UserInputs.Request.ARM_CANCEL:
+                self.cancelArmAction()  # should try to cancel current arm action and enter Arm_paused state for testing, will replace with actual logic to determine when to cancel arm action later
+            case UserInputs.Request.RESET:
+                self.reset()  # should reset the system and enter init state for testing, will replace with actual logic to determine when to reset system later
+            case UserInputs.Request.ESTOP:
+                self.eStop()  # should enter error state for testing, will replace with actual logic to determine when to enter error state later
+            case UserInputs.Request.CONFIRM:
+                self.confirm()  # placeholder for confirm action, will replace with actual logic to handle confirm action later
+            case UserInputs.Request.CANCEL:
+                self.cancel()  # placeholder for cancel action, will replace with actual logic to handle cancel action later
+            case _:
+                response.success = False
+                response.message = "Unknown command"
+                self.get_logger().warn(f"Received unknown command: {request.input}")
+                return response
+        response.success = True  # always return success.
+        response.message = "Command executed"
+        return response
 
     # node name monitor callback
     def node_monitor_callback(self, all_nodes_ready):

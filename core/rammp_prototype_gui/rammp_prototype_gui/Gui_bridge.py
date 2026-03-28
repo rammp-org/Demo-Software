@@ -257,7 +257,7 @@ class GuiBridge(Node):
                 self._system_state = "TestState"
             if self.test_ue_counter == 5:
                 self._system_state = None
-                print("Testing sending curb info to UE...               ")
+                print("Testing sending curb info to UE...")
                 curbInfo = CurbInfo(
                     Distance=0.5,
                     Height=0.2,
@@ -432,7 +432,7 @@ class GuiBridge(Node):
 
     def system_state_callback(self, msg):
         if self._system_state is None or self._system_state != msg.data:
-            self.get_logger().info("Received new system state: " + msg.data)
+            self.get_logger().debug("Received new system state: " + msg.data)
             self._system_state = msg.data
             self.send_system_state_to_ue()
         self._system_state = msg.data
@@ -445,7 +445,7 @@ class GuiBridge(Node):
             self.mapfile.flush()
 
     def user_input_callback(self, input: str):
-        self.get_logger().info(f"Received user input: {input}")
+        self.get_logger().debug(f"Received user input: {input}")
         # Here you can process the user input and send it to UE if needed
         # For example, you can call a UE function with the user input as parameter
         if input in (item.value for item in UserInputString):

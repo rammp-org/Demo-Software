@@ -470,6 +470,18 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().info("Moving arm to home position.")
         self.arm_preset_client.set_preset(ArmPreset.HOME)
 
+    def after_seat_control(self):
+        if self._seat_control_request is None:
+            self.get_logger().warn("No seat control command to process.")
+            return
+        self.get_logger().info(
+            f"Processing seat control command: {self._seat_control_request}"
+        )
+        self.request_manual_seat_control(
+            self._seat_control_request
+        )  # send manual seat control command to base
+        self._seat_control_request = None  # reset seat control request after processing
+
     # --------------------end of Door Open State Transition Functions------------------------
 
     def init_publisher(self):
@@ -477,6 +489,7 @@ class SystemControl(rclpy.node.Node):
         self.base_manual_seat_control_publisher = self.create_publisher(
             String, "/base/manual_seat_control", 10
         )  # message type is placeholder
+        self._seat_control_request = None  # to store seat control command for testing, will replace with actual logic to handle different seat control commands later
         self.system_state_publisher = self.create_publisher(
             String, "/system/state", 10
         )  # message type is placeholder
@@ -744,7 +757,8 @@ class SystemControl(rclpy.node.Node):
                 | UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_HOME
                 | UserInputs.Request.CHAIR_SEAT_HOME
             ):
-                self.request_manual_seat_control(request.input.name)
+                self._seat_control_request = request.input  # store the seat control command for testing, will replace with actual logic to handle different seat control commands later
+                self.seatControl()
             case UserInputs.Request.CHAIR_CURB_NAVIGATION:
                 self.reqNav()
             case UserInputs.Request.CHAIR_CURB_ASCEND:
@@ -1127,7 +1141,12 @@ class SystemControl(rclpy.node.Node):
             # chair sub state transitions
             {"trigger": "enableSL", "source": "Chair_SLOff", "dest": "Chair_SLOn"},
             {"trigger": "disableSL", "source": "Chair_SLOn", "dest": "Chair_SLOff"},
-            {"trigger": "seatControl", "source": "Chair_SLOff", "dest": "Chair_SLOff"},
+            {
+                "trigger": "seatControl",
+                "source": "Chair_SLOff",
+                "dest": "Chair_SLOff",
+                "after": "after_seat_control",
+            },  # seat control command, stay in the same state but call after_seat_control function to process the command
             # navigation sub state transitions
             {
                 "trigger": "startTraverseConfirm",

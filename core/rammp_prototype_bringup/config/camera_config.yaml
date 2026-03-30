@@ -25,6 +25,9 @@ disable_orbbec: false       # true = skip nav camera entirely
     serial_no: ""                       # Leave empty to auto-select
 
 # ── Nav Camera — Orbbec Gemini 336L ──────────────────────────
+# Note: Orbbec does not load params via the standard ROS2 params_file.
+# Serial number must be passed directly as a launch argument:
+#   nav_camera_serial:=<SN>
 /camera/nav:
   ros__parameters:
     camera_name: "nav"                  # Namespace → topics at /camera/nav/

@@ -8,8 +8,8 @@ public:
   // Position sensors pin selection
   // TODO: find out what this does
   float K_sensors = 1;
-  // TODO: Enc9 and Enc8 are switched because ML drive wheel encoder wasn't
-  // working (fixed?)
+  // TODO: Enc9 and Enc10 are switched because MR carriage encoder wasn't
+  // working
   // TODO: Enc4 and Enc6 were switched because Enc4 connection seems to freeze
   // loop
   Encoder Enc1 = Encoder(1, 0);    // RC bottom         (1,0)
@@ -20,8 +20,8 @@ public:
   Encoder Enc4 = Encoder(11, 10);  // ML front          (11,10)
   Encoder Enc7 = Encoder(24, 12);  // ML carriage       (24,12)
   Encoder Enc8 = Encoder(26, 25);  // MR drive wheel    (26,25)
-  Encoder Enc9 = Encoder(28, 27);  // MR carriage       (28,27)
-  Encoder Enc10 = Encoder(30, 29); // MR front          (30,29)
+  Encoder Enc10 = Encoder(28, 27); // MR carriage       (28,27)
+  Encoder Enc9 = Encoder(30, 29);  // MR front          (30,29)
   Encoder Enc11 = Encoder(32, 31); // ML back           (32,31)
   Encoder Enc12 = Encoder(36, 37); // MR back           (36,37)
   signed long encoder[13]; // = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };

@@ -16,8 +16,8 @@ class RoboClaw;
 // Index 3 (id=4): mr,          enc=5,  roboclaw_main,     M2, offset=true,  seq=true,  "mr"
 // Index 4 (id=5): ml_carriage, enc=11, roboclaw_carriages,M1, offset=true,  seq=true,  "ml_carriage"
 // Index 5 (id=6): mr_carriage, enc=12, roboclaw_carriages,M2, offset=true,  seq=true,  "mr_carriage"
-// Index 6 (id=7): ml_drive,    enc=9,  nullptr,           0,  offset=false, seq=false, "ml_drive"
-// Index 7 (id=8): mr_drive,    enc=10, nullptr,           0,  offset=false, seq=false, "mr_drive"
+// Index 6 (id=7): drive_fb,    enc=9,  nullptr,           0,  offset=false, seq=false, "drive_fb"
+// Index 7 (id=8): drive_lr,    enc=10, nullptr,           0,  offset=false, seq=false, "drive_lr"
 
 constexpr uint8_t NUM_MOTORS = 8;
 constexpr uint8_t NUM_SEQ_MOTORS = 6;

@@ -282,16 +282,16 @@ class DriveWheelDisplay(QWidget):
         self._luci.stop()
 
     def _update_display(self):
-        self.left_arc.set_velocity(self.data_store.ml_drive_vel)
-        self.right_arc.set_velocity(self.data_store.mr_drive_vel)
+        self.left_arc.set_velocity(self.data_store.raw_ml_enc_vel)
+        self.right_arc.set_velocity(self.data_store.raw_mr_enc_vel)
 
         if self._luci.is_connected and not self._manual_override:
-            ml_pwm = self.data_store.ml_drive_pwm
-            mr_pwm = self.data_store.mr_drive_pwm
+            fb_pwm = self.data_store.drive_fb_pwm
+            lr_pwm = self.data_store.drive_lr_pwm
 
-            if abs(ml_pwm) > 0.001 or abs(mr_pwm) > 0.001:
-                fb = int(((ml_pwm + mr_pwm) / 2.0) * 100.0)
-                lr = int(((mr_pwm - ml_pwm) / 2.0) * 100.0)
+            if abs(fb_pwm) > 0.001 or abs(lr_pwm) > 0.001:
+                fb = int(fb_pwm * 100.0)
+                lr = int(lr_pwm * 100.0)
                 fb = max(-100, min(100, fb))
                 lr = max(-100, min(100, lr))
                 self._luci.set_drive(fb, lr)

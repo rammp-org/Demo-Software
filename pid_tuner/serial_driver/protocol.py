@@ -89,12 +89,19 @@ class EncoderData:
     control_mode_values: List[int] = field(default_factory=list)
 
     # Drive wheel telemetry
-    ml_drive_pos: float = 0.0
-    mr_drive_pos: float = 0.0
-    ml_drive_vel: float = 0.0
-    mr_drive_vel: float = 0.0
-    ml_drive_pwm: float = 0.0
-    mr_drive_pwm: float = 0.0
+    drive_fb_pos: float = 0.0
+    drive_lr_pos: float = 0.0
+    drive_fb_vel: float = 0.0
+    drive_lr_vel: float = 0.0
+    drive_fb_pwm: float = 0.0
+    drive_lr_pwm: float = 0.0
+    drive_fb_mode: int = 0
+    drive_lr_mode: int = 0
+
+    raw_ml_enc_pos: float = 0.0
+    raw_mr_enc_pos: float = 0.0
+    raw_ml_enc_vel: float = 0.0
+    raw_mr_enc_vel: float = 0.0
 
     @property
     def num_joints(self) -> int:
@@ -279,13 +286,21 @@ class ProtocolParser:
                         data.control_mode_values = [int(v) for v in values[53:59]]
                     # Support 63-value format with drive wheel telemetry
                     if len(values) >= 63:
-                        data.ml_drive_pos = values[59]
-                        data.mr_drive_pos = values[60]
-                        data.ml_drive_vel = values[61]
-                        data.mr_drive_vel = values[62]
+                        data.drive_fb_pos = values[59]
+                        data.drive_lr_pos = values[60]
+                        data.drive_fb_vel = values[61]
+                        data.drive_lr_vel = values[62]
                     if len(values) >= 65:
-                        data.ml_drive_pwm = values[63]
-                        data.mr_drive_pwm = values[64]
+                        data.drive_fb_pwm = values[63]
+                        data.drive_lr_pwm = values[64]
+                    if len(values) >= 67:
+                        data.drive_fb_mode = int(values[65])
+                        data.drive_lr_mode = int(values[66])
+                    if len(values) >= 71:
+                        data.raw_ml_enc_pos = values[67]
+                        data.raw_mr_enc_pos = values[68]
+                        data.raw_ml_enc_vel = values[69]
+                        data.raw_mr_enc_vel = values[70]
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:

@@ -6,9 +6,10 @@
 #include "../EncoderContainer/EncoderContainer.h"
 #include "../ConfigStorage/ConfigStorage.h"
 
-// Extern declarations for functions defined in Base.ino
+// Extern declarations for functions/globals defined in Base.ino
 extern void saveMotorConfig(int motor_id, Motor *m);
 extern void saveAllMotorConfigs();
+extern Motor drive_fb, drive_lr;
 
 // DEBUG_MODE is defined in Base.ino — replicate here for debug prints
 #ifndef DEBUG_MODE
@@ -144,11 +145,22 @@ void handleResetPID(CommandContext& ctx) {
 }
 
 void handleHome(CommandContext& ctx) {
-  int enc_idx = motor_map[ctx.actuator_id - 1].encoder_index;
-  ctx.encoders.zeroEncoder(enc_idx);
-  ctx.motor->pos_pid.reset();
-  ctx.motor->vel_pid.reset();
-  ctx.motor->target_pos = 0;
+  if (ctx.actuator_id == 7 || ctx.actuator_id == 8) {
+    ctx.encoders.zeroEncoder(9);
+    ctx.encoders.zeroEncoder(10);
+    drive_fb.pos_pid.reset();
+    drive_fb.vel_pid.reset();
+    drive_fb.target_pos = 0;
+    drive_lr.pos_pid.reset();
+    drive_lr.vel_pid.reset();
+    drive_lr.target_pos = 0;
+  } else {
+    int enc_idx = motor_map[ctx.actuator_id - 1].encoder_index;
+    ctx.encoders.zeroEncoder(enc_idx);
+    ctx.motor->pos_pid.reset();
+    ctx.motor->vel_pid.reset();
+    ctx.motor->target_pos = 0;
+  }
   if (DEBUG_MODE) {
     Serial.print("DEBUG: Homed encoder for joint ");
     Serial.println(ctx.actuator_id);

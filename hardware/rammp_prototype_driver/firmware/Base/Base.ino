@@ -96,8 +96,6 @@ int16_t scaled_ml_pwm;
 int16_t scaled_mr_pwm;
 
 
-
-
 // --- Self Leveling Kinematics ---
 // Ported from legacy Base_old_self_leveling.ino
 
@@ -471,7 +469,7 @@ void loop() {
     float mr_enc = EContr.encoderf[10] * mr_enc_dir;
 
     drive_fb.updateSensorData((ml_enc + mr_enc) / 2.0f, dt);
-    drive_lr.updateSensorData((mr_enc - ml_enc), dt);
+    drive_lr.updateSensorData((ml_enc - mr_enc), dt);
 
     raw_ml_enc_vel = (dt > 0) ? (ml_enc - prev_ml) / dt : 0;
     raw_mr_enc_vel = (dt > 0) ? (mr_enc - prev_mr) / dt : 0;

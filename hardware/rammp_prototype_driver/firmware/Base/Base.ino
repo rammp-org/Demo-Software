@@ -55,15 +55,21 @@ RoboClaw roboclaw_carriages(&Serial3, 10000); // Serial3
 RoboClaw roboclaw_casters(&Serial4, 10000);   // Serial4
 RoboClaw roboclaw_main(&Serial5, 10000);      // Serial5
 
-// Instantiate the 6 actuated Motor objects + 2 encoder-only drive wheels
+// Instantiate the 6 actuated Motor objects + 2 body-frame drive controllers
 Motor rc;
 Motor fc;
 Motor ml;
 Motor mr;
 Motor ml_carriage;
 Motor mr_carriage;
-Motor ml_drive;
-Motor mr_drive;
+Motor drive_fb;
+Motor drive_lr;
+
+int8_t ml_enc_dir = 1;
+int8_t mr_enc_dir = 1;
+
+float raw_ml_enc_pos = 0, raw_mr_enc_pos = 0;
+float raw_ml_enc_vel = 0, raw_mr_enc_vel = 0;
 
 // Centralized motor-encoder mapping table (declared extern in MotorMap.h)
 MotorEntry motor_map[8] = {
@@ -73,8 +79,8 @@ MotorEntry motor_map[8] = {
   { &mr,          5,  &roboclaw_main,      2, true,  true,  "mr" },
   { &ml_carriage, 11, &roboclaw_carriages, 1, true,  true,  "ml_carriage" },
   { &mr_carriage, 12, &roboclaw_carriages, 2, true,  true,  "mr_carriage" },
-  { &ml_drive,    9,  nullptr,             0, false, false, "ml_drive" },
-  { &mr_drive,    10, nullptr,             0, false, false, "mr_drive" },
+  { &drive_fb,    9,  nullptr,             0, false, false, "drive_fb" },
+  { &drive_lr,    10, nullptr,             0, false, false, "drive_lr" },
 };
 
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
@@ -304,7 +310,7 @@ void runSelfLeveling(float dt) {
 // Save all 6 motor configs (PID, dirs, limits, current position) to EEPROM
 void saveAllMotorConfigs() {
   Motor *all_motors[8] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
-                          &ml_drive, &mr_drive};
+                          &drive_fb, &drive_lr};
   for (int i = 0; i < 8; i++) {
     Motor *m = all_motors[i];
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
@@ -385,7 +391,7 @@ void setup() {
   };
 
   Motor *all_motors[8] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
-                          &ml_drive, &mr_drive};
+                          &drive_fb, &drive_lr};
   for (int i = 0; i < 8; i++) {
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
     all_motors[i]->setDirection(conf.motor_dir);
@@ -425,6 +431,11 @@ void setup() {
     }
   }
 
+  ml_enc_dir = drive_fb.getEncoderDirection();
+  mr_enc_dir = drive_lr.getEncoderDirection();
+  drive_fb.setEncoderDirection(1);
+  drive_lr.setEncoderDirection(1);
+
   Serial.println(
       "EEPROM CONFIG LOADED: All motor configs restored from EEPROM.");
   current_state = IDLE;
@@ -454,8 +465,21 @@ void loop() {
   mr.updateSensorData(EContr.encoderf[5], dt);
   ml_carriage.updateSensorData(EContr.encoderf[11], dt);
   mr_carriage.updateSensorData(EContr.encoderf[12], dt);
-  ml_drive.updateSensorData(EContr.encoderf[9], dt);
-  mr_drive.updateSensorData(EContr.encoderf[10], dt);
+  {
+    static float prev_ml = 0, prev_mr = 0;
+    float ml_enc = EContr.encoderf[9] * ml_enc_dir;
+    float mr_enc = EContr.encoderf[10] * mr_enc_dir;
+
+    drive_fb.updateSensorData((ml_enc + mr_enc) / 2.0f, dt);
+    drive_lr.updateSensorData((mr_enc - ml_enc), dt);
+
+    raw_ml_enc_vel = (dt > 0) ? (ml_enc - prev_ml) / dt : 0;
+    raw_mr_enc_vel = (dt > 0) ? (mr_enc - prev_mr) / dt : 0;
+    prev_ml = ml_enc;
+    prev_mr = mr_enc;
+    raw_ml_enc_pos = ml_enc;
+    raw_mr_enc_pos = mr_enc;
+  }
 
   // 2. Parse Comms
   // TODO: Add checksums/framing to serial protocol for reliability
@@ -578,8 +602,8 @@ void loop() {
     mr.disable();
     ml_carriage.disable();
     mr_carriage.disable();
-    ml_drive.disable();
-    mr_drive.disable();
+    drive_fb.disable();
+    drive_lr.disable();
   } else if (current_state == SELF_LEVELING) {
     runSelfLeveling(dt);
   } else if (current_state == AUTO_CURB_CLIMBING) {
@@ -593,8 +617,8 @@ void loop() {
   float mr_pwm = mr.update(dt);
   float mlc_pwm = ml_carriage.update(dt);
   float mrc_pwm = mr_carriage.update(dt);
-  float mld_pwm = ml_drive.update(dt);
-  float mrd_pwm = mr_drive.update(dt);
+  float mld_pwm = drive_fb.update(dt);
+  float mrd_pwm = drive_lr.update(dt);
 
   // read limit switches (store in globals for telemetry)
   ml_fwd_limit = !digitalRead(CARRIAGE_SW1_PIN); // Active low

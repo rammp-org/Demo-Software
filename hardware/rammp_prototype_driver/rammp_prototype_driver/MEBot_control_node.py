@@ -1,6 +1,7 @@
 import ast
 import math
 from enum import IntEnum
+from queue import Empty
 from rclpy.executors import MultiThreadedExecutor
 import time
 
@@ -15,6 +16,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
+from rclpy.action import ActionClient
 
 
 class SerialField(IntEnum):
@@ -136,6 +138,14 @@ class MEBotControlNode(Node):
 
         self.self_level_enable_service = self.create_service(
             SetBool, "self_level_enable", self.self_level_enable_callback
+        )
+
+        # LUCI service clients
+        self.set_auto_remote_client = ActionClient(
+            self, Empty, "luci/set_auto_remote_input"
+        )
+        self.remove_auto_remote_client = ActionClient(
+            self, Empty, "luci/remove_auto_remote_input"
         )
 
     def _init_actions(self):
@@ -335,6 +345,20 @@ class MEBotControlNode(Node):
         else:
             # content
             pass
+
+    def send_luci_set_goal(self, goal):
+        goal_msg = Empty.Goal()
+        goal_msg.goal = goal
+
+        self.set_auto_remote_client.wait_for_server()
+        return self.set_auto_remote_client.send_goal_async(goal_msg)
+
+    def send_luci_remove_goal(self, goal):
+        goal_msg = Empty.Goal()
+        goal_msg.goal = goal
+
+        self.remove_auto_remote_client.wait_for_server()
+        return self.remove_auto_remote_client.send_goal_async(goal_msg)
 
     def curb_traverse_action_callback(self, goal):
         if goal.request.direction == 1:

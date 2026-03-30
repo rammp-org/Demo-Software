@@ -130,7 +130,7 @@ def generate_launch_description():
                             "exposure_range_mode": "ultimate",
                             "laser_energy_level": "4",
                             "enable_ir_auto_exposure": "true",
-                            "params_file": LaunchConfiguration("params_file"),
+                            "config_file_path": LaunchConfiguration("params_file"),
                         }.items(),
                     ),
                 ],

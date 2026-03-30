@@ -17,27 +17,29 @@
 
 ### Publishers:
 
-| Topic                   | Type                                   |
-| ----------------------- | -------------------------------------- |
-| /nav/curb/info          | neu_navigation_interfaces/msg/CurbInfo |
-| /perception/curb_visual | visualization_msgs/msg/Marker          |
+| Topic                       | Type                                   |
+| --------------------------- | -------------------------------------- |
+| /nav/curb/info              | neu_navigation_interfaces/msg/CurbInfo |
+| /perception/curb_visual     | visualization_msgs/msg/Marker          |
+| /perception/curb_mask       | sensor_msgs/msg/Image (mono8)          |
+| /perception/curb_mask_image | sensor_msgs/msg/Image (bgr8)           |
 
 ### Subscriber:
 
 > \[!NOTE\]
 > The below topics are not actual, and will change based on what we are publishing on MeBot.
 
-| Topic                   | Type                       |
-| ----------------------- | -------------------------- |
-| /camera/nav/image_raw   | sensor_msgs/msg/Image      |
-| /camera/nav/depth_raw   | sensor_msgs/msg/Image      |
-| /camera/nav/camera_info | sensor_msgs/msg/CameraInfo |
+| Topic                                 | Type                       |
+| ------------------------------------- | -------------------------- |
+| /camera/nav/color/image_raw_rotated   | sensor_msgs/msg/Image      |
+| /camera/nav/depth/image_raw_rotated   | sensor_msgs/msg/Image      |
+| /camera/nav/color/camera_info_rotated | sensor_msgs/msg/CameraInfo |
 
 ### Service Servers:
 
-| Topic            | Type                                     |
-| ---------------- | ---------------------------------------- |
-| /nav/curb/detect | neu_navigation_interfaces/srv/DetectCurb |
+| Topic            | Type                 |
+| ---------------- | -------------------- |
+| /nav/curb/detect | std_srvs/srv/SetBool |
 
 ### Service Clients:
 
@@ -67,5 +69,8 @@ colcon build
 source install/setup.bash
 ros2 run neu_navigation perception_curb_detection_node
 # on a second terminal
-ros2 service call /nav/curb/detect neu_navigation_interfaces/srv/DetectCurb "{}"
+# Enable streaming detections
+ros2 service call /nav/curb/detect std_srvs/srv/SetBool "{data: true}"
+# Disable and free GPU
+ros2 service call /nav/curb/detect std_srvs/srv/SetBool "{data: false}"
 ```

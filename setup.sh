@@ -10,8 +10,6 @@ ROSDEP_SOURCE="/etc/ros/rosdep/sources.list.d/50-rammp-custom.list"
 ROSDEP_YAML="file://${REPO_ROOT}/hardware/arm_driver/rosdep/python.yaml"
 echo "=== Updating apt ==="
 $SUDO apt-get update -q
-echo "=== Installing Orbbec ROS2 binary ==="
-$SUDO apt-get install -y ros-humble-orbbec-camera
 
 echo "=== Installing gRPC ==="
 export MY_INSTALL_DIR="${MY_INSTALL_DIR:-$HOME/.local}"

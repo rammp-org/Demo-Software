@@ -581,7 +581,11 @@ void setup() {
     all_motors[i]->vel_pid.setRampRate(safe_f(conf.vel_max_ramp_rate));
 
     all_motors[i]->updateLimits(conf.pos_limit_min, conf.pos_limit_max);
+    //TODO: @alex explain this code or fix it, this looks insane VVVVV
 
+    // Restore encoder offset so the filtered position resumes from
+    // saved_position. Map motor index (0-5) to encoder container index,
+    // matching updateSensorData().
     int enc_idx = 0;
     switch (i) {
     case 0:
@@ -645,8 +649,6 @@ void loop() {
   sg_ml.update(dt);
   sg_mr.update(dt);
 
-  // TODO @alex : verify map encoders to motor positions (I took a guess, but
-  // I'm unsure)
   rc.updateSensorData(EContr.encoderf[3], dt);
   fc.updateSensorData(EContr.encoderf[2], dt);
   ml.updateSensorData(EContr.encoderf[7], dt);

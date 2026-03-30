@@ -131,6 +131,7 @@ class DriveWheelDisplay(QWidget):
         self._luci = LuciClient(self)
         self._luci.connected_changed.connect(self._on_luci_connection_changed)
         self._luci.error_occurred.connect(self._on_luci_error)
+        self._manual_override = False
 
         self._init_ui()
 
@@ -198,35 +199,35 @@ class DriveWheelDisplay(QWidget):
 
         self._btn_fwd = QPushButton("▲")
         self._btn_fwd.setStyleSheet(_DPAD_BTN)
-        self._btn_fwd.pressed.connect(lambda: self._luci.set_drive(DRIVE_SPEED, 0))
-        self._btn_fwd.released.connect(self._luci.stop)
+        self._btn_fwd.pressed.connect(lambda: self._dpad_press(DRIVE_SPEED, 0))
+        self._btn_fwd.released.connect(self._dpad_release)
         self._btn_fwd.setEnabled(False)
         dpad.addWidget(self._btn_fwd, 0, 1)
 
         self._btn_left = QPushButton("◀")
         self._btn_left.setStyleSheet(_DPAD_BTN)
-        self._btn_left.pressed.connect(lambda: self._luci.set_drive(0, -DRIVE_SPEED))
-        self._btn_left.released.connect(self._luci.stop)
+        self._btn_left.pressed.connect(lambda: self._dpad_press(0, -DRIVE_SPEED))
+        self._btn_left.released.connect(self._dpad_release)
         self._btn_left.setEnabled(False)
         dpad.addWidget(self._btn_left, 1, 0)
 
         self._btn_stop = QPushButton("■")
         self._btn_stop.setStyleSheet(_DPAD_BTN)
-        self._btn_stop.clicked.connect(self._luci.stop)
+        self._btn_stop.clicked.connect(self._dpad_release)
         self._btn_stop.setEnabled(False)
         dpad.addWidget(self._btn_stop, 1, 1)
 
         self._btn_right = QPushButton("▶")
         self._btn_right.setStyleSheet(_DPAD_BTN)
-        self._btn_right.pressed.connect(lambda: self._luci.set_drive(0, DRIVE_SPEED))
-        self._btn_right.released.connect(self._luci.stop)
+        self._btn_right.pressed.connect(lambda: self._dpad_press(0, DRIVE_SPEED))
+        self._btn_right.released.connect(self._dpad_release)
         self._btn_right.setEnabled(False)
         dpad.addWidget(self._btn_right, 1, 2)
 
         self._btn_bwd = QPushButton("▼")
         self._btn_bwd.setStyleSheet(_DPAD_BTN)
-        self._btn_bwd.pressed.connect(lambda: self._luci.set_drive(-DRIVE_SPEED, 0))
-        self._btn_bwd.released.connect(self._luci.stop)
+        self._btn_bwd.pressed.connect(lambda: self._dpad_press(-DRIVE_SPEED, 0))
+        self._btn_bwd.released.connect(self._dpad_release)
         self._btn_bwd.setEnabled(False)
         dpad.addWidget(self._btn_bwd, 2, 1)
 
@@ -272,11 +273,19 @@ class DriveWheelDisplay(QWidget):
             f"color: {THEME.red}; font-size: {SIZES['font_small']}pt;"
         )
 
+    def _dpad_press(self, fb: int, lr: int):
+        self._manual_override = True
+        self._luci.set_drive(fb, lr)
+
+    def _dpad_release(self):
+        self._manual_override = False
+        self._luci.stop()
+
     def _update_display(self):
         self.left_arc.set_velocity(self.data_store.ml_drive_vel)
         self.right_arc.set_velocity(self.data_store.mr_drive_vel)
 
-        if self._luci.is_connected:
+        if self._luci.is_connected and not self._manual_override:
             ml_pwm = self.data_store.ml_drive_pwm
             mr_pwm = self.data_store.mr_drive_pwm
 

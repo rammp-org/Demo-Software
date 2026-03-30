@@ -16,7 +16,6 @@ from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
-from rclpy.action import ActionClient
 
 
 class SerialField(IntEnum):
@@ -141,11 +140,11 @@ class MEBotControlNode(Node):
         )
 
         # LUCI service clients
-        self.set_auto_remote_client = ActionClient(
-            self, Empty, "luci/set_auto_remote_input"
+        self.set_auto_remote_client = self.create_client(
+            Empty, "luci/set_auto_remote_input"
         )
-        self.remove_auto_remote_client = ActionClient(
-            self, Empty, "luci/remove_auto_remote_input"
+        self.remove_auto_remote_client = self.create_client(
+            Empty, "luci/remove_auto_remote_input"
         )
 
     def _init_actions(self):
@@ -346,19 +345,27 @@ class MEBotControlNode(Node):
             # content
             pass
 
-    def send_luci_set_goal(self, goal):
-        goal_msg = Empty.Goal()
-        goal_msg.goal = goal
+    def send_set_luci(self):
+        request = Empty.Request()
 
-        self.set_auto_remote_client.wait_for_server()
-        return self.set_auto_remote_client.send_goal_async(goal_msg)
+        future = self.set_auto_remote_client.call_async(request)
+        future.add_done_callback(self.luci_req_done)
+        return future
 
-    def send_luci_remove_goal(self, goal):
-        goal_msg = Empty.Goal()
-        goal_msg.goal = goal
+    def send_remove_luci(self):
+        request = Empty.Request()
 
-        self.remove_auto_remote_client.wait_for_server()
-        return self.remove_auto_remote_client.send_goal_async(goal_msg)
+        future = self.remove_auto_remote_client.call_async(request)
+        future.add_done_callback(self.luci_req_done)
+        return future
+
+    def luci_req_done(self, future):
+        result = future.result()
+        if result:
+            self.get_logger().info("Service call completed")
+            return
+
+        self.get_logger().error("Service call failed")
 
     def curb_traverse_action_callback(self, goal):
         if goal.request.direction == 1:
@@ -388,10 +395,10 @@ class MEBotControlNode(Node):
     def drive_enable_callback(self, request, response):
         if request.data:
             # content
-            pass
+            self.send_set_luci
         else:
             # content
-            pass
+            self.send_remove_luci
 
         return response
 

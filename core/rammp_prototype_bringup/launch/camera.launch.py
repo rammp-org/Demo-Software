@@ -27,7 +27,7 @@ def generate_launch_description():
     camera_config = os.path.join(
         get_package_share_directory("rammp_prototype_bringup"),
         "config",
-        "camera_demo_main.yaml",
+        "camera_config.yaml",
     )
 
     return LaunchDescription(
@@ -61,7 +61,7 @@ def generate_launch_description():
                 default_value=camera_config,
                 description=(
                     "Absolute path to the camera config YAML. "
-                    "Defaults to camera_demo_main.yaml."
+                    "Defaults to camera_config.yaml."
                 ),
             ),
             # ── Wrist camera (RealSense D435i) ────────────────────────────

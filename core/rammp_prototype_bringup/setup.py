@@ -5,12 +5,14 @@ from setuptools import find_packages, setup
 package_name = "rammp_prototype_bringup"
 pkg_dir = os.path.dirname(os.path.abspath(__file__))
 
+
 def local_glob(pattern):
     orig = os.getcwd()
     os.chdir(pkg_dir)
     result = glob(pattern)
     os.chdir(orig)
     return result
+
 
 setup(
     name=package_name,
@@ -20,8 +22,14 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
         (os.path.join("share", package_name, "launch"), local_glob("launch/*.py")),
-        (os.path.join("share", package_name, "environment"), local_glob("env_hooks/*.dsv")),
-        ("share/ament_index/resource_index/packages_with_environment_hooks", ["resource/" + package_name]),
+        (
+            os.path.join("share", package_name, "environment"),
+            local_glob("env_hooks/*.dsv"),
+        ),
+        (
+            "share/ament_index/resource_index/packages_with_environment_hooks",
+            ["resource/" + package_name],
+        ),
     ],
     install_requires=["setuptools"],
     zip_safe=True,

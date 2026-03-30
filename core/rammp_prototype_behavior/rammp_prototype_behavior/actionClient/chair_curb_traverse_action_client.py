@@ -51,12 +51,12 @@ class ChairCurbTraverseActionClient(ActionClientWrapper):
             self._node.get_logger().info(
                 "Goal cancellation accepted by the action server."
             )
-            self._node.reqNavCancel()
+            self._node.Nav_canceled()
         else:
             self._node.get_logger().warn(
                 "Goal cancellation rejected by the action server."
             )
-            self._node.reqNavCancel()
+            self._node.Nav_canceled()
 
     def send_goal(self, direction: CurbTraverseDirection):
         goal = CurbTraverse.Goal()
@@ -64,4 +64,7 @@ class ChairCurbTraverseActionClient(ActionClientWrapper):
         asyncio.run_coroutine_threadsafe(super().send_goal(goal), self._node._loop)
 
     def cancel(self):
+        if not self.is_action_running():
+            # do nothing if no action is currently running
+            return
         asyncio.run_coroutine_threadsafe(super().cancel_goal(), self._node._loop)

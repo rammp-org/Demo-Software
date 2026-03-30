@@ -89,5 +89,8 @@ class ArmPresetActionClient(ActionClientWrapper):
         asyncio.run_coroutine_threadsafe(self.send_goal(goal), self._node._loop)
 
     def cancel(self):
+        if not self.is_action_running():
+            # do nothing if no action is currently running
+            return
         self._current_preset = None
         asyncio.run_coroutine_threadsafe(self.cancel_goal(), self._node._loop)

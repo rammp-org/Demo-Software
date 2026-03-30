@@ -58,4 +58,7 @@ class GrabCupFromTableActionClient(ActionClientWrapper):
         asyncio.run_coroutine_threadsafe(super().send_goal(goal), self._node._loop)
 
     def cancel(self):
+        if not self.is_action_running():
+            # do nothing if no action is currently running
+            return
         asyncio.run_coroutine_threadsafe(super().cancel_goal(), self._node._loop)

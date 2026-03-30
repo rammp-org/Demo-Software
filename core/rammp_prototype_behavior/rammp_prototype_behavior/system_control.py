@@ -482,6 +482,25 @@ class SystemControl(rclpy.node.Node):
         )  # send manual seat control command to base
         self._seat_control_request = None  # reset seat control request after processing
 
+    def on_enter_Arm_canceling(self):
+        self.get_logger().info("Preparing to cancel current action.")
+        # try to cancel all action, none running action will do nothing, safe to call.
+        self.arm_preset_client.cancel()
+        self.bring_cup_to_mouth_client.cancel()
+        self.grab_cup_from_table_client.cancel()
+        self.home_cup_client.cancel()
+        self.open_door_client.cancel()
+        self.pickup_and_order_client.cancel()
+        self.put_cup_back_to_holder_client.cancel()
+        self.set_arm_mode(ArmMode.IDLE)
+        self.enable_door_detection(False)
+        self.enable_cup_detection(False)
+
+    def on_enter_Nav_canceling(self):
+        self.get_logger().info("Navigation canceling requested.")
+        self.curb_traverse_client.cancel_goal()
+        self.enable_curb_detection(False)
+
     # --------------------end of Door Open State Transition Functions------------------------
 
     def init_publisher(self):
@@ -921,12 +940,13 @@ class SystemControl(rclpy.node.Node):
                         "children": ["moving", "stabilizing", "homing"],
                     },
                     "paused",  # arm error, will pause arm to maintain current state.
+                    "canceling",
                 ],
             },
             {
                 "name": "Nav",
                 "initial": "detecting",
-                "children": ["detecting", "traverse", "paused"],
+                "children": ["detecting", "traverse", "canceling", "paused"],
             },
             "Error",  # system error state, will require reset to recover
         ]
@@ -947,13 +967,47 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_retracted",
             },
             {
+                "trigger": "reqArmActionCancel",
+                "source": [
+                    "Arm_homing",
+                    "Arm_retracting",
+                    "Arm_Drink_bringCloser",
+                    "Arm_Drink_placingCupAway",
+                    "Arm_Drink_placingCupBack",
+                    "Arm_OrderDrink_pickUpCup",
+                    "Arm_OrderDrink_releasingCup",
+                    "Arm_OrderDrink_detectingDrink",
+                    "Arm_OrderDrink_receivingDrink",
+                    "Arm_Door_raisingArm",
+                    "Arm_Door_opening",
+                ],
+                "dest": "Arm_canceling",
+            },  # request to cancel current arm action, move to canceling sub state to attempt cancel
+            {
+                "trigger": "cancel",
+                "source": [
+                    "Arm_homing",
+                    "Arm_retracting",
+                    "Arm_Drink_bringCloser",
+                    "Arm_Drink_placingCupAway",
+                    "Arm_Drink_placingCupBack",
+                    "Arm_OrderDrink_pickUpCup",
+                    "Arm_OrderDrink_releasingCup",
+                    "Arm_OrderDrink_detectingDrink",
+                    "Arm_OrderDrink_receivingDrink",
+                    "Arm_Door_raisingArm",
+                    "Arm_Door_opening",
+                ],
+                "dest": "Arm_canceling",
+            },  # request to cancel current arm action, move to canceling sub state to attempt cancel
+            {
                 "trigger": "reqArmActionCancelSuccess",
-                "source": "Arm",
+                "source": "Arm_canceling",
                 "dest": "Arm_paused",
             },  # action canceled successfully, pause arm to maintain current state and allow for retry or other recovery actions
             {
                 "trigger": "reqArmActionCancelFailed",
-                "source": "Arm",
+                "source": "Arm_canceling",
                 "dest": "Error",
             },  # can not cancel action, treat as error and require reset
             {
@@ -1002,6 +1056,11 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_Door_opening",
             },
             {
+                "trigger": "confirm",
+                "source": "Arm_Door_detecting",
+                "dest": "Arm_Door_opening",
+            },
+            {
                 "trigger": "doorOpenFinished",
                 "source": "Arm_Door_opening",
                 "dest": "Arm_retracted",
@@ -1023,6 +1082,11 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_OrderDrink_releasingCup",
             },
             {
+                "trigger": "confirm",
+                "source": "Arm_OrderDrink_holdingCup",
+                "dest": "Arm_OrderDrink_releasingCup",
+            },
+            {
                 "trigger": "cupReleased",
                 "source": "Arm_OrderDrink_releasingCup",
                 "dest": "Arm_home",
@@ -1034,6 +1098,11 @@ class SystemControl(rclpy.node.Node):
             },
             {
                 "trigger": "receiveDrinkConfirm",
+                "source": "Arm_OrderDrink_detectingDrink",
+                "dest": "Arm_OrderDrink_receivingDrink",
+            },
+            {
+                "trigger": "confirm",
                 "source": "Arm_OrderDrink_detectingDrink",
                 "dest": "Arm_OrderDrink_receivingDrink",
             },
@@ -1158,7 +1227,18 @@ class SystemControl(rclpy.node.Node):
                 "source": "Nav_traverse",
                 "dest": "Chair",
             },
-            {"trigger": "reqNavCancel", "source": "Nav_traverse", "dest": "Nav_paused"},
+            {
+                "trigger": "reqNavCancel",
+                "source": "Nav_traverse",
+                "dest": "Nav_canceling",
+            },
+            {
+                "trigger": "Nav_canceled",
+                "source": "Nav_canceling",
+                "dest": "Nav_paused",
+            },
+            {"trigger": "cancel", "source": "Nav_traverse", "dest": "Nav_canceling"},
+            {"trigger": "reset", "source": "Nav_paused", "dest": "Chair_SLOff"},
         ]
 
         self.machine = Machine(

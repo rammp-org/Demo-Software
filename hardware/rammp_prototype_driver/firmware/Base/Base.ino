@@ -6,73 +6,32 @@
 #include <SD.h>
 #include <SPI.h>
 #include "src/Timer/Timer.h"
+// TODO: Timer::updateTime() prints to Serial every loop — remove debug output to reduce serial noise
 #include <Wire.h>
 #include "src/RoboClaw/RoboClaw.h"
+// TODO: Upgrade to basicmicro_arduino library (RoboClaw library is deprecated per vendor README)
 #include <utility/imumaths.h>
 
 #include "src/Motor/Motor.h"
 #include "src/CommandParser/CommandParser.h"
+// TODO: CommandParser uses Arduino String — replace with fixed-size char buffer to avoid heap fragmentation
+#include "src/MotorMap/MotorMap.h"
+#include "src/SequencePlayer/SequencePlayer.h"
+#include "src/Telemetry/Telemetry.h"
+#include "src/CommandDispatch/CommandDispatch.h"
 #include "src/PIDController/PIDController.h"
 #include "src/StrainGauge/StrainGauge.h"
 
 #define DEBUG_MODE 1
+// TODO: Make DEBUG_MODE runtime-configurable via serial command
 
-// Phase 4: State Machine
-enum SystemState {
-  INIT,
-  IDLE,
-  TUNER_MODE,
-  ESTOP,
-  SELF_LEVELING,
-  CONFIGURATION,
-  AUTO_CURB_CLIMBING
-};
-
-// Phase 4: System Telemetry
-// Motor order for all 6-element arrays: [rc, fc, ml, mr, ml_carriage,
-// mr_carriage] Limit switch order for limit_switches[4]: [ml_fwd, ml_bwd,
-// mr_fwd, mr_bwd] IMU order for imu[6]: [pitch, roll, yaw, ax, ay, az]
-// Quaternion order for quat[4]: [w, x, y, z]
-// Leveling order for leveling[5]: [pitch_err, roll_err, z_ml, z_rc, z_mr]
-// Strain gauge order for sg[4]: [rc, fc, ml, mr]
-struct SystemTelemetry {
-  SystemState state;
-  float positions[6];
-  float velocities[6];
-  float pwms[6];
-  int directions[6];
-  int enc_directions[6];
-  bool limit_switches[4];
-  float imu[6];
-  float quat[4];
-  float leveling[5];
-  float sg[4];
-  int modes[6];
-  float drive_positions[2];
-  float drive_velocities[2];
-  float drive_pwms[2];
-};
+// SystemState enum and SystemTelemetry struct moved to src/Telemetry/Telemetry.h
 
 // Global State
 SystemState current_state = INIT;
 SystemTelemetry telemetry;
 
-// --- Sequence / Trajectory (AUTO_CURB_CLIMBING mode) ---
-#define MAX_SEQ_KEYFRAMES 20
-#define SEQ_NUM_MOTORS 6
-
-struct Keyframe {
-  float targets[SEQ_NUM_MOTORS];
-  bool active[SEQ_NUM_MOTORS];
-  uint32_t duration_ms;
-};
-
-Keyframe seq_keyframes[MAX_SEQ_KEYFRAMES];
-int seq_length = 0;
-int seq_current = -1;
-bool seq_interpolating = false;
-unsigned long seq_interp_start = 0;
-float seq_start_pos[SEQ_NUM_MOTORS];
+// Sequence player state moved to src/SequencePlayer/
 
 // Self Leveling Targets
 float target_pitch = 0.0f;
@@ -106,6 +65,18 @@ Motor mr_carriage;
 Motor ml_drive;
 Motor mr_drive;
 
+// Centralized motor-encoder mapping table (declared extern in MotorMap.h)
+MotorEntry motor_map[8] = {
+  { &rc,          3,  &roboclaw_casters,   1, true,  true,  "rc" },
+  { &fc,          2,  &roboclaw_casters,   2, true,  true,  "fc" },
+  { &ml,          7,  &roboclaw_main,      1, true,  true,  "ml" },
+  { &mr,          5,  &roboclaw_main,      2, true,  true,  "mr" },
+  { &ml_carriage, 11, &roboclaw_carriages, 1, true,  true,  "ml_carriage" },
+  { &mr_carriage, 12, &roboclaw_carriages, 2, true,  true,  "mr_carriage" },
+  { &ml_drive,    9,  nullptr,             0, false, false, "ml_drive" },
+  { &mr_drive,    10, nullptr,             0, false, false, "mr_drive" },
+};
+
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
 StrainGauge sg_rc(RC_LOADCELL_PIN, 0.8f);
 StrainGauge sg_fc(FC_LOADCELL_PIN, 0.8f);
@@ -118,132 +89,8 @@ int16_t scaled_mrc_pwm;
 int16_t scaled_ml_pwm;
 int16_t scaled_mr_pwm;
 
-// Map firmware ControlMode enum to GUI mode integers (0=Open Loop, 1=Velocity,
-// 2=Position)
-static inline int toGuiMode(Motor::ControlMode m) {
-  switch (m) {
-  case Motor::VELOCITY_CONTROL:
-    return 1;
-  case Motor::POSITION_CONTROL:
-    return 2;
-  default:
-    return 0; // DISABLED or OPEN_LOOP
-  }
-}
 
-// Helper to update telemetry — iterates motor/gauge arrays to avoid per-field
-// repetition
-void updateTelemetry() {
-  Motor *motors[6] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
-  StrainGauge *gauges[4] = {&sg_rc, &sg_fc, &sg_ml, &sg_mr};
 
-  telemetry.state = current_state;
-
-  for (int i = 0; i < 6; i++) {
-    telemetry.positions[i] = motors[i]->current_pos;
-    telemetry.velocities[i] = motors[i]->current_vel;
-    telemetry.pwms[i] = motors[i]->target_pwm;
-    telemetry.directions[i] = motors[i]->getDirection();
-    telemetry.enc_directions[i] = motors[i]->getEncoderDirection();
-    telemetry.modes[i] = toGuiMode(motors[i]->mode);
-  }
-
-  for (int i = 0; i < 4; i++) {
-    telemetry.sg[i] = gauges[i]->getValue();
-  }
-
-  telemetry.limit_switches[0] = ml_fwd_limit;
-  telemetry.limit_switches[1] = ml_bwd_limit;
-  telemetry.limit_switches[2] = mr_fwd_limit;
-  telemetry.limit_switches[3] = mr_bwd_limit;
-
-  // IMU: [pitch, roll, yaw, ax, ay, az]
-  telemetry.imu[0] = IMU.pitchf;
-  telemetry.imu[1] = IMU.rollf;
-  telemetry.imu[2] = IMU.yaw;
-  telemetry.imu[3] = IMU.ax;
-  telemetry.imu[4] = IMU.ay;
-  telemetry.imu[5] = IMU.az;
-
-  // Quaternion: [w, x, y, z]
-  telemetry.quat[0] = IMU.current_quat.w();
-  telemetry.quat[1] = IMU.current_quat.x();
-  telemetry.quat[2] = IMU.current_quat.y();
-  telemetry.quat[3] = IMU.current_quat.z();
-
-  telemetry.drive_positions[0] = ml_drive.current_pos;
-  telemetry.drive_positions[1] = mr_drive.current_pos;
-  telemetry.drive_velocities[0] = ml_drive.current_vel;
-  telemetry.drive_velocities[1] = mr_drive.current_vel;
-  telemetry.drive_pwms[0] = ml_drive.target_pwm;
-  telemetry.drive_pwms[1] = mr_drive.target_pwm;
-}
-
-// Helper to send telemetry — builds the full CSV line into a buffer, single
-// Serial.print Packet format (59 comma-separated values after the header):
-//   TELEMETRY,<ms>,<state>,
-//   <6 positions>,<6 velocities>,<6 pwms>,
-//   <6 motor dirs>,<6 enc dirs>,<4 limit switches>,
-//   <3 imu angles>,<3 imu accel>,<4 quaternion>,
-//   <5 leveling debug>,<4 strain gauges>,<6 control modes>
-void sendTelemetry() {
-  char buf[740];
-  int n = 0;
-
-  // Header
-  n += snprintf(buf + n, sizeof(buf) - n, "TELEMETRY,%lu,%d", millis(),
-                (int)telemetry.state);
-
-  // Per-motor groups (6 values each)
-  for (int i = 0; i < 6; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.positions[i]);
-  for (int i = 0; i < 6; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.velocities[i]);
-  for (int i = 0; i < 6; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.pwms[i]);
-  for (int i = 0; i < 6; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%d", telemetry.directions[i]);
-  for (int i = 0; i < 6; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%d", telemetry.enc_directions[i]);
-
-  // Limit switches (4)
-  for (int i = 0; i < 4; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%d",
-                  telemetry.limit_switches[i] ? 1 : 0);
-
-  // IMU angles (3 × 2dp) then accel (3 × 3dp)
-  for (int i = 0; i < 3; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.imu[i]);
-  for (int i = 3; i < 6; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.3f", telemetry.imu[i]);
-
-  // Quaternion (4 × 4dp)
-  for (int i = 0; i < 4; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.4f", telemetry.quat[i]);
-
-  // Leveling debug (5 × 4dp)
-  for (int i = 0; i < 5; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.4f", telemetry.leveling[i]);
-
-  // Strain gauges (4 × 2dp)
-  for (int i = 0; i < 4; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.sg[i]);
-
-  // Control modes (6)
-  for (int i = 0; i < 6; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%d", telemetry.modes[i]);
-
-  for (int i = 0; i < 2; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_positions[i]);
-  for (int i = 0; i < 2; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_velocities[i]);
-  for (int i = 0; i < 2; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_pwms[i]);
-
-  n += snprintf(buf + n, sizeof(buf) - n, "\n");
-
-  Serial.print(buf);
-}
 
 // --- Self Leveling Kinematics ---
 // Ported from legacy Base_old_self_leveling.ino
@@ -507,28 +354,6 @@ void saveMotorConfig(int motor_id, Motor *m) {
   ConfigStorage::saveMotorConfig(motor_id, conf);
 }
 
-// Parse "t1,t2,t3,t4,t5,t6,a1,a2,a3,a4,a5,a6,dur_ms" into a Keyframe.
-// Returns true on success.
-bool parseKeyframePayload(const String &payload, Keyframe &kf) {
-  float vals[13];
-  int count = 0;
-  int start = 0;
-  for (int i = 0; i <= (int)payload.length() && count < 13; i++) {
-    char c = (i < (int)payload.length()) ? payload.charAt(i) : ',';
-    if (c == ',') {
-      vals[count++] = payload.substring(start, i).toFloat();
-      start = i + 1;
-    }
-  }
-  if (count < 13)
-    return false;
-  for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-    kf.targets[i] = vals[i];
-    kf.active[i] = (vals[6 + i] > 0.5f);
-  }
-  kf.duration_ms = (uint32_t)vals[12];
-  return true;
-}
 
 void setup() {
   Serial.begin(460800);  // jetson
@@ -586,33 +411,7 @@ void setup() {
     // Restore encoder offset so the filtered position resumes from
     // saved_position. Map motor index (0-5) to encoder container index,
     // matching updateSensorData().
-    int enc_idx = 0;
-    switch (i) {
-    case 0:
-      enc_idx = 3;
-      break; // rc  -> encoderf[3]
-    case 1:
-      enc_idx = 2;
-      break; // fc  -> encoderf[2]
-    case 2:
-      enc_idx = 7;
-      break; // ml  -> encoderf[7]
-    case 3:
-      enc_idx = 5;
-      break; // mr  -> encoderf[5]
-    case 4:
-      enc_idx = 11;
-      break; // ml_carriage -> encoderf[11]
-    case 5:
-      enc_idx = 12;
-      break; // mr_carriage -> encoderf[12]
-    case 6:
-      enc_idx = 9;
-      break; // ml_drive -> encoderf[9]
-    case 7:
-      enc_idx = 10;
-      break; // mr_drive -> encoderf[10]
-    }
+    int enc_idx = motor_map[i].encoder_index;
 
     // saved_position is the logical position (after encoder_dir flip).
     // Divide by encoder_dir to recover the raw tick count, then set the
@@ -659,6 +458,7 @@ void loop() {
   mr_drive.updateSensorData(EContr.encoderf[10], dt);
 
   // 2. Parse Comms
+  // TODO: Add checksums/framing to serial protocol for reliability
   RobotCommand cmd = parser.parse(Serial);
 
   if (DEBUG_MODE && cmd.type != CMD_NONE && cmd.type != CMD_UNKNOWN) {
@@ -702,20 +502,12 @@ void loop() {
   } else if (cmd.type == CMD_SEQ_MODE) {
     if (cmd.value > 0.5f) {
       current_state = AUTO_CURB_CLIMBING;
-      seq_length = 0;
-      seq_current = -1;
-      seq_interpolating = false;
-      Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc,          &ml,
-                                       &mr, &ml_carriage, &mr_carriage};
-      for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-        motors[i]->setMode(Motor::POSITION_CONTROL);
-        motors[i]->setTargetPosition(
-            motors[i]->current_pos); // hold in place — prevents driving to 0
-        seq_start_pos[i] = motors[i]->current_pos;
-      }
+      Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+      sequenceEnter(seq_motors);
       Serial.println("SEQ: Entered AUTO_CURB_CLIMBING mode");
     } else {
       current_state = IDLE;
+      sequenceExit();
       Serial.println("SEQ: Exited AUTO_CURB_CLIMBING mode");
     }
   } else if (cmd.type == CMD_LEVEL_MODE) {
@@ -753,406 +545,28 @@ void loop() {
         Serial.println("DEBUG: Saved config for ALL motors (K0)");
       }
     } else {
-      Motor *m = nullptr;
-      switch (cmd.actuator_id - 1) {
-      case 0:
-        m = &rc;
-        break;
-      case 1:
-        m = &fc;
-        break;
-      case 2:
-        m = &ml;
-        break;
-      case 3:
-        m = &mr;
-        break;
-      case 4:
-        m = &ml_carriage;
-        break;
-      case 5:
-        m = &mr_carriage;
-        break;
-      case 6:
-        m = &ml_drive;
-        break;
-      case 7:
-        m = &mr_drive;
-        break;
-      }
+      const MotorEntry* entry = getMotorEntry(cmd.actuator_id);
+      Motor *m = entry ? entry->motor : nullptr;
 
       if (m != nullptr) {
-        switch (cmd.type) {
-        case CMD_M:
-          if (cmd.value == 0)
-            m->setMode(Motor::OPEN_LOOP);
-          else if (cmd.value == 1)
-            m->setMode(Motor::VELOCITY_CONTROL);
-          else if (cmd.value == 2)
-            m->setMode(Motor::POSITION_CONTROL);
-          if (DEBUG_MODE) {
-            Serial.print("DEBUG: Set Mode to ");
-            Serial.println(cmd.value);
-          }
-          break;
-        case CMD_T:
-          if (m->mode == Motor::OPEN_LOOP)
-            m->setTargetPWM(cmd.value);
-          else if (m->mode == Motor::VELOCITY_CONTROL)
-            m->setTargetVelocity(cmd.value);
-          else if (m->mode == Motor::POSITION_CONTROL)
-            m->setTargetPosition(cmd.value);
-          if (DEBUG_MODE) {
-            Serial.print("DEBUG: Set Target to ");
-            Serial.println(cmd.value, 4);
-          }
-          break;
-        case CMD_POS_P:
-          m->pos_pid.kp = cmd.value;
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Pos P");
-          break;
-        case CMD_POS_I:
-          m->pos_pid.ki = cmd.value;
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Pos I");
-          break;
-        case CMD_POS_D:
-          m->pos_pid.kd = cmd.value;
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Pos D");
-          break;
-        case CMD_POS_FF:
-          m->pos_pid.setFeedForward(cmd.value);
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Pos FF");
-          break;
-        case CMD_VEL_P:
-          m->vel_pid.kp = cmd.value;
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Vel P");
-          break;
-        case CMD_VEL_I:
-          m->vel_pid.ki = cmd.value;
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Vel I");
-          break;
-        case CMD_VEL_D:
-          m->vel_pid.kd = cmd.value;
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Vel D");
-          break;
-        case CMD_VEL_FF:
-          m->vel_pid.setFeedForward(cmd.value / 10000);
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Vel FF");
-          break;
-        case CMD_INPUT_LPF:
-          m->setInputLpfAlpha(cmd.value);
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Input LPF");
-          break;
-        case CMD_POS_LPF:
-          m->pos_pid.setLpfAlpha(cmd.value);
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Pos LPF");
-          break;
-        case CMD_VEL_LPF:
-          m->vel_pid.setLpfAlpha(cmd.value);
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Vel LPF");
-          break;
-        case CMD_POS_RAMP:
-          m->pos_pid.setRampRate(cmd.value);
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Pos max ramp rate");
-          break;
-        case CMD_VEL_RAMP:
-          m->vel_pid.setRampRate(cmd.value);
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Set Vel max ramp rate");
-          break;
-        case CMD_R:
-          m->pos_pid.reset();
-          m->vel_pid.reset();
-          if (DEBUG_MODE)
-            Serial.println("DEBUG: Reset PID state (cleared integrator)");
-          break;
-        case CMD_HOME: {
-          // Zero encoder for this joint
-          // Map joint ID to encoder index based on updateSensorData mapping
-          int enc_idx = 0;
-          switch (cmd.actuator_id) {
-          case 1:
-            enc_idx = 3;
-            break; // rc -> encoderf[3]
-          case 2:
-            enc_idx = 2;
-            break; // fc -> encoderf[2]
-          case 3:
-            enc_idx = 7;
-            break; // ml -> encoderf[7]
-          case 4:
-            enc_idx = 5;
-            break; // mr -> encoderf[5]
-          case 5:
-            enc_idx = 11;
-            break; // ml_carriage -> encoderf[11]
-          case 6:
-            enc_idx = 12;
-            break; // mr_carriage -> encoderf[12]
-          case 7:
-            enc_idx = 9;
-            break; // ml_drive -> encoderf[9]
-          case 8:
-            enc_idx = 10;
-            break; // mr_drive -> encoderf[10]
-          }
-          EContr.zeroEncoder(enc_idx);
-          m->pos_pid.reset();
-          m->vel_pid.reset();
-          m->target_pos = 0; // Set target to new zero
-          if (DEBUG_MODE) {
-            Serial.print("DEBUG: Homed encoder for joint ");
-            Serial.println(cmd.actuator_id);
-          }
-          break;
-        }
-        case CMD_OFFSET: {
-          int enc_idx = 0;
-          switch (cmd.actuator_id) {
-          case 1:
-            enc_idx = 3;
-            break;
-          case 2:
-            enc_idx = 2;
-            break;
-          case 3:
-            enc_idx = 7;
-            break;
-          case 4:
-            enc_idx = 5;
-            break;
-          case 5:
-            enc_idx = 11;
-            break;
-          case 6:
-            enc_idx = 12;
-            break;
-          }
-
-          if (enc_idx > 0) {
-            float raw_pos = (float)EContr.getRawReading(enc_idx);
-            // Apply motor encoder direction to the raw reading logic?
-            // The GUI targets "logical position".
-            // In updateSensorData: raw_pos = current_pos * encoder_dir
-            // We want: current_logical = cmd.value
-            // (raw_pos - new_offset) * encoder_dir = cmd.value
-            // raw_pos - new_offset = cmd.value / encoder_dir
-            // new_offset = raw_pos - (cmd.value / encoder_dir)
-            float encoder_dir = m->getEncoderDirection();
-            signed long new_offset =
-                (signed long)(raw_pos - (cmd.value / encoder_dir));
-
-            EContr.setOffset(enc_idx, new_offset);
-
-            m->pos_pid.reset();
-            m->vel_pid.reset();
-            m->target_pos = cmd.value;
-            m->current_pos = cmd.value; // prevent jump
-            m->prev_pos = cmd.value;    // prevent velocity jump
-
-            if (DEBUG_MODE) {
-              Serial.print("DEBUG: Set offset J");
-              Serial.print(cmd.actuator_id);
-              Serial.print(": new logical pos=");
-              Serial.println(cmd.value);
-            }
-
-            // Auto-save
-            ConfigStorage::save_position(cmd.actuator_id, cmd.value);
-          }
-          break;
-        }
-        case CMD_DIR: {
-          // Toggle motor direction and save to EEPROM
-          m->toggleDirection();
-          MotorConfig conf = ConfigStorage::loadMotorConfig(cmd.actuator_id);
-          conf.motor_dir = m->getDirection();
-          ConfigStorage::saveMotorConfig(cmd.actuator_id, conf);
-          if (DEBUG_MODE) {
-            Serial.print("DEBUG: Toggled direction for motor ");
-            Serial.print(cmd.actuator_id);
-            Serial.print(" to ");
-            Serial.println(m->getDirection());
-          }
-          break;
-        }
-        case CMD_ENC_DIR: {
-          // Toggle encoder direction and save to EEPROM
-          m->toggleEncoderDirection();
-          MotorConfig conf = ConfigStorage::loadMotorConfig(cmd.actuator_id);
-          conf.encoder_dir = m->getEncoderDirection();
-          ConfigStorage::saveMotorConfig(cmd.actuator_id, conf);
-          if (DEBUG_MODE) {
-            Serial.print("DEBUG: Toggled enc direction for motor ");
-            Serial.print(cmd.actuator_id);
-            Serial.print(" to ");
-            Serial.println(m->getEncoderDirection());
-          }
-          break;
-        }
-        case CMD_SAVE_CONFIG: {
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE) {
-            Serial.print("DEBUG: Saved config for motor ");
-            Serial.println(cmd.actuator_id);
-          }
-          break;
-        }
-        case CMD_POS_MIN: {
-          m->updateLimits(cmd.value, m->pos_limit_max);
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE) {
-            Serial.print("DEBUG: Set min limit to ");
-            Serial.println(cmd.value);
-          }
-          break;
-        }
-        case CMD_POS_MAX: {
-          m->updateLimits(m->pos_limit_min, cmd.value);
-          saveMotorConfig(cmd.actuator_id, m);
-          if (DEBUG_MODE) {
-            Serial.print("DEBUG: Set max limit to ");
-            Serial.println(cmd.value);
-          }
-          break;
-        }
-        case CMD_GET_CONFIG: {
-          // Print config back to GUI
-          Serial.print("CONFIG,");
-          Serial.print(cmd.actuator_id);
-          Serial.print(",");
-          Serial.print(m->pos_pid.kp, 4);
-          Serial.print(",");
-          Serial.print(m->pos_pid.ki, 4);
-          Serial.print(",");
-          Serial.print(m->pos_pid.kd, 4);
-          Serial.print(",");
-          Serial.print(m->pos_pid.kff, 4);
-          Serial.print(",");
-          Serial.print(m->vel_pid.kp, 4);
-          Serial.print(",");
-          Serial.print(m->vel_pid.ki, 4);
-          Serial.print(",");
-          Serial.print(m->vel_pid.kd, 4);
-          Serial.print(",");
-          Serial.print(m->vel_pid.kff, 4);
-          Serial.print(",");
-          Serial.print(m->pos_pid.getLpfAlpha(), 4);
-          Serial.print(",");
-          Serial.print(m->vel_pid.getLpfAlpha(), 4);
-          Serial.print(",");
-          Serial.print(m->lpf_input_alpha, 4);
-          Serial.print(",");
-          Serial.print(m->pos_limit_min);
-          Serial.print(",");
-          Serial.print(m->pos_limit_max);
-          Serial.print(",");
-          Serial.print(m->pos_pid.max_ramp_rate, 4);
-          Serial.print(",");
-          Serial.println(m->vel_pid.max_ramp_rate, 4);
-          break;
-        }
-        default:
-          break;
-        }
+        // Build dispatch context and delegate to table-driven handler
+        CommandContext ctx = {
+          m,
+          (uint8_t)cmd.actuator_id,
+          cmd.value,
+          parser.last_payload,
+          EContr,
+          entry
+        };
+        dispatchCommand(cmd, ctx);
       }
     }
   }
 
-  // Sequence command dispatch (valid in AUTO_CURB_CLIMBING mode)
+    // Sequence command dispatch (delegated to SequencePlayer module)
   if (current_state == AUTO_CURB_CLIMBING && cmd.type != CMD_NONE) {
-    if (cmd.type == CMD_SEQ_KEYFRAME) {
-      int idx = cmd.actuator_id;
-      if (idx >= 0 && idx < MAX_SEQ_KEYFRAMES) {
-        Keyframe kf;
-        if (parseKeyframePayload(parser.last_payload, kf)) {
-          seq_keyframes[idx] = kf;
-          if (idx >= seq_length)
-            seq_length = idx + 1;
-          Serial.print("SEQ_ACK,");
-          Serial.println(idx);
-        } else {
-          Serial.print("SEQ_ERR,bad_payload,");
-          Serial.println(idx);
-        }
-      }
-    } else if (cmd.type == CMD_SEQ_STEP_FWD) {
-      if (!seq_interpolating && seq_current < seq_length - 1) {
-        seq_current++;
-        Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc,          &ml,
-                                         &mr, &ml_carriage, &mr_carriage};
-        for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-          seq_start_pos[i] = motors[i]->current_pos;
-        }
-        seq_interp_start = millis();
-        seq_interpolating = true;
-        Serial.print("SEQ_STATUS,");
-        Serial.print(seq_current);
-        Serial.print(",");
-        Serial.print(seq_length);
-        Serial.println(",1");
-      }
-    } else if (cmd.type == CMD_SEQ_STEP_BWD) {
-      if (!seq_interpolating && seq_current > 0) {
-        seq_current--;
-        Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc,          &ml,
-                                         &mr, &ml_carriage, &mr_carriage};
-        for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-          seq_start_pos[i] = motors[i]->current_pos;
-        }
-        seq_interp_start = millis();
-        seq_interpolating = true;
-        Serial.print("SEQ_STATUS,");
-        Serial.print(seq_current);
-        Serial.print(",");
-        Serial.print(seq_length);
-        Serial.println(",1");
-      }
-    } else if (cmd.type == CMD_SEQ_GOTO) {
-      int target_step = cmd.actuator_id;
-      if (!seq_interpolating && target_step >= 0 && target_step < seq_length) {
-        seq_current = target_step;
-        Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc,          &ml,
-                                         &mr, &ml_carriage, &mr_carriage};
-        for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-          seq_start_pos[i] = motors[i]->current_pos;
-        }
-        seq_interp_start = millis();
-        seq_interpolating = true;
-        Serial.print("SEQ_STATUS,");
-        Serial.print(seq_current);
-        Serial.print(",");
-        Serial.print(seq_length);
-        Serial.println(",1");
-      }
-    } else if (cmd.type == CMD_SEQ_MODE && cmd.value <= 0.5f) {
-      // handled above in state transitions
-    }
+    Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+    sequenceHandleCommand(cmd, seq_motors, parser.last_payload);
   }
 
   // 4. Update Motors
@@ -1169,30 +583,8 @@ void loop() {
   } else if (current_state == SELF_LEVELING) {
     runSelfLeveling(dt);
   } else if (current_state == AUTO_CURB_CLIMBING) {
-    if (seq_interpolating && seq_current >= 0 && seq_current < seq_length) {
-      Keyframe &kf = seq_keyframes[seq_current];
-      unsigned long elapsed = millis() - seq_interp_start;
-      float t = (kf.duration_ms == 0)
-                    ? 1.0f
-                    : min(1.0f, (float)elapsed / (float)kf.duration_ms);
-      Motor *motors[SEQ_NUM_MOTORS] = {&rc, &fc,          &ml,
-                                       &mr, &ml_carriage, &mr_carriage};
-      for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-        if (kf.active[i]) {
-          float target =
-              seq_start_pos[i] + t * (kf.targets[i] - seq_start_pos[i]);
-          motors[i]->setTargetPosition(target);
-        }
-      }
-      if (t >= 1.0f) {
-        seq_interpolating = false;
-        Serial.print("SEQ_STATUS,");
-        Serial.print(seq_current);
-        Serial.print(",");
-        Serial.print(seq_length);
-        Serial.println(",0");
-      }
-    }
+    Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+    sequenceUpdate(seq_motors);
   }
 
   float rc_pwm = rc.update(dt);
@@ -1227,6 +619,7 @@ void loop() {
     mrc_pwm = 0;
   }
 
+  // TODO: Check return values from RoboClaw DutyM1/M2 for communication error detection
   // Write PWM to RoboClaws (constrained strictly to 16-bit signed int +/-
   // 32767) roboclaw_main: M1 = Main Left, M2 = Main Right
   // TODO: change main wheel controls back to default
@@ -1251,6 +644,6 @@ void loop() {
     sendTelemetry();
   }
 
-  // TODO: Stabilize timing loop
+  // TODO: Replace delayMicroseconds with hardware timer for deterministic loop
   delayMicroseconds(5000);
 }

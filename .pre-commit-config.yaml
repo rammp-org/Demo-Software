@@ -7,6 +7,7 @@ repos:
         exclude: '(\.md$|\.markdown$)'
       - id: end-of-file-fixer
       - id: check-added-large-files
+        exclude: '\.(dae|stl|obj|ply|fbx)$'
       - id: check-yaml
       - id: check-xml
 

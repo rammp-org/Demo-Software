@@ -1,5 +1,4 @@
 name: ROS 2 Build
-
 on:
   push:
     branches: [main, dev]
@@ -9,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    container: ros:humble
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm]
@@ -17,20 +17,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: src/Demo-Software
+          submodules: recursive
 
-      - uses: ros-tooling/setup-ros@v0.7
+      - name: Cache gRPC
+        uses: actions/cache@v3
         with:
-          required-ros-distributions: humble
-
-      - name: Initialize rosdep
-        run: |
-          sudo rosdep init || true
-          rosdep update
+          path: /github/home/.local
+          key: grpc-v1.56.2-${{ matrix.os }}
 
       - name: Install dependencies
-        run: rosdep install -i --from-path src --rosdistro humble -r -y
+        shell: bash
+        run: src/Demo-Software/setup.sh
 
       - name: Build
+        shell: bash
         run: |
           source /opt/ros/humble/setup.bash
+          export CMAKE_PREFIX_PATH=/github/home/.local
+          export PATH=/github/home/.local/bin:$PATH
           colcon build --symlink-install --event-handlers console_cohesion+

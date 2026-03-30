@@ -1,6 +1,7 @@
 import os
 
 from ament_index_python.packages import get_package_share_directory
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.conditions import UnlessCondition
@@ -21,11 +22,12 @@ def generate_launch_description():
         "gemini_330_series.launch.py",
     )
 
-    # Path to the camera configuration YAML file
+    # Default config. Override at launch time with:
+    #   params_file:=$(ros2 pkg prefix rammp_prototype_bringup --share)/config/<variant>.yaml
     camera_config = os.path.join(
         get_package_share_directory("rammp_prototype_bringup"),
         "config",
-        "camera_config.yaml",
+        "camera_demo_main.yaml",
     )
 
     return LaunchDescription(
@@ -47,13 +49,23 @@ def generate_launch_description():
                 default_value="",
                 description="Serial number of the RealSense D435i wrist camera.",
             ),
-            # ── nav camera serial (Orbbec Gemini 336L) ───────────────
+            # ── Nav camera serial (Orbbec Gemini 336L) ────────────────────
             DeclareLaunchArgument(
                 "nav_camera_serial",
                 default_value="",
                 description="Serial number of the Orbbec Gemini 336L navigation camera.",
             ),
+            # ── Config file override ───────────────────────────────────────
+            DeclareLaunchArgument(
+                "params_file",
+                default_value=camera_config,
+                description=(
+                    "Absolute path to the camera config YAML. "
+                    "Defaults to camera_demo_main.yaml."
+                ),
+            ),
             # ── Wrist camera (RealSense D435i) ────────────────────────────
+            # Delayed 8 s to allow the Orbbec USB stack to settle first.
             TimerAction(
                 period=8.0,
                 actions=[
@@ -71,7 +83,9 @@ def generate_launch_description():
                             "unite_imu_method": "2",
                             "pointcloud.enable": "false",
                             "log_level": "warn",
-                            "params_file": camera_config,
+                            # params_file is a launch arg in rs_launch.py,
+                            # not a node parameter — must be in launch_arguments.
+                            "params_file": LaunchConfiguration("params_file"),
                         }.items(),
                         condition=UnlessCondition(
                             LaunchConfiguration("disable_realsense")
@@ -79,7 +93,7 @@ def generate_launch_description():
                     )
                 ],
             ),
-            # ── nav camera (Orbbec Gemini 336L) ──────────────────────
+            # ── Nav camera (Orbbec Gemini 336L) ───────────────────────────
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(orbbec_launch),
                 launch_arguments={
@@ -116,7 +130,9 @@ def generate_launch_description():
                     "exposure_range_mode": "ultimate",
                     "laser_energy_level": "4",
                     "enable_ir_auto_exposure": "true",
-                    "params_file": camera_config,
+                    # params_file is a launch arg in gemini_330_series.launch.py,
+                    # not a node parameter — must be in launch_arguments.
+                    "params_file": LaunchConfiguration("params_file"),
                 }.items(),
                 condition=UnlessCondition(LaunchConfiguration("disable_orbbec")),
             ),

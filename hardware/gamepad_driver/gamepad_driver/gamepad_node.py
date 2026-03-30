@@ -150,9 +150,7 @@ class gamepadNode(Node):
             world_linear_stamped.header.frame_id = (
                 "world"  # actual frame name for kinova gen3, may need to change
             )
-            world_linear_stamped.vector.x = (
-                msg.axes[1] * scale
-            )  # Map to your specific axis
+            world_linear_stamped.vector.x = msg.axes[1] * scale
             world_linear_stamped.vector.y = msg.axes[0] * scale
             world_linear_stamped.vector.z = msg.axes[3] * scale
 

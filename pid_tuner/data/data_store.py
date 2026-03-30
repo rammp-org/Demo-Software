@@ -751,6 +751,22 @@ class DataStore(QObject):
             self._ml_drive_pwm = data.ml_drive_pwm
             self._mr_drive_pwm = data.mr_drive_pwm
 
+        # Feed drive wheel data into JointData for joints 7 (ML_D) and 8 (MR_D)
+        # so the plotter can display them when selected.
+        if hasattr(data, "ml_drive_pos"):
+            self._joints[6].add_sample(
+                data.timestamp_ms,
+                data.ml_drive_pos,
+                data.ml_drive_vel,
+                data.ml_drive_pwm,
+            )
+            self._joints[7].add_sample(
+                data.timestamp_ms,
+                data.mr_drive_pos,
+                data.mr_drive_vel,
+                data.mr_drive_pwm,
+            )
+
         # Update per-joint control modes from telemetry (59-field packet onward)
         if getattr(data, "control_mode_values", None):
             for i, mode in enumerate(data.control_mode_values[: self.NUM_JOINTS]):

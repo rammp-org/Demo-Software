@@ -115,7 +115,7 @@ class GuiBridge(Node):
         print("Gui_bridge node has been started.")
         GuiBridge.instance = self
 
-        self.declare_parameter("ue_host", "192.168.68.65")
+        self.declare_parameter("ue_host", "192.168.68.51")
         self.host = self.get_parameter("ue_host").get_parameter_value().string_value
 
         self.declare_parameter("use_shared_memory", False)
@@ -188,13 +188,13 @@ class GuiBridge(Node):
         self.init_subscriber()
         self.init_service()
 
-        self.test_ue_counter = 0
-        self.test_ue_timer = self.create_timer(1.0, self.test_ue)
+        # self.test_ue_counter = 0
+        # self.test_ue_timer = self.create_timer(1.0, self.test_ue)
 
     def init_service(self):
         # make service client for user input, request should be string
         self.user_input_service_client = self.create_client(
-            UserInputs, "/GuiBridge/receive_input", callback_group=self._cb_group
+            UserInputs, "/GuiBridge/user_input", callback_group=self._cb_group
         )
 
     def send_user_input(self, input: str):

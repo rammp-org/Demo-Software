@@ -29,6 +29,7 @@ from .node_name_monitor import NodeNameMonitor
 from ament_index_python.packages import get_package_share_directory
 from arm_interfaces.srv import SetMode, SetSpeedPreset
 from std_srvs.srv import Trigger, SetBool
+from std_msgs.msg import Bool
 from diagnostic_msgs.msg import DiagnosticStatus
 
 
@@ -138,6 +139,7 @@ class SystemControl(rclpy.node.Node):
 
         self._arm_status = ""
         self._cb_group = ReentrantCallbackGroup()
+        self._all_node_ready = False
         self.node_monitor = NodeNameMonitor(self, json_path, self.node_monitor_callback)
 
         self.curb_traverse_direction = None  # to store curb traverse direction for testing, will remove after testing
@@ -151,6 +153,14 @@ class SystemControl(rclpy.node.Node):
             1.0, self.mock_task, callback_group=self._cb_group
         )
         self._test_timer.cancel()  # cancel the timer and reset when system is ready
+
+        self._system_monitor_timer = self.create_timer(
+            1.0, self.system_monitor_callback, callback_group=self._cb_group
+        )
+
+    def system_monitor_callback(self):
+        if self._all_node_ready and self._gui_connected:
+            self.ready()
 
     def mock_task(self):
         self._mock_state.run_next_mock_task()
@@ -530,8 +540,9 @@ class SystemControl(rclpy.node.Node):
             10,
             callback_group=self._cb_group,
         )
+        self._gui_connected = False
         self.Gui_connection_subscriber = self.create_subscription(
-            bool,
+            Bool,
             "/GuiBridge/gui_connection",
             self.Gui_connection_callback,
             10,
@@ -584,9 +595,9 @@ class SystemControl(rclpy.node.Node):
         )
         self.create_service(
             UserInputs,
-            "/GuiBridge/receive_input",
+            "/GuiBridge/user_input",
             self._srv_user_inputs_callback,
-            callback_group=self._callback_group,
+            callback_group=self._service_cb_group,
         )
 
     def init_actions_clients(self):
@@ -745,12 +756,20 @@ class SystemControl(rclpy.node.Node):
             self.get_logger().info(f" arm status: {self._arm_status} --> {msg.message}")
             self._arm_status = msg.message
 
-    def Gui_connection_callback(self, msg: bool):
+    def Gui_connection_callback(self, msg: Bool):
         # Placeholder for processing GUI connection status, will replace with actual logic to handle GUI connection status later
-        if msg:
-            self.get_logger().info("GUI is connected.")
+        if msg.data:
+            if not self._gui_connected:
+                self.get_logger().info(
+                    "GUI connection state changed: disconnected --> connected"
+                )
+            self._gui_connected = True
         else:
-            self.get_logger().warn("GUI is disconnected.")
+            if self._gui_connected:
+                self.get_logger().warn(
+                    "GUI connection state changed: connected --> disconnected"
+                )
+            self._gui_connected = False
 
     def _srv_user_inputs_callback(
         self, request: UserInputs.Request, response: UserInputs.Response
@@ -843,14 +862,16 @@ class SystemControl(rclpy.node.Node):
     def node_monitor_callback(self, all_nodes_ready):
         if all_nodes_ready:
             self.get_logger().info("All nodes are ready!")
+            self._all_node_ready = True
             self.ready()  # trigger transition to Chair state when all nodes are ready
             # TODO: need check UI connection as well
             # wait 2 senconds to start mock testing here
-            self._test_timer.reset()  # reset and start the timer to run mock tasks
+            # self._test_timer.reset()  # reset and start the timer to run mock tasks
 
         else:
             self.get_logger().warn("Some nodes are missing!")
             self.eStop()  # trigger transition to error state when nodes are missing
+            self._all_node_ready = False
 
     # ----------End of publisher callback functions to process messages and update internal state----------------
 

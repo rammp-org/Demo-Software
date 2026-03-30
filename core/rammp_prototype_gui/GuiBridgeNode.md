@@ -103,9 +103,9 @@ string ESTOP="system/stop"
 
 ### Service Clients:
 
-| Topic       | Type                         |
-| ----------- | ---------------------------- |
-| /user_input | gui_interface/srv/UserInputs |
+| Topic                 | Type                         |
+| --------------------- | ---------------------------- |
+| /GuiBridge/user_input | gui_interface/srv/UserInputs |
 
 ### Action Servers:
 

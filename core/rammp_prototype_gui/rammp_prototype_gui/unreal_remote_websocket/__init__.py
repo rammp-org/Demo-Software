@@ -118,7 +118,6 @@ class UnrealRemoteWebsocket:
             "Parameters": parameters,
         }
         async with self._send_lock:
-            print(f"Sending payload: {json.dumps(payload)}")
             await self.ws_client.send(json.dumps(payload))
             try:
                 resp = await asyncio.wait_for(
@@ -149,7 +148,7 @@ class UnrealRemoteWebsocket:
                 raise UnrealRemoteError(
                     f"UE responded with error code {resp.get('ResponseCode')}: {resp.get('Body')}"
                 )
-            print(resp.get("ResponseBody", {}))
+            # print(resp.get("ResponseBody", {}))
             return resp.get("ResponseBody", {})
         except Exception as e:
             logger.error(

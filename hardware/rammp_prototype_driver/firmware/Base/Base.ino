@@ -285,12 +285,12 @@ void runSelfLeveling(float dt) {
   Serial.println(z_target_mr * MR_CM_TO_TICKS, 1);
 
   // Dispatch targets in ticks — commented out for math verification
-  // ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
-  // mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
-  // rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
+  ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
+  mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
+  rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
 
   // Carriages and FC are driven by the carriage pre-check guard above
-  // fc.setTargetPosition(FC_MAX_TICKS);
+  fc.setTargetPosition(FC_MAX_TICKS);
 
   // Store debug data for telemetry — leveling[]: [pitch_err, roll_err, z_ml,
   // z_rc, z_mr]

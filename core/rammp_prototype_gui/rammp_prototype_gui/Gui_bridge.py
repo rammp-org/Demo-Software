@@ -13,8 +13,9 @@ from std_msgs.msg import Bool
 from .unreal_remote_websocket import UnrealRemoteWebsocket
 from .streaming.sender import StreamSender
 from gui_interfaces.srv import UserInputs
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import CameraInfo, JointState, Image
 from rclpy.callback_groups import ReentrantCallbackGroup
+from realsense2_camera_msgs.msg import Extrinsics
 
 
 @dataclass
@@ -133,6 +134,31 @@ class GuiBridge(Node):
         )
         print(f"Using UE host: {self.host}, UE preset: {self.ue_preset}")
 
+        self.declare_parameter("wrist_camera_namespace", "/camera/wrist")
+        self.declare_parameter("nav_camera_namespace_1", "/camera/nav1")
+        self.declare_parameter("nav_camera_namespace_2", "/camera/nav2")
+        self.declare_parameter("rear_camera_namespace", "/camera/rear")
+        self.wrist_camera_namespace = (
+            self.get_parameter("wrist_camera_namespace")
+            .get_parameter_value()
+            .string_value
+        )
+        self.nav_camera_namespace_1 = (
+            self.get_parameter("nav_camera_namespace_1")
+            .get_parameter_value()
+            .string_value
+        )
+        self.nav_camera_namespace_2 = (
+            self.get_parameter("nav_camera_namespace_2")
+            .get_parameter_value()
+            .string_value
+        )
+        self.rear_camera_namespace = (
+            self.get_parameter("rear_camera_namespace")
+            .get_parameter_value()
+            .string_value
+        )
+
         self.ue = UnrealRemoteWebsocket(
             host=self.host,
             preset=self.ue_preset,
@@ -226,6 +252,354 @@ class GuiBridge(Node):
             10,
             callback_group=self._cb_group,
         )
+
+        # init camera subscribers
+        # init camera msg to None first.
+        self.wrist_camera_image_info = None
+        self.wrist_camera_depth_info = None
+        self.wrist_camera_image = None
+        self.wrist_camera_depth = None
+        self.wrist_camera_extrinsics = None
+        self.nav_camera_1_image_info = None
+        self.nav_camera_1_depth_info = None
+        self.nav_camera_1_image = None
+        self.nav_camera_1_depth = None
+        self.nav_camera_1_extrinsics = None
+        self.nav_camera_2_image_info = None
+        self.nav_camera_2_depth_info = None
+        self.nav_camera_2_image = None
+        self.nav_camera_2_depth = None
+        self.nav_camera_2_extrinsics = None
+        self.rear_camera_image_info = None
+        self.rear_camera_depth_info = None
+        self.rear_camera_image = None
+        self.rear_camera_depth = None
+        self.rear_camera_extrinsics = None
+        # wrist camera:
+        self.wrist_camera_image_info_sub = self.create_subscription(
+            CameraInfo,
+            f"{self.wrist_camera_namespace}/color/camera_info",
+            self.wrist_camera_image_info_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.wrist_camera_depth_info_sub = self.create_subscription(
+            CameraInfo,
+            f"{self.wrist_camera_namespace}/depth/camera_info",
+            self.wrist_camera_depth_info_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.wrist_camera_image_sub = self.create_subscription(
+            Image,
+            f"{self.wrist_camera_namespace}/color/image_raw",
+            self.wrist_camera_image_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.wrist_camera_depth_sub = self.create_subscription(
+            Image,
+            f"{self.wrist_camera_namespace}/depth/image_rect_raw",
+            self.wrist_camera_depth_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.wrist_camera_extrinsics_sub = self.create_subscription(
+            Extrinsics,
+            f"{self.wrist_camera_namespace}/extrinsics/depth_to_color",
+            self.wrist_camera_extrinsics_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+
+        # nav camera 1
+        self.nav_camera_1_image_info_sub = self.create_subscription(
+            CameraInfo,
+            f"{self.nav_camera_namespace_1}/color/camera_info",
+            self.nav_camera_1_image_info_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.nav_camera_1_depth_info_sub = self.create_subscription(
+            CameraInfo,
+            f"{self.nav_camera_namespace_1}/depth/camera_info",
+            self.nav_camera_1_depth_info_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.nav_camera_1_image_sub = self.create_subscription(
+            Image,
+            f"{self.nav_camera_namespace_1}/color/image_raw",
+            self.nav_camera_1_image_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.nav_camera_1_depth_sub = self.create_subscription(
+            Image,
+            f"{self.nav_camera_namespace_1}/depth/image_rect_raw",
+            self.nav_camera_1_depth_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.nav_camera_1_extrinsics_sub = self.create_subscription(
+            Extrinsics,
+            f"{self.nav_camera_namespace_1}/extrinsics/depth_to_color",
+            self.nav_camera_1_extrinsics_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+
+        # nav camera 2
+        self.nav_camera_2_image_info_sub = self.create_subscription(
+            CameraInfo,
+            f"{self.nav_camera_namespace_2}/color/camera_info",
+            self.nav_camera_2_image_info_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.nav_camera_2_depth_info_sub = self.create_subscription(
+            CameraInfo,
+            f"{self.nav_camera_namespace_2}/depth/camera_info",
+            self.nav_camera_2_depth_info_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.nav_camera_2_image_sub = self.create_subscription(
+            Image,
+            f"{self.nav_camera_namespace_2}/color/image_raw",
+            self.nav_camera_2_image_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.nav_camera_2_depth_sub = self.create_subscription(
+            Image,
+            f"{self.nav_camera_namespace_2}/depth/image_rect_raw",
+            self.nav_camera_2_depth_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.nav_camera_2_extrinsics_sub = self.create_subscription(
+            Extrinsics,
+            f"{self.nav_camera_namespace_2}/extrinsics/depth_to_color",
+            self.nav_camera_2_extrinsics_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        # rear camera
+        self.rear_camera_image_info_sub = self.create_subscription(
+            CameraInfo,
+            f"{self.rear_camera_namespace}/color/camera_info",
+            self.rear_camera_image_info_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.rear_camera_depth_info_sub = self.create_subscription(
+            CameraInfo,
+            f"{self.rear_camera_namespace}/depth/camera_info",
+            self.rear_camera_depth_info_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.rear_camera_image_sub = self.create_subscription(
+            Image,
+            f"{self.rear_camera_namespace}/color/image_raw",
+            self.rear_camera_image_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.rear_camera_depth_sub = self.create_subscription(
+            Image,
+            f"{self.rear_camera_namespace}/depth/image_rect_raw",
+            self.rear_camera_depth_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+        self.rear_camera_extrinsics_sub = self.create_subscription(
+            Extrinsics,
+            f"{self.rear_camera_namespace}/extrinsics/depth_to_color",
+            self.rear_camera_extrinsics_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+
+    # camera subscription callbacks
+    def wrist_camera_image_info_callback(self, msg: CameraInfo):
+        self.wrist_camera_image_info = msg
+
+    def wrist_camera_depth_info_callback(self, msg: CameraInfo):
+        self.wrist_camera_depth_info = msg
+
+    def wrist_camera_image_callback(self, msg: Image):
+        self.wrist_camera_image = msg
+        self.send_wrist_camera_image()
+
+    def wrist_camera_depth_callback(self, msg: Image):
+        self.wrist_camera_depth = msg
+        self.send_wrist_camera_depth()
+
+    def wrist_camera_extrinsics_callback(self, msg: Extrinsics):
+        self.wrist_camera_extrinsics = msg
+
+    def nav_camera_1_image_info_callback(self, msg: CameraInfo):
+        self.nav_camera_1_image_info = msg
+
+    def nav_camera_1_depth_info_callback(self, msg: CameraInfo):
+        self.nav_camera_1_depth_info = msg
+
+    def nav_camera_1_image_callback(self, msg: Image):
+        self.nav_camera_1_image = msg
+        self.send_nav_camera_1_image()
+
+    def nav_camera_1_depth_callback(self, msg: Image):
+        self.nav_camera_1_depth = msg
+        self.send_nav_camera_1_depth()
+
+    def nav_camera_1_extrinsics_callback(self, msg: Extrinsics):
+        self.nav_camera_1_extrinsics = msg
+
+    def nav_camera_2_image_info_callback(self, msg: CameraInfo):
+        self.nav_camera_2_image_info = msg
+
+    def nav_camera_2_depth_info_callback(self, msg: CameraInfo):
+        self.nav_camera_2_depth_info = msg
+
+    def nav_camera_2_image_callback(self, msg: Image):
+        self.nav_camera_2_image = msg
+        self.send_nav_camera_2_image()
+
+    def nav_camera_2_depth_callback(self, msg: Image):
+        self.nav_camera_2_depth = msg
+        self.send_nav_camera_2_depth()
+
+    def nav_camera_2_extrinsics_callback(self, msg: Extrinsics):
+        self.nav_camera_2_extrinsics = msg
+
+    def rear_camera_image_info_callback(self, msg: CameraInfo):
+        self.rear_camera_image_info = msg
+
+    def rear_camera_depth_info_callback(self, msg: CameraInfo):
+        self.rear_camera_depth_info = msg
+
+    def rear_camera_image_callback(self, msg: Image):
+        self.rear_camera_image = msg
+        self.send_rear_camera_image()
+
+    def rear_camera_depth_callback(self, msg: Image):
+        self.rear_camera_depth = msg
+        self.send_rear_camera_depth()
+
+    def rear_camera_extrinsics_callback(self, msg: Extrinsics):
+        self.rear_camera_extrinsics = msg
+
+    def send_wrist_camera_image(self):
+        if self.stream_sender.is_connected():
+            if (
+                self.wrist_camera_image is not None
+                and self.wrist_camera_image_info is not None
+            ):
+                try:
+                    self.get_logger().info(
+                        "place holder for sending wrist camera image"
+                    )
+                except Exception as e:
+                    self.get_logger().warn(f"Failed to send wrist camera image: {e}")
+
+    def send_wrist_camera_depth(self):
+        if self.stream_sender.is_connected():
+            if (
+                self.wrist_camera_depth is not None
+                and self.wrist_camera_depth_info is not None
+            ):
+                try:
+                    self.get_logger().info(
+                        "place holder for sending wrist camera depth image"
+                    )
+                except Exception as e:
+                    self.get_logger().warn(
+                        f"Failed to send wrist camera depth image: {e}"
+                    )
+
+    def send_nav_camera_1_image(self):
+        if self.stream_sender.is_connected():
+            if (
+                self.nav_camera_1_image is not None
+                and self.nav_camera_1_image_info is not None
+            ):
+                try:
+                    self.get_logger().info(
+                        "place holder for sending nav camera 1 image"
+                    )
+                except Exception as e:
+                    self.get_logger().warn(f"Failed to send nav camera 1 image: {e}")
+
+    def send_nav_camera_1_depth(self):
+        if self.stream_sender.is_connected():
+            if (
+                self.nav_camera_1_depth is not None
+                and self.nav_camera_1_depth_info is not None
+            ):
+                try:
+                    self.get_logger().info(
+                        "place holder for sending nav camera 1 depth image"
+                    )
+                except Exception as e:
+                    self.get_logger().warn(
+                        f"Failed to send nav camera 1 depth image: {e}"
+                    )
+
+    def send_nav_camera_2_image(self):
+        if self.stream_sender.is_connected():
+            if (
+                self.nav_camera_2_image is not None
+                and self.nav_camera_2_image_info is not None
+            ):
+                try:
+                    self.get_logger().info(
+                        "place holder for sending nav camera 2 image"
+                    )
+                except Exception as e:
+                    self.get_logger().warn(f"Failed to send nav camera 2 image: {e}")
+
+    def send_nav_camera_2_depth(self):
+        if self.stream_sender.is_connected():
+            if (
+                self.nav_camera_2_depth is not None
+                and self.nav_camera_2_depth_info is not None
+            ):
+                try:
+                    self.get_logger().info(
+                        "place holder for sending nav camera 2 depth image"
+                    )
+                except Exception as e:
+                    self.get_logger().warn(
+                        f"Failed to send nav camera 2 depth image: {e}"
+                    )
+
+    def send_rear_camera_image(self):
+        if self.stream_sender.is_connected():
+            if (
+                self.rear_camera_image is not None
+                and self.rear_camera_image_info is not None
+            ):
+                try:
+                    self.get_logger().info("place holder for sending rear camera image")
+                except Exception as e:
+                    self.get_logger().warn(f"Failed to send rear camera image: {e}")
+
+    def send_rear_camera_depth(self):
+        if self.stream_sender.is_connected():
+            if (
+                self.rear_camera_depth is not None
+                and self.rear_camera_depth_info is not None
+            ):
+                try:
+                    self.get_logger().info(
+                        "place holder for sending rear camera depth image"
+                    )
+                except Exception as e:
+                    self.get_logger().error(
+                        f"Failed to send rear camera depth image: {e}"
+                    )
 
     def check_streamer_connection(self):
         # check UE connection and connect/disconnect StreamSender accordingly
@@ -415,21 +789,6 @@ class GuiBridge(Node):
         msg.data = self.ue.is_connected()
         self.connection_publisher.publish(msg)
 
-    def destroy_node(self):
-        # Signal websocket handlers to stop
-        self.ue.shutdown()
-        # Stop the event loop
-        self.loop.call_soon_threadsafe(self.loop.stop)
-        # Wait for the event loop thread to finish
-        timeout = 5  # seconds
-        start = time.time()
-        while self.loop.is_running() and (time.time() - start) < timeout:
-            time.sleep(0.1)
-        if self.use_shared_memory:
-            self.mapfile.close()
-            self.shm.unlink()
-        super().destroy_node()
-
     def system_state_callback(self, msg):
         if self._system_state is None or self._system_state != msg.data:
             self.get_logger().debug("Received new system state: " + msg.data)
@@ -450,6 +809,21 @@ class GuiBridge(Node):
         # For example, you can call a UE function with the user input as parameter
         if input in (item.value for item in UserInputString):
             self.send_user_input(input)
+
+    def destroy_node(self):
+        # Signal websocket handlers to stop
+        self.ue.shutdown()
+        # Stop the event loop
+        self.loop.call_soon_threadsafe(self.loop.stop)
+        # Wait for the event loop thread to finish
+        timeout = 5  # seconds
+        start = time.time()
+        while self.loop.is_running() and (time.time() - start) < timeout:
+            time.sleep(0.1)
+        if self.use_shared_memory:
+            self.mapfile.close()
+            self.shm.unlink()
+        super().destroy_node()
 
 
 def main():

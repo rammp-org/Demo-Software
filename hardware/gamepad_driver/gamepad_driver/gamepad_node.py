@@ -139,10 +139,16 @@ class gamepadNode(Node):
             )
 
             # only one will work
-            if abs(msg.axes[3]) - abs(msg.axes[4]) > 0.5:
+            if abs(msg.axes[0]) - abs(msg.axes[4]) > 0.5:
                 msg.axes[4] = 0.0
-            elif abs(msg.axes[4]) - abs(msg.axes[3]) > 0.5:
+            elif abs(msg.axes[4]) - abs(msg.axes[0]) > 0.5:
+                msg.axes[0] = 0.0
+
+            # lessen sensitivity of right joystick x and y
+            if abs(msg.axes[2]) - abs(msg.axes[3]) > 0.5:
                 msg.axes[3] = 0.0
+            elif abs(msg.axes[3]) - abs(msg.axes[2]) > 0.5:
+                msg.axes[2] = 0.0
 
             # 2. Create a Vector3Stamped for the Linear Joystick Input
             # do_transform_vector3 REQUIREs the .vector attribute found in Stamped messages
@@ -151,15 +157,15 @@ class gamepadNode(Node):
                 "world"  # actual frame name for kinova gen3, may need to change
             )
             world_linear_stamped.vector.x = msg.axes[1] * scale
-            world_linear_stamped.vector.y = msg.axes[0] * scale
-            world_linear_stamped.vector.z = msg.axes[3] * scale
+            world_linear_stamped.vector.y = msg.axes[3] * scale
+            world_linear_stamped.vector.z = msg.axes[0] * scale
 
             # 3. Transform the Stamped Vector
             tool_linear_stamped = do_transform_vector3(world_linear_stamped, transform)
 
             # 4. Map Angular Input (Directly to Tool Frame)
             tool_angular = Vector3()
-            tool_angular.x = msg.axes[5] * ang_scale  # Roll
+            tool_angular.x = msg.axes[5] * -ang_scale  # Roll
             tool_angular.y = msg.axes[2] * -ang_scale  # Pitch
             tool_angular.z = msg.axes[4] * -ang_scale  # Yaw
 

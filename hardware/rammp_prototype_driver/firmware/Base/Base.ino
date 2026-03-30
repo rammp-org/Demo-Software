@@ -107,9 +107,9 @@ Motor ml_drive;
 Motor mr_drive;
 
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
-StrainGauge sg_rc(RC_LOADCELL_PIN, 0.5f);
-StrainGauge sg_fc(FC_LOADCELL_PIN, 0.6f);
-StrainGauge sg_ml(ML_LOADCELL_PIN, 0.7f);
+StrainGauge sg_rc(RC_LOADCELL_PIN, 0.8f);
+StrainGauge sg_fc(FC_LOADCELL_PIN, 0.8f);
+StrainGauge sg_ml(ML_LOADCELL_PIN, 0.f);
 StrainGauge sg_mr(MR_LOADCELL_PIN, 0.8f);
 
 int16_t scaled_mlc_pwm;
@@ -1164,6 +1164,8 @@ void loop() {
     mr.disable();
     ml_carriage.disable();
     mr_carriage.disable();
+    ml_drive.disable();
+    mr_drive.disable();
   } else if (current_state == SELF_LEVELING) {
     runSelfLeveling(dt);
   } else if (current_state == AUTO_CURB_CLIMBING) {

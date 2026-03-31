@@ -7,7 +7,7 @@ import rclpy.node
 from arm_interfaces.action import ExecuteTrajectory, ReachPreset
 from arm_interfaces.srv import GetSpeedPreset, SetMode, SetSpeedPreset
 from diagnostic_msgs.msg import DiagnosticStatus
-from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped
+from geometry_msgs.msg import PoseStamped, Twist, TwistStamped, Vector3Stamped
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -114,7 +114,9 @@ class ArmDriverNode(rclpy.node.Node):
         )
         self._imu_pub = self.create_publisher(Imu, "/arm/imu", 10)
         self._status_pub = self.create_publisher(DiagnosticStatus, "/arm/status", 10)
-        self._ee_force_pub = self.create_publisher(Vector3Stamped, "/arm/ee_force", 10)
+        self._ee_force_pub = self.create_publisher(Vector3Stamped, "/arm/ee/force", 10)
+        self._ee_pos_pub = self.create_publisher(PoseStamped, "/arm/ee/pose", 10)
+        self._ee_vel_pub = self.create_publisher(TwistStamped, "/arm/ee/velocity", 10)
         self._robot_description_pub = self.create_publisher(
             String, "/robot_description", 10
         )
@@ -654,7 +656,11 @@ class ArmDriverNode(rclpy.node.Node):
         joint_msg = JointState()
         joint_msg.header.stamp = stamp
         force_msg = Vector3Stamped()
+        vel_msg = TwistStamped()
+        pos_msg = PoseStamped()
         force_msg.header.stamp = stamp
+        vel_msg.header.stamp = stamp
+        pos_msg.header.stamp = stamp
 
         if self._arm:
             state = self._arm.get_state()
@@ -665,12 +671,31 @@ class ArmDriverNode(rclpy.node.Node):
             joint_msg.velocity = state["velocity"].tolist() + [0.0]
             joint_msg.effort = state["effort"].tolist() + [0.0]
 
-            force = self._arm.get_ee_force()
+            force = state["ee_force"]
             force_msg.vector.x = force[0]
             force_msg.vector.y = force[1]
             force_msg.vector.z = force[2]
 
+            ee_pos = state["ee_pos"]
+            pos_msg.pose.position.x = ee_pos[0]
+            pos_msg.pose.position.y = ee_pos[1]
+            pos_msg.pose.position.z = ee_pos[2]
+            pos_msg.pose.orientation.x = ee_pos[3]
+            pos_msg.pose.orientation.y = ee_pos[4]
+            pos_msg.pose.orientation.z = ee_pos[5]
+            pos_msg.pose.orientation.w = ee_pos[6]
+
+            ee_velocity = state["ee_vel"]
+            vel_msg.twist.linear.x = ee_velocity[0]
+            vel_msg.twist.linear.y = ee_velocity[1]
+            vel_msg.twist.linear.z = ee_velocity[2]
+            vel_msg.twist.angular.x = ee_velocity[3]
+            vel_msg.twist.angular.y = ee_velocity[4]
+            vel_msg.twist.angular.z = ee_velocity[5]
+
         self._joint_state_pub.publish(joint_msg)
+        self._ee_vel_pub.publish(vel_msg)
+        self._ee_pos_pub.publish(pos_msg)
         self._ee_force_pub.publish(force_msg)
 
     def _publish_status(self):

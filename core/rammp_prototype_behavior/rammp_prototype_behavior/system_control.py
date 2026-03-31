@@ -145,6 +145,7 @@ class SystemControl(rclpy.node.Node):
         self._all_node_ready = False
         self.node_monitor = NodeNameMonitor(self, json_path, self.node_monitor_callback)
 
+        self.current_arm_state = ""
         self.curb_traverse_direction = None  # to store curb traverse direction for testing, will remove after testing
         self.init_state_machine()
 
@@ -939,28 +940,32 @@ class SystemControl(rclpy.node.Node):
 
     # ----------state machine conditions----------------
     def is_arm_state_good_for_driving(self):
-        # Placeholder for actual logic to determine if the arm state is good for driving
-        return True
+        # several arm state is good for driving, e.g., retracted, home, homeWithDrink, cub_Stabilizing
+        if self.state in [
+            "Arm_retracted",
+            "Arm_home",
+            "Arm_homeWithDrink",
+            "Arm_cupStabilize_stabilizing",
+        ]:
+            self.current_arm_state = self.state
+            return True
+        return False
 
     def is_nav_state_good_for_driving(self):
         # Placeholder for actual logic to determine if the navigation state is good for driving
         return True
 
     def is_arm_at_home(self):
-        # Placeholder for actual logic to determine if the arm is at the home position
-        return False
+        return self.current_arm_state == "Arm_home"
 
     def is_arm_stable_cup(self):
-        # Placeholder for actual logic to determine if the arm is stable with a cup
-        return False
+        return self.current_arm_state == "Arm_cupStabilize_stabilizing"
 
     def is_arm_holding_drink(self):
-        # Placeholder for actual logic to determine if the arm is holding a drink
-        return False
+        return self.current_arm_state == "Arm_homeWithDrink"
 
     def is_arm_retracted(self):
-        # Placeholder for actual logic to determine if the arm is retracted
-        return True
+        return self.current_arm_state == "Arm_retracted" or self.current_arm_state == ""
 
     # ----------End of state machine conditions----------------
     # ----------state machine callbacks----------------
@@ -1277,7 +1282,7 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "reqArm",
                 "source": "Chair",
-                "dest": "Arm_home",
+                "dest": "Arm_homeWithDrink",
                 "conditions": "is_arm_holding_drink",
             },
             {"trigger": "reqNav", "source": "Chair", "dest": "Nav"},

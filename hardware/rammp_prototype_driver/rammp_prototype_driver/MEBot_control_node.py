@@ -346,7 +346,6 @@ class MEBotControlNode(Node):
             pass
 
     def send_set_luci(self):
-        self.get_logger().info("In send_set_luci_function")
         request = Empty.Request()
         future = self.set_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
@@ -394,14 +393,8 @@ class MEBotControlNode(Node):
 
     def drive_enable_callback(self, request, response):
         if request.data:
-            # content
-            self.get_logger().info("request recieved")
-            self.get_logger().info(str(request.data))
             self.send_set_luci()
         else:
-            # content
-            self.get_logger().info("request recieved")
-            self.get_logger().info(str(request.data))
             self.send_remove_luci()
 
         return response

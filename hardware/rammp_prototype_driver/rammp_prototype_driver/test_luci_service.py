@@ -12,7 +12,6 @@ class TestLuciService(Node):  # MODIFY NAME
         self.send_req()
 
     def send_req(self):
-        self.get_logger().info("I am in send_req function")
         req = SetBool.Request()
         req.data = True
         self.luci_req_client.wait_for_service()

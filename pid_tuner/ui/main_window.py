@@ -115,7 +115,9 @@ class MainWindow(QMainWindow):
         self._encoder_overview.joint_selected.connect(self._on_encoder_bar_clicked)
         overview_layout.addWidget(self._encoder_overview, stretch=1)
 
-        self._drive_wheel_display = DriveWheelDisplay(self._data_store)
+        self._drive_wheel_display = DriveWheelDisplay(
+            self._data_store, self._serial_handler
+        )
         overview_layout.addWidget(self._drive_wheel_display)
 
         main_layout.addLayout(overview_layout)

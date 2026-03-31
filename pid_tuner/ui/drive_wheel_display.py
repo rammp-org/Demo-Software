@@ -15,6 +15,7 @@ from PyQt6.QtCore import Qt, QTimer, QRectF, QProcess
 from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QPainterPath
 
 from ..data.data_store import DataStore
+from ..serial_driver.serial_handler import SerialHandler
 from ..ros_bridge.luci_client import LuciClient
 from .theme import THEME
 from .scaling import scaled, SIZES
@@ -125,9 +126,12 @@ _DPAD_BTN = f"""
 
 
 class DriveWheelDisplay(QWidget):
-    def __init__(self, data_store: DataStore, parent=None):
+    def __init__(
+        self, data_store: DataStore, serial_handler: SerialHandler, parent=None
+    ):
         super().__init__(parent)
         self.data_store = data_store
+        self.serial_handler = serial_handler
         self._luci = LuciClient(self)
         self._luci.connected_changed.connect(self._on_luci_connection_changed)
         self._luci.error_occurred.connect(self._on_luci_error)
@@ -207,6 +211,21 @@ class DriveWheelDisplay(QWidget):
             f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
         )
         conn_row.addWidget(self._luci_status)
+        self._btn_zero_encs = QPushButton("Zero FB/LR")
+        self._btn_zero_encs.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.blue};
+                color: {THEME.crust};
+                border-radius: 3px;
+                padding: 3px 8px;
+                font-size: {SIZES["font_small"]}pt;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: {THEME.sapphire}; }}
+        """)
+        self._btn_zero_encs.clicked.connect(self._on_zero_encs_clicked)
+        conn_row.addWidget(self._btn_zero_encs)
+
         conn_row.addStretch()
         root.addLayout(conn_row)
 
@@ -248,6 +267,14 @@ class DriveWheelDisplay(QWidget):
         dpad.addWidget(self._btn_bwd, 2, 1)
 
         root.addLayout(dpad)
+
+    def _on_zero_encs_clicked(self):
+        self.serial_handler.home_position(7)
+        self.serial_handler.home_position(8)
+        self.serial_handler.set_target(7, 0)
+        self.serial_handler.set_target(8, 0)
+        self.data_store.set_target(7, 0)
+        self.data_store.set_target(8, 0)
 
     def _on_connect_clicked(self):
         if self._luci.is_connected:

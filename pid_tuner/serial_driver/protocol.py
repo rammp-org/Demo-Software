@@ -558,8 +558,8 @@ class ProtocolEncoder:
         """
         Upload one keyframe to the robot.
         index: 0-based keyframe index
-        targets: list of 6 floats [rc, fc, ml, mr, ml_carriage, mr_carriage]
-        active: list of 6 bools — whether each motor is controlled by this keyframe
+        targets: list of 8 floats [rc, fc, ml, mr, ml_carriage, mr_carriage, drive_fb, drive_lr]
+        active: list of 8 bools — whether each motor is controlled by this keyframe
         duration_ms: interpolation duration in milliseconds
         """
         t_str = ",".join(f"{t:.2f}" for t in targets)

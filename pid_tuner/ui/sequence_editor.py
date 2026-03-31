@@ -40,8 +40,8 @@ from .scaling import SIZES, scaled
 
 
 # Motor names in order (matching firmware motor array)
-MOTOR_NAMES = ["RC", "FC", "ML", "MR", "ML_Car", "MR_Car"]
-NUM_MOTORS = 6
+MOTOR_NAMES = ["RC", "FC", "ML", "MR", "ML_Car", "MR_Car", "Drive_FB", "Drive_LR"]
+NUM_MOTORS = 8
 
 # Column indices in the QTableWidget
 COL_LABEL = 0
@@ -51,8 +51,10 @@ COL_ML = 3
 COL_MR = 4
 COL_ML_CAR = 5
 COL_MR_CAR = 6
-COL_DURATION = 7
-NUM_COLS = 8
+COL_DRIVE_FB = 7
+COL_DRIVE_LR = 8
+COL_DURATION = 9
+NUM_COLS = 10
 
 # Sentinel for "inactive" cells (motor not controlled in this keyframe)
 INACTIVE_TEXT = "--"
@@ -81,7 +83,12 @@ class Keyframe:
         kf = cls()
         kf.label = d.get("label", "")
         raw_targets = d.get("targets", [None] * NUM_MOTORS)
-        kf.targets = [(float(t) if t is not None else None) for t in raw_targets]
+        # Pad to current NUM_MOTORS for backward compatibility with old 6-motor JSON files
+        while len(raw_targets) < NUM_MOTORS:
+            raw_targets.append(None)
+        kf.targets = [
+            (float(t) if t is not None else None) for t in raw_targets[:NUM_MOTORS]
+        ]
         kf.duration_ms = int(d.get("duration_ms", 1000))
         return kf
 
@@ -248,7 +255,18 @@ class SequenceEditor(QWidget):
         return bar
 
     def _build_table(self) -> QTableWidget:
-        headers = ["Label", "RC", "FC", "ML", "MR", "ML_Car", "MR_Car", "Duration (ms)"]
+        headers = [
+            "Label",
+            "RC",
+            "FC",
+            "ML",
+            "MR",
+            "ML_Car",
+            "MR_Car",
+            "Drive_FB",
+            "Drive_LR",
+            "Duration (ms)",
+        ]
         self._table = QTableWidget(0, NUM_COLS)
         self._table.setHorizontalHeaderLabels(headers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -557,7 +575,7 @@ class SequenceEditor(QWidget):
         if col == COL_LABEL:
             kf.label = text
 
-        elif COL_RC <= col <= COL_MR_CAR:
+        elif COL_RC <= col <= COL_DRIVE_LR:
             motor_idx = col - COL_RC
             if text == INACTIVE_TEXT or text == "" or text == "-":
                 kf.targets[motor_idx] = None
@@ -759,7 +777,10 @@ class SequenceEditor(QWidget):
         for i in range(NUM_MOTORS):
             joint_data = self._data_store.get_joint(i + 1)
             if joint_data is not None:
-                kf.targets[i] = round(joint_data.current_position, 1)
+                if i >= 6:  # Drive motors: keyframe targets are velocity values
+                    kf.targets[i] = round(joint_data.current_velocity, 1)
+                else:
+                    kf.targets[i] = round(joint_data.current_position, 1)
 
     # ------------------------------------------------------------------ #
     #  Step commands                                                        #

@@ -3,7 +3,7 @@ import asyncio
 
 from rclpy.node import Node
 from cornell_feeding_interfaces.action import CornellActionsPlaceHolder
-from .ActionClientWrapper import ActionClientWrapper
+from .action_client_wrapper import ActionClientWrapper
 
 
 class GrabCupFromTableActionClient(ActionClientWrapper):

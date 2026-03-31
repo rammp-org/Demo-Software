@@ -2,18 +2,18 @@ from __future__ import annotations
 import asyncio
 
 from rclpy.node import Node
-from cornell_feeding_interfaces.action import CornellActionsPlaceHolder
-from .ActionClientWrapper import ActionClientWrapper
+from cmu_door_opener_interfaces.action import DoorOpenActionTypePlaceHolder
+from .action_client_wrapper import ActionClientWrapper
 
 
-class PickUpAndOrderActionClient(ActionClientWrapper):
+class OpenDoorActionClient(ActionClientWrapper):
     def __init__(
         self,
         node: Node,
     ):
         super().__init__(
-            "/arm/drink/PickupAndOrder",
-            CornellActionsPlaceHolder,
+            "/arm/door/open",
+            DoorOpenActionTypePlaceHolder,
             self.goal_callback,
             self.result_callback,
             self.cancel_callback,
@@ -22,21 +22,19 @@ class PickUpAndOrderActionClient(ActionClientWrapper):
 
     def goal_callback(self, success: bool):
         if success:
-            self._node.get_logger().info(
-                "Goal PickUpAndOrder accepted by the action server."
-            )
+            self._node.get_logger().info("Goal OpenDoor accepted by the action server.")
         else:
-            self._node.get_logger().warn(
-                "Goal PickUpAndOrder rejected by the action server."
-            )
+            self._node.get_logger().warn("Goal OpenDoor rejected by the action server.")
             self._node.reqArmActionGoalFailed()
 
     def result_callback(self, success: bool):
         if success:
-            self._node.get_logger().info("Successfully picked up and ordered.")
-            self._node.pickedUpCup()
+            self._node.get_logger().info("Successfully opened door.")
+            self._node.doorOpenFinished()
+            self._node.set_arm_mode_idle()  # set arm to idle after opening door
+            self._node.finish_mock_task()  # for testing, will remove after testing
         else:
-            self._node.get_logger().warn("Failed to pick up and order cup.")
+            self._node.get_logger().warn("Failed to open door.")
             self._node.ArmActionFailed()
 
     def cancel_callback(self, success: bool):
@@ -52,7 +50,7 @@ class PickUpAndOrderActionClient(ActionClientWrapper):
             self._node.reqArmActionCancelFailed()
 
     def send_goal(self):
-        goal = CornellActionsPlaceHolder.Goal()
+        goal = DoorOpenActionTypePlaceHolder.Goal()
         asyncio.run_coroutine_threadsafe(super().send_goal(goal), self._node._loop)
 
     def cancel(self):

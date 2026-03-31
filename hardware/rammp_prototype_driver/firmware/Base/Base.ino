@@ -544,12 +544,12 @@ void loop() {
   } else if (cmd.type == CMD_SEQ_MODE) {
     if (cmd.value > 0.5f) {
       current_state = AUTO_CURB_CLIMBING;
-      Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+      Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7: velocity-mode (drive wheels)
       sequenceEnter(seq_motors);
       Serial.println("SEQ: Entered AUTO_CURB_CLIMBING mode");
     } else {
       current_state = IDLE;
-      sequenceExit();
+      sequenceExit(seq_motors);
       Serial.println("SEQ: Exited AUTO_CURB_CLIMBING mode");
     }
   } else if (cmd.type == CMD_LEVEL_MODE) {
@@ -607,7 +607,7 @@ void loop() {
 
     // Sequence command dispatch (delegated to SequencePlayer module)
   if (current_state == AUTO_CURB_CLIMBING && cmd.type != CMD_NONE) {
-    Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+    Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7: velocity-mode (drive wheels)
     sequenceHandleCommand(cmd, seq_motors, parser.last_payload);
   }
 
@@ -625,7 +625,7 @@ void loop() {
   } else if (current_state == SELF_LEVELING) {
     runSelfLeveling(dt);
   } else if (current_state == AUTO_CURB_CLIMBING) {
-    Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+    Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7: velocity-mode (drive wheels)
     sequenceUpdate(seq_motors);
   }
 

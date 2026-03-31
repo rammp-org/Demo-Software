@@ -7,7 +7,8 @@ class Motor;
 struct RobotCommand;
 
 #define MAX_SEQ_KEYFRAMES 20
-#define SEQ_NUM_MOTORS 6
+#define SEQ_NUM_MOTORS 8
+#define SEQ_NUM_POS_MOTORS 6
 
 struct Keyframe {
   float targets[SEQ_NUM_MOTORS];
@@ -20,11 +21,12 @@ struct Keyframe {
 bool parseKeyframePayload(const String &payload, Keyframe &kf);
 
 // Initialize sequence state when entering AUTO_CURB_CLIMBING mode.
-// Motors array must be: {rc, fc, ml, mr, ml_carriage, mr_carriage}
+// Motors array must be: {rc, fc, ml, mr, ml_carriage, mr_carriage, drive_fb, drive_lr}
 void sequenceEnter(Motor* motors[SEQ_NUM_MOTORS]);
 
-// Reset sequence state when exiting AUTO_CURB_CLIMBING mode.
-void sequenceExit();
+// Zero drive motor velocities and restore position control on sequence end.
+// SAFETY: must be called on ALL exit paths to prevent uncontrolled wheelchair motion.
+void sequenceExit(Motor* motors[SEQ_NUM_MOTORS]);
 
 // Handle a sequence command (CMD_SEQ_KEYFRAME, CMD_SEQ_STEP_FWD/BWD, CMD_SEQ_GOTO).
 // Motors array must be: {rc, fc, ml, mr, ml_carriage, mr_carriage}

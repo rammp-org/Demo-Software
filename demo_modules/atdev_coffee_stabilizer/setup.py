@@ -22,6 +22,8 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "evaluate_latency = atdev_coffee_stabilizer.evaluate_latency:main",
+        ],
     },
 )

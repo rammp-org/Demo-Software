@@ -1,0 +1,20 @@
+# camera_nav.yaml
+# ============================================================
+# Camera Configuration — Nav Camera Only
+# ============================================================
+# Use when the RealSense D435i wrist camera is not connected.
+#
+# Usage:
+#   ros2 launch rammp_prototype_bringup camera.launch.py \
+#       params_file:=$(ros2 pkg prefix rammp_prototype_bringup \
+#           --share)/config/camera_nav.yaml
+# ============================================================
+
+disable_realsense: true
+disable_orbbec: false
+
+/camera/nav:
+  ros__parameters:
+    camera_name: "nav"
+    base_frame_id: "nav_camera_link"
+    serial_number: ""

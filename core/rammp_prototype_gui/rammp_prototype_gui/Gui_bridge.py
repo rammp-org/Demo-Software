@@ -141,9 +141,9 @@ class GuiBridge(Node):
             self.get_parameter("use_shared_memory").get_parameter_value().bool_value
         )
 
-        self.declare_parameter("shm_size", 1024 * 1024)  # 1MB default size
-        self.shm_size = (
-            self.get_parameter("shm_size").get_parameter_value().integer_value
+        self.declare_parameter("shm_size", "1000000")  # 1MB default size
+        self.shm_size = int(
+            self.get_parameter("shm_size").get_parameter_value().string_value
         )
 
         self.declare_parameter("ue_preset", "RCPS")
@@ -180,10 +180,12 @@ class GuiBridge(Node):
         self.image_channel = (
             self.get_parameter("image_channel").get_parameter_value().integer_value
         )
+        print(f"Image channel: {self.image_channel}")
         self.declare_parameter("depth_channel", 100)
         self.depth_channel = (
             self.get_parameter("depth_channel").get_parameter_value().integer_value
         )
+        print(f"Depth channel: {self.depth_channel}")
 
         self.ue = UnrealRemoteWebsocket(
             host=self.host,

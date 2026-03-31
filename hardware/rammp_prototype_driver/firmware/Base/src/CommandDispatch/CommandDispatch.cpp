@@ -10,6 +10,7 @@
 extern void saveMotorConfig(int motor_id, Motor *m);
 extern void saveAllMotorConfigs();
 extern Motor drive_fb, drive_lr;
+extern int8_t ml_enc_dir, mr_enc_dir;
 
 // DEBUG_MODE is defined in Base.ino — replicate here for debug prints
 #ifndef DEBUG_MODE
@@ -210,15 +211,50 @@ void handleToggleDir(CommandContext& ctx) {
 }
 
 void handleToggleEncDir(CommandContext& ctx) {
-  ctx.motor->toggleEncoderDirection();
-  MotorConfig conf = ConfigStorage::loadMotorConfig(ctx.actuator_id);
-  conf.encoder_dir = ctx.motor->getEncoderDirection();
-  ConfigStorage::saveMotorConfig(ctx.actuator_id, conf);
+  if (ctx.actuator_id == 7 || ctx.actuator_id == 8) {
+    int8_t& enc_dir = (ctx.actuator_id == 7) ? ml_enc_dir : mr_enc_dir;
+    enc_dir = (enc_dir >= 0) ? -1 : 1;
+    ctx.motor->setEncoderDirection(enc_dir);
+    saveMotorConfig(ctx.actuator_id, ctx.motor);
+    ctx.motor->setEncoderDirection(1);
+  } else {
+    ctx.motor->toggleEncoderDirection();
+    saveMotorConfig(ctx.actuator_id, ctx.motor);
+  }
   if (DEBUG_MODE) {
     Serial.print("DEBUG: Toggled enc direction for motor ");
     Serial.print(ctx.actuator_id);
     Serial.print(" to ");
-    Serial.println(ctx.motor->getEncoderDirection());
+    if (ctx.actuator_id == 7)
+      Serial.println(ml_enc_dir);
+    else if (ctx.actuator_id == 8)
+      Serial.println(mr_enc_dir);
+    else
+      Serial.println(ctx.motor->getEncoderDirection());
+  }
+}
+
+void handleSetEncDir(CommandContext& ctx) {
+  if (ctx.actuator_id == 7 || ctx.actuator_id == 8) {
+    int8_t& enc_dir = (ctx.actuator_id == 7) ? ml_enc_dir : mr_enc_dir;
+    enc_dir = (ctx.value >= 0) ? 1 : -1;
+    ctx.motor->setEncoderDirection(enc_dir);
+    saveMotorConfig(ctx.actuator_id, ctx.motor);
+    ctx.motor->setEncoderDirection(1);
+  } else {
+    ctx.motor->setEncoderDirection((int8_t)ctx.value);
+    saveMotorConfig(ctx.actuator_id, ctx.motor);
+  }
+  if (DEBUG_MODE) {
+    Serial.print("DEBUG: Set enc direction for motor ");
+    Serial.print(ctx.actuator_id);
+    Serial.print(" to ");
+    if (ctx.actuator_id == 7)
+      Serial.println(ml_enc_dir);
+    else if (ctx.actuator_id == 8)
+      Serial.println(mr_enc_dir);
+    else
+      Serial.println(ctx.motor->getEncoderDirection());
   }
 }
 

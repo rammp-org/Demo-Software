@@ -4,30 +4,42 @@
 > This Node is perform curb detection action based on request.
 > When receive `/navigate_to_curb`, it will perform `curb detection` algorithm and publish `/curb_info`.
 > When finished, `curb_detection` algorithm will stop to release GPU resource.
+> Weights are hosted at -- https://drive.google.com/drive/folders/1AGhQ3uLKEJPdeeedGgDtzoICqgoFGrTw?usp=sharing
+> Demo -- https://youtu.be/ABBS57FzwaM
 
 > **TODO:**
 >
 > - \[ \] Do we use a compressed camera stream for this node?
 > - \[ \] What needs to be published to the GUI?
 > - \[ \] What is the `curb_info` format? How does this info display to user.
+> - \[ \] Clean up the code.
+> - \[ \] Test gpu release.
 
 ### Publishers:
 
-| Topic          | Type |
-| -------------- | ---- |
-| /nav/curb/info |      |
+| Topic                       | Type                                   |
+| --------------------------- | -------------------------------------- |
+| /nav/curb/info              | neu_navigation_interfaces/msg/CurbInfo |
+| /perception/curb_visual     | visualization_msgs/msg/Marker          |
+| /perception/curb_mask       | sensor_msgs/msg/Image (mono8)          |
+| /perception/curb_mask_image | sensor_msgs/msg/Image (bgr8)           |
 
 ### Subscriber:
 
-| Topic                 | Type                  |
-| --------------------- | --------------------- |
-| /camera/nav/image_raw | sensor_msgs/msg/Image |
+> \[!NOTE\]
+> The below topics are not actual, and will change based on what we are publishing on MeBot.
+
+| Topic                                 | Type                       |
+| ------------------------------------- | -------------------------- |
+| /camera/nav/color/image_raw_rotated   | sensor_msgs/msg/Image      |
+| /camera/nav/depth/image_raw_rotated   | sensor_msgs/msg/Image      |
+| /camera/nav/color/camera_info_rotated | sensor_msgs/msg/CameraInfo |
 
 ### Service Servers:
 
-| Topic | Type |
-| ----- | ---- |
-|       |      |
+| Topic            | Type                 |
+| ---------------- | -------------------- |
+| /nav/curb/detect | std_srvs/srv/SetBool |
 
 ### Service Clients:
 
@@ -46,3 +58,19 @@
 | Topic | Type |
 | ----- | ---- |
 |       |      |
+
+### Installation
+
+```
+cd demo_modules/neu_navigation
+pip3 install -r requirements.txt
+cd $ROS_WS
+colcon build
+source install/setup.bash
+ros2 run neu_navigation perception_curb_detection_node
+# on a second terminal
+# Enable streaming detections
+ros2 service call /nav/curb/detect std_srvs/srv/SetBool "{data: true}"
+# Disable and free GPU
+ros2 service call /nav/curb/detect std_srvs/srv/SetBool "{data: false}"
+```

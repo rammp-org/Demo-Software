@@ -2,18 +2,18 @@ from __future__ import annotations
 import asyncio
 
 from rclpy.node import Node
-from cmu_door_opener_interfaces.action import DoorOpenActionTypePlaceHolder
-from .ActionClientWrapper import ActionClientWrapper
+from cornell_feeding_interfaces.action import CornellActionsPlaceHolder
+from .action_client_wrapper import ActionClientWrapper
 
 
-class OpenDoorActionClient(ActionClientWrapper):
+class BringCupToMouthActionClient(ActionClientWrapper):
     def __init__(
         self,
         node: Node,
     ):
         super().__init__(
-            "/arm/door/open",
-            DoorOpenActionTypePlaceHolder,
+            "/arm/drink/BringCupToMouth",
+            CornellActionsPlaceHolder,
             self.goal_callback,
             self.result_callback,
             self.cancel_callback,
@@ -22,19 +22,21 @@ class OpenDoorActionClient(ActionClientWrapper):
 
     def goal_callback(self, success: bool):
         if success:
-            self._node.get_logger().info("Goal OpenDoor accepted by the action server.")
+            self._node.get_logger().info(
+                "Goal BringCupToMouth accepted by the action server."
+            )
         else:
-            self._node.get_logger().warn("Goal OpenDoor rejected by the action server.")
+            self._node.get_logger().warn(
+                "Goal BringCupToMouth rejected by the action server."
+            )
             self._node.reqArmActionGoalFailed()
 
     def result_callback(self, success: bool):
         if success:
-            self._node.get_logger().info("Successfully opened door.")
-            self._node.doorOpenFinished()
-            self._node.set_arm_mode_idle()  # set arm to idle after opening door
-            self._node.finish_mock_task()  # for testing, will remove after testing
+            self._node.get_logger().info("Successfully brought cup to mouth.")
+            self._node.readyForDrink()  # should enter readyForDrink state after bringing cup to mouth
         else:
-            self._node.get_logger().warn("Failed to open door.")
+            self._node.get_logger().warn("Failed to bring cup to mouth.")
             self._node.ArmActionFailed()
 
     def cancel_callback(self, success: bool):
@@ -50,7 +52,7 @@ class OpenDoorActionClient(ActionClientWrapper):
             self._node.reqArmActionCancelFailed()
 
     def send_goal(self):
-        goal = DoorOpenActionTypePlaceHolder.Goal()
+        goal = CornellActionsPlaceHolder.Goal()
         asyncio.run_coroutine_threadsafe(super().send_goal(goal), self._node._loop)
 
     def cancel(self):

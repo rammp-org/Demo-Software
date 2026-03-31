@@ -14,6 +14,12 @@
     },
     {
       "name": "/cup_stabilizer_node"
+    },
+    {
+      "name": "/base_control_node"
+    },
+    {
+      "name": "/perception_curb_detection_node"
     }
   ]
 }

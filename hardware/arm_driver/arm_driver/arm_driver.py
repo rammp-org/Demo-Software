@@ -622,17 +622,9 @@ class ArmDriverNode(rclpy.node.Node):
 
         if self._arm:
             state = self._arm.get_state()
-            # Publish names
             joint_msg.name = [
-                "joint_1",
-                "joint_2",
-                "joint_3",
-                "joint_4",
-                "joint_5",
-                "joint_6",
-                "joint_7",
-                "gripper",
-            ]
+                f"joint_{i + 1}" for i in range(self._arm.actuator_count)
+            ] + ["robotiq_85_left_knuckle_joint"]
             joint_msg.position = state["position"].tolist() + [state["gripper_pos"]]
             joint_msg.velocity = state["velocity"].tolist() + [0.0]
             joint_msg.effort = state["effort"].tolist() + [0.0]

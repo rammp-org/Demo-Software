@@ -46,15 +46,15 @@ class ArmPresetActionClient(ActionClientWrapper):
                 f"Arm successfully reached preset {self._current_preset.name}."
             )
             if self._current_preset == ArmPreset.HOME:
-                if (
-                    self._node.state == "Arm_OrderDrink_releasingCup"
-                    or self._node.state == "Arm_cupStabilize_homing"
-                ):  # for testing, will remove after testing
-                    self._node.finish_mock_task()
-                elif (
-                    self._node._mock_state.is_mocking_arm_home()
-                ):  # for testing arm home, will remove after testing
-                    self._node._mock_state.finish_current_mock_task()  # finish mock arm home task after reaching home preset
+                # if (
+                #     self._node.state == "Arm_OrderDrink_releasingCup"
+                #     or self._node.state == "Arm_cupStabilize_homing"
+                # ):  # for testing, will remove after testing
+                #     self._node.finish_mock_task()
+                # elif (
+                #     self._node._mock_state.is_mocking_arm_home()
+                # ):  # for testing arm home, will remove after testing
+                #     self._node._mock_state.finish_current_mock_task()  # finish mock arm home task after reaching home preset
                 self._node.homed()
             elif self._current_preset == ArmPreset.CUP_STABILIZE:
                 self._node.cupStable()  # should enter cup stabilized state after reaching cup stabilize preset

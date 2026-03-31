@@ -119,18 +119,18 @@ class UnrealRemoteWebsocket:
         }
         async with self._send_lock:
             await self.ws_client.send(json.dumps(payload))
-            try:
-                resp = await asyncio.wait_for(
-                    self._response_queue.get(), timeout or self.default_timeout
-                )
-            except asyncio.TimeoutError as te:
-                raise TimeoutError(
-                    f"Timeout waiting for WS response to {parameters}"
-                ) from te
+            # try:
+            #     resp = await asyncio.wait_for(
+            #         self._response_queue.get(), timeout or self.default_timeout
+            #     )
+            # except asyncio.TimeoutError as te:
+            #     raise TimeoutError(
+            #         f"Timeout waiting for WS response to {parameters}"
+            #     ) from te
 
-            if "_error" in resp:
-                raise RuntimeError(f"WebSocket receive loop error: {resp['_error']}")
-            return resp
+            # if "_error" in resp:
+            #     raise RuntimeError(f"WebSocket receive loop error: {resp['_error']}")
+            # return resp
 
     def call_function(self, function_name: str, function_parameters: dict[str, Any]):
         Parameters = {
@@ -141,15 +141,16 @@ class UnrealRemoteWebsocket:
             },
         }
         try:
-            resp = asyncio.run_coroutine_threadsafe(
-                self.send_and_wait(Parameters), self.loop
-            ).result()
-            if resp.get("ResponseCode", 0) != 200:
-                raise UnrealRemoteError(
-                    f"UE responded with error code {resp.get('ResponseCode')}: {resp.get('Body')}"
-                )
-            # print(resp.get("ResponseBody", {}))
-            return resp.get("ResponseBody", {})
+            asyncio.run_coroutine_threadsafe(self.send_and_wait(Parameters), self.loop)
+            # resp = asyncio.run_coroutine_threadsafe(
+            #     self.send_and_wait(Parameters), self.loop
+            # ).result()
+            # if resp.get("ResponseCode", 0) != 200:
+            #     raise UnrealRemoteError(
+            #         f"UE responded with error code {resp.get('ResponseCode')}: {resp.get('Body')}"
+            #     )
+            # # print(resp.get("ResponseBody", {}))
+            # return resp.get("ResponseBody", {})
         except Exception as e:
             logger.error(
                 f"Error calling function {function_name} with parameters {function_parameters}: {e}"

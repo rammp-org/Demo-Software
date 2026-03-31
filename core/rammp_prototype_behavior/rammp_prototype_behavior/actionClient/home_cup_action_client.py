@@ -30,7 +30,7 @@ class HomeCupActionClient(ActionClientWrapper):
     def result_callback(self, success: bool):
         if success:
             self._node.get_logger().info("Successfully homed cup.")
-            self._node.homedCup()  # should enter homed state after homing cup
+            self._node.homed()  # should enter homed state after homing cup
             self._node.set_arm_mode_idle()  # set arm to idle after homing cup
             self._node.finish_mock_task()  # for testing, will remove after testing
         else:

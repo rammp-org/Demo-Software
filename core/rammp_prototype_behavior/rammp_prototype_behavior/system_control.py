@@ -108,6 +108,9 @@ class MockState:
             self._node.mock_base_curb_navigation_traverse_request()
 
     def finish_current_mock_task(self):
+        if self.is_mock_task_running is False:
+            return
+
         self.is_mock_task_running = False
         self.next_mock_wait_time_counter = (
             3  # reset wait time counter for next mock task
@@ -180,7 +183,8 @@ class SystemControl(rclpy.node.Node):
                 timer = None
             callback()
 
-        timer = self.create_timer(seconds, _on_timeout, callback_group=self._cb_group)
+        # comment out to disable mock
+        # timer = self.create_timer(seconds, _on_timeout, callback_group=self._cb_group)
 
     ## ---------------------mock testing functions----------------------------------
     def mock_open_door_request(self):
@@ -295,7 +299,11 @@ class SystemControl(rclpy.node.Node):
     # ---------Arm Pause state transition function calls---------------------------------
     def on_enter_Arm_Paused(self):
         self.get_logger().info("Arm is paused. Waiting for resume command.")
+        self.base_drive_enable(False)  # disable drive while arm is paused
         self.set_arm_mode_idle()  # set arm mode to idle when paused to stop any ongoing arm action
+
+    def on_exit_Arm_Paused(self):
+        self.base_drive_enable(True)  # re-enable drive when exiting paused state
 
     # ---------End of Arm Pause state transition function calls--------------------------
 
@@ -304,6 +312,7 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().info(
             "Arm is in manual control mode, waiting for manual commands."
         )
+        self.base_drive_enable(False)  # disable drive while in manual arm control
         self.set_arm_mode(ArmMode.MANUAL)  # set arm mode to manual for manual control
 
         # mock 5s manual control, then disable it TODO: remove mock
@@ -314,6 +323,7 @@ class SystemControl(rclpy.node.Node):
 
     def on_exit_Arm_manual(self):
         self.get_logger().info("Exiting manual control mode, setting arm back to idle.")
+        self.base_drive_enable(True)  # re-enable drive when exiting manual arm control
         self.set_arm_mode_idle()  # set arm back to idle after exiting manual control
         self._mock_state.finish_current_mock_task()  # for testing, will remove after testing
 
@@ -322,7 +332,15 @@ class SystemControl(rclpy.node.Node):
     # ---------cup stabilizer state transition function calls------------------------
     def on_enter_Arm_cupStabilize_moving(self):
         self.get_logger().info("Moving arm to cup stabilize position.")
+        self.base_drive_enable(
+            False
+        )  # disable drive while moving arm to cup stabilize position
         self.arm_preset_client.set_preset(ArmPreset.CUP_STABILIZE)
+
+    def on_exit_Arm_cupStabilize_moving(self):
+        self.base_drive_enable(
+            True
+        )  # re-enable drive when exiting moving to cup stabilize position state
 
     def on_enter_Arm_cupStabilize_stabilizing(self):
         self.get_logger().info("Arm is stabilizing cup.")
@@ -338,21 +356,33 @@ class SystemControl(rclpy.node.Node):
 
     def on_enter_Arm_cupStabilize_homing(self):
         self.get_logger().info("Homing arm after cup stabilization.")
+        self.base_drive_enable(
+            False
+        )  # disable drive while homing arm after cup stabilization
         self.set_arm_mode_idle()  # set arm to idle before homing to avoid potential interference with homing process
         self.enable_cup_stabilizer(False)  # disable cup stabilizer to allow arm to home
         self.arm_preset_client.set_preset(
             ArmPreset.HOME
         )  # move arm back to home after stabilizing cup
 
+    def on_exit_Arm_cupStabilize_homing(self):
+        self.base_drive_enable(
+            True
+        )  # re-enable drive when exiting homing arm after cup stabilization state
+
     # ---------end of cup stabilizer state transition function calls-----------------
 
     # ---------order drink state transition function calls------------------------
     def on_enter_Arm_OrderDrink_pickUpCup(self):
         self.get_logger().info("Picking up cup from table.")
+        self.base_drive_enable(False)  # disable drive while picking up cup
         self.set_arm_mode(
             ArmMode.ORDER_DRINK
         )  # set arm mode to order drink when picking up cup, will set specific arm preset in the action server later
         self.pickup_and_order_client.send_goal()
+
+    def on_exit_Arm_OrderDrink_pickUpCup(self):
+        self.base_drive_enable(True)  # re-enable drive when exiting pick up cup state
 
     def on_enter_Arm_OrderDrink_holdingCup(self):
         self.get_logger().info("Holding cup, preparing to release cup.")
@@ -363,8 +393,9 @@ class SystemControl(rclpy.node.Node):
 
     def on_enter_Arm_OrderDrink_releasingCup(self):
         self.get_logger().info("Releasing cup to holder.")
-        self.get_logger().info("close gripper first.")
+        self.base_drive_enable(False)  # disable drive while releasing cup
         self.close_gripper()  # close gripper to release cup
+        self.arm_preset_client.set_preset(ArmPreset.HOME)
 
         # mock wait for 1 seconds to simulate releasing cup, will replace with actual logic later
         self.get_logger().info("Mock close gripper for 1 seconds.")
@@ -375,6 +406,9 @@ class SystemControl(rclpy.node.Node):
             self.arm_preset_client.set_preset(ArmPreset.HOME)
 
         self._mock_delay(1.0, _after_gripper_delay)
+
+    def on_exit_Arm_OrderDrink_releasingCup(self):
+        self.base_drive_enable(True)  # re-enable drive when exiting releasing cup state
 
     def on_enter_Arm_OrderDrink_detectingDrink(self):
         self.get_logger().info("Detecting drink to confirm if the drink is received.")
@@ -392,17 +426,29 @@ class SystemControl(rclpy.node.Node):
 
     def on_enter_Arm_OrderDrink_receivingDrink(self):
         self.get_logger().info("Receiving drink.")
+        self.base_drive_enable(False)  # disable drive
         self.set_arm_mode(
             ArmMode.ORDER_DRINK
         )  # set arm mode to drinking when receiving drink, will set specific arm preset in the action server later
         self.grab_cup_from_table_client.send_goal()  # reuse grab cup from table action to simulate receiving drink, will replace with actual pickup drink action later
 
+    def on_exit_Arm_OrderDrink_receivingDrink(self):
+        self.base_drive_enable(
+            True
+        )  # re-enable drive when exiting receiving drink state
+
     def on_enter_Arm_Drink_bringCloser(self):
         self.get_logger().info("Bringing cup closer to prepare for drinking.")
+        self.base_drive_enable(False)  # disable drive while bringing cup to mouth
         self.set_arm_mode(
             ArmMode.DRINKING
         )  # set arm mode to drinking when bringing cup to mouth, will set specific arm preset in the action server later
         self.bring_cup_to_mouth_client.send_goal()  # send action goal to bring cup to mouth for drinking
+
+    def on_exit_Arm_Drink_bringCloser(self):
+        self.base_drive_enable(
+            True
+        )  # re-enable drive when exiting bringing cup closer state
 
     def on_enter_Arm_Drink_sipping(self):
         self.get_logger().info("Sipping drink.")
@@ -412,14 +458,26 @@ class SystemControl(rclpy.node.Node):
 
     def on_enter_Arm_Drink_placingCupAway(self):
         self.get_logger().info("Placing cup away after drinking.")
+        self.base_drive_enable(False)  # disable drive while placing cup away
         self.home_cup_client.send_goal()  # send action goal to move cup back to holder after drinking, will replace with actual place cup logic later
+
+    def on_exit_Arm_Drink_placingCupAway(self):
+        self.base_drive_enable(
+            True
+        )  # re-enable drive when exiting placing cup away state
 
     def on_enter_Arm_Drink_placingCupBack(self):
         self.get_logger().info("Placing cup back to holder.")
+        self.base_drive_enable(False)  # disable drive while placing cup back to holder
         self.set_arm_mode(
             ArmMode.DRINKING
         )  # set arm mode to DRINKING when placing cup back to holder, will set specific arm preset in the action server later
         self.put_cup_back_to_holder_client.send_goal()  # send action goal to place cup back to holder, will replace with actual place cup back logic later
+
+    def on_exit_Arm_Drink_placingCupBack(self):
+        self.base_drive_enable(
+            True
+        )  # re-enable drive when exiting placing cup back to holder state
 
     def on_enter_Chair_SLOff(self):
         self.get_logger().info("Self-leveling is turned off.")
@@ -457,8 +515,12 @@ class SystemControl(rclpy.node.Node):
         if not self.enable_door_detection(False):
             self.get_logger().warn("Failed to disable door detection.")
             self.ArmActionFailed()
+        self.base_drive_enable(False)  # disable drive while opening door
         self.set_arm_mode(ArmMode.OPEN_DOOR)
         self.open_door_client.send_goal()
+
+    def on_exit_Arm_Door_opening(self):
+        self.base_drive_enable(True)  # re-enable drive when exiting door opening state
 
     def on_enter_Arm_retracted(self):
         self.get_logger().debug("Arm is retracted, ready for next command.")
@@ -924,6 +986,7 @@ class SystemControl(rclpy.node.Node):
                 "name": "Arm",
                 "initial": "retracted",
                 "children": [
+                    "homeWithDrink",
                     "home",
                     "homing",
                     "retracting",
@@ -976,10 +1039,7 @@ class SystemControl(rclpy.node.Node):
             # arm sub state transitions
             {
                 "trigger": "retract",
-                "source": [
-                    "Arm_paused",
-                    "Arm_home",
-                ],
+                "source": ["Arm_paused", "Arm_home", "Arm_manual"],
                 "dest": "Arm_retracting",
             },
             {
@@ -1043,7 +1103,7 @@ class SystemControl(rclpy.node.Node):
             },  # request action, but fail to start action, pause arm to maintain current state and allow for retry or other recovery actions
             {
                 "trigger": "reqHome",
-                "source": ["Arm_retracted", "Arm_paused"],
+                "source": ["Arm_retracted", "Arm_paused", "Arm_manual"],
                 "dest": "Arm_homing",
             },
             {
@@ -1107,11 +1167,11 @@ class SystemControl(rclpy.node.Node):
                 "source": "Arm_OrderDrink_holdingCup",
                 "dest": "Arm_OrderDrink_releasingCup",
             },
-            {
-                "trigger": "cupReleased",
-                "source": "Arm_OrderDrink_releasingCup",
-                "dest": "Arm_home",
-            },
+            # {
+            #     "trigger": "cupReleased",
+            #     "source": "Arm_OrderDrink_releasingCup",
+            #     "dest": "Arm_home",
+            # },
             {
                 "trigger": "detectDrink",
                 "source": "Arm_home",
@@ -1130,12 +1190,12 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "receivedDrink",
                 "source": "Arm_OrderDrink_receivingDrink",
-                "dest": "Arm_home",
+                "dest": "Arm_homeWithDrink",
             },
             # stabilize cup
             {
                 "trigger": "reqStabilizeCup",
-                "source": "Arm_home",
+                "source": "Arm_homeWithDrink",
                 "dest": "Arm_cupStabilize_moving",
             },
             {
@@ -1146,7 +1206,7 @@ class SystemControl(rclpy.node.Node):
             # drink
             {
                 "trigger": "reqDrink",
-                "source": "Arm_home",
+                "source": "Arm_homeWithDrink",
                 "dest": "Arm_Drink_bringCloser",
             },
             {
@@ -1160,13 +1220,13 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_Drink_placingCupAway",
             },
             {
-                "trigger": "homedCup",
+                "trigger": "homed",
                 "source": "Arm_Drink_placingCupAway",
-                "dest": "Arm_home",
+                "dest": "Arm_homeWithDrink",
             },
             {
                 "trigger": "placeCupBack",
-                "source": "Arm_home",
+                "source": "Arm_homeWithDrink",
                 "dest": "Arm_Drink_placingCupBack",
             },
             {
@@ -1177,7 +1237,12 @@ class SystemControl(rclpy.node.Node):
             # manual control
             {
                 "trigger": "reqManualControl",
-                "source": ["Arm_home", "Arm_retracted", "Arm_paused"],
+                "source": [
+                    "Arm_home",
+                    "Arm_retracted",
+                    "Arm_paused",
+                    "Arm_homeWithDrink",
+                ],
                 "dest": "Arm_manual",
             },
             {

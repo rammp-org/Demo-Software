@@ -795,10 +795,20 @@ class DataStore(QObject):
         # Store motor directions
         if data.direction_values:
             self._motor_directions = data.direction_values
+            if hasattr(data, "drive_fb_dir"):
+                while len(self._motor_directions) < 8:
+                    self._motor_directions.append(1)
+                self._motor_directions[6] = data.drive_fb_dir
+                self._motor_directions[7] = data.drive_lr_dir
 
         # Store encoder directions
         if hasattr(data, "encoder_direction_values") and data.encoder_direction_values:
             self._encoder_directions = data.encoder_direction_values
+            if hasattr(data, "drive_fb_enc_dir"):
+                while len(self._encoder_directions) < 8:
+                    self._encoder_directions.append(1)
+                self._encoder_directions[6] = data.drive_fb_enc_dir
+                self._encoder_directions[7] = data.drive_lr_enc_dir
 
         if data.direction_values or (
             hasattr(data, "encoder_direction_values") and data.encoder_direction_values

@@ -97,11 +97,14 @@ class EncoderData:
     drive_lr_pwm: float = 0.0
     drive_fb_mode: int = 0
     drive_lr_mode: int = 0
-
     raw_ml_enc_pos: float = 0.0
     raw_mr_enc_pos: float = 0.0
     raw_ml_enc_vel: float = 0.0
     raw_mr_enc_vel: float = 0.0
+    drive_fb_dir: int = 1
+    drive_lr_dir: int = 1
+    drive_fb_enc_dir: int = 1
+    drive_lr_enc_dir: int = 1
 
     @property
     def num_joints(self) -> int:
@@ -301,6 +304,11 @@ class ProtocolParser:
                         data.raw_mr_enc_pos = values[68]
                         data.raw_ml_enc_vel = values[69]
                         data.raw_mr_enc_vel = values[70]
+                    if len(values) >= 75:
+                        data.drive_fb_dir = int(values[71])
+                        data.drive_lr_dir = int(values[72])
+                        data.drive_fb_enc_dir = int(values[73])
+                        data.drive_lr_enc_dir = int(values[74])
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:

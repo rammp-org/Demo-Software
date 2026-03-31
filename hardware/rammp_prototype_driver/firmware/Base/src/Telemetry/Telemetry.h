@@ -24,6 +24,8 @@ enum SystemState {
 // Drive arrays [2]: [drive_fb (avg), drive_lr (diff)]
 // drive_modes: control mode for drive_fb/drive_lr
 // raw_enc: direction-corrected individual ML/MR encoder readings
+// drive_directions: motor direction for drive_fb/drive_lr
+// drive_enc_directions: encoder direction for drive_fb/drive_lr
 struct SystemTelemetry {
   SystemState state;
   float positions[6];
@@ -43,6 +45,8 @@ struct SystemTelemetry {
   int drive_modes[2];
   float raw_enc_positions[2];
   float raw_enc_velocities[2];
+  int drive_directions[2];
+  int drive_enc_directions[2];
 };
 
 // Extern declarations for globals accessed by telemetry functions

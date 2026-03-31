@@ -6,6 +6,7 @@ import enum
 import threading
 
 from dataclasses import dataclass
+import numpy as np
 
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -105,6 +106,23 @@ class UserInputString(enum.Enum):
     CANCEL = UserInputs.Request.CANCEL
 
 
+def rotation_matrix_to_euler_zyx(R):
+    sy = -R[6]
+    epsilon = 1e-6
+
+    if abs(sy) < 1 - epsilon:
+        pitch = np.arcsin(sy)
+        roll = np.arctan2(R[7], R[8])
+        yaw = np.arctan2(R[3], R[0])
+    else:
+        # Gimbal lock
+        pitch = np.pi / 2 if sy < 0 else -np.pi / 2
+        roll = 0
+        yaw = np.arctan2(-R[1], R[4])
+
+    return np.degrees(roll), np.degrees(pitch), np.degrees(yaw)  # degrees
+
+
 class GuiBridge(Node):
     instance = None
 
@@ -157,6 +175,14 @@ class GuiBridge(Node):
             self.get_parameter("rear_camera_namespace")
             .get_parameter_value()
             .string_value
+        )
+        self.declare_parameter("image_channel", 0)
+        self.image_channel = (
+            self.get_parameter("image_channel").get_parameter_value().integer_value
+        )
+        self.declare_parameter("depth_channel", 100)
+        self.depth_channel = (
+            self.get_parameter("depth_channel").get_parameter_value().integer_value
         )
 
         self.ue = UnrealRemoteWebsocket(
@@ -491,115 +517,136 @@ class GuiBridge(Node):
     def rear_camera_extrinsics_callback(self, msg: Extrinsics):
         self.rear_camera_extrinsics = msg
 
-    def send_wrist_camera_image(self):
+    def send_image(self, image: Image, image_info: CameraInfo, source: str):
         if self.stream_sender.is_connected():
-            if (
-                self.wrist_camera_image is not None
-                and self.wrist_camera_image_info is not None
-            ):
+            if image is not None and image_info is not None:
                 try:
-                    self.get_logger().info(
-                        "place holder for sending wrist camera image"
+                    width = image.width
+                    height = image.height
+                    meta = {
+                        "w": width,
+                        "h": height,
+                        "source": source,
+                        "fmt": image.encoding,
+                    }
+                    self.stream_sender.send_image(
+                        channel=self.image_channel,
+                        image_bytes=image.data.tobytes(),
+                        width=width,
+                        height=height,
+                        metadata=meta,
                     )
                 except Exception as e:
-                    self.get_logger().warn(f"Failed to send wrist camera image: {e}")
+                    self.get_logger().warn(f"Failed to send {source} image: {e}")
+
+    def send_depth(
+        self, depth: Image, depth_info: CameraInfo, extrinsics: Extrinsics, source: str
+    ):
+        if self.stream_sender.is_connected():
+            if depth is not None and depth_info is not None:
+                try:
+                    width = depth.width
+                    height = depth.height
+                    fx = depth_info.k[0]
+                    fy = depth_info.k[4]
+                    cx = depth_info.k[2]
+                    cy = depth_info.k[5]
+
+                    meta = {
+                        "w": width,
+                        "h": height,
+                        "source": source,
+                        "fmt": depth.encoding,
+                    }
+                    meta["intrinsics"] = {
+                        "fx": fx,
+                        "fy": fy,
+                        "cx": cx,
+                        "cy": cy,
+                    }
+                    if extrinsics is not None:
+                        # from rotation matrix to get Euler angles
+                        roll, pitch, yaw = rotation_matrix_to_euler_zyx(
+                            np.array(extrinsics.rotation).reshape(3, 3)
+                        )
+                        meta["transform"] = {
+                            "x": extrinsics.translation.x,
+                            "y": extrinsics.translation.y,
+                            "z": extrinsics.translation.z,
+                            "pitch": pitch,
+                            "roll": roll,
+                            "yaw": yaw,
+                        }
+                        meta["transform_space"] = "relative"
+                    self.stream_sender.send_image(
+                        channel=self.depth_channel,
+                        image_bytes=depth.data.tobytes(),
+                        width=width,
+                        height=height,
+                        metadata=meta,
+                    )
+                except Exception as e:
+                    self.get_logger().warn(f"Failed to send {source} depth image: {e}")
+
+    def send_wrist_camera_image(self):
+        self.send_image(
+            image=self.wrist_camera_image,
+            image_info=self.wrist_camera_image_info,
+            source="wrist",
+        )
 
     def send_wrist_camera_depth(self):
-        if self.stream_sender.is_connected():
-            if (
-                self.wrist_camera_depth is not None
-                and self.wrist_camera_depth_info is not None
-            ):
-                try:
-                    self.get_logger().info(
-                        "place holder for sending wrist camera depth image"
-                    )
-                except Exception as e:
-                    self.get_logger().warn(
-                        f"Failed to send wrist camera depth image: {e}"
-                    )
+        self.send_depth(
+            depth=self.wrist_camera_depth,
+            depth_info=self.wrist_camera_depth_info,
+            extrinsics=self.wrist_camera_extrinsics,
+            source="wrist",
+        )
 
     def send_nav_camera_1_image(self):
-        if self.stream_sender.is_connected():
-            if (
-                self.nav_camera_1_image is not None
-                and self.nav_camera_1_image_info is not None
-            ):
-                try:
-                    self.get_logger().info(
-                        "place holder for sending nav camera 1 image"
-                    )
-                except Exception as e:
-                    self.get_logger().warn(f"Failed to send nav camera 1 image: {e}")
+        self.send_image(
+            image=self.nav_camera_1_image,
+            image_info=self.nav_camera_1_image_info,
+            source="nav_1",
+        )
 
     def send_nav_camera_1_depth(self):
-        if self.stream_sender.is_connected():
-            if (
-                self.nav_camera_1_depth is not None
-                and self.nav_camera_1_depth_info is not None
-            ):
-                try:
-                    self.get_logger().info(
-                        "place holder for sending nav camera 1 depth image"
-                    )
-                except Exception as e:
-                    self.get_logger().warn(
-                        f"Failed to send nav camera 1 depth image: {e}"
-                    )
+        self.send_depth(
+            depth=self.nav_camera_1_depth,
+            depth_info=self.nav_camera_1_depth_info,
+            extrinsics=self.nav_camera_1_extrinsics,
+            source="nav_1",
+        )
 
     def send_nav_camera_2_image(self):
-        if self.stream_sender.is_connected():
-            if (
-                self.nav_camera_2_image is not None
-                and self.nav_camera_2_image_info is not None
-            ):
-                try:
-                    self.get_logger().info(
-                        "place holder for sending nav camera 2 image"
-                    )
-                except Exception as e:
-                    self.get_logger().warn(f"Failed to send nav camera 2 image: {e}")
+        self.send_image(
+            image=self.nav_camera_2_image,
+            image_info=self.nav_camera_2_image_info,
+            source="nav_2",
+        )
 
     def send_nav_camera_2_depth(self):
-        if self.stream_sender.is_connected():
-            if (
-                self.nav_camera_2_depth is not None
-                and self.nav_camera_2_depth_info is not None
-            ):
-                try:
-                    self.get_logger().info(
-                        "place holder for sending nav camera 2 depth image"
-                    )
-                except Exception as e:
-                    self.get_logger().warn(
-                        f"Failed to send nav camera 2 depth image: {e}"
-                    )
+        self.send_depth(
+            depth=self.nav_camera_2_depth,
+            depth_info=self.nav_camera_2_depth_info,
+            extrinsics=self.nav_camera_2_extrinsics,
+            source="nav_2",
+        )
 
     def send_rear_camera_image(self):
-        if self.stream_sender.is_connected():
-            if (
-                self.rear_camera_image is not None
-                and self.rear_camera_image_info is not None
-            ):
-                try:
-                    self.get_logger().info("place holder for sending rear camera image")
-                except Exception as e:
-                    self.get_logger().warn(f"Failed to send rear camera image: {e}")
+        self.send_image(
+            image=self.rear_camera_image,
+            image_info=self.rear_camera_image_info,
+            source="rear",
+        )
 
     def send_rear_camera_depth(self):
-        if self.stream_sender.is_connected():
-            if (
-                self.rear_camera_depth is not None
-                and self.rear_camera_depth_info is not None
-            ):
-                try:
-                    self.get_logger().info(
-                        "place holder for sending rear camera depth image"
-                    )
-                except Exception as e:
-                    self.get_logger().error(
-                        f"Failed to send rear camera depth image: {e}"
-                    )
+        self.send_depth(
+            depth=self.rear_camera_depth,
+            depth_info=self.rear_camera_depth_info,
+            extrinsics=self.rear_camera_extrinsics,
+            source="rear",
+        )
 
     def check_streamer_connection(self):
         # check UE connection and connect/disconnect StreamSender accordingly

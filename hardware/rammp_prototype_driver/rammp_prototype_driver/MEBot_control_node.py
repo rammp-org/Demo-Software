@@ -1,7 +1,7 @@
 import ast
 import math
 from enum import IntEnum
-from queue import Empty
+from std_srvs.srv import Empty
 from rclpy.executors import MultiThreadedExecutor
 import time
 
@@ -346,8 +346,8 @@ class MEBotControlNode(Node):
             pass
 
     def send_set_luci(self):
+        self.get_logger().info("In send_set_luci_function")
         request = Empty.Request()
-
         future = self.set_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
         return future
@@ -395,10 +395,14 @@ class MEBotControlNode(Node):
     def drive_enable_callback(self, request, response):
         if request.data:
             # content
-            self.send_set_luci
+            self.get_logger().info("request recieved")
+            self.get_logger().info(str(request.data))
+            self.send_set_luci()
         else:
             # content
-            self.send_remove_luci
+            self.get_logger().info("request recieved")
+            self.get_logger().info(str(request.data))
+            self.send_remove_luci()
 
         return response
 

@@ -8,18 +8,21 @@ from std_srvs.srv import SetBool
 class TestLuciService(Node):  # MODIFY NAME
     def __init__(self):
         super().__init__("test_luci_service")  # MODIFY NAME
-        self.luci_req_client = self.create_client(SetBool, "drive_enable")
+        self.luci_req_client = self.create_client(SetBool, "/base/drive_enable")
+        self.send_req()
 
     def send_req(self):
-        req = SetBool.request()
+        self.get_logger().info("I am in send_req function")
+        req = SetBool.Request()
         req.data = True
-        self.set_auto_remote_client.call_async(req)
+        self.luci_req_client.wait_for_service()
+        self.luci_req_client.call_async(req)
 
 
 def main(args=None):
     rclpy.init(args=args)
     node = TestLuciService()  # MODIFY NAME
-    rclpy.spin_once(node, timeout_sec=0.1)
+    rclpy.spin_once(node)
     rclpy.shutdown()
 
 

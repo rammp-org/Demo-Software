@@ -141,10 +141,10 @@ class MEBotControlNode(Node):
 
         # LUCI service clients
         self.set_auto_remote_client = self.create_client(
-            Empty, "luci/set_auto_remote_input"
+            Empty, "/luci/set_auto_remote_input"
         )
         self.remove_auto_remote_client = self.create_client(
-            Empty, "luci/remove_auto_remote_input"
+            Empty, "/luci/remove_auto_remote_input"
         )
 
     def _init_actions(self):

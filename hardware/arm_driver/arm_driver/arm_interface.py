@@ -353,15 +353,18 @@ class KinovaArm:
             base_feedback.base.tool_twist_linear_y,
             base_feedback.base.tool_twist_linear_z,
         )
-        # Provide velocity as 3 angular velocity components in tool frame
-        tool_rot_vel = np.array(
+        # Kortex reports angular velocity in the base frame (deg/s).
+        # Rotate into tool frame to match SendTwistCommand's
+        # CARTESIAN_REFERENCE_FRAME_MIXED convention (angular in tool frame).
+        angular_vel_base_degs = np.array(
             [
                 base_feedback.base.tool_twist_angular_x,
                 base_feedback.base.tool_twist_angular_y,
                 base_feedback.base.tool_twist_angular_z,
             ]
         )
-        ee_vel[3:] = tool_rot_vel
+        R_tool_in_base = R.from_euler("xyz", np.deg2rad(tool_rot))
+        ee_vel[3:] = R_tool_in_base.inv().apply(angular_vel_base_degs)
 
         ee_force[:3] = (
             base_feedback.base.tool_external_wrench_force_x,
@@ -572,6 +575,13 @@ class KinovaArm:
 
         self.set_joint_limits(speed_limits, acceleration_limits)
 
+        # Also apply to CARTESIAN_JOYSTICK, which governs SendTwistCommand
+        # (ANGULAR_TRAJECTORY limits set above do not affect Twist velocity control)
+        cartesian_joystick_limits = ControlConfig_pb2.JointSpeedSoftLimits()
+        cartesian_joystick_limits.control_mode = ControlConfig_pb2.CARTESIAN_JOYSTICK
+        cartesian_joystick_limits.joint_speed_soft_limits.extend(speed_limits)
+        self.control_config.SetJointSpeedSoftLimits(cartesian_joystick_limits)
+
     def get_speed_preset(self):
         return self.speed_preset
 
@@ -582,6 +592,11 @@ class KinovaArm:
             self.control_config.GetKinematicHardLimits().joint_acceleration_limits
         )
         self.set_joint_limits(speed_limits, acceleration_limits)
+
+        cartesian_joystick_limits = ControlConfig_pb2.JointSpeedSoftLimits()
+        cartesian_joystick_limits.control_mode = ControlConfig_pb2.CARTESIAN_JOYSTICK
+        cartesian_joystick_limits.joint_speed_soft_limits.extend(speed_limits)
+        self.control_config.SetJointSpeedSoftLimits(cartesian_joystick_limits)
 
     def get_joint_limits(self):
         joint_limits = []

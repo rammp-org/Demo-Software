@@ -17,6 +17,7 @@ from gui_interfaces.srv import UserInputs
 from sensor_msgs.msg import CameraInfo, JointState, Image
 from rclpy.callback_groups import ReentrantCallbackGroup
 from realsense2_camera_msgs.msg import Extrinsics
+from neu_navigation_interfaces.msg import CurbInfo
 
 
 @dataclass
@@ -39,15 +40,6 @@ class Transform:
     Translation: Vector
     Rotation: Quaternion
     Scale3D: Vector
-
-
-@dataclass
-class CurbInfo:
-    Distance: float
-    Height: float
-    Pose: Transform
-    Success: bool
-    Message: str
 
 
 @dataclass
@@ -133,7 +125,7 @@ class GuiBridge(Node):
         print("Gui_bridge node has been started.")
         GuiBridge.instance = self
 
-        self.declare_parameter("ue_host", "192.168.68.51")
+        self.declare_parameter("ue_host", "192.168.68.65")
         self.host = self.get_parameter("ue_host").get_parameter_value().string_value
 
         self.declare_parameter("use_shared_memory", False)
@@ -449,6 +441,18 @@ class GuiBridge(Node):
             10,
             callback_group=self._cb_group,
         )
+
+        # curb info
+        self.curb_info_sub = self.create_subscription(
+            CurbInfo,
+            "/nav/curb/info",
+            self.curb_info_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+
+    def curb_info_callback(self, msg: CurbInfo):
+        self.update_curb_info(msg)
 
     # camera subscription callbacks
     def wrist_camera_image_info_callback(self, msg: CameraInfo):

@@ -10,6 +10,7 @@
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
   <depend>gui_interfaces</depend>
+  <depend>neu_navigation_interfaces</depend>
   <depend>sensor_msgs</depend>
   <depend>realsense2_camera_msgs</depend>
   <depend>numpy</depend>

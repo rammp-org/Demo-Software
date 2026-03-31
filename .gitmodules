@@ -4,7 +4,7 @@
 	branch = v2-main
 [submodule "third_party/luci-ros2-grpc"]
 	path = third_party/luci-ros2-grpc
-	url = git@github.com:rammp-org/luci-ros2-grpc.git
+	url = https://github.com/rammp-org/luci-ros2-grpc.git
 [submodule "third_party/luci-ros2-msgs"]
 	path = third_party/luci-ros2-msgs
-	url = https://github.com/lucimobility/luci-ros2-msgs
+	url = https://github.com/lucimobility/luci-ros2-msgs.git

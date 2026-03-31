@@ -156,7 +156,7 @@ class DriveWheelDisplay(QWidget):
         conn_row = QHBoxLayout()
         conn_row.setSpacing(scaled(4))
 
-        self._host_input = QLineEdit("10.2.10.2")
+        self._host_input = QLineEdit("10.2.10.3")
         self._host_input.setFixedWidth(scaled(120))
         self._host_input.setPlaceholderText("Jetson IP")
         self._host_input.setStyleSheet(f"""
@@ -257,7 +257,7 @@ class DriveWheelDisplay(QWidget):
             if host:
                 self._luci_status.setText("Connecting…")
                 self._btn_connect.setEnabled(False)
-                self._luci.connect(host)
+                self._luci.connect("localhost")
 
     def _on_bridge_clicked(self):
         if (

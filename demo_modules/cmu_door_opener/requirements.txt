@@ -1,9 +1,6 @@
 numpy==1.26.4
-# NOTE: torch and torchvision must be installed separately for GPU/Jetson.
-# pip defaults to CPU-only wheels. For NVIDIA Jetson, use the NVIDIA PyPI index
-# or the pre-built wheels from https://developer.nvidia.com/embedded/downloads.
-# torch==2.10.0
-# torchvision==0.23.0
+torch==2.10.0
+torchvision==0.25.0
 opencv-python==4.13.0.92
 scipy==1.8.0
 open3d==0.18.0

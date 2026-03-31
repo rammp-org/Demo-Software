@@ -2,10 +2,11 @@
 Sequence / Trajectory Editor for AUTO_CURB_CLIMBING mode.
 
 Allows creating, editing, saving, loading, and executing keyframe sequences.
-Each keyframe specifies target positions for each of the 6 motors plus a
-duration (in ms) for linear interpolation from the previous keyframe.
+Each keyframe specifies target positions for joints 1-6 and target velocities
+for drive motors 7-8, plus a duration (in ms) for interpolation/hold.
 
-Motor order throughout: [RC, FC, ML, MR, ML_Carriage, MR_Carriage]
+Motor order throughout: [RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR]
+Joints 1-6 use position interpolation; Drive_FB/Drive_LR use velocity hold.
 """
 
 from __future__ import annotations

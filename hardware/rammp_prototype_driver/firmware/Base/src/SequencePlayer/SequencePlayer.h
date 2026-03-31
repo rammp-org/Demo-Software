@@ -29,12 +29,13 @@ void sequenceEnter(Motor* motors[SEQ_NUM_MOTORS]);
 void sequenceExit(Motor* motors[SEQ_NUM_MOTORS]);
 
 // Handle a sequence command (CMD_SEQ_KEYFRAME, CMD_SEQ_STEP_FWD/BWD, CMD_SEQ_GOTO).
-// Motors array must be: {rc, fc, ml, mr, ml_carriage, mr_carriage}
+// Motors array must be: {rc, fc, ml, mr, ml_carriage, mr_carriage, drive_fb, drive_lr}
 void sequenceHandleCommand(const RobotCommand& cmd, Motor* motors[SEQ_NUM_MOTORS],
                            const String& payload);
 
 // Update interpolation during AUTO_CURB_CLIMBING (called every loop).
-// Motors array must be: {rc, fc, ml, mr, ml_carriage, mr_carriage}
+// Motors array must be: {rc, fc, ml, mr, ml_carriage, mr_carriage, drive_fb, drive_lr}
+// Indices 0-5 use position interpolation; indices 6-7 use velocity hold.
 void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]);
 
 // Accessors for state used by Base.ino

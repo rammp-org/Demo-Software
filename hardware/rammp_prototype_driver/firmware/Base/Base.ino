@@ -542,9 +542,11 @@ void loop() {
     if (DEBUG_MODE)
       Serial.println("DEBUG: ESTOP Cleared, entering IDLE");
   } else if (cmd.type == CMD_SEQ_MODE) {
+    // Declare seq_motors before the if/else so it is in scope for both enter and exit.
+    // indices 0-5: position-mode; 6-7: velocity-mode (drive wheels)
+    Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
     if (cmd.value > 0.5f) {
       current_state = AUTO_CURB_CLIMBING;
-      Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7: velocity-mode (drive wheels)
       sequenceEnter(seq_motors);
       Serial.println("SEQ: Entered AUTO_CURB_CLIMBING mode");
     } else {

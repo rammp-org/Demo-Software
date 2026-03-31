@@ -18,6 +18,8 @@
   <depend>std_srvs</depend>
   <depend>arm_interfaces</depend>
   <depend>cmu_door_opener_interfaces</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>realsense2_camera_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

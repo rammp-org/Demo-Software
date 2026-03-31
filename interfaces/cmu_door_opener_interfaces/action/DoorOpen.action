@@ -4,5 +4,4 @@
 bool success
 string message
 ---
-# Feedback
-float32 distance_to_button
+# Feedback (empty)

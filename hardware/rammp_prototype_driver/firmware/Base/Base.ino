@@ -23,6 +23,12 @@
 #include "src/StrainGauge/StrainGauge.h"
 
 #define DEBUG_MODE 1
+
+// Drive motor position deadzone. When the FB position error is within this
+// many ticks, the target is snapped to current position and both PIDs are
+// cleared so the telemetry PWM output (read by the RNET joystick spoofer)
+// stays exactly zero rather than hunting.
+#define DRIVE_DEADZONE_TICKS 300.0f
 // TODO: Make DEBUG_MODE runtime-configurable via serial command
 
 // SystemState enum and SystemTelemetry struct moved to src/Telemetry/Telemetry.h
@@ -303,9 +309,18 @@ void saveAllMotorConfigs() {
                           &drive_fb, &drive_lr};
   for (int i = 0; i < 8; i++) {
     Motor *m = all_motors[i];
-    MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
+    int motor_id = i + 1;
+    MotorConfig conf = ConfigStorage::loadMotorConfig(motor_id);
     conf.motor_dir = m->getDirection();
-    conf.encoder_dir = m->getEncoderDirection();
+    // Drive wheels: encoder_dir is tracked by ml_enc_dir/mr_enc_dir at runtime
+    // because motor->encoder_dir is always reset to 1 after command handling.
+    if (motor_id == 7) {
+      conf.encoder_dir = ml_enc_dir;
+    } else if (motor_id == 8) {
+      conf.encoder_dir = mr_enc_dir;
+    } else {
+      conf.encoder_dir = m->getEncoderDirection();
+    }
     conf.lpf_input_alpha = m->lpf_input_alpha;
     conf.pos_p = m->pos_pid.kp;
     conf.pos_i = m->pos_pid.ki;
@@ -322,7 +337,7 @@ void saveAllMotorConfigs() {
     conf.saved_position = m->current_pos;
     conf.pos_limit_min = m->pos_limit_min;
     conf.pos_limit_max = m->pos_limit_max;
-    ConfigStorage::saveMotorConfig(i + 1, conf);
+    ConfigStorage::saveMotorConfig(motor_id, conf);
   }
 }
 
@@ -330,7 +345,15 @@ void saveAllMotorConfigs() {
 void saveMotorConfig(int motor_id, Motor *m) {
   MotorConfig conf = ConfigStorage::loadMotorConfig(motor_id);
   conf.motor_dir = m->getDirection();
-  conf.encoder_dir = m->getEncoderDirection();
+  // Drive wheels: encoder_dir is tracked by ml_enc_dir/mr_enc_dir at runtime
+  // because motor->encoder_dir is always reset to 1 after command handling.
+  if (motor_id == 7) {
+    conf.encoder_dir = ml_enc_dir;
+  } else if (motor_id == 8) {
+    conf.encoder_dir = mr_enc_dir;
+  } else {
+    conf.encoder_dir = m->getEncoderDirection();
+  }
   conf.lpf_input_alpha = m->lpf_input_alpha;
   conf.pos_p = m->pos_pid.kp;
   conf.pos_i = m->pos_pid.ki;
@@ -386,6 +409,11 @@ void setup() {
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
     all_motors[i]->setDirection(conf.motor_dir);
     all_motors[i]->setEncoderDirection(conf.encoder_dir);
+    // Restore drive wheel kinematics encoder direction from EEPROM.
+    // ml_enc_dir/mr_enc_dir are the runtime source of truth for drive wheel
+    // encoder direction; they must match what was saved.
+    if (i == 6) ml_enc_dir = conf.encoder_dir;
+    if (i == 7) mr_enc_dir = conf.encoder_dir;
     all_motors[i]->setInputLpfAlpha(safe_f(conf.lpf_input_alpha));
     all_motors[i]->pos_pid.kp = safe_f(conf.pos_p);
     all_motors[i]->pos_pid.ki = safe_f(conf.pos_i);
@@ -607,6 +635,25 @@ void loop() {
   float mr_pwm = mr.update(dt);
   float mlc_pwm = ml_carriage.update(dt);
   float mrc_pwm = mr_carriage.update(dt);
+  // Drive motor deadzone — applied only in position control mode.
+  // If the position error is within ±DRIVE_DEADZONE_TICKS, snap the target to
+  // the current position and clear both PIDs so the PWM output sent over
+  // telemetry to the RNET joystick spoofer is exactly zero. Without this,
+  // integrator windup near the setpoint produces a non-zero joystick command
+  // and the wheelchair creeps even when it should be stationary.
+  if (drive_fb.mode == Motor::POSITION_CONTROL &&
+      fabsf(drive_fb.target_pos - drive_fb.current_pos) < DRIVE_DEADZONE_TICKS) {
+    drive_fb.target_pos = drive_fb.current_pos;
+    drive_fb.pos_pid.reset();
+    drive_fb.vel_pid.reset();
+  }
+  if (drive_lr.mode == Motor::POSITION_CONTROL &&
+      fabsf(drive_lr.target_pos - drive_lr.current_pos) < DRIVE_DEADZONE_TICKS) {
+    drive_lr.target_pos = drive_lr.current_pos;
+    drive_lr.pos_pid.reset();
+    drive_lr.vel_pid.reset();
+  }
+
   float mld_pwm = drive_fb.update(dt);
   float mrd_pwm = drive_lr.update(dt);
 

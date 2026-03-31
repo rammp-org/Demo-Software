@@ -30,7 +30,7 @@ setup(
             "dummy_flag = rammp_prototype_driver.dummy_flag_pub:main",
             "test_server = rammp_prototype_driver.test_action_server:main",
             "test_client = rammp_prototype_driver.test_action_client:main",
-            "test_luci_client = rammp_prototype_drive.test_luci_service:main",
+            "test_luci_client = rammp_prototype_driver.test_luci_service:main",
         ],
     },
 )

@@ -100,7 +100,7 @@ class EncoderBar(QWidget):
 
     def _emit_jog_request(self, direction: float):
         range_span = self._max_val - self._min_val
-        step_mag = abs(0.05 * range_span) if range_span != 0 else 50.0
+        step_mag = abs(0.1 * range_span) if range_span != 0 else 50.0
         self.jog_requested.emit(self._joint_id, direction * step_mag)
 
     def set_value(self, value: float):

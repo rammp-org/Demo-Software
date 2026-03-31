@@ -449,10 +449,10 @@ void setup() {
     }
   }
 
-  ml_enc_dir = drive_fb.getEncoderDirection();
-  mr_enc_dir = drive_lr.getEncoderDirection();
   drive_fb.setEncoderDirection(1);
   drive_lr.setEncoderDirection(1);
+  ml_enc_dir = drive_fb.getEncoderDirection();
+  mr_enc_dir = drive_lr.getEncoderDirection();
 
   Serial.println(
       "EEPROM CONFIG LOADED: All motor configs restored from EEPROM.");

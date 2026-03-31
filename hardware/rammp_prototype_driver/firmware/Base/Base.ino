@@ -103,6 +103,8 @@ int16_t scaled_mr_pwm;
 const float CARRIAGE_LEVEL_TARGET = 100.0f;
 const float CARRIAGE_LEVEL_TOLERANCE = 200.0f; // ticks
 
+const float PITCH_TRIM_DEG = 5.0f; // pitch offset
+
 void runSelfLeveling(float dt) {
   // Set all actively controlled motors to POSITION_CONTROL mode
   rc.setMode(Motor::POSITION_CONTROL);
@@ -168,14 +170,18 @@ void runSelfLeveling(float dt) {
   else
     err_y = asin(sinp) * (180.0 / PI); // Pitch error mapped to Y
 
+  // Remove the ~180 degree mounting offset from err_x before use
+  float err_x_corrected = err_x - 180.0f + PITCH_TRIM_DEG;
+  if (err_x_corrected < -180.0f) err_x_corrected += 360.0f;
+
   // Convert exact, continuous error angles to radians
-  float dpitchrd = err_x / DG; // BNO X = Robot Pitch
+  float dpitchrd = err_x_corrected / DG; // BNO X = Robot Pitch
   float drollrd = err_y / DG;  // BNO Y = Robot Roll
 
   // Deadband to prevent jitter
-  if (fabs(dpitchrd) < 0.001)
+  if (fabs(dpitchrd) < 0.01)
     dpitchrd = 0.0;
-  if (fabs(drollrd) < 0.001)
+  if (fabs(drollrd) < 0.01)
     drollrd = 0.0;
 
   // --- Forward Kinematics offset ---
@@ -273,20 +279,6 @@ void runSelfLeveling(float dt) {
   float z_target_rc = (newmebot[2][1] + newmebot[2][2]) /
                       2.0; // Average left/right caster height
   float z_target_mr = newmebot[2][3];
-
-  Serial.print("self-level-calc: z_target ML=");
-  Serial.print(z_target_ml, 3);
-  Serial.print(" RC=");
-  Serial.print(z_target_rc, 3);
-  Serial.print(" MR=");
-  Serial.println(z_target_mr, 3);
-
-  Serial.print("self-level-calc: ticks ML=");
-  Serial.print(z_target_ml * ML_CM_TO_TICKS, 1);
-  Serial.print(" RC=");
-  Serial.print(z_target_rc * RC_CM_TO_TICKS, 1);
-  Serial.print(" MR=");
-  Serial.println(z_target_mr * MR_CM_TO_TICKS, 1);
 
   // Dispatch targets in ticks — commented out for math verification
   ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);

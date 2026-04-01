@@ -20,6 +20,9 @@
     },
     {
       "name": "/perception_curb_detection_node"
+    },
+    {
+      "name": "/Gui_bridge_node"
     }
   ]
 }

@@ -148,7 +148,6 @@ class SystemControl(rclpy.node.Node):
         self.node_monitor = NodeNameMonitor(self, json_path, self.node_monitor_callback)
 
         self.current_arm_state = ""
-        self.curb_traverse_direction = None  # to store curb traverse direction for testing, will remove after testing
         self.init_state_machine()
 
         self.init_publisher()
@@ -184,10 +183,10 @@ class SystemControl(rclpy.node.Node):
                 timer.cancel()
                 self.destroy_timer(timer)
                 timer = None
-            callback()
+            # callback()
 
         # comment out to disable mock
-        # timer = self.create_timer(seconds, _on_timeout, callback_group=self._cb_group)
+        timer = self.create_timer(seconds, _on_timeout, callback_group=self._cb_group)
 
     ## ---------------------mock testing functions----------------------------------
     def mock_open_door_request(self):
@@ -268,36 +267,35 @@ class SystemControl(rclpy.node.Node):
     def mock_base_curb_navigation_traverse_request(self):
         # for testing curb traverse action, will remove after testing
         self.get_logger().info("Sending curb Navigation request.")
-        self.curb_traverse_direction = CurbTraverseDirection.ASCEND  # set curb traverse direction for testing, will replace with actual logic to determine traverse direction later
         self.reqNav()
 
     ## -----------------------------end of mock testing functions------------------------
 
     # -----------------------curb navigation transtion functions-----------------------------
     def on_enter_Nav(self):
+        self.get_logger().info("Detecting curb to prepare for navigation.")
         self.enable_curb_detection(
             True
         )  # enable curb detection to detect curb for navigation
-        self.get_logger().info("Detecting curb to prepare for navigation.")
-        self.get_logger().info("Mock detecting curb for 5 seconds.")
-        self._mock_delay(
-            5.0, self.startTraverseConfirm
-        )  # should enter Nav_traverse state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
+        # self.get_logger().info("Mock detecting curb for 5 seconds.")
+        # self._mock_delay(
+        #     5.0, self.startDescendConfirm()
+        # )  # should enter Nav_traverse state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
 
     def on_exit_Nav(self):
         self.enable_curb_detection(
             False
         )  # ensure curb detection is disabled when exiting detecting curb state
 
-    def on_enter_Nav_traverse(self):
-        self.get_logger().info("Starting curb traverse.")
+    def on_enter_Nav_ascending(self):
+        self.get_logger().info("Starting curb ascend.")
         self.base_self_leveling_enable(False)
-        self.curb_traverse_client.send_goal(
-            self.curb_traverse_direction
-        )  # send action goal to start curb traverse, will replace with actual logic to determine traverse direction later
-        self.curb_traverse_direction = (
-            None  # reset curb traverse direction after sending action goal
-        )
+        self.request_curb_traverse(CurbTraverseDirection.ASCEND)
+
+    def on_enter_Nav_descending(self):
+        self.get_logger().info("Starting curb descend.")
+        self.base_self_leveling_enable(False)
+        self.request_curb_traverse(CurbTraverseDirection.DESCEND)
 
     # -----------------------end of curb navigation transtion functions----------------------
 
@@ -552,9 +550,6 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().debug("Navigation is paused.")
         self.base_drive_enable(False)  # disable base drive to pause navigation
         self.curb_traverse_client.cancel_goal()
-        self.curb_traverse_direction = (
-            None  # reset curb traverse direction when navigation is paused
-        )
 
     def on_enter_Arm_retracting(self):
         self.get_logger().info("Retracting arm to prepare for next action.")
@@ -882,9 +877,9 @@ class SystemControl(rclpy.node.Node):
             case UserInputs.Request.CHAIR_CURB_NAVIGATION:
                 self.reqNav()
             case UserInputs.Request.CHAIR_CURB_ASCEND:
-                self.startAscendConfirm()  # should enter Nav_traverse state and start curb traverse action for testing, will replace with actual logic to determine when to start curb traverse later
+                self.startAscendConfirm()
             case UserInputs.Request.CHAIR_CURB_DESCEND:
-                self.startDescendConfirm()  # should enter Nav_traverse state and start curb traverse action for testing, will replace with actual logic to determine when to start curb traverse later
+                self.startDescendConfirm()
             case UserInputs.Request.CHAIR_CURB_CANCEL:
                 self.reqNavCancel()  # should enter Nav_paused state and pause curb traverse for testing, will replace with actual logic to determine when to pause curb traverse later
             case UserInputs.Request.ARM_CONTROL_MAIN:
@@ -1363,8 +1358,8 @@ class SystemControl(rclpy.node.Node):
             },
             {
                 "trigger": "traverseComplete",
-                "source": "Nav_ascending",
-                "dest": "Chair",
+                "source": ["Nav_ascending", "Nav_descending"],
+                "dest": "Nav_SLOff",
             },
             {
                 "trigger": "reqNavCancel",

@@ -71,6 +71,7 @@ class UserInputString(enum.Enum):
     CHAIR_SEAT_ELEVATE_LTILT_LEFT = UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_LEFT
     CHAIR_SEAT_ELEVATE_LTILT_RIGHT = UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_RIGHT
     CHAIR_SEAT_ELEVATE_LTILT_HOME = UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_HOME
+    CHAIR_SEAT_HOME = UserInputs.Request.CHAIR_SEAT_HOME
     CHAIR_CURB_NAVIGATION = UserInputs.Request.CHAIR_CURB_NAVIGATION
     CHAIR_CURB_ASCEND = UserInputs.Request.CHAIR_CURB_ASCEND
     CHAIR_CURB_DESCEND = UserInputs.Request.CHAIR_CURB_DESCEND
@@ -121,7 +122,7 @@ class GuiBridge(Node):
     def __init__(
         self,
     ):
-        super().__init__("Gui_bridge")
+        super().__init__("Gui_bridge_node")
         print("Gui_bridge node has been started.")
         GuiBridge.instance = self
 

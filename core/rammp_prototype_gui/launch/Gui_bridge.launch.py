@@ -60,7 +60,7 @@ def generate_launch_description():
             Node(
                 package="rammp_prototype_gui",
                 executable="GuiBridge",
-                name="Gui_bridge",
+                name="Gui_bridge_node",
                 output="screen",
                 emulate_tty=True,
                 respawn=False,

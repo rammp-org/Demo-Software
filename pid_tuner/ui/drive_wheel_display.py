@@ -4,6 +4,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QPushButton,
     QGridLayout,
+    QLineEdit,
+    QLabel,
 )
 from PyQt6.QtCore import Qt, QTimer, QRectF
 from PyQt6.QtGui import QPainter, QColor, QPen, QFont
@@ -188,6 +190,57 @@ class DriveWheelDisplay(QWidget):
 
         root.addLayout(dpad)
 
+        conn_row = QHBoxLayout()
+        conn_row.setSpacing(scaled(4))
+
+        self._host_input = QLineEdit("10.2.10.2")
+        self._host_input.setFixedWidth(scaled(120))
+        self._host_input.setPlaceholderText("Jetson IP")
+        self._host_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {THEME.surface0};
+                color: {THEME.text};
+                border: 1px solid {THEME.surface2};
+                border-radius: 3px;
+                padding: 2px 4px;
+                font-size: {SIZES["font_small"]}pt;
+            }}
+        """)
+        conn_row.addWidget(self._host_input)
+
+        self._btn_connect = QPushButton("Connect LUCI")
+        self._btn_connect.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.green};
+                color: {THEME.crust};
+                border-radius: 3px;
+                padding: 3px 8px;
+                font-size: {SIZES["font_small"]}pt;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: {THEME.teal}; }}
+            QPushButton:pressed {{ background-color: {THEME.green}; }}
+            QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
+        """)
+        self._btn_connect.clicked.connect(self._on_connect_clicked)
+        conn_row.addWidget(self._btn_connect)
+
+        self._luci_status = QLabel("Disconnected")
+        self._luci_status.setStyleSheet(
+            f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
+        )
+        conn_row.addWidget(self._luci_status)
+        conn_row.addStretch()
+        root.addLayout(conn_row)
+
+    def _on_connect_clicked(self):
+        if self._luci.is_connected:
+            self._luci.disconnect()
+        else:
+            host = self._host_input.text().strip()
+            if host:
+                self._luci.connect(host)
+
     def _on_luci_connection_changed(self, connected: bool):
         for btn in (
             self._btn_fwd,
@@ -197,6 +250,19 @@ class DriveWheelDisplay(QWidget):
             self._btn_stop,
         ):
             btn.setEnabled(connected)
+
+        if connected:
+            self._btn_connect.setText("Disconnect")
+            self._luci_status.setText("Connected")
+            self._luci_status.setStyleSheet(
+                f"color: {THEME.green}; font-size: {SIZES['font_small']}pt;"
+            )
+        else:
+            self._btn_connect.setText("Connect LUCI")
+            self._luci_status.setText("Disconnected")
+            self._luci_status.setStyleSheet(
+                f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
+            )
 
     def _on_luci_error(self, _msg: str):
         return

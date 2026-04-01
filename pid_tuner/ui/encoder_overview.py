@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QVBoxLayout,
+    QGridLayout,
     QLabel,
     QSizePolicy,
     QPushButton,
@@ -52,15 +53,18 @@ class JointBox(QFrame):
 
         self._name_label = QLabel(f"{name}:")
         self._name_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+        self._name_label.setFixedWidth(scaled(55))
 
         self._value_label = QLabel("0.0")
-        self._value_label.setMinimumWidth(scaled(45))
         self._value_label.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
 
         layout.addWidget(self._name_label)
-        layout.addWidget(self._value_label)
+        layout.addWidget(self._value_label, stretch=1)
+
+        self.setFixedHeight(scaled(22))
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self._update_style()
 
@@ -171,6 +175,8 @@ class EncoderOverview(QWidget):
         self._boxes = []
         self._selected_joint = 1
 
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
         self._setup_ui()
         self._setup_timer()
 
@@ -187,8 +193,8 @@ class EncoderOverview(QWidget):
         )
         root.setSpacing(SIZES["spacing_medium"])
 
-        boxes_layout = QHBoxLayout()
-        boxes_layout.setSpacing(SIZES["spacing_small"])
+        boxes_layout = QVBoxLayout()
+        boxes_layout.setSpacing(2)
 
         for i, joint in enumerate(JOINTS):
             color = JOINT_COLORS[i] if i < len(JOINT_COLORS) else THEME.text
@@ -201,8 +207,7 @@ class EncoderOverview(QWidget):
             self._boxes.append(box)
             boxes_layout.addWidget(box)
 
-        boxes_layout.addStretch()
-        root.addLayout(boxes_layout)
+        root.addLayout(boxes_layout, stretch=1)
 
         controls_layout = QHBoxLayout()
         controls_layout.setSpacing(SIZES["spacing_medium"])
@@ -231,13 +236,15 @@ class EncoderOverview(QWidget):
         btn_legs.clicked.connect(self._on_legs_go)
         controls_layout.addWidget(btn_legs)
 
-        controls_layout.addStretch()
-
-        for i in range(1, 7):
-            btn = SavedPositionButton(i, self._data_store, self._serial_handler)
-            controls_layout.addWidget(btn)
-
         root.addLayout(controls_layout)
+
+        pos_grid = QGridLayout()
+        pos_grid.setSpacing(SIZES["spacing_small"])
+        for i in range(6):
+            btn = SavedPositionButton(i + 1, self._data_store, self._serial_handler)
+            pos_grid.addWidget(btn, i // 3, i % 3)
+
+        root.addLayout(pos_grid)
 
         if self._boxes:
             self._boxes[0].set_selected(True)

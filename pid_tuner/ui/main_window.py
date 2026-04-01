@@ -112,6 +112,8 @@ class MainWindow(QMainWindow):
         # Top bar - connection, joint selection, and state indicator
         main_layout.addWidget(self._create_top_bar())
 
+        self._outer_splitter = QSplitter(Qt.Orientation.Vertical)
+
         self._top_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         overview_widget = QWidget()
@@ -134,9 +136,11 @@ class MainWindow(QMainWindow):
         self._serial_console.command_sent.connect(self._serial_handler.send_raw)
         self._top_splitter.addWidget(self._serial_console)
 
-        self._top_splitter.setSizes([100, 100])
+        self._top_splitter.setChildrenCollapsible(False)
+        self._top_splitter.setHandleWidth(4)
+        self._top_splitter.setSizes([300, 200])
 
-        main_layout.addWidget(self._top_splitter)
+        self._outer_splitter.addWidget(self._top_splitter)
 
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
         self._main_splitter = main_splitter
@@ -203,7 +207,14 @@ class MainWindow(QMainWindow):
         main_splitter.setStretchFactor(0, 2)  # Plot area stretches more
         main_splitter.setStretchFactor(1, 1)  # Control panel stretches less
 
-        main_layout.addWidget(main_splitter)
+        self._outer_splitter.addWidget(main_splitter)
+        self._outer_splitter.setChildrenCollapsible(False)
+        self._outer_splitter.setHandleWidth(4)
+        self._outer_splitter.setSizes([150, 500])
+        self._outer_splitter.setStretchFactor(0, 0)
+        self._outer_splitter.setStretchFactor(1, 1)
+
+        main_layout.addWidget(self._outer_splitter)
 
     def _create_estop_bar(self) -> QFrame:
         """Create the always-visible EStop bar at the top of the window."""

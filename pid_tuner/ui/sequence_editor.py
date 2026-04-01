@@ -569,7 +569,7 @@ class SequenceEditor(QWidget):
         self._table.blockSignals(False)
 
     def _highlight_active_step(self):
-        """Bold the row currently active on the robot."""
+        self._table.blockSignals(True)
         normal_font = QFont()
         bold_font = QFont()
         bold_font.setBold(True)
@@ -606,6 +606,7 @@ class SequenceEditor(QWidget):
                             item.setBackground(QBrush(fwd_tint))
                 except RuntimeError:
                     continue
+        self._table.blockSignals(False)
 
     def _apply_base_cell_background(self, row: int, col: int, item: QTableWidgetItem):
         if row % 2 == 1:

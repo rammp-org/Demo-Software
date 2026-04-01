@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QFrame,
-    QCheckBox,
     QMenu,
 )
 from PyQt6.QtCore import pyqtSignal, QTimer, Qt, QSettings
@@ -30,7 +29,6 @@ from .theme import THEME
 from .scaling import SIZES, scaled
 from .imu_display import IMUDisplay
 from .imu_3d_widget import IMU3DWidget
-from .config_viewer import ConfigViewerWidget
 from .collapsible_group import CollapsibleGroupBox
 from .strain_gauge_display import StrainGaugeDisplay
 
@@ -226,13 +224,6 @@ class ControlPanel(QWidget):
         self._imu_3d_group.addWidget(self._imu_3d_widget)
         layout.addWidget(self._imu_3d_group)
         self._panels["3D IMU Visualization"] = self._imu_3d_group
-
-        # Configuration Viewer (Memory Debug) (wrapped in collapsible group)
-        self._config_viewer = ConfigViewerWidget(self._data_store, self._serial_handler)
-        self._config_viewer_group = CollapsibleGroupBox("Config Viewer")
-        self._config_viewer_group.addWidget(self._config_viewer)
-        layout.addWidget(self._config_viewer_group)
-        self._panels["Config Viewer"] = self._config_viewer_group
 
         # Strain Gauge Display (wrapped in collapsible group)
         self._strain_gauge_display = StrainGaugeDisplay(self._data_store)
@@ -553,34 +544,42 @@ class ControlPanel(QWidget):
         self._open_loop_btn = QPushButton("Open Loop")
         self._open_loop_btn.setToolTip("Set open-loop PWM mode (mode 0)")
         self._open_loop_btn.clicked.connect(lambda: self._on_set_mode(MODE_OPEN_LOOP))
-        self._open_loop_btn.setStyleSheet(
-            f"background-color: {MODE_COLORS[MODE_OPEN_LOOP]}; color: {THEME.crust}; font-weight: bold;"
-        )
+        self._open_loop_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {MODE_COLORS[MODE_OPEN_LOOP]}; color: {THEME.crust}; font-weight: bold; }}
+            QPushButton:hover {{ background-color: {THEME.maroon}; }}
+            QPushButton:pressed {{ background-color: {THEME.flamingo}; }}
+        """)
         mode_layout.addWidget(self._open_loop_btn)
 
         self._cl_vel_btn = QPushButton("CL Vel")
         self._cl_vel_btn.setToolTip("Set closed-loop velocity mode (mode 1)")
         self._cl_vel_btn.clicked.connect(lambda: self._on_set_mode(MODE_VELOCITY))
-        self._cl_vel_btn.setStyleSheet(
-            f"background-color: {MODE_COLORS[MODE_VELOCITY]}; color: {THEME.crust}; font-weight: bold;"
-        )
+        self._cl_vel_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {MODE_COLORS[MODE_VELOCITY]}; color: {THEME.crust}; font-weight: bold; }}
+            QPushButton:hover {{ background-color: {THEME.peach}; }}
+            QPushButton:pressed {{ background-color: {THEME.rosewater}; }}
+        """)
         mode_layout.addWidget(self._cl_vel_btn)
 
         self._cl_pos_btn = QPushButton("CL Pos")
         self._cl_pos_btn.setToolTip("Set closed-loop position mode (mode 2)")
         self._cl_pos_btn.clicked.connect(lambda: self._on_set_mode(MODE_POSITION))
-        self._cl_pos_btn.setStyleSheet(
-            f"background-color: {MODE_COLORS[MODE_POSITION]}; color: {THEME.crust}; font-weight: bold;"
-        )
+        self._cl_pos_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {MODE_COLORS[MODE_POSITION]}; color: {THEME.crust}; font-weight: bold; }}
+            QPushButton:hover {{ background-color: {THEME.sapphire}; }}
+            QPushButton:pressed {{ background-color: {THEME.lavender}; }}
+        """)
         mode_layout.addWidget(self._cl_pos_btn)
 
         # Clear PID button (resets integrator windup)
         self._clear_pid_btn = QPushButton("Clear PID")
         self._clear_pid_btn.setToolTip("Reset integrator windup and previous error")
         self._clear_pid_btn.clicked.connect(self._on_clear_pid)
-        self._clear_pid_btn.setStyleSheet(
-            f"background-color: {THEME.yellow}; color: {THEME.crust};"
-        )
+        self._clear_pid_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {THEME.yellow}; color: {THEME.crust}; }}
+            QPushButton:hover {{ background-color: {THEME.peach}; }}
+            QPushButton:pressed {{ background-color: {THEME.rosewater}; }}
+        """)
         mode_layout.addWidget(self._clear_pid_btn)
 
         layout.addLayout(mode_layout)
@@ -718,9 +717,11 @@ class ControlPanel(QWidget):
         self._save_config_btn = QPushButton("Save to EEPROM")
         self._save_config_btn.setToolTip("Save current PID configuration to EEPROM")
         self._save_config_btn.clicked.connect(self._on_save_config)
-        self._save_config_btn.setStyleSheet(
-            f"background-color: {THEME.blue}; color: {THEME.crust};"
-        )
+        self._save_config_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {THEME.blue}; color: {THEME.crust}; }}
+            QPushButton:hover {{ background-color: {THEME.sapphire}; }}
+            QPushButton:pressed {{ background-color: {THEME.lavender}; }}
+        """)
         config_layout.addWidget(self._save_config_btn)
 
         self._save_pos_btn = QPushButton("Save Robot Position State")
@@ -728,9 +729,11 @@ class ControlPanel(QWidget):
             "Save current encoder positions and config to EEPROM for ALL motors"
         )
         self._save_pos_btn.clicked.connect(self._on_save_robot_state)
-        self._save_pos_btn.setStyleSheet(
-            f"background-color: {THEME.mauve}; color: {THEME.crust};"
-        )
+        self._save_pos_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {THEME.mauve}; color: {THEME.crust}; }}
+            QPushButton:hover {{ background-color: {THEME.pink}; }}
+            QPushButton:pressed {{ background-color: {THEME.flamingo}; }}
+        """)
         config_layout.addWidget(self._save_pos_btn)
 
         layout.addLayout(config_layout)
@@ -766,36 +769,14 @@ class ControlPanel(QWidget):
         self._target_input_unit_label = QLabel("PWM")
         target_grid.addWidget(self._target_input_unit_label, 0, 2)
 
-        # Linked target (Optional)
-        self._linked_target_label = QLabel("Linked:")
-        target_grid.addWidget(self._linked_target_label, 1, 0)
-        self._linked_target_input = QLineEdit("0")
-        self._linked_target_input.setValidator(QDoubleValidator())
-        self._linked_target_input.setMinimumWidth(SIZES["input_preferred_width"])
-        self._linked_target_input.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-        target_grid.addWidget(self._linked_target_input, 1, 1)
-        self._linked_target_unit_label = QLabel("PWM")
-        target_grid.addWidget(self._linked_target_unit_label, 1, 2)
-
         layout.addLayout(target_grid)
 
-        # Invert linked checkbox and Set button
         action_layout = QHBoxLayout()
-        self._invert_linked_cb = QCheckBox("Invert Linked")
-        self._invert_linked_cb.setToolTip("Invert the target sent to the linked joint")
-        action_layout.addWidget(self._invert_linked_cb)
-
         self._set_target_btn = QPushButton("Set Target(s)")
         self._set_target_btn.clicked.connect(self._on_set_target)
         action_layout.addWidget(self._set_target_btn)
 
         layout.addLayout(action_layout)
-
-        # Listen to linked joint changes to show/hide the secondary input
-        self._data_store.linked_joint_changed.connect(self._on_linked_joint_changed)
-        self._on_linked_joint_changed(self._data_store.linked_joint)
 
         # Quick target buttons row
         quick_layout = QHBoxLayout()
@@ -809,9 +790,11 @@ class ControlPanel(QWidget):
         # Set Zero button
         self._set_zero_btn = QPushButton("Set Zero")
         self._set_zero_btn.clicked.connect(self._on_set_zero)
-        self._set_zero_btn.setStyleSheet(
-            f"background-color: {THEME.green}; color: {THEME.crust};"
-        )
+        self._set_zero_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {THEME.green}; color: {THEME.crust}; }}
+            QPushButton:hover {{ background-color: {THEME.teal}; }}
+            QPushButton:pressed {{ background-color: {THEME.sky}; }}
+        """)
         quick_layout.addWidget(self._set_zero_btn)
 
         layout.addLayout(quick_layout)
@@ -824,9 +807,11 @@ class ControlPanel(QWidget):
         self._home_btn = QPushButton("Home Position")
         self._home_btn.setToolTip("Zero encoder position for selected joint")
         self._home_btn.clicked.connect(self._on_home_position)
-        self._home_btn.setStyleSheet(
-            f"background-color: {THEME.blue}; color: {THEME.crust};"
-        )
+        self._home_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {THEME.blue}; color: {THEME.crust}; }}
+            QPushButton:hover {{ background-color: {THEME.sapphire}; }}
+            QPushButton:pressed {{ background-color: {THEME.lavender}; }}
+        """)
         motor_config_layout.addWidget(self._home_btn)
 
         # Direction toggle with indicator
@@ -929,9 +914,11 @@ class ControlPanel(QWidget):
         self._set_offset_btn = QPushButton("Set Offset")
         self._set_offset_btn.setToolTip("Set current position to the specified value")
         self._set_offset_btn.clicked.connect(self._on_set_position_offset)
-        self._set_offset_btn.setStyleSheet(
-            f"background-color: {THEME.mauve}; color: {THEME.crust};"
-        )
+        self._set_offset_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {THEME.mauve}; color: {THEME.crust}; }}
+            QPushButton:hover {{ background-color: {THEME.pink}; }}
+            QPushButton:pressed {{ background-color: {THEME.flamingo}; }}
+        """)
         offset_layout.addWidget(self._set_offset_btn)
 
         offset_layout.addStretch()
@@ -1035,9 +1022,11 @@ class ControlPanel(QWidget):
 
         # Stop button
         self._jog_stop_btn = QPushButton("STOP (PWM=0)")
-        self._jog_stop_btn.setStyleSheet(
-            f"background-color: {THEME.red}; color: {THEME.crust};"
-        )
+        self._jog_stop_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {THEME.red}; color: {THEME.crust}; }}
+            QPushButton:hover {{ background-color: {THEME.maroon}; }}
+            QPushButton:pressed {{ background-color: {THEME.flamingo}; }}
+        """)
         self._jog_stop_btn.clicked.connect(self._on_jog_stop)
         layout.addWidget(self._jog_stop_btn)
 
@@ -1055,15 +1044,6 @@ class ControlPanel(QWidget):
         self._serial_handler.set_target(joint_id, pwm_fraction)
         self._data_store.set_target(joint_id, pwm_fraction)
 
-        # Also apply to linked joint if active
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            invert = self._invert_linked_cb.isChecked()
-            linked_pwm = -pwm_fraction if invert else pwm_fraction
-            self._serial_handler.set_mode(linked_joint_id, MODE_OPEN_LOOP)
-            self._serial_handler.set_target(linked_joint_id, linked_pwm)
-            self._data_store.set_target(linked_joint_id, linked_pwm)
-
     def _on_jog_released(self):
         """Handle jog button release - stop jogging."""
         self._on_jog_stop()
@@ -1073,11 +1053,6 @@ class ControlPanel(QWidget):
         joint_id = self._data_store.selected_joint
         self._serial_handler.set_target(joint_id, 0)
         self._data_store.set_target(joint_id, 0)
-
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._serial_handler.set_target(linked_joint_id, 0)
-            self._data_store.set_target(linked_joint_id, 0)
 
     def _create_sine_group(self) -> CollapsibleGroupBox:
         """Create the sine wave input group."""
@@ -1191,9 +1166,11 @@ class ControlPanel(QWidget):
         btn_layout.setSpacing(SIZES["spacing_small"])
 
         self._start_leveling_btn = QPushButton("Start Leveling")
-        self._start_leveling_btn.setStyleSheet(
-            f"background-color: {THEME.teal}; color: {THEME.crust};"
-        )
+        self._start_leveling_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {THEME.teal}; color: {THEME.crust}; }}
+            QPushButton:hover {{ background-color: {THEME.green}; }}
+            QPushButton:pressed {{ background-color: {THEME.sky}; }}
+        """)
         self._start_leveling_btn.clicked.connect(self._on_start_leveling)
         btn_layout.addWidget(self._start_leveling_btn)
 
@@ -1340,20 +1317,10 @@ class ControlPanel(QWidget):
         self._settled_label.setText("---")
         self._oscillation_label.setText("---")
 
-    def _on_linked_joint_changed(self, linked_joint_id: int):
-        """Update UI based on whether a linked joint is active."""
-        has_linked = linked_joint_id != 0
-        self._linked_target_label.setVisible(has_linked)
-        self._linked_target_input.setVisible(has_linked)
-        self._linked_target_unit_label.setVisible(has_linked)
-        self._invert_linked_cb.setVisible(has_linked)
-
     def _on_clear_pid(self):
         """Send reset PID command to clear integrator windup."""
         joint_id = self._data_store.selected_joint
         self._serial_handler.reset_pid(joint_id)
-        if self._data_store.linked_joint != 0:
-            self._serial_handler.reset_pid(self._data_store.linked_joint)
 
     def _get_float_from_lineedit(
         self, line_edit: QLineEdit, default: float = 0.0
@@ -1374,18 +1341,6 @@ class ControlPanel(QWidget):
         # Send to Teensy
         self._serial_handler.set_target(joint_id, target)
 
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            # If the user typed something into the linked input, use it.
-            # Otherwise use the primary target, potentially inverted.
-            # Simple check: if the user actually wrote a different value specifically in the linked box
-            # we should respect it. However, keeping them synced when using step inputs is usually desired.
-            # Let's read whatever is currently in the linked_target_input field.
-            linked_target = self._get_float_from_lineedit(self._linked_target_input)
-
-            self._data_store.set_target(linked_joint_id, linked_target)
-            self._serial_handler.set_target(linked_joint_id, linked_target)
-
     def _on_use_current(self):
         """Set target input to current position/velocity based on mode."""
         joint_data = self._data_store.get_selected_joint_data()
@@ -1393,15 +1348,6 @@ class ControlPanel(QWidget):
             self._target_input.setText(str(joint_data.current_velocity))
         else:
             self._target_input.setText(str(joint_data.current_position))
-
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            linked_data = self._data_store.get_joint(linked_joint_id)
-            if linked_data is not None:
-                if self._current_mode == MODE_VELOCITY:
-                    self._linked_target_input.setText(str(linked_data.current_velocity))
-                else:
-                    self._linked_target_input.setText(str(linked_data.current_position))
 
     def _on_set_zero(self):
         """Set target to zero."""
@@ -1414,12 +1360,6 @@ class ControlPanel(QWidget):
         # Send to Teensy
         self._serial_handler.set_target(joint_id, 0)
 
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._data_store.set_target(linked_joint_id, 0)
-            self._linked_target_input.setText("0")
-            self._serial_handler.set_target(linked_joint_id, 0)
-
     def _on_home_position(self):
         """Send home/zero position command."""
         joint_id = self._data_store.selected_joint
@@ -1428,29 +1368,15 @@ class ControlPanel(QWidget):
         self._target_input.setText("0")
         self._data_store.set_target(joint_id, 0)
 
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._serial_handler.home_position(linked_joint_id)
-            self._linked_target_input.setText("0")
-            self._data_store.set_target(linked_joint_id, 0)
-
     def _on_toggle_direction(self):
         """Toggle motor direction for selected joint."""
         joint_id = self._data_store.selected_joint
         self._serial_handler.toggle_direction(joint_id)
 
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._serial_handler.toggle_direction(linked_joint_id)
-
     def _on_toggle_encoder_direction(self):
         """Toggle encoder direction for selected joint."""
         joint_id = self._data_store.selected_joint
         self._serial_handler.toggle_encoder_direction(joint_id)
-
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._serial_handler.toggle_encoder_direction(linked_joint_id)
 
     def _on_set_position_offset(self):
         """Set the current position to a specified value (position offset)."""
@@ -1462,11 +1388,6 @@ class ControlPanel(QWidget):
         # Send offset command to Teensy
         # The Teensy will calculate: offset = desired_position - current_raw_position
         self._serial_handler.set_position_offset(joint_id, desired_position)
-
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            # Use same offset for linked joint
-            self._serial_handler.set_position_offset(linked_joint_id, desired_position)
 
     def _update_direction_indicator(self):
         """Update the direction indicator based on current motor direction."""
@@ -1507,8 +1428,6 @@ class ControlPanel(QWidget):
         """
         joint_id = self._data_store.selected_joint
         self._serial_handler.set_mode(joint_id, mode)
-        if self._data_store.linked_joint != 0:
-            self._serial_handler.set_mode(self._data_store.linked_joint, mode)
 
         # Update local tracking for unit labels (send-side bookkeeping only).
         # Do NOT set data_store.control_mode here — that is set exclusively from
@@ -1517,7 +1436,6 @@ class ControlPanel(QWidget):
         unit = MODE_UNITS.get(mode, "")
         self._target_unit_label.setText(unit)
         self._target_input_unit_label.setText(unit)
-        self._linked_target_unit_label.setText(unit)
         self._step_unit_label.setText(unit)
         self._sine_amplitude_unit_label.setText(unit)
         self._mode_indicator_label.setText(MODE_NAMES.get(mode, "Unknown"))
@@ -1549,15 +1467,6 @@ class ControlPanel(QWidget):
         self._serial_handler.set_pos_lpf(joint_id, lpf)
         self._serial_handler.set_pos_ramp_rate(joint_id, ramp)
 
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._serial_handler.set_pid(linked_joint_id, "P", p)
-            self._serial_handler.set_pid(linked_joint_id, "I", i)
-            self._serial_handler.set_pid(linked_joint_id, "D", d)
-            self._serial_handler.set_feed_forward(linked_joint_id, "F", ff)
-            self._serial_handler.set_pos_lpf(linked_joint_id, lpf)
-            self._serial_handler.set_pos_ramp_rate(linked_joint_id, ramp)
-
     def _on_set_vel_pid(self):
         """Send velocity PID gains and feed-forward."""
         joint_id = self._data_store.selected_joint
@@ -1575,15 +1484,6 @@ class ControlPanel(QWidget):
         self._serial_handler.set_vel_lpf(joint_id, lpf)
         self._serial_handler.set_vel_ramp_rate(joint_id, ramp)
 
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._serial_handler.set_pid(linked_joint_id, "p", p)
-            self._serial_handler.set_pid(linked_joint_id, "i", i)
-            self._serial_handler.set_pid(linked_joint_id, "d", d)
-            self._serial_handler.set_feed_forward(linked_joint_id, "f", ff)
-            self._serial_handler.set_vel_lpf(linked_joint_id, lpf)
-            self._serial_handler.set_vel_ramp_rate(linked_joint_id, ramp)
-
     def _on_set_input_lpf(self):
         """Send motor input LPF alpha."""
         joint_id = self._data_store.selected_joint
@@ -1591,27 +1491,15 @@ class ControlPanel(QWidget):
 
         self._serial_handler.set_input_lpf(joint_id, lpf)
 
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._serial_handler.set_input_lpf(linked_joint_id, lpf)
-
     def _on_load_config(self):
         """Request PID configuration from EEPROM."""
         joint_id = self._data_store.selected_joint
         self._serial_handler.get_config(joint_id)
 
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._serial_handler.get_config(linked_joint_id)
-
     def _on_save_config(self):
         """Save current PID configuration to EEPROM."""
         joint_id = self._data_store.selected_joint
         self._serial_handler.save_config(joint_id)
-
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._serial_handler.save_config(linked_joint_id)
 
     def _on_save_robot_state(self):
         """Save current position and configuration for ALL motors (K0)."""
@@ -1623,19 +1511,11 @@ class ControlPanel(QWidget):
         limit = self._pos_limit_min.value()
         self._serial_handler.set_pos_limit_min(joint_id, limit)
 
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._serial_handler.set_pos_limit_min(linked_joint_id, limit)
-
     def _on_set_max_limit(self):
         """Set the maximum position limit."""
         joint_id = self._data_store.selected_joint
         limit = self._pos_limit_max.value()
         self._serial_handler.set_pos_limit_max(joint_id, limit)
-
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._serial_handler.set_pos_limit_max(linked_joint_id, limit)
 
     def _on_config_updated(self, joint_id: int):
         """Update PID input fields when configuration is loaded from EEPROM."""
@@ -1691,8 +1571,6 @@ class ControlPanel(QWidget):
         """Execute a timed step: send center+amplitude, wait duration, return to center."""
         duration = self._get_float_from_lineedit(self._step_duration, 0.5)
         joint_id = self._data_store.selected_joint
-        linked_joint_id = self._data_store.linked_joint
-        invert = self._invert_linked_cb.isChecked()
 
         # Capture the current actual position/velocity as the center to step around
         joint_data = self._data_store.get_selected_joint_data()
@@ -1706,19 +1584,6 @@ class ControlPanel(QWidget):
         self._serial_handler.set_target(joint_id, target)
         self._data_store.set_target(joint_id, target)
 
-        # Send to linked joint if active, centered on its own current value
-        if linked_joint_id != 0:
-            linked_data = self._data_store.get_joint(linked_joint_id)
-            if linked_data is not None:
-                self._step_linked_center = self._get_step_center(linked_data)
-            else:
-                self._step_linked_center = 0.0
-            linked_amp = -amplitude if invert else amplitude
-            linked_target = self._step_linked_center + linked_amp
-            self._linked_target_input.setText(f"{linked_target:.4g}")
-            self._serial_handler.set_target(linked_joint_id, linked_target)
-            self._data_store.set_target(linked_joint_id, linked_target)
-
         # Start timer to return to center
         self._step_timer.start(int(duration * 1000))
 
@@ -1729,13 +1594,6 @@ class ControlPanel(QWidget):
         self._serial_handler.set_target(joint_id, center)
         self._target_input.setText(f"{center:.4g}")
         self._data_store.set_target(joint_id, center)
-
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            linked_center = getattr(self, "_step_linked_center", 0.0)
-            self._serial_handler.set_target(linked_joint_id, linked_center)
-            self._linked_target_input.setText(f"{linked_center:.4g}")
-            self._data_store.set_target(linked_joint_id, linked_center)
 
     def _on_start_sine(self):
         """Start sine wave input."""
@@ -1754,14 +1612,6 @@ class ControlPanel(QWidget):
             self._sine_duration_input, 10.0
         )
         self._sine_center = joint_data.current_target
-
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            linked_data = self._data_store.get_joint(linked_joint_id)
-            if linked_data is not None:
-                self._sine_linked_center = linked_data.current_target
-            else:
-                self._sine_linked_center = 0.0
 
         self._sine_start_time = 0
         self._sine_active = True
@@ -1792,12 +1642,6 @@ class ControlPanel(QWidget):
         self._serial_handler.set_target(joint_id, self._sine_center)
         self._target_input.setText(str(self._sine_center))
 
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            self._data_store.set_target(linked_joint_id, self._sine_linked_center)
-            self._serial_handler.set_target(linked_joint_id, self._sine_linked_center)
-            self._linked_target_input.setText(str(self._sine_linked_center))
-
     def _update_sine_wave(self):
         """Update sine wave target position."""
         if not self._sine_active:
@@ -1819,14 +1663,6 @@ class ControlPanel(QWidget):
         joint_id = self._data_store.selected_joint
         self._data_store.set_target(joint_id, target)
         self._serial_handler.set_target(joint_id, target)
-
-        linked_joint_id = self._data_store.linked_joint
-        if linked_joint_id != 0:
-            invert = self._invert_linked_cb.isChecked()
-            linked_val = -value if invert else value
-            linked_target = self._sine_linked_center + linked_val
-            self._data_store.set_target(linked_joint_id, linked_target)
-            self._serial_handler.set_target(linked_joint_id, linked_target)
 
         # Update time remaining
         remaining = self._sine_duration - self._sine_start_time

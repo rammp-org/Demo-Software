@@ -119,9 +119,11 @@ class ConfigViewerWidget(QWidget):
         self._load_all_btn = QPushButton("Load All")
         self._load_all_btn.setToolTip("Request configuration from all 6 motors")
         self._load_all_btn.clicked.connect(self._on_load_all)
-        self._load_all_btn.setStyleSheet(
-            f"background-color: {THEME.blue}; color: {THEME.crust};"
-        )
+        self._load_all_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {THEME.blue}; color: {THEME.crust}; }}
+            QPushButton:hover {{ background-color: {THEME.sapphire}; }}
+            QPushButton:pressed {{ background-color: {THEME.lavender}; }}
+        """)
         header_layout.addWidget(self._load_all_btn)
 
         # Refresh button (single selected joint)
@@ -138,9 +140,11 @@ class ConfigViewerWidget(QWidget):
 
         self._export_btn = QPushButton("Export")
         self._export_btn.setToolTip("Save all motor configs to a JSON file")
-        self._export_btn.setStyleSheet(
-            f"background-color: {THEME.teal}; color: {THEME.crust};"
-        )
+        self._export_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {THEME.teal}; color: {THEME.crust}; }}
+            QPushButton:hover {{ background-color: {THEME.green}; }}
+            QPushButton:pressed {{ background-color: {THEME.sky}; }}
+        """)
         self._export_btn.clicked.connect(self._on_export)
         header_layout.addWidget(self._export_btn)
 
@@ -148,9 +152,11 @@ class ConfigViewerWidget(QWidget):
         self._import_btn.setToolTip(
             "Load motor configs from a JSON file and program the Teensy"
         )
-        self._import_btn.setStyleSheet(
-            f"background-color: {THEME.peach}; color: {THEME.crust};"
-        )
+        self._import_btn.setStyleSheet(f"""
+            QPushButton {{ background-color: {THEME.peach}; color: {THEME.crust}; }}
+            QPushButton:hover {{ background-color: {THEME.yellow}; }}
+            QPushButton:pressed {{ background-color: {THEME.rosewater}; }}
+        """)
         self._import_btn.clicked.connect(self._on_import)
         header_layout.addWidget(self._import_btn)
 

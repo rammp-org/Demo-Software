@@ -10,35 +10,47 @@ struct RobotCommand;
 #define SEQ_NUM_MOTORS 8
 #define SEQ_NUM_POS_MOTORS 6
 
+// Position-based completion: all active motors must be within this deadzone
+// of their target (encoder ticks) before a keyframe is considered complete.
+#define SEQ_COMPLETION_DEADZONE 50.0f
+
+// Safety timeout (ms) for position-based completion.  If motors cannot reach
+// their targets within this window the keyframe is force-completed and a
+// SEQ_TIMEOUT message is sent so the GUI can alert the operator.
+#define SEQ_COMPLETION_TIMEOUT_MS 10000
+
 struct Keyframe {
   float targets[SEQ_NUM_MOTORS];
   bool active[SEQ_NUM_MOTORS];
-  uint32_t duration_ms;
+  bool relative[SEQ_NUM_MOTORS];          // true  = target is offset from start pos
+  uint32_t duration_ms[SEQ_NUM_MOTORS];   // per-motor interpolation durations
 };
 
-// Parse "t1,t2,t3,t4,t5,t6,a1,a2,a3,a4,a5,a6,dur_ms" into a Keyframe.
-// Returns true on success.
+// Parse CSV payload into a Keyframe.
+// New format  (32 values): t1..t8, a1..a8, r1..r8, d1..d8
+// Legacy fmt  (17 values): t1..t8, a1..a8, dur_ms   (all absolute, shared duration)
 bool parseKeyframePayload(const String &payload, Keyframe &kf);
 
 // Initialize sequence state when entering AUTO_CURB_CLIMBING mode.
-// Motors array must be: {rc, fc, ml, mr, ml_carriage, mr_carriage, drive_fb, drive_lr}
+// ALL 8 motors are placed in POSITION_CONTROL for the duration of the sequence.
 void sequenceEnter(Motor* motors[SEQ_NUM_MOTORS]);
 
-// Zero drive motor velocities and restore position control on sequence end.
-// SAFETY: must be called on ALL exit paths to prevent uncontrolled wheelchair motion.
+// Cleanup on mode exit.  Drive wheels are restored to VELOCITY_CONTROL.
+// SAFETY: must be called on ALL exit paths to prevent uncontrolled motion.
 void sequenceExit(Motor* motors[SEQ_NUM_MOTORS]);
 
-// Handle a sequence command (CMD_SEQ_KEYFRAME, CMD_SEQ_STEP_FWD/BWD, CMD_SEQ_GOTO).
-// Motors array must be: {rc, fc, ml, mr, ml_carriage, mr_carriage, drive_fb, drive_lr}
+// Handle incoming sequence commands (keyframe upload, step, goto).
 void sequenceHandleCommand(const RobotCommand& cmd, Motor* motors[SEQ_NUM_MOTORS],
                            const String& payload);
 
-// Update interpolation during AUTO_CURB_CLIMBING (called every loop).
-// Motors array must be: {rc, fc, ml, mr, ml_carriage, mr_carriage, drive_fb, drive_lr}
-// Indices 0-5 use position interpolation; indices 6-7 use velocity hold.
+// Tick interpolation / settling / auto-run (called every loop).
 void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]);
 
-// Accessors for state used by Base.ino
+// Auto-run: automatically advance to the next keyframe on completion.
+void sequenceSetAutoRun(bool enable);
+bool sequenceIsAutoRunning();
+
+// State accessors for telemetry / Base.ino
 bool sequenceIsInterpolating();
 int sequenceCurrentStep();
 int sequenceLength();

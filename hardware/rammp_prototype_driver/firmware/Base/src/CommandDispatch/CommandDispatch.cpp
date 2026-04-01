@@ -316,7 +316,11 @@ void handleGetConfig(CommandContext& ctx) {
   Serial.print(",");
   Serial.print(ctx.motor->pos_pid.max_ramp_rate, 4);
   Serial.print(",");
-  Serial.println(ctx.motor->vel_pid.max_ramp_rate, 4);
+  Serial.print(ctx.motor->vel_pid.max_ramp_rate, 4);
+  Serial.print(",");
+  Serial.print(ctx.motor->getDirection());
+  Serial.print(",");
+  Serial.println(ctx.motor->getEncoderDirection());
 }
 
 // --- Dispatch table: 24 TUNER_MODE commands ---

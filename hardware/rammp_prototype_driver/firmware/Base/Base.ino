@@ -105,14 +105,16 @@ int16_t scaled_mr_pwm;
 // --- Self Leveling Kinematics ---
 // Ported from legacy Base_old_self_leveling.ino
 
-// Carriage target position for self-leveling (both carriages must be here)
 const float CARRIAGE_LEVEL_TARGET = 100.0f;
-const float CARRIAGE_LEVEL_TOLERANCE = 200.0f; // ticks
-
-const float PITCH_TRIM_DEG = 5.0f; // pitch offset
+const float CARRIAGE_LEVEL_TOLERANCE = 200.0f;
+const float PITCH_TRIM_DEG = 5.0f;
+const unsigned long LEVEL_BLEND_MS = 2000;
 
 void runSelfLeveling(float dt) {
-  // Set all actively controlled motors to POSITION_CONTROL mode
+  static bool ik_was_active = false;
+  static unsigned long blend_start = 0;
+  static float hold_rc, hold_ml, hold_mr, hold_fc;
+
   rc.setMode(Motor::POSITION_CONTROL);
   ml.setMode(Motor::POSITION_CONTROL);
   mr.setMode(Motor::POSITION_CONTROL);
@@ -120,10 +122,6 @@ void runSelfLeveling(float dt) {
   mr_carriage.setMode(Motor::POSITION_CONTROL);
   fc.setMode(Motor::POSITION_CONTROL);
 
-  // --- Carriage pre-check ---
-  // Both carriages must be at the front of the robot before the leveling
-  // geometry is valid. Drive them to target and skip the IK math until
-  // they arrive within tolerance.
   ml_carriage.setTargetPosition(CARRIAGE_LEVEL_TARGET);
   mr_carriage.setTargetPosition(CARRIAGE_LEVEL_TARGET);
 
@@ -133,12 +131,22 @@ void runSelfLeveling(float dt) {
       fabs(mr_carriage.current_pos - CARRIAGE_LEVEL_TARGET) < CARRIAGE_LEVEL_TOLERANCE;
 
   if (!ml_carr_ready || !mr_carr_ready) {
-    // Carriages still moving — hold other actuators at current position
+    ik_was_active = false;
     rc.setTargetPosition(rc.current_pos);
     ml.setTargetPosition(ml.current_pos);
     mr.setTargetPosition(mr.current_pos);
     fc.setTargetPosition(fc.current_pos);
-    return; // Skip leveling math until carriages are in place
+    return;
+  }
+
+  // Carriages ready — on first frame, capture hold positions for gradual blend
+  if (!ik_was_active) {
+    ik_was_active = true;
+    blend_start = millis();
+    hold_rc = rc.current_pos;
+    hold_ml = ml.current_pos;
+    hold_mr = mr.current_pos;
+    hold_fc = fc.current_pos;
   }
 
   // Get raw orientation from IMU
@@ -286,13 +294,19 @@ void runSelfLeveling(float dt) {
                       2.0; // Average left/right caster height
   float z_target_mr = newmebot[2][3];
 
-  // Dispatch targets in ticks — commented out for math verification
-  ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
-  mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
-  rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
+  // Blend from hold positions to IK targets over LEVEL_BLEND_MS
+  // to prevent violent jerk when IK first engages.
+  float blend = min(1.0f, (float)(millis() - blend_start) / (float)LEVEL_BLEND_MS);
 
-  // Carriages and FC are driven by the carriage pre-check guard above
-  fc.setTargetPosition(FC_MAX_TICKS);
+  float ik_ml = z_target_ml * ML_CM_TO_TICKS;
+  float ik_mr = z_target_mr * MR_CM_TO_TICKS;
+  float ik_rc = z_target_rc * RC_CM_TO_TICKS;
+  float ik_fc = FC_MAX_TICKS;
+
+  ml.setTargetPosition(hold_ml + blend * (ik_ml - hold_ml));
+  mr.setTargetPosition(hold_mr + blend * (ik_mr - hold_mr));
+  rc.setTargetPosition(hold_rc + blend * (ik_rc - hold_rc));
+  fc.setTargetPosition(hold_fc + blend * (ik_fc - hold_fc));
 
   // Store debug data for telemetry — leveling[]: [pitch_err, roll_err, z_ml,
   // z_rc, z_mr]
@@ -542,17 +556,22 @@ void loop() {
     if (DEBUG_MODE)
       Serial.println("DEBUG: ESTOP Cleared, entering IDLE");
   } else if (cmd.type == CMD_SEQ_MODE) {
-    // Declare seq_motors before the if/else so it is in scope for both enter and exit.
-    // indices 0-5: position-mode; 6-7: velocity-mode (drive wheels)
+    // All 8 motors are position-controlled during sequences (including drive wheels).
     Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
-    if (cmd.value > 0.5f) {
-      current_state = AUTO_CURB_CLIMBING;
-      sequenceEnter(seq_motors);
-      Serial.println("SEQ: Entered AUTO_CURB_CLIMBING mode");
-    } else {
-      current_state = IDLE;
-      sequenceExit(seq_motors);
-      Serial.println("SEQ: Exited AUTO_CURB_CLIMBING mode");
+    if (cmd.actuator_id == 1) {
+      // B1:1 / B1:0 — enter or exit sequence mode
+      if (cmd.value > 0.5f) {
+        current_state = AUTO_CURB_CLIMBING;
+        sequenceEnter(seq_motors);
+        Serial.println("SEQ: Entered AUTO_CURB_CLIMBING mode");
+      } else {
+        current_state = IDLE;
+        sequenceExit(seq_motors);
+        Serial.println("SEQ: Exited AUTO_CURB_CLIMBING mode");
+      }
+    } else if (cmd.actuator_id == 2) {
+      // B2:1 / B2:0 — enable or disable auto-run
+      sequenceSetAutoRun(cmd.value > 0.5f);
     }
   } else if (cmd.type == CMD_LEVEL_MODE) {
     if (cmd.value > 0.5) {
@@ -580,7 +599,23 @@ void loop() {
       Serial.println("DEBUG: Entering TUNER_MODE");
   }
 
-  // Process specific tuning commands if in TUNER_MODE
+  // Config reads are safe during any state (including E-Stop).
+  if (cmd.type == CMD_GET_CONFIG && cmd.type != CMD_NONE) {
+    const MotorEntry* cfg_entry = getMotorEntry(cmd.actuator_id);
+    Motor *cfg_m = cfg_entry ? cfg_entry->motor : nullptr;
+    if (cfg_m != nullptr) {
+      CommandContext cfg_ctx = {
+        cfg_m,
+        (uint8_t)cmd.actuator_id,
+        cmd.value,
+        parser.last_payload,
+        EContr,
+        cfg_entry
+      };
+      dispatchCommand(cmd, cfg_ctx);
+    }
+  }
+
   if (current_state == TUNER_MODE && cmd.type != CMD_NONE) {
     // Special case: Save all motors (K0)
     if (cmd.type == CMD_SAVE_CONFIG && cmd.actuator_id == 0) {

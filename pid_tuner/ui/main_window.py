@@ -22,18 +22,24 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, QSettings
 from PyQt6.QtGui import QShortcut, QKeySequence
 
-from ..data.data_store import DataStore
-from ..data.joint_config import get_joint_names, get_joint_id_from_index, get_joint_info
-from ..serial_driver.serial_handler import SerialHandler
-from .plot_widget import PlotWidget
-from .control_panel import ControlPanel
-from .serial_console import SerialConsole
-from .state_indicator import StateIndicator
-from .encoder_overview import EncoderOverview
-from .drive_wheel_display import DriveWheelDisplay
-from .sequence_editor import SequenceEditor
-from .theme import get_application_stylesheet, THEME
-from .scaling import SIZES, scaled
+from pid_tuner.data.data_store import DataStore
+from pid_tuner.data.joint_config import (
+    get_joint_names,
+    get_joint_id_from_index,
+    get_joint_info,
+)
+from pid_tuner.serial_driver.serial_handler import SerialHandler
+from pid_tuner.ui.plot_widget import PlotWidget
+from pid_tuner.ui.sequence_plotter import SequencePlotter  # pyright: ignore[reportMissingImports]
+from pid_tuner.ui.control_panel import ControlPanel
+from pid_tuner.ui.config_viewer import ConfigViewerWidget
+from pid_tuner.ui.serial_console import SerialConsole
+from pid_tuner.ui.state_indicator import StateIndicator
+from pid_tuner.ui.encoder_overview import EncoderOverview
+from pid_tuner.ui.drive_wheel_display import DriveWheelDisplay
+from pid_tuner.ui.sequence_editor import SequenceEditor
+from pid_tuner.ui.theme import get_application_stylesheet, THEME
+from pid_tuner.ui.scaling import SIZES, scaled
 
 
 class MainWindow(QMainWindow):
@@ -106,8 +112,10 @@ class MainWindow(QMainWindow):
         # Top bar - connection, joint selection, and state indicator
         main_layout.addWidget(self._create_top_bar())
 
-        # Encoder overview bar and Drive Wheel Display
-        overview_layout = QHBoxLayout()
+        self._top_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        overview_widget = QWidget()
+        overview_layout = QHBoxLayout(overview_widget)
         overview_layout.setContentsMargins(0, 0, 0, 0)
         overview_layout.setSpacing(SIZES["spacing_medium"])
 
@@ -120,17 +128,19 @@ class MainWindow(QMainWindow):
         )
         overview_layout.addWidget(self._drive_wheel_display)
 
-        main_layout.addLayout(overview_layout)
+        self._top_splitter.addWidget(overview_widget)
 
-        # Main content area with vertical splitter (plot+console on left, controls on right)
+        self._serial_console = SerialConsole()
+        self._serial_console.command_sent.connect(self._serial_handler.send_raw)
+        self._top_splitter.addWidget(self._serial_console)
+
+        self._top_splitter.setSizes([100, 100])
+
+        main_layout.addWidget(self._top_splitter)
+
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
-        self._main_splitter = main_splitter  # Store reference for settings
+        self._main_splitter = main_splitter
 
-        # Left side - Tab widget (Live Plot | Sequences) above Serial Console
-        left_splitter = QSplitter(Qt.Orientation.Vertical)
-        self._left_splitter = left_splitter  # Store reference for settings
-
-        # Tab widget containing the plotter and sequence editor
         self._left_tabs = QTabWidget()
         self._left_tabs.setStyleSheet(f"""
             QTabWidget::pane {{
@@ -156,39 +166,36 @@ class MainWindow(QMainWindow):
             }}
         """)
 
-        # Live Plot tab
         self._plot_widget = PlotWidget(self._data_store)
         self._left_tabs.addTab(self._plot_widget, "Live Plot")
 
-        # Sequences tab
-        self._sequence_editor = SequenceEditor(self._data_store, self._serial_handler)
-        self._left_tabs.addTab(self._sequence_editor, "Sequences")
+        self._sequence_plotter = SequencePlotter(self._data_store)
+        self._left_tabs.addTab(self._sequence_plotter, "Sequence Plotter")
 
-        left_splitter.addWidget(self._left_tabs)
+        main_splitter.addWidget(self._left_tabs)
 
-        # Serial console (below tabs)
-        self._serial_console = SerialConsole()
-        self._serial_console.command_sent.connect(self._serial_handler.send_raw)
-        left_splitter.addWidget(self._serial_console)
+        self._right_tabs = QTabWidget()
+        self._right_tabs.setStyleSheet(self._left_tabs.styleSheet())
 
-        # Give tabs ~75% of vertical space, console ~25%
-        left_splitter.setSizes([450, 150])
-
-        main_splitter.addWidget(left_splitter)
-
-        # Right side - Control panel (with flexible sizing)
         self._control_panel = ControlPanel(
             self._data_store, self._serial_handler, self._settings
         )
-        self._control_panel.setMinimumWidth(SIZES["control_panel_min_width"])
-        self._control_panel.setSizePolicy(
-            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
-        )
-        # Connect mode changes to encoder overview
         self._control_panel.mode_changed.connect(
             self._encoder_overview.set_mode_for_all
         )
-        main_splitter.addWidget(self._control_panel)
+        self._right_tabs.addTab(self._control_panel, "Controls")
+
+        self._sequence_editor = SequenceEditor(self._data_store, self._serial_handler)
+        self._right_tabs.addTab(self._sequence_editor, "Sequences")
+
+        self._config_viewer = ConfigViewerWidget(self._data_store, self._serial_handler)
+        self._right_tabs.addTab(self._config_viewer, "Config")
+
+        self._right_tabs.setMinimumWidth(SIZES["control_panel_min_width"])
+        self._right_tabs.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+        )
+        main_splitter.addWidget(self._right_tabs)
 
         # Set initial splitter sizes - give more to plot area
         # These are relative weights, will be adjusted based on actual window size
@@ -234,6 +241,9 @@ class MainWindow(QMainWindow):
             QPushButton:hover {{
                 background-color: {THEME.maroon};
             }}
+            QPushButton:pressed {{
+                background-color: {THEME.flamingo};
+            }}
         """)
         estop_btn.clicked.connect(self._on_estop)
         layout.addWidget(estop_btn)
@@ -251,6 +261,9 @@ class MainWindow(QMainWindow):
             }}
             QPushButton:hover {{
                 background-color: {THEME.yellow};
+            }}
+            QPushButton:pressed {{
+                background-color: {THEME.rosewater};
             }}
         """)
         clear_btn.clicked.connect(self._on_clear_estop)
@@ -371,19 +384,6 @@ class MainWindow(QMainWindow):
         )
         joint_layout.addWidget(self._joint_combo)
 
-        # Linked joint selection
-        joint_layout.addWidget(QLabel("Linked:"))
-        self._linked_combo = QComboBox()
-        self._linked_combo.addItem("None")
-        for name in get_joint_names():
-            self._linked_combo.addItem(name)
-        self._linked_combo.currentIndexChanged.connect(self._on_linked_changed)
-        self._linked_combo.setMinimumWidth(scaled(120))
-        self._linked_combo.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-        joint_layout.addWidget(self._linked_combo)
-
         # Joint description
         self._joint_desc_label = QLabel("")
         self._joint_desc_label.setStyleSheet(
@@ -473,7 +473,7 @@ class MainWindow(QMainWindow):
     def _autoload_config(self):
         if not self._serial_handler.is_connected:
             return
-        self._control_panel._config_viewer._on_load_all()
+        self._config_viewer._on_load_all()
 
     def _on_data_received(self, data):
         """Handle incoming encoder data."""
@@ -499,16 +499,6 @@ class MainWindow(QMainWindow):
 
         # Clear plot data for new joint
         self._data_store.clear_joint(joint_id)
-
-    def _on_linked_changed(self, index: int):
-        """Handle linked joint selection change."""
-        # Index 0 is "None", indices 1-12 are joints 1-12
-        if index == 0:
-            self._data_store.linked_joint = 0
-        else:
-            joint_id = get_joint_id_from_index(index - 1)
-            self._data_store.linked_joint = joint_id
-            self._data_store.clear_joint(joint_id)
 
     def _on_encoder_bar_clicked(self, joint_id: int):
         """Handle encoder bar click to select joint."""
@@ -550,10 +540,10 @@ class MainWindow(QMainWindow):
             except (TypeError, ValueError):
                 pass
 
-        left_sizes = self._settings.value("left_splitter")
-        if left_sizes:
+        top_sizes = self._settings.value("top_splitter")
+        if top_sizes:
             try:
-                self._left_splitter.setSizes([int(s) for s in left_sizes])
+                self._top_splitter.setSizes([int(s) for s in top_sizes])
             except (TypeError, ValueError):
                 pass
 
@@ -578,7 +568,7 @@ class MainWindow(QMainWindow):
         self._settings.setValue("geometry", self.saveGeometry())
         self._settings.setValue("windowState", self.saveState())
         self._settings.setValue("main_splitter", self._main_splitter.sizes())
-        self._settings.setValue("left_splitter", self._left_splitter.sizes())
+        self._settings.setValue("top_splitter", self._top_splitter.sizes())
         self._settings.setValue("last_port", self._port_combo.currentText())
         self._settings.setValue("last_baud", self._baud_combo.currentText())
         self._settings.setValue("last_joint", self._joint_combo.currentIndex())

@@ -380,11 +380,15 @@ class SerialHandler(QObject):
         """Enter or exit AUTO_CURB_CLIMBING sequence mode."""
         self.send_command(ProtocolEncoder.enter_sequence_mode(enable))
 
-    def send_keyframe(self, index: int, targets: list, active: list, duration_ms: int):
-        """Upload one keyframe to the robot."""
+    def send_keyframe(
+        self, index: int, targets: list, active: list, duration_ms, relative=None
+    ):
         self.send_command(
-            ProtocolEncoder.send_keyframe(index, targets, active, duration_ms)
+            ProtocolEncoder.send_keyframe(index, targets, active, duration_ms, relative)
         )
+
+    def seq_auto_run(self, enable: bool):
+        self.send_command(ProtocolEncoder.seq_auto_run(enable))
 
     def seq_step_forward(self):
         """Step forward to the next keyframe."""

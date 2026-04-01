@@ -323,9 +323,6 @@ class DataStore(QObject):
     mode_changed = pyqtSignal(
         int
     )  # Emitted when control mode changes (0: Open, 1: Vel, 2: Pos)
-    linked_joint_changed = pyqtSignal(
-        int
-    )  # Emitted when linked joint changes (0 for none)
 
     config_updated = pyqtSignal(int)  # Emits joint_id when config is loaded
     leveling_updated = pyqtSignal()  # Emitted when leveling debug data is updated
@@ -346,7 +343,6 @@ class DataStore(QObject):
             for i in range(self.NUM_JOINTS)
         ]
         self._selected_joint: int = 1
-        self._linked_joint: int = 0  # 0 means none
         self._control_mode: int = 0  # 0: Open, 1: Vel, 2: Pos (for selected joint)
         self._control_modes: List[int] = [
             0
@@ -472,19 +468,6 @@ class DataStore(QObject):
             self._selected_joint = joint_id
             # Sync mode banner to the newly selected joint's last-known mode
             self.control_mode = self._control_modes[joint_id - 1]
-
-    @property
-    def linked_joint(self) -> int:
-        """Get the currently linked joint (0 for none, or 1-indexed)."""
-        return self._linked_joint
-
-    @linked_joint.setter
-    def linked_joint(self, joint_id: int):
-        """Set the currently linked joint (0 for none, or 1-indexed)."""
-        if 0 <= joint_id <= self.NUM_JOINTS:
-            if self._linked_joint != joint_id:
-                self._linked_joint = joint_id
-                self.linked_joint_changed.emit(joint_id)
 
     @property
     def control_mode(self) -> int:

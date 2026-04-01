@@ -1,12 +1,8 @@
 """
 Sequence / Trajectory Editor for AUTO_CURB_CLIMBING mode.
 
-Allows creating, editing, saving, loading, and executing keyframe sequences.
-Each keyframe specifies target positions for joints 1-6 and target velocities
-for drive motors 7-8, plus a duration (in ms) for interpolation/hold.
-
-Motor order throughout: [RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR]
-Joints 1-6 use position interpolation; Drive_FB/Drive_LR use velocity hold.
+Motor order: [RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR]
+All 8 motors use position interpolation during sequences.
 """
 
 from __future__ import annotations
@@ -62,12 +58,11 @@ INACTIVE_TEXT = "--"
 
 
 class Keyframe:
-    """Data model for a single keyframe in a sequence."""
-
     def __init__(self):
         self.label: str = ""
-        self.targets: List[Optional[float]] = [None] * NUM_MOTORS  # None = inactive
+        self.targets: List[Optional[float]] = [None] * NUM_MOTORS
         self.duration_ms: int = 1000
+        self.relative: List[bool] = [False] * NUM_MOTORS
 
     def is_active(self, motor_idx: int) -> bool:
         return self.targets[motor_idx] is not None
@@ -77,6 +72,7 @@ class Keyframe:
             "label": self.label,
             "targets": [t if t is not None else None for t in self.targets],
             "duration_ms": self.duration_ms,
+            "relative": self.relative,
         }
 
     @classmethod
@@ -84,13 +80,16 @@ class Keyframe:
         kf = cls()
         kf.label = d.get("label", "")
         raw_targets = d.get("targets", [None] * NUM_MOTORS)
-        # Pad to current NUM_MOTORS for backward compatibility with old 6-motor JSON files
         while len(raw_targets) < NUM_MOTORS:
             raw_targets.append(None)
         kf.targets = [
             (float(t) if t is not None else None) for t in raw_targets[:NUM_MOTORS]
         ]
         kf.duration_ms = int(d.get("duration_ms", 1000))
+        raw_relative = d.get("relative", [False] * NUM_MOTORS)
+        while len(raw_relative) < NUM_MOTORS:
+            raw_relative.append(False)
+        kf.relative = [bool(r) for r in raw_relative[:NUM_MOTORS]]
         return kf
 
 
@@ -178,6 +177,9 @@ class SequenceEditor(QWidget):
             QPushButton:hover {{
                 background-color: {THEME.surface2};
             }}
+            QPushButton:pressed {{
+                background-color: {THEME.surface0};
+            }}
             QPushButton:disabled {{
                 color: {THEME.overlay0};
             }}
@@ -223,6 +225,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_normal"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.sapphire}; }}
+            QPushButton:pressed {{ background-color: {THEME.lavender}; }}
             QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
         """)
         self._btn_send.clicked.connect(self._on_send_to_robot)
@@ -239,6 +242,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_normal"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.red}; }}
+            QPushButton:pressed {{ background-color: {THEME.flamingo}; }}
             QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
         """)
         self._btn_exit_seq.clicked.connect(self._on_exit_sequence)
@@ -344,6 +348,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_small"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.surface2}; }}
+            QPushButton:pressed {{ background-color: {THEME.surface0}; }}
             QPushButton:disabled {{ color: {THEME.overlay0}; }}
         """
 
@@ -375,6 +380,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_small"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.green}; }}
+            QPushButton:pressed {{ background-color: {THEME.teal}; }}
             QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
         """)
         self._btn_capture.clicked.connect(self._on_capture_positions)
@@ -409,6 +415,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_normal"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.yellow}; }}
+            QPushButton:pressed {{ background-color: {THEME.peach}; }}
             QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
         """)
         self._btn_step_bwd.clicked.connect(self._on_step_backward)
@@ -445,6 +452,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_normal"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.sapphire}; }}
+            QPushButton:pressed {{ background-color: {THEME.lavender}; }}
             QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
         """)
         self._btn_step_goto.clicked.connect(self._on_step_goto)
@@ -699,7 +707,9 @@ class SequenceEditor(QWidget):
         for idx, kf in enumerate(self._keyframes):
             targets = [t if t is not None else 0.0 for t in kf.targets]
             active = [t is not None for t in kf.targets]
-            self._serial_handler.send_keyframe(idx, targets, active, kf.duration_ms)
+            self._serial_handler.send_keyframe(
+                idx, targets, active, kf.duration_ms, kf.relative
+            )
 
         # Start a timeout — if not all ACKs arrive within 3s, warn the user
         self._upload_timer.start(3000)
@@ -774,14 +784,10 @@ class SequenceEditor(QWidget):
         self._set_status(f"Captured live positions into Step {row}")
 
     def _apply_live_positions(self, kf: Keyframe):
-        """Read live telemetry positions into a keyframe's targets."""
         for i in range(NUM_MOTORS):
             joint_data = self._data_store.get_joint(i + 1)
             if joint_data is not None:
-                if i >= 6:  # Drive motors: keyframe targets are velocity values
-                    kf.targets[i] = round(joint_data.current_velocity, 1)
-                else:
-                    kf.targets[i] = round(joint_data.current_position, 1)
+                kf.targets[i] = round(joint_data.current_position, 1)
 
     # ------------------------------------------------------------------ #
     #  Step commands                                                        #

@@ -1,18 +1,12 @@
-import math
-from typing import Optional
-
 from PyQt6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QVBoxLayout,
-    QLabel,
     QPushButton,
     QGridLayout,
-    QLineEdit,
-    QFrame,
 )
-from PyQt6.QtCore import Qt, QTimer, QRectF, QProcess
-from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QPainterPath
+from PyQt6.QtCore import Qt, QTimer, QRectF
+from PyQt6.QtGui import QPainter, QColor, QPen, QFont
 
 from ..data.data_store import DataStore
 from ..serial_driver.serial_handler import SerialHandler
@@ -131,12 +125,10 @@ class DriveWheelDisplay(QWidget):
     ):
         super().__init__(parent)
         self.data_store = data_store
-        self.serial_handler = serial_handler
         self._luci = LuciClient(self)
         self._luci.connected_changed.connect(self._on_luci_connection_changed)
         self._luci.error_occurred.connect(self._on_luci_error)
         self._manual_override = False
-        self._bridge_proc: QProcess | None = None  # pyright: ignore[reportGeneralTypeIssues]
 
         self._init_ui()
 
@@ -156,78 +148,6 @@ class DriveWheelDisplay(QWidget):
         arc_row.addWidget(self.left_arc)
         arc_row.addWidget(self.right_arc)
         root.addLayout(arc_row)
-
-        conn_row = QHBoxLayout()
-        conn_row.setSpacing(scaled(4))
-
-        self._host_input = QLineEdit("10.2.10.2")
-        self._host_input.setFixedWidth(scaled(120))
-        self._host_input.setPlaceholderText("Jetson IP")
-        self._host_input.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: {THEME.surface0};
-                color: {THEME.text};
-                border: 1px solid {THEME.surface2};
-                border-radius: 3px;
-                padding: 2px 4px;
-                font-size: {SIZES["font_small"]}pt;
-            }}
-        """)
-        conn_row.addWidget(self._host_input)
-
-        self._btn_bridge = QPushButton("Launch Bridge")
-        self._btn_bridge.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {THEME.mauve};
-                color: {THEME.crust};
-                border-radius: 3px;
-                padding: 3px 8px;
-                font-size: {SIZES["font_small"]}pt;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: {THEME.lavender}; }}
-        """)
-        self._btn_bridge.clicked.connect(self._on_bridge_clicked)
-        conn_row.addWidget(self._btn_bridge)
-
-        self._btn_connect = QPushButton("Connect LUCI")
-        self._btn_connect.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {THEME.green};
-                color: {THEME.crust};
-                border-radius: 3px;
-                padding: 3px 8px;
-                font-size: {SIZES["font_small"]}pt;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: {THEME.teal}; }}
-            QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
-        """)
-        self._btn_connect.clicked.connect(self._on_connect_clicked)
-        conn_row.addWidget(self._btn_connect)
-
-        self._luci_status = QLabel("Disconnected")
-        self._luci_status.setStyleSheet(
-            f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
-        )
-        conn_row.addWidget(self._luci_status)
-        self._btn_zero_encs = QPushButton("Zero FB/LR")
-        self._btn_zero_encs.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {THEME.blue};
-                color: {THEME.crust};
-                border-radius: 3px;
-                padding: 3px 8px;
-                font-size: {SIZES["font_small"]}pt;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: {THEME.sapphire}; }}
-        """)
-        self._btn_zero_encs.clicked.connect(self._on_zero_encs_clicked)
-        conn_row.addWidget(self._btn_zero_encs)
-
-        conn_row.addStretch()
-        root.addLayout(conn_row)
 
         dpad = QGridLayout()
         dpad.setSpacing(scaled(2))
@@ -268,73 +188,7 @@ class DriveWheelDisplay(QWidget):
 
         root.addLayout(dpad)
 
-    def _on_zero_encs_clicked(self):
-        self.serial_handler.home_position(7)
-        self.serial_handler.home_position(8)
-        self.serial_handler.set_target(7, 0)
-        self.serial_handler.set_target(8, 0)
-        self.data_store.set_target(7, 0)
-        self.data_store.set_target(8, 0)
-
-    def _on_connect_clicked(self):
-        if self._luci.is_connected:
-            self._luci.disconnect()
-        else:
-            host = self._host_input.text().strip()
-            if host:
-                self._luci_status.setText("Connecting…")
-                self._btn_connect.setEnabled(False)
-                self._luci.connect(host)
-
-    def _on_bridge_clicked(self):
-        if (
-            self._bridge_proc is not None
-            and self._bridge_proc.state() != QProcess.ProcessState.NotRunning
-        ):
-            self._bridge_proc.terminate()
-            self._bridge_proc.waitForFinished(3000)
-            if self._bridge_proc.state() != QProcess.ProcessState.NotRunning:
-                self._bridge_proc.kill()
-            self._bridge_proc = None
-            self._btn_bridge.setText("Launch Bridge")
-            self._luci_status.setText("Bridge stopped")
-            self._luci_status.setStyleSheet(
-                f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
-            )
-            return
-
-        host = self._host_input.text().strip()
-        if not host:
-            return
-
-        self._bridge_proc = QProcess(self)
-        self._bridge_proc.finished.connect(self._on_bridge_finished)
-        self._bridge_proc.start(
-            "ros2",
-            ["launch", "rosbridge_server", "rosbridge_websocket_launch.xml"],
-        )
-        self._btn_bridge.setText("Stop Bridge")
-        self._luci_status.setText("Bridge starting…")
-        self._luci_status.setStyleSheet(
-            f"color: {THEME.yellow}; font-size: {SIZES['font_small']}pt;"
-        )
-
-    def _on_bridge_finished(self, exit_code, _exit_status):
-        self._bridge_proc = None
-        self._btn_bridge.setText("Launch Bridge")
-        if exit_code != 0:
-            self._luci_status.setText(f"Bridge exited ({exit_code})")
-            self._luci_status.setStyleSheet(
-                f"color: {THEME.red}; font-size: {SIZES['font_small']}pt;"
-            )
-        else:
-            self._luci_status.setText("Bridge stopped")
-            self._luci_status.setStyleSheet(
-                f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
-            )
-
     def _on_luci_connection_changed(self, connected: bool):
-        self._btn_connect.setEnabled(True)
         for btn in (
             self._btn_fwd,
             self._btn_bwd,
@@ -343,25 +197,9 @@ class DriveWheelDisplay(QWidget):
             self._btn_stop,
         ):
             btn.setEnabled(connected)
-        if connected:
-            self._btn_connect.setText("Disconnect")
-            self._luci_status.setText("Connected")
-            self._luci_status.setStyleSheet(
-                f"color: {THEME.green}; font-size: {SIZES['font_small']}pt;"
-            )
-        else:
-            self._btn_connect.setText("Connect LUCI")
-            self._luci_status.setText("Disconnected")
-            self._luci_status.setStyleSheet(
-                f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
-            )
 
-    def _on_luci_error(self, msg: str):
-        self._btn_connect.setEnabled(True)
-        self._luci_status.setText(msg)
-        self._luci_status.setStyleSheet(
-            f"color: {THEME.red}; font-size: {SIZES['font_small']}pt;"
-        )
+    def _on_luci_error(self, _msg: str):
+        return
 
     def _dpad_press(self, fb: int, lr: int):
         self._manual_override = True
@@ -389,13 +227,5 @@ class DriveWheelDisplay(QWidget):
                 self._luci.set_drive(0, 0)
 
     def shutdown(self):
-        if (
-            self._bridge_proc is not None
-            and self._bridge_proc.state() != QProcess.ProcessState.NotRunning
-        ):
-            self._bridge_proc.terminate()
-            self._bridge_proc.waitForFinished(3000)
-            if self._bridge_proc.state() != QProcess.ProcessState.NotRunning:
-                self._bridge_proc.kill()
         if self._luci.is_connected:
             self._luci.disconnect()

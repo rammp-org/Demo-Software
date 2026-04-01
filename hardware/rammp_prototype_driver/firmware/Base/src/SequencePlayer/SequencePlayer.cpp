@@ -224,17 +224,33 @@ void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
 
   // ==== Phase 2: Settling (wait for motors to physically arrive) ========
   bool all_settled = true;
+  unsigned long settle_elapsed = millis() - seq_settle_start;
+
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
     if (!kf.active[i]) continue;
 
     float dest = finalTarget(kf, i);
-    motors[i]->setTargetPosition(dest);   // keep commanding exact target
+    motors[i]->setTargetPosition(dest);
+    float err = fabs(motors[i]->current_pos - dest);
 
-    if (fabs(motors[i]->current_pos - dest) > SEQ_COMPLETION_DEADZONE)
+    if (err > SEQ_COMPLETION_DEADZONE) {
       all_settled = false;
+      if (settle_elapsed % 500 < 20) {
+        Serial.print("SEQ_SETTLE_WAIT,");
+        Serial.print(i);
+        Serial.print(",err=");
+        Serial.print(err, 1);
+        Serial.print(",pos=");
+        Serial.print(motors[i]->current_pos, 1);
+        Serial.print(",tgt=");
+        Serial.print(dest, 1);
+        Serial.print(",dz=");
+        Serial.println(SEQ_COMPLETION_DEADZONE, 1);
+      }
+    }
   }
 
-  bool timed_out = (millis() - seq_settle_start) > SEQ_COMPLETION_TIMEOUT_MS;
+  bool timed_out = settle_elapsed > SEQ_COMPLETION_TIMEOUT_MS;
 
   if (all_settled || timed_out) {
     // ---- Keyframe complete ----

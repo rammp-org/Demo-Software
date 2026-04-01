@@ -262,9 +262,9 @@ class EncoderOverview(QWidget):
 
         controls_layout.addWidget(QLabel("Carriage (5,6):"))
         self._carriage_spin = QDoubleSpinBox()
-        self._carriage_spin.setRange(-10000, 10000)
+        self._carriage_spin.setRange(-100000, 100000)
         self._carriage_spin.setDecimals(1)
-        self._carriage_spin.setSingleStep(10.0)
+        self._carriage_spin.setSingleStep(500.0)
         controls_layout.addWidget(self._carriage_spin)
 
         btn_carriage = QPushButton("Go")

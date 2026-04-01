@@ -336,7 +336,7 @@ class SequenceEditor(QWidget):
 
         self._table.itemChanged.connect(self._on_table_item_changed)
         self._table.itemSelectionChanged.connect(self._on_table_selection_changed)
-        self._table.cellDoubleClicked.connect(self._on_table_cell_double_clicked)
+
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._on_table_context_menu)
         return self._table
@@ -895,7 +895,10 @@ class SequenceEditor(QWidget):
         for i in range(NUM_MOTORS):
             joint_data = self._data_store.get_joint(i + 1)
             if joint_data is not None:
-                kf.targets[i] = round(joint_data.current_position, 1)
+                if kf.relative[i]:
+                    kf.targets[i] = 0.0
+                else:
+                    kf.targets[i] = round(joint_data.current_position, 1)
 
     # ------------------------------------------------------------------ #
     #  Step commands                                                        #
@@ -923,17 +926,6 @@ class SequenceEditor(QWidget):
             self._spin_step_goto.setValue(keyframe_idx)
             self._spin_step_goto.blockSignals(False)
         self._update_button_states()
-
-    @pyqtSlot(int, int)
-    def _on_table_cell_double_clicked(self, row: int, _col: int):
-        if self._uploaded and self._robot_state == 0:
-            self._table.closePersistentEditor(self._table.currentItem())
-            keyframe_idx = row // 2
-            if 0 <= keyframe_idx < len(self._keyframes):
-                self._spin_step_goto.setValue(keyframe_idx)
-                self._serial_handler.seq_goto(keyframe_idx)
-                self._set_status(f"Jumping to step {keyframe_idx + 1}…")
-            return
 
     # ------------------------------------------------------------------ #
     #  Robot response handlers                                             #

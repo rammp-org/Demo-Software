@@ -367,6 +367,8 @@ class MEBotControlNode(Node):
         self.get_logger().error("Service call failed")
 
     def curb_traverse_action_callback(self, goal):
+        # TODO: add checkpoint here checking if CA_flag or descending flag is at starting/default state, curb traversal should not be called if MEBot already in curb traversal (default flag is 0)
+        # TODO: add descending flag
         if goal.request.direction == 1:
             self.write_serial_data("c\n")
         if goal.request.direction == 0:
@@ -376,7 +378,7 @@ class MEBotControlNode(Node):
         result = CurbTraverse.Result()
 
         # Poll CA_flag until the final step is reached
-        while self.CA_flag != 6:
+        while self.CA_flag != 9:
             if goal.is_cancel_requested:
                 goal.canceled()
                 result.success = False
@@ -387,6 +389,7 @@ class MEBotControlNode(Node):
 
             time.sleep(0.05)
 
+        # TODO: Make success true or false depending on information given by teensy that states whether or not curb traversal succeeded
         goal.succeed()
         result.success = True
         return result

@@ -339,11 +339,10 @@ class MEBotControlNode(Node):
 
     def estop_callback(self, msg):
         if msg.data:
-            # content
-            pass
-        else:
-            # content
-            pass
+            self.send_remove_luci()  # may be redundent, ensure user has manual control
+            self.write_serial_data(
+                "z\n"
+            )  # triggers MotorController function NO_MOVEMENT
 
     def send_set_luci(self):
         request = Empty.Request()

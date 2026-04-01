@@ -43,9 +43,7 @@ class SerialHandler(QObject):
     connection_changed = pyqtSignal(bool)  # True = connected, False = disconnected
     error_occurred = pyqtSignal(str)
     seq_ack_received = pyqtSignal(int)  # step_idx
-    seq_status_received = pyqtSignal(
-        int, int, bool
-    )  # current_step, total_steps, interpolating
+    seq_status_received = pyqtSignal(int, int, int)
 
     DEFAULT_BAUD_RATE = 115200
     DEFAULT_TIMEOUT = 0.1  # 100ms read timeout
@@ -370,7 +368,7 @@ class SerialHandler(QObject):
                     self.seq_ack_received.emit(data.step_idx)
                 elif isinstance(data, SeqStatusData):
                     self.seq_status_received.emit(
-                        data.current_step, data.total_steps, data.interpolating
+                        data.current_step, data.total_steps, data.state
                     )
 
         if latest_encoder is not None:

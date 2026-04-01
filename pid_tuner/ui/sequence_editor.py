@@ -131,7 +131,7 @@ class SequenceEditor(QWidget):
         self._robot_step: int = -1
         self._prev_robot_step: int = -1
         self._robot_total: int = 0
-        self._robot_interpolating: bool = False
+        self._robot_state: int = 0
         self._uploaded: bool = False
 
         # Upload state
@@ -815,7 +815,7 @@ class SequenceEditor(QWidget):
         self._robot_step = -1
         self._prev_robot_step = -1
         self._robot_total = 0
-        self._robot_interpolating = False
+        self._robot_state = 0
         self._highlight_active_step()
         self._set_status("Exited sequence mode")
         self._update_button_states()
@@ -925,7 +925,7 @@ class SequenceEditor(QWidget):
 
     @pyqtSlot(int, int)
     def _on_table_cell_double_clicked(self, row: int, _col: int):
-        if self._uploaded and not self._robot_interpolating:
+        if self._uploaded and self._robot_state == 0:
             self._table.closePersistentEditor(self._table.currentItem())
             keyframe_idx = row // 2
             if 0 <= keyframe_idx < len(self._keyframes):
@@ -949,7 +949,7 @@ class SequenceEditor(QWidget):
             self._robot_total = len(self._keyframes)
             self._robot_step = -1
             self._prev_robot_step = -1
-            self._robot_interpolating = False
+            self._robot_state = 0
             self._uploaded = True
             self._set_status(
                 f"Upload complete — {len(self._keyframes)} keyframe(s) ready.  "
@@ -957,37 +957,49 @@ class SequenceEditor(QWidget):
             )
             self._update_button_states()
 
-    @pyqtSlot(int, int, bool)
-    def _on_seq_status(self, current_step: int, total_steps: int, interpolating: bool):
-        """Called when the robot sends a SEQ_STATUS update."""
+    @pyqtSlot(int, int, int)
+    def _on_seq_status(self, current_step: int, total_steps: int, state: int):
         self._prev_robot_step = self._robot_step
         self._robot_step = current_step
         self._robot_total = total_steps
-        self._robot_interpolating = interpolating
+        self._robot_state = state
         self._uploaded = total_steps > 0
+        self._push_seq_targets()
         self._sync_step_goto_range()
         self._highlight_active_step()
 
         status_prefix = ""
-        status_color = THEME.green
         if self._prev_robot_step > self._robot_step:
             status_prefix = "↑ "
-            status_color = THEME.blue
         elif self._prev_robot_step < self._robot_step:
             status_prefix = "↓ "
-            status_color = THEME.green
 
-        if interpolating:
+        if state == 1:
             self._set_status(
                 f"{status_prefix}Step {current_step + 1}/{total_steps} — Interpolating…",
                 color=THEME.yellow,
             )
+        elif state == 2:
+            self._set_status(
+                f"{status_prefix}Step {current_step + 1}/{total_steps} — Settling (waiting for motors to reach targets)…",
+                color=THEME.peach,
+            )
         else:
             self._set_status(
                 f"{status_prefix}Step {current_step + 1}/{total_steps} — Ready",
-                color=status_color,
+                color=THEME.green,
             )
         self._update_button_states()
+
+    def _push_seq_targets(self):
+        targets = {}
+        step = self._robot_step
+        if 0 <= step < len(self._keyframes):
+            kf = self._keyframes[step]
+            for i in range(NUM_MOTORS):
+                if kf.targets[i] is not None:
+                    targets[i + 1] = kf.targets[i]
+        self._data_store.set_seq_targets(targets)
 
     def _on_upload_timeout(self):
         if self._upload_pending:
@@ -1015,7 +1027,7 @@ class SequenceEditor(QWidget):
         self._btn_insert.setEnabled(has_kf and self._table.currentRow() >= 0)
         self._btn_capture.setEnabled(has_kf)
 
-        can_step = seq_active and not self._robot_interpolating
+        can_step = seq_active and self._robot_state == 0
         self._btn_step_fwd.setEnabled(
             can_step and (self._robot_step < self._robot_total - 1)
         )
@@ -1032,7 +1044,7 @@ class SequenceEditor(QWidget):
         goto_idx = self._spin_step_goto.value()
         can_goto = (
             self._uploaded
-            and not self._robot_interpolating
+            and self._robot_state == 0
             and 0 <= goto_idx < len(self._keyframes)
         )
         self._btn_step_goto.setEnabled(can_goto)

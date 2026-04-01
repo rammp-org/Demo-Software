@@ -112,7 +112,7 @@ class SequencePlotter(QWidget):
                 )
                 target_curve = plot.plot(
                     pen=pg.mkPen(
-                        color=THEME.red, width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+                        color=color, width=1, style=pg.QtCore.Qt.PenStyle.DotLine
                     ),
                     name=f"{joint_name} Target",
                 )
@@ -176,7 +176,15 @@ class SequencePlotter(QWidget):
                 self._target_curves[joint_id].setData([], [])
             else:
                 self._position_curves[joint_id].setData(window_times, positions[mask])
-                self._target_curves[joint_id].setData(window_times, targets[mask])
+                seq_targets = self._data_store.get_seq_targets()
+                if joint_id in seq_targets:
+                    target_val = seq_targets[joint_id]
+                    self._target_curves[joint_id].setData(
+                        [window_times[0], window_times[-1]],
+                        [target_val, target_val],
+                    )
+                else:
+                    self._target_curves[joint_id].setData([], [])
 
         self._plots[4].setXRange(min_time, latest_time, padding=0.02)
 

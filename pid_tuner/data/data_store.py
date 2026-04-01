@@ -327,9 +327,8 @@ class DataStore(QObject):
     config_updated = pyqtSignal(int)  # Emits joint_id when config is loaded
     leveling_updated = pyqtSignal()  # Emitted when leveling debug data is updated
     strain_gauge_updated = pyqtSignal()  # Emitted when strain gauge values are updated
-    seq_status_updated = pyqtSignal(
-        int, int, bool
-    )  # current_step, total_steps, interpolating
+    seq_status_updated = pyqtSignal(int, int, int)
+    seq_targets_changed = pyqtSignal()
 
     NUM_JOINTS = 8
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
@@ -348,7 +347,8 @@ class DataStore(QObject):
             0
         ] * self.NUM_JOINTS  # per-joint modes from telemetry
         self._simulation_mode: bool = False
-        self._current_state: int = 0  # System state from telemetry
+        self._current_state: int = 0
+        self._seq_targets: dict = {}
 
         # IMU data
         self._imu_pitch: float = 0.0
@@ -817,6 +817,12 @@ class DataStore(QObject):
             joint.clear()
 
     def clear_joint(self, joint_id: int):
-        """Clear data for a specific joint."""
         if 1 <= joint_id <= self.NUM_JOINTS:
             self._joints[joint_id - 1].clear()
+
+    def set_seq_targets(self, targets: dict):
+        self._seq_targets = targets
+        self.seq_targets_changed.emit()
+
+    def get_seq_targets(self) -> dict:
+        return self._seq_targets

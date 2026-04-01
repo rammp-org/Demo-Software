@@ -12,7 +12,7 @@ struct RobotCommand;
 
 // Position-based completion: all active motors must be within this deadzone
 // of their target (encoder ticks) before a keyframe is considered complete.
-#define SEQ_COMPLETION_DEADZONE 50.0f
+#define SEQ_COMPLETION_DEADZONE 100.0f
 
 // Safety timeout (ms) for position-based completion.  If motors cannot reach
 // their targets within this window the keyframe is force-completed and a

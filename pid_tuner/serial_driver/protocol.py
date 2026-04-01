@@ -150,11 +150,9 @@ class SeqAckData:
 
 @dataclass
 class SeqStatusData:
-    """Status response after a step command or interpolation completion."""
-
     current_step: int
     total_steps: int
-    interpolating: bool
+    state: int
 
 
 class ProtocolParser:
@@ -228,7 +226,7 @@ class ProtocolParser:
                 return SeqStatusData(
                     current_step=int(seq_status_match.group(1)),
                     total_steps=int(seq_status_match.group(2)),
-                    interpolating=bool(int(seq_status_match.group(3))),
+                    state=int(seq_status_match.group(3)),
                 )
             except (ValueError, IndexError):
                 pass

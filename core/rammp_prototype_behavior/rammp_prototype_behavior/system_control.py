@@ -274,7 +274,7 @@ class SystemControl(rclpy.node.Node):
     ## -----------------------------end of mock testing functions------------------------
 
     # -----------------------curb navigation transtion functions-----------------------------
-    def on_enter_Nav_detecting(self):
+    def on_enter_Nav(self):
         self.enable_curb_detection(
             True
         )  # enable curb detection to detect curb for navigation
@@ -284,12 +284,14 @@ class SystemControl(rclpy.node.Node):
             5.0, self.startTraverseConfirm
         )  # should enter Nav_traverse state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
 
+    def on_exit_Nav(self):
+        self.enable_curb_detection(
+            False
+        )  # ensure curb detection is disabled when exiting detecting curb state
+
     def on_enter_Nav_traverse(self):
         self.get_logger().info("Starting curb traverse.")
         self.base_self_leveling_enable(False)
-        self.enable_curb_detection(
-            False
-        )  # disable curb detection to avoid interference during curb traverse
         self.curb_traverse_client.send_goal(
             self.curb_traverse_direction
         )  # send action goal to start curb traverse, will replace with actual logic to determine traverse direction later
@@ -357,13 +359,17 @@ class SystemControl(rclpy.node.Node):
             5.0, self.reqCupStabilizeOff
         )  # should enter Arm_cupStabilize_homing state after stabilizing cup for testing, will replace with actual logic to determine when to turn off cup stabilizer later
 
+    def on_exit_Arm_cupStabilize_stabilizing(self):
+        self.enable_cup_stabilizer(
+            False
+        )  # ensure cup stabilizer is disabled when exiting stabilizing cup state
+        self.set_arm_mode_idle()  # set arm back to idle when exiting stabilizing cup state
+
     def on_enter_Arm_cupStabilize_homing(self):
         self.get_logger().info("Homing arm after cup stabilization.")
         self.base_drive_enable(
             False
         )  # disable drive while homing arm after cup stabilization
-        self.set_arm_mode_idle()  # set arm to idle before homing to avoid potential interference with homing process
-        self.enable_cup_stabilizer(False)  # disable cup stabilizer to allow arm to home
         self.arm_preset_client.set_preset(
             ArmPreset.HOME
         )  # move arm back to home after stabilizing cup
@@ -427,6 +433,11 @@ class SystemControl(rclpy.node.Node):
 
         self._mock_delay(5.0, _after_drink_detect)
 
+    def on_exit_Arm_OrderDrink_detectingDrink(self):
+        self.enable_cup_detection(
+            False
+        )  # ensure cup detection is disabled when exiting detecting drink state
+
     def on_enter_Arm_OrderDrink_receivingDrink(self):
         self.get_logger().info("Receiving drink.")
         self.base_drive_enable(False)  # disable drive
@@ -482,17 +493,23 @@ class SystemControl(rclpy.node.Node):
             True
         )  # re-enable drive when exiting placing cup back to holder state
 
-    def on_enter_Chair_SLOff(self):
+    def on_enter_Nav_SLOff(self):
         self.get_logger().info("Self-leveling is turned off.")
         self.base_self_leveling_enable(
             False
         )  # disable self-leveling when entering SLOff state
 
-    def on_enter_Chair_SLOn(self):
+    def on_enter_Nav_SLOn(self):
         self.get_logger().info("Self-leveling is turned on.")
         self.base_self_leveling_enable(
             True
         )  # enable self-leveling when entering SLOn state
+
+    def on_exit_Nav_SLOn(self):
+        self.get_logger().info("Exiting self-leveling on state.")
+        self.base_self_leveling_enable(
+            False
+        )  # disable self-leveling when exiting SLOn state
 
     # --------------------end of order drink state transition function calls --------------------------
 
@@ -512,12 +529,14 @@ class SystemControl(rclpy.node.Node):
             5.0, self.openDoorConfirm
         )  # should enter Arm_Door_opening state
 
+    def on_exit_Arm_Door_detecting(self):
+        self.enable_door_detection(
+            False
+        )  # ensure door detection is disabled when exiting detecting door state
+
     def on_enter_Arm_Door_opening(self):
         self.get_logger().info("Sending open door action goal.")
         # disable door detection to avoid interference during door opening
-        if not self.enable_door_detection(False):
-            self.get_logger().warn("Failed to disable door detection.")
-            self.ArmActionFailed()
         self.base_drive_enable(False)  # disable drive while opening door
         self.set_arm_mode(ArmMode.OPEN_DOOR)
         self.open_door_client.send_goal()
@@ -568,8 +587,6 @@ class SystemControl(rclpy.node.Node):
         self.pickup_and_order_client.cancel()
         self.put_cup_back_to_holder_client.cancel()
         self.set_arm_mode(ArmMode.IDLE)
-        self.enable_door_detection(False)
-        self.enable_cup_detection(False)
 
     def on_enter_Nav_canceling(self):
         self.get_logger().info("Navigation canceling requested.")
@@ -865,11 +882,9 @@ class SystemControl(rclpy.node.Node):
             case UserInputs.Request.CHAIR_CURB_NAVIGATION:
                 self.reqNav()
             case UserInputs.Request.CHAIR_CURB_ASCEND:
-                self.curb_traverse_direction = CurbTraverseDirection.ASCEND
-                self.startTraverseConfirm()  # should enter Nav_traverse state and start curb traverse action for testing, will replace with actual logic to determine when to start curb traverse later
+                self.startAscendConfirm()  # should enter Nav_traverse state and start curb traverse action for testing, will replace with actual logic to determine when to start curb traverse later
             case UserInputs.Request.CHAIR_CURB_DESCEND:
-                self.curb_traverse_direction = CurbTraverseDirection.DESCEND
-                self.startTraverseConfirm()  # should enter Nav_traverse state and start curb traverse action for testing, will replace with actual logic to determine when to start curb traverse later
+                self.startDescendConfirm()  # should enter Nav_traverse state and start curb traverse action for testing, will replace with actual logic to determine when to start curb traverse later
             case UserInputs.Request.CHAIR_CURB_CANCEL:
                 self.reqNavCancel()  # should enter Nav_paused state and pause curb traverse for testing, will replace with actual logic to determine when to pause curb traverse later
             case UserInputs.Request.ARM_CONTROL_MAIN:
@@ -905,7 +920,7 @@ class SystemControl(rclpy.node.Node):
             case UserInputs.Request.ARM_CUP_BACK:
                 self.placeCupBack()
             case UserInputs.Request.ARM_CANCEL:
-                self.cancelArmAction()  # should try to cancel current arm action and enter Arm_paused state for testing, will replace with actual logic to determine when to cancel arm action later
+                self.reqArmActionCancel()  # should try to cancel current arm action and enter Arm_paused state for testing, will replace with actual logic to determine when to cancel arm action later
             case UserInputs.Request.RESET:
                 self.reset()  # should reset the system and enter init state for testing, will replace with actual logic to determine when to reset system later
             case UserInputs.Request.ESTOP:
@@ -988,7 +1003,7 @@ class SystemControl(rclpy.node.Node):
     def init_state_machine(self):
         states = [
             "init",
-            {"name": "Chair", "initial": "SLOff", "children": ["SLOn", "SLOff"]},
+            "Chair",
             {
                 "name": "Arm",
                 "initial": "retracted",
@@ -1036,8 +1051,15 @@ class SystemControl(rclpy.node.Node):
             },
             {
                 "name": "Nav",
-                "initial": "detecting",
-                "children": ["detecting", "traverse", "canceling", "paused"],
+                "initial": "SLOff",
+                "children": [
+                    "SLOff",
+                    "SLOn",
+                    "ascending",
+                    "descending",
+                    "canceling",
+                    "paused",
+                ],
             },
             "Error",  # system error state, will require reset to recover
         ]
@@ -1064,13 +1086,23 @@ class SystemControl(rclpy.node.Node):
                     "Arm_Drink_placingCupBack",
                     "Arm_OrderDrink_pickUpCup",
                     "Arm_OrderDrink_releasingCup",
-                    "Arm_OrderDrink_detectingDrink",
                     "Arm_OrderDrink_receivingDrink",
                     "Arm_Door_raisingArm",
                     "Arm_Door_opening",
+                    "Arm_cupStabilize_moving",
+                    "Arm_cupStabilize_homing",
                 ],
                 "dest": "Arm_canceling",
             },  # request to cancel current arm action, move to canceling sub state to attempt cancel
+            {
+                "trigger": "reqArmActionCancel",
+                "source": [
+                    "Arm_OrderDrink_detectingDrink",
+                    "Arm_Door_detecting",
+                    "Arm_cupStabilize_stabilizing",
+                ],
+                "dest": "Arm_paused",
+            },  # request to cancel current service, move to paused sub state
             {
                 "trigger": "cancel",
                 "source": [
@@ -1081,13 +1113,23 @@ class SystemControl(rclpy.node.Node):
                     "Arm_Drink_placingCupBack",
                     "Arm_OrderDrink_pickUpCup",
                     "Arm_OrderDrink_releasingCup",
-                    "Arm_OrderDrink_detectingDrink",
                     "Arm_OrderDrink_receivingDrink",
                     "Arm_Door_raisingArm",
                     "Arm_Door_opening",
+                    "Arm_cupStabilize_moving",
+                    "Arm_cupStabilize_homing",
                 ],
                 "dest": "Arm_canceling",
             },  # request to cancel current arm action, move to canceling sub state to attempt cancel
+            {
+                "trigger": "cancel",
+                "source": [
+                    "Arm_OrderDrink_detectingDrink",
+                    "Arm_Door_detecting",
+                    "Arm_cupStabilize_stabilizing",
+                ],
+                "dest": "Arm_paused",
+            },  # request to cancel current service, move to paused sub state
             {
                 "trigger": "reqArmActionCancelSuccess",
                 "source": "Arm_canceling",
@@ -1296,33 +1338,40 @@ class SystemControl(rclpy.node.Node):
             },
             {
                 "trigger": "reqChair",
-                "source": "Nav",
+                "source": ["Nav_SLOff", "Nav_SLOn", "Nav_paused"],
                 "dest": "Chair",
-                "conditions": "is_nav_state_good_for_driving",
             },
             # chair sub state transitions
-            {"trigger": "enableSL", "source": "Chair_SLOff", "dest": "Chair_SLOn"},
-            {"trigger": "disableSL", "source": "Chair_SLOn", "dest": "Chair_SLOff"},
+            {"trigger": "enableSL", "source": "Nav_SLOff", "dest": "Nav_SLOn"},
+            {"trigger": "disableSL", "source": "Nav_SLOn", "dest": "Nav_SLOff"},
             {
                 "trigger": "seatControl",
-                "source": "Chair_SLOff",
-                "dest": "Chair_SLOff",
+                "source": "Chair",
+                "dest": "Chair",
                 "after": "after_seat_control",
             },  # seat control command, stay in the same state but call after_seat_control function to process the command
             # navigation sub state transitions
             {
-                "trigger": "startTraverseConfirm",
-                "source": "Nav_detecting",
-                "dest": "Nav_traverse",
+                "trigger": "startAscendConfirm",
+                "source": ["Nav_SLOff", "Nav_SLOn"],
+                "dest": "Nav_ascending",
+            },
+            {
+                "trigger": "startDescendConfirm",
+                "source": ["Nav_SLOff", "Nav_SLOn"],
+                "dest": "Nav_descending",
             },
             {
                 "trigger": "traverseComplete",
-                "source": "Nav_traverse",
+                "source": "Nav_ascending",
                 "dest": "Chair",
             },
             {
                 "trigger": "reqNavCancel",
-                "source": "Nav_traverse",
+                "source": [
+                    "Nav_ascending",
+                    "Nav_descending",
+                ],
                 "dest": "Nav_canceling",
             },
             {
@@ -1330,8 +1379,15 @@ class SystemControl(rclpy.node.Node):
                 "source": "Nav_canceling",
                 "dest": "Nav_paused",
             },
-            {"trigger": "cancel", "source": "Nav_traverse", "dest": "Nav_canceling"},
-            {"trigger": "reset", "source": "Nav_paused", "dest": "Chair_SLOff"},
+            {
+                "trigger": "cancel",
+                "source": [
+                    "Nav_ascending",
+                    "Nav_descending",
+                ],
+                "dest": "Nav_canceling",
+            },
+            {"trigger": "reset", "source": "Nav_paused", "dest": "Nav_SLOff"},
         ]
 
         self.machine = Machine(

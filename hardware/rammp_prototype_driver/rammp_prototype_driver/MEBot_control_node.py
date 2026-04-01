@@ -397,6 +397,7 @@ class MEBotControlNode(Node):
         else:
             self.send_remove_luci()
 
+        response.success = True  # just acknowledges request recieved and sent
         return response
 
     def self_level_enable_callback(self, request, response):

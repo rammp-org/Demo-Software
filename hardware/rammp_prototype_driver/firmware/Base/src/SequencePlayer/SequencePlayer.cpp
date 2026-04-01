@@ -190,6 +190,8 @@ void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
   if (!seq_settling) {
     unsigned long elapsed = millis() - seq_interp_start;
     bool all_lerps_done = true;
+    int blocking_motor = -1;
+    uint32_t blocking_dur = 0;
 
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       if (!kf.active[i]) continue;
@@ -197,11 +199,35 @@ void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
       float t_i = (kf.duration_ms[i] == 0)
                       ? 1.0f
                       : min(1.0f, (float)elapsed / (float)kf.duration_ms[i]);
-      if (t_i < 1.0f) all_lerps_done = false;
+      if (t_i < 1.0f) {
+        all_lerps_done = false;
+        blocking_motor = i;
+        blocking_dur = kf.duration_ms[i];
+      }
 
       float dest = finalTarget(kf, i);
       float pos  = seq_start_pos[i] + t_i * (dest - seq_start_pos[i]);
       motors[i]->setTargetPosition(pos);
+    }
+
+    if (elapsed % 500 < 20 && !all_lerps_done) {
+      Serial.print("SEQ_LERP,elapsed=");
+      Serial.print(elapsed);
+      Serial.print(",blocking=m");
+      Serial.print(blocking_motor);
+      Serial.print(",dur=");
+      Serial.print(blocking_dur);
+      Serial.print(",active=[");
+      for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+        if (i > 0) Serial.print(",");
+        Serial.print(kf.active[i] ? "1" : "0");
+      }
+      Serial.print("],durs=[");
+      for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+        if (i > 0) Serial.print(",");
+        Serial.print(kf.duration_ms[i]);
+      }
+      Serial.println("]");
     }
 
     if (all_lerps_done) {

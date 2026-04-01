@@ -87,7 +87,7 @@ class SequencePlotter(QWidget):
             ("FC", [(2, "FC")]),
             ("Legs", [(3, "ML"), (4, "MR")]),
             ("Carriages", [(5, "ML_Car"), (6, "MR_Car")]),
-            ("Drive", [(7, "Drive_FB"), (8, "Drive_LR")]),
+            ("Drive Error", [(7, "Drive_FB"), (8, "Drive_LR")]),
         ]
 
         for i, (group_name, joints) in enumerate(self._plot_groups):
@@ -120,6 +120,7 @@ class SequencePlotter(QWidget):
                 self._position_curves[joint_id] = pos_curve
                 self._target_curves[joint_id] = target_curve
 
+            plot.enableAutoRange("y", True)
             self._plots.append(plot)
 
             if i > 0:
@@ -169,8 +170,13 @@ class SequencePlotter(QWidget):
             mask = timestamps >= min_time
             window_times = timestamps[mask]
 
-            self._position_curves[joint_id].setData(window_times, positions[mask])
-            self._target_curves[joint_id].setData(window_times, targets[mask])
+            if joint_id in (7, 8):
+                error = targets[mask] - positions[mask]
+                self._position_curves[joint_id].setData(window_times, error)
+                self._target_curves[joint_id].setData([], [])
+            else:
+                self._position_curves[joint_id].setData(window_times, positions[mask])
+                self._target_curves[joint_id].setData(window_times, targets[mask])
 
         self._plots[4].setXRange(min_time, latest_time, padding=0.02)
 
@@ -186,6 +192,9 @@ class SequencePlotter(QWidget):
 
     def _update_y_ranges(self):
         for i, (group_name, joints) in enumerate(self._plot_groups):
+            if any(jid in (7, 8) for jid, _ in joints):
+                continue
+
             min_limit = float("inf")
             max_limit = float("-inf")
             has_limits = False
@@ -198,6 +207,7 @@ class SequencePlotter(QWidget):
                     has_limits = True
 
             if has_limits and min_limit < max_limit:
+                self._plots[i].enableAutoRange("y", False)
                 padding = (max_limit - min_limit) * 0.05
                 self._plots[i].setYRange(
                     min_limit - padding, max_limit + padding, padding=0

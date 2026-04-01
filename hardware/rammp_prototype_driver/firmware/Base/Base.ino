@@ -463,10 +463,11 @@ void setup() {
     }
   }
 
+  // Drive wheel motor objects keep encoder_dir=1 at all times.
+  // The actual direction is tracked in ml_enc_dir/mr_enc_dir globals,
+  // which were already loaded from EEPROM in the loop above (lines 429-430).
   drive_fb.setEncoderDirection(1);
   drive_lr.setEncoderDirection(1);
-  ml_enc_dir = drive_fb.getEncoderDirection();
-  mr_enc_dir = drive_lr.getEncoderDirection();
 
   Serial.println(
       "EEPROM CONFIG LOADED: All motor configs restored from EEPROM.");

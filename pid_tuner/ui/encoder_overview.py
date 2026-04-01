@@ -101,25 +101,41 @@ class JointBox(QFrame):
         painter.drawLine(1, 1, 1, rect.height() - 2)
         painter.drawLine(rect.width() - 2, 1, rect.width() - 2, rect.height() - 2)
 
-        painter.setPen(QColor(THEME.text))
         font = self.font()
         font.setBold(True)
         painter.setFont(font)
 
+        name_text = f"{self._name}:"
+        value_text = f"{self._value:+.1f}"
         text_rect_left = rect.adjusted(SIZES["margin_small"], 0, 0, 0)
+        text_rect_right = rect.adjusted(0, 0, -SIZES["margin_small"], 0)
+
+        painter.setPen(QColor(THEME.crust))
+        painter.drawText(
+            text_rect_left.adjusted(1, 1, 1, 1),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            name_text,
+        )
+        painter.setPen(QColor(THEME.text))
         painter.drawText(
             text_rect_left,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            f"{self._name}:",
+            name_text,
         )
 
         font.setBold(False)
         painter.setFont(font)
-        text_rect_right = rect.adjusted(0, 0, -SIZES["margin_small"], 0)
+        painter.setPen(QColor(THEME.crust))
+        painter.drawText(
+            text_rect_right.adjusted(1, 1, 1, 1),
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+            value_text,
+        )
+        painter.setPen(QColor(THEME.text))
         painter.drawText(
             text_rect_right,
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-            f"{self._value:+.1f}",
+            value_text,
         )
 
     def mousePressEvent(self, a0):

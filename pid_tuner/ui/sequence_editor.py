@@ -509,8 +509,8 @@ class SequenceEditor(QWidget):
     # ------------------------------------------------------------------ #
 
     def _populate_table(self):
-        """Rebuild the entire table from self._keyframes."""
         self._table.blockSignals(True)
+        self._table.clearContents()
         self._table.setRowCount(2 * len(self._keyframes))
         for keyframe_idx, kf in enumerate(self._keyframes):
             self._set_keyframe_rows(keyframe_idx, kf)
@@ -590,8 +590,13 @@ class SequenceEditor(QWidget):
         for row in range(self._table.rowCount()):
             font = bold_font if row in active_rows else normal_font
             for col in range(NUM_COLS):
-                item = self._table.item(row, col)
-                if item:
+                try:
+                    item = self._table.item(row, col)
+                except RuntimeError:
+                    continue
+                if item is None:
+                    continue
+                try:
                     item.setFont(font)
                     self._apply_base_cell_background(row, col, item)
                     if row in active_rows:
@@ -599,6 +604,8 @@ class SequenceEditor(QWidget):
                             item.setBackground(QBrush(back_tint))
                         elif direction > 0:
                             item.setBackground(QBrush(fwd_tint))
+                except RuntimeError:
+                    continue
 
     def _apply_base_cell_background(self, row: int, col: int, item: QTableWidgetItem):
         if row % 2 == 1:

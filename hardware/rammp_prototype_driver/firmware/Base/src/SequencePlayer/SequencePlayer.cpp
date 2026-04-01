@@ -259,7 +259,7 @@ void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
     motors[i]->setTargetPosition(dest);
     float err = fabs(motors[i]->current_pos - dest);
 
-    if (err > SEQ_COMPLETION_DEADZONE) {
+    if (err > SEQ_COMPLETION_DEADZONE[i]) {
       all_settled = false;
       if (settle_elapsed % 500 < 20) {
         Serial.print("SEQ_SETTLE_WAIT,");
@@ -271,7 +271,7 @@ void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
         Serial.print(",tgt=");
         Serial.print(dest, 1);
         Serial.print(",dz=");
-        Serial.println(SEQ_COMPLETION_DEADZONE, 1);
+        Serial.println(SEQ_COMPLETION_DEADZONE[i], 1);
       }
     }
   }

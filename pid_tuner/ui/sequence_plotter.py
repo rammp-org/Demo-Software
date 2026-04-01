@@ -29,6 +29,9 @@ class SequencePlotter(QWidget):
         self._time_window = self.DEFAULT_TIME_WINDOW
         self._paused = False
         self._joint_limits: Dict[int, Tuple[float, float]] = {}
+        self._target_times: Dict[int, list] = {i: [] for i in range(1, 9)}
+        self._target_values: Dict[int, list] = {i: [] for i in range(1, 9)}
+        self._last_target: Dict[int, float] = {}
 
         self._setup_ui()
         self._setup_plots()
@@ -170,19 +173,40 @@ class SequencePlotter(QWidget):
             mask = timestamps >= min_time
             window_times = timestamps[mask]
 
+            if len(window_times) == 0:
+                self._position_curves[joint_id].setData([], [])
+                self._target_curves[joint_id].setData([], [])
+                continue
+
             if joint_id in (7, 8):
                 error = targets[mask] - positions[mask]
                 self._position_curves[joint_id].setData(window_times, error)
                 self._target_curves[joint_id].setData([], [])
             else:
                 self._position_curves[joint_id].setData(window_times, positions[mask])
+
                 seq_targets = self._data_store.get_seq_targets()
                 if joint_id in seq_targets:
                     target_val = seq_targets[joint_id]
-                    self._target_curves[joint_id].setData(
-                        [window_times[0], window_times[-1]],
-                        [target_val, target_val],
-                    )
+                    prev = self._last_target.get(joint_id)
+                    if prev is None or prev != target_val:
+                        if prev is not None:
+                            self._target_times[joint_id].append(latest_time)
+                            self._target_values[joint_id].append(prev)
+                        self._target_times[joint_id].append(latest_time)
+                        self._target_values[joint_id].append(target_val)
+                        self._last_target[joint_id] = target_val
+
+                t_hist = self._target_times[joint_id]
+                v_hist = self._target_values[joint_id]
+                while t_hist and t_hist[0] < min_time:
+                    t_hist.pop(0)
+                    v_hist.pop(0)
+
+                if t_hist:
+                    plot_t = list(t_hist) + [latest_time]
+                    plot_v = list(v_hist) + [v_hist[-1]]
+                    self._target_curves[joint_id].setData(plot_t, plot_v)
                 else:
                     self._target_curves[joint_id].setData([], [])
 
@@ -237,3 +261,6 @@ class SequencePlotter(QWidget):
             self._data_store.clear_joint(joint_id)
             self._position_curves[joint_id].setData([], [])
             self._target_curves[joint_id].setData([], [])
+            self._target_times[joint_id].clear()
+            self._target_values[joint_id].clear()
+        self._last_target.clear()

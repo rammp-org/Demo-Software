@@ -140,7 +140,13 @@ class SystemControl(rclpy.node.Node):
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
 
-        self._mock_state = MockState(self, starting_task=MockTasks.OPEN_DOOR)
+        self.is_mocking = False
+        if self.is_mocking:
+            self._mock_state = MockState(self, starting_task=MockTasks.OPEN_DOOR)
+        else:
+            self._mock_state = MockState(
+                self, starting_task=MockTasks.END_TASK
+            )  # starting task = END_TASK to disable mock
 
         self._arm_status = ""
         self._cb_group = ReentrantCallbackGroup()
@@ -175,6 +181,8 @@ class SystemControl(rclpy.node.Node):
 
     def _mock_delay(self, seconds, callback):
         """Non-blocking delay: creates a one-shot timer that calls `callback` after `seconds`."""
+        if not self.is_mocking:
+            return
         timer = None
 
         def _on_timeout():
@@ -183,7 +191,7 @@ class SystemControl(rclpy.node.Node):
                 timer.cancel()
                 self.destroy_timer(timer)
                 timer = None
-            # callback()
+            callback()
 
         # comment out to disable mock
         timer = self.create_timer(seconds, _on_timeout, callback_group=self._cb_group)
@@ -277,10 +285,10 @@ class SystemControl(rclpy.node.Node):
         self.enable_curb_detection(
             True
         )  # enable curb detection to detect curb for navigation
-        # self.get_logger().info("Mock detecting curb for 5 seconds.")
-        # self._mock_delay(
-        #     5.0, self.startDescendConfirm()
-        # )  # should enter Nav_traverse state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
+        self.get_logger().debug("Mock detecting curb for 5 seconds.")
+        self._mock_delay(
+            5.0, self.startDescendConfirm
+        )  # should enter Nav_traverse state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
 
     def on_exit_Nav(self):
         self.enable_curb_detection(
@@ -319,7 +327,7 @@ class SystemControl(rclpy.node.Node):
         self.set_arm_mode(ArmMode.MANUAL)  # set arm mode to manual for manual control
 
         # mock 5s manual control, then disable it TODO: remove mock
-        self.get_logger().info("Mock manual control for 5 seconds.")
+        self.get_logger().debug("Mock manual control for 5 seconds.")
         self._mock_delay(
             5.0, self.exitManualControl
         )  # should enter Arm_retracted state after manual control for testing, will replace with actual logic to determine when to exit manual control later
@@ -352,7 +360,7 @@ class SystemControl(rclpy.node.Node):
         )  # set arm mode to cup stabilize when stabilizing cup, will set specific arm preset in the action server later
         self.enable_cup_stabilizer(True)  # enable cup stabilizer to stabilize the cup
 
-        self.get_logger().info("Mock stabilizing cup for 5 seconds.")
+        self.get_logger().debug("Mock stabilizing cup for 5 seconds.")
         self._mock_delay(
             5.0, self.reqCupStabilizeOff
         )  # should enter Arm_cupStabilize_homing state after stabilizing cup for testing, will replace with actual logic to determine when to turn off cup stabilizer later
@@ -395,7 +403,7 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().info("Holding cup, preparing to release cup.")
         self.set_arm_mode(ArmMode.IDLE)
         # mock wait for 5 seconds to simulate holding cup, will replace with actual logic later
-        self.get_logger().info("Mock holding cup for 5 seconds.")
+        self.get_logger().debug("Mock holding cup for 5 seconds.")
         self._mock_delay(5.0, self.releaseCupConfirm)  # should enter releasingCup state
 
     def on_enter_Arm_OrderDrink_releasingCup(self):
@@ -404,16 +412,6 @@ class SystemControl(rclpy.node.Node):
         self.close_gripper()  # close gripper to release cup
         self.arm_preset_client.set_preset(ArmPreset.HOME)
 
-        # mock wait for 1 seconds to simulate releasing cup, will replace with actual logic later
-        self.get_logger().info("Mock close gripper for 1 seconds.")
-
-        def _after_gripper_delay():
-            # move arm to home position after releasing cup to avoid potential collision when bringing cup to mouth later
-            self.get_logger().info("Move arm to home position after releasing cup.")
-            self.arm_preset_client.set_preset(ArmPreset.HOME)
-
-        self._mock_delay(1.0, _after_gripper_delay)
-
     def on_exit_Arm_OrderDrink_releasingCup(self):
         self.base_drive_enable(True)  # re-enable drive when exiting releasing cup state
 
@@ -421,15 +419,8 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().info("Detecting drink to confirm if the drink is received.")
         self.enable_cup_detection(True)  # enable cup detection
         # mock wait for 5 seconds to simulate drink detection, will replace with actual logic later
-        self.get_logger().info("Mock detecting drink for 5 seconds.")
-
-        def _after_drink_detect():
-            self.enable_cup_detection(
-                False
-            )  # disable cup detection after detection process
-            self.receiveDrinkConfirm()  # should enter receivingDrink state
-
-        self._mock_delay(5.0, _after_drink_detect)
+        self.get_logger().debug("Mock detecting drink for 5 seconds.")
+        self._mock_delay(5.0, self.receiveDrinkConfirm)
 
     def on_exit_Arm_OrderDrink_detectingDrink(self):
         self.enable_cup_detection(
@@ -465,7 +456,7 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Arm_Drink_sipping(self):
         self.get_logger().info("Sipping drink.")
         # mock wait for 5 seconds to simulate sipping drink, will replace with actual sipping logic later
-        self.get_logger().info("Mock sipping drink for 5 seconds.")
+        self.get_logger().debug("Mock sipping drink for 5 seconds.")
         self._mock_delay(5.0, self.placeCupAway)  # should enter placingCupAway state
 
     def on_enter_Arm_Drink_placingCupAway(self):
@@ -522,7 +513,7 @@ class SystemControl(rclpy.node.Node):
             self.get_logger().warn("Failed to enable door detection.")
             self.ArmActionFailed()
         # mock wait for 5 seconds to simulate door button detection, will replace with actual detection logic later
-        self.get_logger().info("Mock detecting door button for 5 seconds.")
+        self.get_logger().debug("Mock detecting door button for 5 seconds.")
         self._mock_delay(
             5.0, self.openDoorConfirm
         )  # should enter Arm_Door_opening state

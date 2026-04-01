@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
 )
 from PyQt6.QtCore import pyqtSlot, pyqtSignal, Qt, QTimer
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QBrush
 
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
@@ -38,69 +38,101 @@ class JointBox(QFrame):
         self._color = color
         self._value = 0.0
         self._selected = False
+        self._min_val = -10000.0
+        self._max_val = 10000.0
 
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFrameShape(QFrame.Shape.StyledPanel)
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(
-            SIZES["margin_small"],
-            SIZES["margin_small"],
-            SIZES["margin_small"],
-            SIZES["margin_small"],
-        )
-        layout.setSpacing(SIZES["spacing_small"])
-
-        self._name_label = QLabel(f"{name}:")
-        self._name_label.setStyleSheet(f"color: {color}; font-weight: bold;")
-        self._name_label.setFixedWidth(scaled(55))
-
-        self._value_label = QLabel("0.0")
-        self._value_label.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-
-        layout.addWidget(self._name_label)
-        layout.addWidget(self._value_label, stretch=1)
-
         self.setFixedHeight(scaled(22))
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        self._update_style()
-
     def set_value(self, value: float):
         self._value = value
-        self._value_label.setText(f"{value:+.1f}")
+        self.update()
+
+    def set_limits(self, min_val: float, max_val: float):
+        self._min_val = min_val
+        self._max_val = max_val
+        self.update()
 
     def set_selected(self, selected: bool):
         self._selected = selected
-        self._update_style()
+        self.update()
 
-    def _update_style(self):
-        if self._selected:
-            self.setStyleSheet(f"""
-                JointBox {{
-                    background-color: {THEME.surface1};
-                    border: 1px solid {THEME.blue};
-                    border-radius: {scaled(4)}px;
-                }}
-            """)
+    def paintEvent(self, a0):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        rect = self.rect()
+
+        bg_color = QColor(THEME.surface1 if self._selected else THEME.surface0)
+        if not self._selected and self.underMouse():
+            bg_color = QColor(THEME.surface1)
+        painter.fillRect(rect, bg_color)
+
+        range_val = self._max_val - self._min_val
+        if range_val > 0:
+            pct = (self._value - self._min_val) / range_val
+            pct = max(0.0, min(1.0, pct))
         else:
-            self.setStyleSheet(f"""
-                JointBox {{
-                    background-color: {THEME.surface0};
-                    border: 1px solid {THEME.surface1};
-                    border-radius: {scaled(4)}px;
-                }}
-                JointBox:hover {{
-                    background-color: {THEME.surface1};
-                    border: 1px solid {THEME.surface2};
-                }}
-            """)
+            pct = 0.0
+
+        if pct > 0:
+            fill_rect = rect.adjusted(1, 1, -1, -1)
+            fill_rect.setWidth(int(fill_rect.width() * pct))
+            fill_color = QColor(self._color)
+            painter.setBrush(QBrush(fill_color))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(fill_rect, scaled(3), scaled(3))
+
+        border_color = QColor(THEME.blue if self._selected else THEME.surface1)
+        if not self._selected and self.underMouse():
+            border_color = QColor(THEME.surface2)
+
+        pen = QPen(border_color)
+        pen.setWidth(1)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(rect.adjusted(0, 0, -1, -1), scaled(4), scaled(4))
+
+        marker_color = QColor(THEME.red)
+        painter.setPen(QPen(marker_color, 2))
+        painter.drawLine(1, 1, 1, rect.height() - 2)
+        painter.drawLine(rect.width() - 2, 1, rect.width() - 2, rect.height() - 2)
+
+        painter.setPen(QColor(THEME.text))
+        font = self.font()
+        font.setBold(True)
+        painter.setFont(font)
+
+        text_rect_left = rect.adjusted(SIZES["margin_small"], 0, 0, 0)
+        painter.drawText(
+            text_rect_left,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            f"{self._name}:",
+        )
+
+        font.setBold(False)
+        painter.setFont(font)
+        text_rect_right = rect.adjusted(0, 0, -SIZES["margin_small"], 0)
+        painter.drawText(
+            text_rect_right,
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+            f"{self._value:+.1f}",
+        )
 
     def mousePressEvent(self, a0):
         if a0 is not None and a0.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit(self._joint_id)
+
+    def enterEvent(self, event):
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, a0):
+        self.update()
+        super().leaveEvent(a0)
 
 
 class SavedPositionButton(QPushButton):
@@ -292,7 +324,12 @@ class EncoderOverview(QWidget):
         pass
 
     def _on_config_updated(self, joint_id: int):
-        pass
+        config = self._data_store.get_config(joint_id)
+        if config:
+            for box in self._boxes:
+                if box._joint_id == joint_id:
+                    box.set_limits(config.pos_limit_min, config.pos_limit_max)
+                    break
 
     def set_mode_for_joint(self, joint_id: int, mode: int):
         pass

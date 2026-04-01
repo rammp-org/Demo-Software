@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict, Tuple
 
 import pyqtgraph as pg
 from PyQt6.QtWidgets import (
@@ -28,10 +28,13 @@ class SequencePlotter(QWidget):
         self._data_store = data_store
         self._time_window = self.DEFAULT_TIME_WINDOW
         self._paused = False
+        self._joint_limits: Dict[int, Tuple[float, float]] = {}
 
         self._setup_ui()
         self._setup_plots()
         self._setup_timer()
+
+        self._data_store.config_updated.connect(self._on_config_updated)
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -76,15 +79,21 @@ class SequencePlotter(QWidget):
         label_style = {"color": THEME.text, "font-size": f"{font_size}pt"}
 
         self._plots = []
-        self._position_curves = []
-        self._target_curves = []
+        self._position_curves = {}
+        self._target_curves = {}
 
-        joint_names = get_joint_names()[:6]
+        self._plot_groups = [
+            ("RC", [(1, "RC")]),
+            ("FC", [(2, "FC")]),
+            ("Legs", [(3, "ML"), (4, "MR")]),
+            ("Carriages", [(5, "ML_Car"), (6, "MR_Car")]),
+            ("Drive", [(7, "Drive_FB"), (8, "Drive_LR")]),
+        ]
 
-        for i in range(6):
+        for i, (group_name, joints) in enumerate(self._plot_groups):
             plot = self._graphics_layout.addPlot(row=i, col=0)
 
-            plot.setLabel("left", joint_names[i], **label_style)
+            plot.setLabel("left", group_name, **label_style)
 
             plot.showGrid(x=True, y=True, alpha=0.3)
             plot.getAxis("left").setPen(pg.mkPen(color=THEME.overlay0))
@@ -92,24 +101,31 @@ class SequencePlotter(QWidget):
             plot.getAxis("bottom").setPen(pg.mkPen(color=THEME.overlay0))
             plot.getAxis("bottom").setTextPen(pg.mkPen(color=THEME.text))
 
-            pos_curve = plot.plot(
-                pen=pg.mkPen(color=JOINT_COLORS[i], width=2), name="Pos"
-            )
-            target_curve = plot.plot(
-                pen=pg.mkPen(
-                    color=THEME.red, width=2, style=pg.QtCore.Qt.PenStyle.DashLine
-                ),
-                name="Target",
-            )
+            if len(joints) > 1:
+                legend = plot.addLegend(offset=(10, 10))
+                legend.setLabelTextColor(THEME.text)
+
+            for joint_id, joint_name in joints:
+                color = JOINT_COLORS[joint_id - 1]
+                pos_curve = plot.plot(
+                    pen=pg.mkPen(color=color, width=2), name=f"{joint_name} Pos"
+                )
+                target_curve = plot.plot(
+                    pen=pg.mkPen(
+                        color=THEME.red, width=2, style=pg.QtCore.Qt.PenStyle.DashLine
+                    ),
+                    name=f"{joint_name} Target",
+                )
+
+                self._position_curves[joint_id] = pos_curve
+                self._target_curves[joint_id] = target_curve
 
             self._plots.append(plot)
-            self._position_curves.append(pos_curve)
-            self._target_curves.append(target_curve)
 
             if i > 0:
                 plot.setXLink(self._plots[0])
 
-            if i < 5:
+            if i < 4:
                 plot.hideAxis("bottom")
             else:
                 plot.setLabel("bottom", "Time", units="s", **label_style)
@@ -125,7 +141,7 @@ class SequencePlotter(QWidget):
 
         latest_time = 0
 
-        for i in range(6):
+        for i in range(8):
             joint_data = self._data_store.get_joint(i + 1)
             if joint_data:
                 timestamps, _, _ = joint_data.get_plot_data()
@@ -137,25 +153,55 @@ class SequencePlotter(QWidget):
 
         min_time = latest_time - self._time_window
 
-        for i in range(6):
-            joint_data = self._data_store.get_joint(i + 1)
+        for i in range(8):
+            joint_id = i + 1
+            joint_data = self._data_store.get_joint(joint_id)
             if not joint_data:
                 continue
 
             timestamps, positions, targets = joint_data.get_plot_data()
 
             if len(timestamps) == 0:
-                self._position_curves[i].setData([], [])
-                self._target_curves[i].setData([], [])
+                self._position_curves[joint_id].setData([], [])
+                self._target_curves[joint_id].setData([], [])
                 continue
 
             mask = timestamps >= min_time
             window_times = timestamps[mask]
 
-            self._position_curves[i].setData(window_times, positions[mask])
-            self._target_curves[i].setData(window_times, targets[mask])
+            self._position_curves[joint_id].setData(window_times, positions[mask])
+            self._target_curves[joint_id].setData(window_times, targets[mask])
 
-        self._plots[5].setXRange(min_time, latest_time, padding=0.02)
+        self._plots[4].setXRange(min_time, latest_time, padding=0.02)
+
+    def _on_config_updated(self, joint_id: int):
+        config = self._data_store.get_config(joint_id)
+        if (
+            config
+            and hasattr(config, "pos_limit_min")
+            and hasattr(config, "pos_limit_max")
+        ):
+            self._joint_limits[joint_id] = (config.pos_limit_min, config.pos_limit_max)
+            self._update_y_ranges()
+
+    def _update_y_ranges(self):
+        for i, (group_name, joints) in enumerate(self._plot_groups):
+            min_limit = float("inf")
+            max_limit = float("-inf")
+            has_limits = False
+
+            for joint_id, _ in joints:
+                if joint_id in self._joint_limits:
+                    j_min, j_max = self._joint_limits[joint_id]
+                    min_limit = min(min_limit, j_min)
+                    max_limit = max(max_limit, j_max)
+                    has_limits = True
+
+            if has_limits and min_limit < max_limit:
+                padding = (max_limit - min_limit) * 0.05
+                self._plots[i].setYRange(
+                    min_limit - padding, max_limit + padding, padding=0
+                )
 
     def _on_time_window_changed(self, text: str):
         try:
@@ -168,7 +214,8 @@ class SequencePlotter(QWidget):
         self._pause_btn.setText("Resume" if checked else "Pause")
 
     def _on_clear_clicked(self):
-        for i in range(6):
-            self._data_store.clear_joint(i + 1)
-            self._position_curves[i].setData([], [])
-            self._target_curves[i].setData([], [])
+        for i in range(8):
+            joint_id = i + 1
+            self._data_store.clear_joint(joint_id)
+            self._position_curves[joint_id].setData([], [])
+            self._target_curves[joint_id].setData([], [])

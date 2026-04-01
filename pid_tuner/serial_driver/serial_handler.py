@@ -355,6 +355,7 @@ class SerialHandler(QObject):
         # Only the latest telemetry data is emitted for performance
         # All configs are emitted
         latest_encoder = None
+        latest_seq_status = None
 
         for line in reversed(lines):
             data = ProtocolParser.parse_line(line)
@@ -367,12 +368,17 @@ class SerialHandler(QObject):
                 elif isinstance(data, SeqAckData):
                     self.seq_ack_received.emit(data.step_idx)
                 elif isinstance(data, SeqStatusData):
-                    self.seq_status_received.emit(
-                        data.current_step, data.total_steps, data.state
-                    )
+                    if latest_seq_status is None:
+                        latest_seq_status = data
 
         if latest_encoder is not None:
             self.data_received.emit(latest_encoder)
+        if latest_seq_status is not None:
+            self.seq_status_received.emit(
+                latest_seq_status.current_step,
+                latest_seq_status.total_steps,
+                latest_seq_status.state,
+            )
 
     def enter_sequence_mode(self, enable: bool):
         """Enter or exit AUTO_CURB_CLIMBING sequence mode."""

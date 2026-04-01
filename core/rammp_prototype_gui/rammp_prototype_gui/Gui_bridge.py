@@ -99,18 +99,18 @@ class UserInputString(enum.Enum):
 
 
 def rotation_matrix_to_euler_zyx(R):
-    sy = -R[6]
+    sy = -R[2, 0]
     epsilon = 1e-6
 
     if abs(sy) < 1 - epsilon:
         pitch = np.arcsin(sy)
-        roll = np.arctan2(R[7], R[8])
-        yaw = np.arctan2(R[3], R[0])
+        roll = np.arctan2(R[2, 1], R[2, 2])
+        yaw = np.arctan2(R[1, 0], R[0, 0])
     else:
         # Gimbal lock
         pitch = np.pi / 2 if sy < 0 else -np.pi / 2
         roll = 0
-        yaw = np.arctan2(-R[1], R[4])
+        yaw = np.arctan2(-R[0, 1], R[1, 1])
 
     return np.degrees(roll), np.degrees(pitch), np.degrees(yaw)  # degrees
 
@@ -178,6 +178,11 @@ class GuiBridge(Node):
             self.get_parameter("depth_channel").get_parameter_value().integer_value
         )
         print(f"Depth channel: {self.depth_channel}")
+        self.declare_parameter("mask_channel", 200)
+        self.mask_channel = (
+            self.get_parameter("mask_channel").get_parameter_value().integer_value
+        )
+        print(f"Mask channel: {self.mask_channel}")
 
         self.ue = UnrealRemoteWebsocket(
             host=self.host,
@@ -450,6 +455,17 @@ class GuiBridge(Node):
             10,
             callback_group=self._cb_group,
         )
+        # curb mask
+        self.curb_mask_sub = self.create_subscription(
+            Image,
+            "/perception/curb_mask",
+            self.curb_mask_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+
+    def curb_mask_callback(self, msg: Image):
+        self.send_mask(msg, "nav")
 
     def curb_info_callback(self, msg: CurbInfo):
         self.update_curb_info(msg)
@@ -593,6 +609,28 @@ class GuiBridge(Node):
                     )
                 except Exception as e:
                     self.get_logger().warn(f"Failed to send {source} depth image: {e}")
+
+    def send_mask(self, mask: Image, source: str):
+        if self.stream_sender.is_connected():
+            if mask is not None:
+                try:
+                    width = mask.width
+                    height = mask.height
+                    meta = {
+                        "w": width,
+                        "h": height,
+                        "source": source,
+                        "fmt": mask.encoding,
+                    }
+                    self.stream_sender.send_image(
+                        channel=self.mask_channel,
+                        image_bytes=mask.data.tobytes(),
+                        width=width,
+                        height=height,
+                        metadata=meta,
+                    )
+                except Exception as e:
+                    self.get_logger().warn(f"Failed to send {source} mask image: {e}")
 
     def send_wrist_camera_image(self):
         self.send_image(

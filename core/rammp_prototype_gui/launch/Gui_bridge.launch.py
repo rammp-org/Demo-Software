@@ -52,6 +52,11 @@ def generate_launch_description():
                 default_value="100",
                 description="Depth channel index for UE",
             ),
+            DeclareLaunchArgument(
+                "mask_channel",
+                default_value="200",
+                description="Mask channel index for UE",
+            ),
             Node(
                 package="rammp_prototype_gui",
                 executable="GuiBridge",
@@ -79,6 +84,7 @@ def generate_launch_description():
                         ),
                         "image_channel": LaunchConfiguration("image_channel"),
                         "depth_channel": LaunchConfiguration("depth_channel"),
+                        "mask_channel": LaunchConfiguration("mask_channel"),
                     }
                 ],
             ),

@@ -2,7 +2,7 @@
 
 > **Summary**
 >
-> Main Node that control the arm. This is the only node that communicate with the arm directly. It publishes `/arm/joint_states` and `/arm/status` to other nodes. Based on the internal state machine, it gates incoming commands to a single authorized source per state.
+> Main Node that control the arm. This is the only node that communicate with the arm directly. It publishes `/arm/joint_states`, `/arm/ee/pose`, `/arm/ee/velocity`, `/arm/ee/force`, and `/arm/status` to other nodes. Based on the internal state machine, it gates incoming commands to a single authorized source per state.
 >
 > There are two types of command sources that are accepted, depending on the state:
 >
@@ -41,7 +41,9 @@ ______________________________________________________________________
 | Topic                | Type                                   | Rate   | Notes                                                                                                |
 | -------------------- | -------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------- |
 | `/arm/joint_states`  | `sensor_msgs/msg/JointState`           | 100 Hz | Gripper position appended as last element (normalized 0–1); gripper velocity and effort are always 0 |
-| `/arm/ee_force`      | `geometry_msgs/msg/Vector3Stamped`     | 100 Hz |                                                                                                      |
+| `/arm/ee/pose`       | `geometry_msgs/msg/PoseStamped`        | 100 Hz | End-effector position (x, y, z) and orientation as quaternion (x, y, z, w)                           |
+| `/arm/ee/velocity`   | `geometry_msgs/msg/TwistStamped`       | 100 Hz | End-effector linear velocity (x, y, z) and angular velocity (x, y, z) in tool frame                  |
+| `/arm/ee/force`      | `geometry_msgs/msg/Vector3Stamped`     | 100 Hz | External wrench force at end-effector                                                                |
 | `/arm/imu`           | `sensor_msgs/msg/Imu`                  | —      |                                                                                                      |
 | `/arm/status`        | `diagnostic_msgs/msg/DiagnosticStatus` | 1 Hz   |                                                                                                      |
 | `/robot_description` | `std_msgs/msg/String`                  | —      |                                                                                                      |

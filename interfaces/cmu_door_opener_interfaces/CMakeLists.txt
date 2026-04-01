@@ -14,6 +14,7 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ButtonInfo.msg"
   "action/DoorOpen.action"
+  "action/DoorOpenActionTypePlaceHolder.action"
   DEPENDENCIES builtin_interfaces sensor_msgs
 )
 

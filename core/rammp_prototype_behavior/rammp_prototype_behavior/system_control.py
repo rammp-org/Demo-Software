@@ -836,6 +836,7 @@ class SystemControl(rclpy.node.Node):
                 self.get_logger().warn(
                     "GUI connection state changed: connected --> disconnected"
                 )
+                self.UIDisconnected()
             self._gui_connected = False
 
     def _srv_user_inputs_callback(

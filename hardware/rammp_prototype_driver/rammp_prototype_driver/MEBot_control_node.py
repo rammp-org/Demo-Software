@@ -16,6 +16,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
+import diagnostic_updater
+from diagnostic_msgs.msg import DiagnosticStatus
 
 
 class SerialField(IntEnum):
@@ -70,6 +72,11 @@ class MEBotControlNode(Node):
             baudrate=115200,
             timeout=1,
         )
+
+        # diagnostics updater init
+        self.updater = diagnostic_updater.Updater(self)
+        self.updater.setHardwareID("LUCI")
+        self.updater.add("LUCI Status", self.check_luci_node)
 
         # Data transfer rates
         # Rate to read data from serial
@@ -331,6 +338,21 @@ class MEBotControlNode(Node):
         msg.orientation.w = qw
 
         self.imu_publisher.publish(msg)
+
+    def check_luci_node(self, stat):
+        active_nodes = self.get_node_names_and_namespaces()
+        # Build full paths
+        active_nodes = [ns.rstrip("/") + "/" + name for name, ns in active_nodes]
+
+        # TODO: get correct LUCI node name and namespace
+        if "/luci/node" not in active_nodes:
+            stat.add("node_status", "dead")
+            stat.summary(DiagnosticStatus.ERROR, "Luci node not active")
+        else:
+            stat.add("node_status", "active")
+            stat.summary(DiagnosticStatus.OK, "Luci node running")
+
+        return stat
 
     def manual_seat_control_callback(self, msg):
         if msg.data:

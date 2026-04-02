@@ -41,15 +41,16 @@ def generate_launch_description():
             with open(params_file, "r") as f:
                 config = yaml.safe_load(f) or {}
 
+        # Read from config file, default to False
         disable_realsense = str(config.get("disable_realsense", False)).lower()
         disable_orbbec = str(config.get("disable_orbbec", False)).lower()
 
-        # Allow CLI overrides to take precedence
+        # CLI overrides take precedence if explicitly set to "true"
         cli_realsense = LaunchConfiguration("disable_realsense").perform(context)
         cli_orbbec = LaunchConfiguration("disable_orbbec").perform(context)
-        if cli_realsense != "false":
+        if cli_realsense == "true":
             disable_realsense = cli_realsense
-        if cli_orbbec != "false":
+        if cli_orbbec == "true":
             disable_orbbec = cli_orbbec
 
         actions = []
@@ -73,7 +74,6 @@ def generate_launch_description():
                                 "unite_imu_method": "2",
                                 "pointcloud.enable": "false",
                                 "log_level": "warn",
-                                "params_file": params_file,
                             }.items(),
                         )
                     ],
@@ -122,7 +122,6 @@ def generate_launch_description():
                                 "exposure_range_mode": "ultimate",
                                 "laser_energy_level": "4",
                                 "enable_ir_auto_exposure": "true",
-                                "config_file_path": params_file,
                             }.items(),
                         ),
                     ]

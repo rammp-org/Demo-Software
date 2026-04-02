@@ -4,7 +4,7 @@ import rclpy
 import rclpy.action
 import rclpy.node
 
-from rclpy.action import ActionServer
+from rclpy.action import ActionServer, CancelResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from cornell_feeding_interfaces.action import CornellActionsPlaceHolder
@@ -29,6 +29,7 @@ class DrinkingNode(rclpy.node.Node):
             CornellActionsPlaceHolder,
             "/arm/drink/PickupAndOrder",
             self.execute_action_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
         self._grab_cup_from_table_action_server = ActionServer(
@@ -36,6 +37,7 @@ class DrinkingNode(rclpy.node.Node):
             CornellActionsPlaceHolder,
             "/arm/drink/GrabCupFromTable",
             self.execute_action_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
         self._bring_cup_to_mouth_action_server = ActionServer(
@@ -43,6 +45,7 @@ class DrinkingNode(rclpy.node.Node):
             CornellActionsPlaceHolder,
             "/arm/drink/BringCupToMouth",
             self.execute_action_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
         self._home_cup_action_server = ActionServer(
@@ -50,6 +53,7 @@ class DrinkingNode(rclpy.node.Node):
             CornellActionsPlaceHolder,
             "/arm/drink/HomeCup",
             self.execute_action_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
         self._put_cup_back_to_holder_action_server = ActionServer(
@@ -57,6 +61,7 @@ class DrinkingNode(rclpy.node.Node):
             CornellActionsPlaceHolder,
             "/arm/drink/PutCupBackToHolder",
             self.execute_action_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
 
@@ -91,6 +96,10 @@ class DrinkingNode(rclpy.node.Node):
             self.get_logger().info(f"action counter left: {self._action_counter}")
             time.sleep(0.1)  # sleep 0.1s
         return True
+
+    def _cancel_callback(self, goal_handle):
+        self.get_logger().info("Received an action cancel request.")
+        return CancelResponse.ACCEPT
 
     def execute_action_callback(self, goal_handle):
         self.get_logger().info("Received a  action goal.")

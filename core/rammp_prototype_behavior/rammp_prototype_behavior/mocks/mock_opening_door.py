@@ -4,7 +4,7 @@ import rclpy
 import rclpy.action
 import rclpy.node
 
-from rclpy.action import ActionServer, GoalResponse
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from std_srvs.srv import SetBool
@@ -33,6 +33,7 @@ class OpenDoor(rclpy.node.Node):
             self._execute_callback,
             callback_group=self.cb_group,
             goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback,
         )
 
     def _srv_detection_enable(self, request, response):
@@ -55,6 +56,10 @@ class OpenDoor(rclpy.node.Node):
             self._action_counter -= 1
             time.sleep(0.1)  # sleep 0.1s
         return True
+
+    def _cancel_callback(self, goal_handle):
+        self.get_logger().info("Received an action cancel request.")
+        return CancelResponse.ACCEPT
 
     def _execute_callback(self, goal_handle):
         self.get_logger().info("Received a  action goal.")

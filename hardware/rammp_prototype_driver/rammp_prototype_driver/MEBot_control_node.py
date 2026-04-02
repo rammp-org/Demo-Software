@@ -96,6 +96,11 @@ class MEBotControlNode(Node):
         # timer for serial data reading
         self.serial_timer = self.create_timer(self.serial_rate, self.read_serial_data)
 
+        # Fields to store sequence player data
+        self.current_seq = 0
+        self.seq_length = 0
+        self.seq_mode = 0  # 1= interpolating, 2 = settling, 0 = idle/complete
+
         ### Fields to store incoming data from serial for publishing in ROS messages
         # IMU
         self.imu_pitch = 0.0
@@ -207,6 +212,13 @@ class MEBotControlNode(Node):
             ):  # check if data is in expected list format
                 data = ast.literal_eval(raw_data)
                 self.update_data(data)  # Update variables with new data
+            if raw_data.startswith(
+                "SEQ_STATUS"
+            ):  # parsing and storing information about sequence player if running
+                split_data = raw_data.split(",")
+                self.current_seq = split_data[1]
+                self.seq_length = split_data[2]
+                self.seq_mode = split_data[3].strip()
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -409,7 +421,7 @@ class MEBotControlNode(Node):
         self.get_logger().error("Service call failed")
 
     def curb_traverse_action_callback(self, goal):
-        # TODO: add checkpoint here checking if CA_flag or descending flag is at starting/default state, curb traversal should not be called if MEBot already in curb traversal (default flag is 0)
+        # TODO: add checkpoint here checking if sequence flag is at starting/default state, curb traversal should not be called if MEBot already in curb traversal (default flag is 0)
         # TODO: add descending flag
         if goal.request.direction == 1:
             self.write_serial_data("c\n")
@@ -420,13 +432,13 @@ class MEBotControlNode(Node):
         result = CurbTraverse.Result()
 
         # Poll CA_flag until the final step is reached
-        while self.CA_flag != 9:
+        while self.current_seq != self.seq_length and self.seq_mode != 0:
             if goal.is_cancel_requested:
                 goal.canceled()
                 result.success = False
                 return result
 
-            feedback_msg.ca_flag = self.CA_flag
+            feedback_msg.current_seq = self.current_seq
             goal.publish_feedback(feedback_msg)
 
             time.sleep(0.05)
@@ -434,6 +446,11 @@ class MEBotControlNode(Node):
         # TODO: Make success true or false depending on information given by teensy that states whether or not curb traversal succeeded
         goal.succeed()
         result.success = True
+
+        # reset sequence player data
+        self.current_seq = 0
+        self.seq_length = 0
+        self.seq_mode = 0
         return result
 
     def drive_enable_callback(self, request, response):

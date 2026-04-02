@@ -67,11 +67,15 @@ class MEBotControlNode(Node):
         serial_port = (
             self.get_parameter("serial_port").get_parameter_value().string_value
         )
-        self.ser = serial.Serial(
-            port=serial_port,
-            baudrate=115200,
-            timeout=1,
-        )
+
+        try:
+            self.ser = serial.Serial(
+                port=serial_port,
+                baudrate=115200,
+                timeout=1,
+            )
+        except serial.SerialException:
+            self.ser = None
 
         # diagnostics updater init
         self.updater = diagnostic_updater.Updater(self)
@@ -193,6 +197,8 @@ class MEBotControlNode(Node):
 
     # reading incoming serial data from teensy
     def read_serial_data(self):
+        if self.ser is None:
+            return
         line = self.ser.readline()
         if line:
             raw_data = line.decode("utf-8", errors="replace").strip()
@@ -203,6 +209,8 @@ class MEBotControlNode(Node):
                 self.update_data(data)  # Update variables with new data
 
     def write_serial_data(self, data):
+        if self.ser is None:
+            return
         self.ser.write(data.encode("utf-8"))
 
     # update variables to be published
@@ -356,7 +364,10 @@ class MEBotControlNode(Node):
         return stat
 
     def check_teensy_connection(self, stat):
-        if self.ser.is_open:
+        if self.ser is None:
+            stat.add("connection_status", "not found")
+            stat.summary(DiagnosticStatus.ERROR, "Serial port unavailable")
+        elif self.ser.is_open:
             stat.add("connection_status", "connected")
             stat.summary(DiagnosticStatus.OK, "Teensy is connected")
         else:

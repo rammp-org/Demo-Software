@@ -453,14 +453,14 @@ class MEBotControlNode(Node):
             self.write_serial_data("r\n")
             pass
 
-        response.success = True
+        response.success = True  # just acknowledges request recieved and sent
         return response
 
 
 def main(args=None):
     rclpy.init(args=args)
     node = MEBotControlNode()
-    executor = MultiThreadedExecutor()  # for action server
+    executor = MultiThreadedExecutor()
     executor.add_node(node)
 
     executor.spin()

@@ -1337,6 +1337,7 @@ class ControlPanel(QWidget):
             )
 
         self._serial_handler.seq_auto_run(True)
+        self._serial_handler.seq_step_forward()
 
     def _update_status(self):
         """Update the status display with current values."""

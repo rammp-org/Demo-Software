@@ -139,7 +139,6 @@ void sendTelemetry() {
     n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_velocities[i]);
   for (int i = 0; i < 2; i++)
     n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_pwms[i]);
-
   for (int i = 0; i < 2; i++)
     n += snprintf(buf + n, sizeof(buf) - n, ",%d", telemetry.drive_modes[i]);
   for (int i = 0; i < 2; i++)

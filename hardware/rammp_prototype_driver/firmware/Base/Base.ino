@@ -92,7 +92,7 @@ MotorEntry motor_map[8] = {
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
 StrainGauge sg_rc(RC_LOADCELL_PIN, 0.8f);
 StrainGauge sg_fc(FC_LOADCELL_PIN, 0.8f);
-StrainGauge sg_ml(ML_LOADCELL_PIN, 0.f);
+StrainGauge sg_ml(ML_LOADCELL_PIN, 0.8f);
 StrainGauge sg_mr(MR_LOADCELL_PIN, 0.8f);
 
 int16_t scaled_mlc_pwm;
@@ -107,7 +107,7 @@ int16_t scaled_mr_pwm;
 
 const float CARRIAGE_LEVEL_TARGET = 100.0f;
 const float CARRIAGE_LEVEL_TOLERANCE = 200.0f;
-const float PITCH_TRIM_DEG = 5.0f;
+const float PITCH_TRIM_DEG = 3.0f;
 const unsigned long LEVEL_BLEND_MS = 2000;
 
 void runSelfLeveling(float dt) {
@@ -149,8 +149,12 @@ void runSelfLeveling(float dt) {
     hold_fc = fc.current_pos;
   }
 
-  // Get raw orientation from IMU
-  imu::Quaternion q_meas = IMU.current_quat;
+  // offset IMU reading
+  double trim_rad = (PITCH_TRIM_DEG * PI / 180.0) / 2.0;
+  imu::Quaternion q_trim(cos(trim_rad), sin(trim_rad), 0.0, 0.0);
+
+  // Apply trim to measured orientation before error calculation
+  imu::Quaternion q_meas = q_trim * IMU.current_quat;
 
   // Construct target quaternion manually to avoid API differences in
   // fromAxisAngle Note: BNO055 defines Pitch as rotation around X, Roll as
@@ -184,12 +188,8 @@ void runSelfLeveling(float dt) {
   else
     err_y = asin(sinp) * (180.0 / PI); // Pitch error mapped to Y
 
-  // Remove the ~180 degree mounting offset from err_x before use
-  float err_x_corrected = err_x - 180.0f + PITCH_TRIM_DEG;
-  if (err_x_corrected < -180.0f) err_x_corrected += 360.0f;
-
   // Convert exact, continuous error angles to radians
-  float dpitchrd = err_x_corrected / DG; // BNO X = Robot Pitch
+  float dpitchrd = err_x / DG; // BNO X = Robot Pitch
   float drollrd = err_y / DG;  // BNO Y = Robot Roll
 
   // Deadband to prevent jitter
@@ -223,29 +223,6 @@ void runSelfLeveling(float dt) {
   // Combine IMU error with FK offset for slope-aware correction
   float dpitch_total = dpitchrd + pitch_fk;
   float droll_total = drollrd + roll_fk;
-
-  // --- Debug: verify FK math before enabling motor dispatch ---
-  Serial.print("self-level-calc: z_cur ML=");
-  Serial.print(z_cur_ml, 3);
-  Serial.print(" RC=");
-  Serial.print(z_cur_rc, 3);
-  Serial.print(" MR=");
-  Serial.println(z_cur_mr, 3);
-
-  Serial.print("self-level-calc: IMU err pitch=");
-  Serial.print(dpitchrd, 4);
-  Serial.print(" roll=");
-  Serial.println(drollrd, 4);
-
-  Serial.print("self-level-calc: FK pitch=");
-  Serial.print(pitch_fk, 4);
-  Serial.print(" roll=");
-  Serial.println(roll_fk, 4);
-
-  Serial.print("self-level-calc: total pitch=");
-  Serial.print(dpitch_total, 4);
-  Serial.print(" roll=");
-  Serial.println(droll_total, 4);
 
   // Build rotation matrix (combining pitch and roll)
   double rotm[4][4] = {0};

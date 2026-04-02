@@ -12,8 +12,9 @@ public:
   // working
   // TODO: Enc4 and Enc6 were switched because Enc4 connection seems to freeze
   // loop
-  Encoder Enc1 = Encoder(1, 0);    // RC bottom         (1,0)
-  Encoder Enc2 = Encoder(3, 2);    // RC top            (3,2)
+  // TODO: Enc1 and Enc2 are switched because of shock absorber, trying to find one that drifts less
+  Encoder Enc2 = Encoder(1, 0);    // RC bottom         (1,0)
+  Encoder Enc1 = Encoder(3, 2);    // RC top            (3,2)
   Encoder Enc3 = Encoder(5, 4);    // FC top            (5,4)
   Encoder Enc6 = Encoder(7, 6);    // FC bottom         (7,6)
   Encoder Enc5 = Encoder(9, 8);    // ML drive wheel    (9,8)

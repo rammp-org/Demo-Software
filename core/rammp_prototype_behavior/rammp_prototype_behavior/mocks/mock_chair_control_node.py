@@ -7,7 +7,9 @@ from rammp_prototype_interfaces.action import CurbTraverse
 
 # custom msgs/srvs
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
-from rclpy.action import ActionServer, GoalResponse
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool, String
@@ -142,12 +144,15 @@ class BaseControlNode(Node):
         # actions
         self._action_running = False
         self._action_counter = 0
+        self._action_cb_group = ReentrantCallbackGroup()
         self.curb_traverse_action = ActionServer(
             self,
             CurbTraverse,
             "/base/curb_traverse",
             self._execute_callback,
             goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback,
+            callback_group=self._action_cb_group,
         )
 
     def _init_subscribers(self):
@@ -369,6 +374,7 @@ class BaseControlNode(Node):
         if not self.publish_feedback(goal_handle):  # canceled during action process
             result = CurbTraverse.Result()
             self._action_running = False
+            result.success = False
             return result
         self.get_logger().info("Action execution finished.")
         # mock result
@@ -382,6 +388,10 @@ class BaseControlNode(Node):
             goal_handle.abort()
             result.success = False
         return result
+
+    def _cancel_callback(self, goal_handle):
+        self.get_logger().info("Received a cancel request.")
+        return CancelResponse.ACCEPT
 
     def _goal_callback(self, goal_request):
         # goal_callback receives the Goal request message, not a goal handle.
@@ -419,7 +429,9 @@ class BaseControlNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = BaseControlNode()
-    rclpy.spin(node)
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    executor.spin()
     rclpy.shutdown()
 
 

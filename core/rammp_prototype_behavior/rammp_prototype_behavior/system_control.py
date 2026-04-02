@@ -540,7 +540,6 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Nav_paused(self):
         self.get_logger().debug("Navigation is paused.")
         self.base_drive_enable(False)  # disable base drive to pause navigation
-        self.curb_traverse_client.cancel_goal()
 
     def on_enter_Arm_retracting(self):
         self.get_logger().info("Retracting arm to prepare for next action.")
@@ -576,7 +575,7 @@ class SystemControl(rclpy.node.Node):
 
     def on_enter_Nav_canceling(self):
         self.get_logger().info("Navigation canceling requested.")
-        self.curb_traverse_client.cancel_goal()
+        self.curb_traverse_client.cancel()
         self.enable_curb_detection(False)
 
     # --------------------end of Door Open State Transition Functions------------------------

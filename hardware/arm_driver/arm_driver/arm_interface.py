@@ -156,7 +156,7 @@ class KinovaArm:
             in [Common_pb2.BIG_ACTUATOR, Common_pb2.SMALL_ACTUATOR]
         ]
         self.send_options = RouterClientSendOptions()
-        self.send_options.timeout_ms = 3
+        self.send_options.timeout_ms = 50
 
         # clear faults
         self.clear_faults()
@@ -298,7 +298,7 @@ class KinovaArm:
         self.move_angular(intermediate_zero_config)
 
     def get_ee_force(self):
-        base_feedback = self.base_cyclic.RefreshFeedback()
+        base_feedback = self.base_cyclic.RefreshFeedback(options=self.send_options)
         ee_force = np.array(
             [
                 base_feedback.base.tool_external_wrench_force_x,
@@ -309,7 +309,7 @@ class KinovaArm:
         return ee_force
 
     def get_state(self):
-        base_feedback = self.base_cyclic.RefreshFeedback()
+        base_feedback = self.base_cyclic.RefreshFeedback(options=self.send_options)
 
         q, dq, tau = (
             np.zeros(self.actuator_count),

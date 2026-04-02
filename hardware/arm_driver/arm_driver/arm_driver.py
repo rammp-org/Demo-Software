@@ -1,3 +1,4 @@
+import concurrent.futures
 import enum
 import time
 
@@ -621,7 +622,14 @@ class ArmDriverNode(rclpy.node.Node):
         pos_msg.header.stamp = stamp
 
         if self._arm:
-            state = self._arm.get_state()
+            try:
+                state = self._arm.get_state()
+            except (TimeoutError, concurrent.futures.TimeoutError):
+                self.get_logger().warn(
+                    "RefreshFeedback timed out — skipping publish cycle",
+                    throttle_duration_sec=1.0,
+                )
+                return
             joint_msg.name = [
                 f"joint_{i + 1}" for i in range(self._arm.actuator_count)
             ] + ["robotiq_85_left_knuckle_joint"]

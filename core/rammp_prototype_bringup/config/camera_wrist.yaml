@@ -1,0 +1,14 @@
+# camera_wrist.yaml
+# ============================================================
+# Camera Configuration — Wrist Camera Only
+# ============================================================
+# Use when only the RealSense D435i wrist camera is connected.
+#
+# Usage:
+#   ros2 launch rammp_prototype_bringup camera.launch.py \
+#       params_file:=<path>/camera_wrist.yaml
+# ============================================================
+
+disable_realsense: false
+disable_orbbec: true
+disable_nav2: true

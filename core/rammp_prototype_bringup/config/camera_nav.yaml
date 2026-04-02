@@ -1,0 +1,15 @@
+# camera_nav.yaml
+# ============================================================
+# Camera Configuration — Nav + Nav2 Cameras
+# ============================================================
+# Use when both Orbbec Gemini 336L cameras are connected
+# but the RealSense D435i wrist camera is not.
+#
+# Usage:
+#   ros2 launch rammp_prototype_bringup camera.launch.py \
+#       params_file:=<path>/camera_nav.yaml
+# ============================================================
+
+disable_realsense: true
+disable_orbbec: false
+disable_nav2: false

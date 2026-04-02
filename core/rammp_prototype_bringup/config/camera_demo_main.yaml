@@ -1,0 +1,14 @@
+# camera_demo_main.yaml
+# ============================================================
+# April Demo — Default Camera Configuration
+# ============================================================
+# All three cameras enabled: RealSense wrist, Orbbec nav, Orbbec nav2.
+#
+# Usage:
+#   ros2 launch rammp_prototype_bringup camera.launch.py \
+#       params_file:=<path>/camera_demo_main.yaml
+# ============================================================
+
+disable_realsense: false
+disable_orbbec: false
+disable_nav2: false

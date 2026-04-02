@@ -22,10 +22,10 @@ disable_nav2: false
   ros__parameters:
     camera_name: "nav"
     base_frame_id: "nav_camera_link"
-    serial_number: ""
+    serial_number: "CPCG8530003P"
 
 /camera/nav2:
   ros__parameters:
     camera_name: "nav2"
     base_frame_id: "nav2_camera_link"
-    serial_number: ""
+    serial_number: "CPCG853000HF"

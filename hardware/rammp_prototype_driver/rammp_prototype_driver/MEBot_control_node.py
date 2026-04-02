@@ -75,8 +75,9 @@ class MEBotControlNode(Node):
 
         # diagnostics updater init
         self.updater = diagnostic_updater.Updater(self)
-        self.updater.setHardwareID("LUCI")
-        self.updater.add("LUCI Status", self.check_luci_node)
+        self.updater.setHardwareID("MEBot")
+        self.updater.add("LUCI status", self.check_luci_node)
+        self.updater.add("Teensy status", self.check_teensy_connection)
 
         # Data transfer rates
         # Rate to read data from serial
@@ -352,6 +353,15 @@ class MEBotControlNode(Node):
             stat.add("node_status", "active")
             stat.summary(DiagnosticStatus.OK, "Luci node running")
 
+        return stat
+
+    def check_teensy_connection(self, stat):
+        if self.ser.is_open:
+            stat.add("connection_status", "connected")
+            stat.summary(DiagnosticStatus.OK, "Teensy is connected")
+        else:
+            stat.add("connection_status", "disconnected")
+            stat.summary(DiagnosticStatus.ERROR, "Teensy is disconnected")
         return stat
 
     def manual_seat_control_callback(self, msg):

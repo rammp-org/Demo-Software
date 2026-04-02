@@ -6,8 +6,8 @@ The `PIDController` class (`src/PIDController/PIDController.cpp`) is a generic, 
 
 ```
 src/PIDController/
-├── PIDController.h   (32 lines)  — Public interface and state members
-└── PIDController.cpp (77 lines)  — Compute logic, anti-windup, LPF
+├── PIDController.h   — Public interface and state members
+└── PIDController.cpp — Compute logic, anti-windup, LPF
 ```
 
 ### Key Members

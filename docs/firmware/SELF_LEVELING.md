@@ -1,18 +1,31 @@
 # Self-Leveling Kinematics
 
-The `runSelfLeveling(float dt)` function in `Base.ino` (Lines 207–312) implements the closed-loop kinematics that keeps the robot chassis horizontal against an inclined surface. It is invoked each `loop()` cycle when the system is in the `SELF_LEVELING` state.
+The `runSelfLeveling(float dt)` function in `Base.ino` (Lines 105-318, signature at line 113) implements the closed-loop kinematics that keeps the robot chassis horizontal against an inclined surface. It runs each `loop()` cycle when the system is in the `SELF_LEVELING` state.
 
-The algorithm takes the current IMU orientation, computes the angular error to a configurable target (pitch/roll), builds a 3D rotation matrix representing that error, applies it to the robot's chassis geometry, and dispatches the resulting leg height targets to the motor controllers.
+The algorithm takes the current IMU orientation, computes the angular error to a target (pitch/roll), builds a 3D rotation matrix representing that error, applies it to the robot's chassis geometry, and dispatches the resulting leg height targets to the motor controllers.
 
 ______________________________________________________________________
 
 ## Overview: What It Solves
 
-The MEBot has independently height-adjustable legs. When the robot is on a slope, these legs can be extended or retracted differentially to keep the chassis parallel to the ground (or any other target orientation). Self-leveling converts an angular orientation error into a set of target encoder positions for 5 of the 6 joints.
+The MEBot has independently height-adjustable legs. When the robot is on a slope, these legs can be extended or retracted differentially to keep the chassis parallel to the ground. Self-leveling converts an angular orientation error into a set of target encoder positions for the joints.
 
 ______________________________________________________________________
 
-## Step 1 — IMU Error Quaternion (Lines 216–245)
+## Step 1 — Carriage Pre-Positioning (Lines 125, 140)
+
+Before the Inverse Kinematics (IK) engages, the carriages must move to a stable baseline position.
+
+```cpp
+ml_carriage.setTargetPosition(CARRIAGE_LEVEL_TARGET);
+mr_carriage.setTargetPosition(CARRIAGE_LEVEL_TARGET);
+```
+
+The IK logic only activates once both carriages are within `CARRIAGE_LEVEL_TOLERANCE` (200.0 ticks) of the `CARRIAGE_LEVEL_TARGET` (100.0 ticks). While waiting, the legs hold their current positions to prevent movement before the geometry is ready.
+
+______________________________________________________________________
+
+## Step 2 — IMU Error Quaternion (Lines 152, 186)
 
 ### Getting the Measured Orientation
 
@@ -20,25 +33,21 @@ ______________________________________________________________________
 imu::Quaternion q_meas = IMU.current_quat;
 ```
 
-`current_quat` is the **swing quaternion** — yaw has been removed by `IMU_Class::extractSwing()`. This ensures the self-leveling controller only responds to tilt, not to the robot rotating in place. See [IMU Layer](IMU_LAYER.md) for details on swing decomposition.
+`current_quat` is the swing quaternion. Yaw has been removed by `IMU_Class::extractSwing()`. This ensures the self-leveling controller only responds to tilt, not to the robot rotating in place.
 
 ### Building the Target Quaternion
 
-The target orientation is stored as two float globals, `target_pitch` and `target_roll` (degrees), updated by the `A1` and `A2` commands. A target of `pitch=0, roll=0` means perfectly level.
-
-Because the IMU is mounted upside down, the BNO055's Roll axis has a +180° physical offset (handled in software by `IMU_Class`). The target quaternion must encode this same offset to keep the coordinate frames consistent:
+The target orientation is stored as two float globals, `target_pitch` and `target_roll` (degrees). A target of `pitch=0, roll=0` means perfectly level.
 
 ```cpp
 double p_rad = (target_pitch * PI / 180.0) / 2.0;
 imu::Quaternion q_target_pitch(cos(p_rad), sin(p_rad), 0.0, 0.0);
 
-double r_rad = ((target_roll - 180.0) * PI / 180.0) / 2.0;  // -180° offset
+double r_rad = (target_roll * PI / 180.0) / 2.0;
 imu::Quaternion q_target_roll(cos(r_rad), 0.0, sin(r_rad), 0.0);
 
 imu::Quaternion q_target = q_target_pitch * q_target_roll;
 ```
-
-The `/2.0` is the standard half-angle convention for quaternion construction.
 
 ### Computing the Error Quaternion
 
@@ -46,123 +55,109 @@ The `/2.0` is the standard half-angle convention for quaternion construction.
 imu::Quaternion q_err = q_target * q_meas.conjugate();
 ```
 
-`q_meas.conjugate()` is the quaternion inverse (since it is unit-length). Multiplying `q_target` by the inverse of `q_meas` gives the **rotation required** to go from the current orientation to the target orientation.
+Multiplying `q_target` by the inverse of `q_meas` gives the rotation required to go from the current orientation to the target orientation.
 
-### Extracting Pitch and Roll Error Angles (Lines 236–245)
+### Extracting Error Angles (Lines 171, 193)
 
-The error quaternion is converted back to pitch and roll angles using the same aerospace Euler decomposition as the IMU class:
+The error quaternion is converted back to pitch and roll angles. Because the IMU is mounted upside down, the Roll axis has a 180 degree physical offset.
 
 ```cpp
 double err_x = atan2(sinr_cosp, cosr_cosp) * (180.0 / PI); // Roll error
 double err_y = asin(sinp) * (180.0 / PI);                  // Pitch error
+
+float err_x_corrected = err_x - 180.0f + PITCH_TRIM_DEG;
+if (err_x_corrected < -180.0f) err_x_corrected += 360.0f;
 ```
 
-Converting to radians and applying a deadband:
+`PITCH_TRIM_DEG` (5.0 degrees) is added to the roll error to correct for mounting misalignment. The resulting angles are converted to radians:
 
 ```cpp
-float dpitchrd = 1.0f * (err_x / DG);  // DG = 180/π, converts degrees to radians
-float drollrd  = 1.0f * (err_y / DG);
-
-if (fabs(dpitchrd) < 0.001) dpitchrd = 0.0;
-if (fabs(drollrd)  < 0.001) drollrd  = 0.0;
+float dpitchrd = err_x_corrected / DG; // BNO X = Robot Pitch
+float drollrd = err_y / DG;            // BNO Y = Robot Roll
 ```
 
-The deadband (~0.057°) prevents jitter when the error is near zero and would otherwise produce tiny oscillating PWM commands.
-
-**Why use quaternions instead of working directly in Euler angles?**
-Using the quaternion error decomposition avoids the ±180° wraparound problem. If `q_meas` is at 175° Roll and `target_roll` is -175°, the Euler difference would be ±350° but the quaternion approach correctly returns a ±10° rotation — no discontinuity.
+A deadband of 0.01 rad (approx 0.57 degrees) prevents jitter when the error is near zero.
 
 ______________________________________________________________________
 
-## Step 2 — Rotation Matrix Construction (Lines 255–275)
+## Step 3 — Forward Kinematics Offset (Lines 201, 225)
 
-The pitch and roll error angles are composed into a standard 4×4 homogeneous rotation matrix. This is a combined Rotation_X (pitch) and Rotation_Y (roll) matrix:
+The controller computes the pitch and roll that the current wheel heights impose on the chassis geometry. This FK offset is added to the IMU error. Without it, the controller would command all legs to a uniform baseline when the IMU error reaches zero, which would undo the slope correction.
 
+The linearized derivation from the mebot geometry matrix:
+
+```cpp
+float z_cur_ml = ml.current_pos / ML_CM_TO_TICKS;
+float z_cur_rc = rc.current_pos / RC_CM_TO_TICKS;
+float z_cur_mr = mr.current_pos / MR_CM_TO_TICKS;
+
+float pitch_fk = -((z_cur_ml + z_cur_mr) / 2.0f - z_cur_rc) / 68.0f;
+float roll_fk = (z_cur_mr - z_cur_ml) / 62.0f;
+
+float dpitch_total = dpitchrd + pitch_fk;
+float droll_total = drollrd + roll_fk;
 ```
-        ┌ cos(p)          0      sin(p)     0 ┐
-rotm =  │ sin(r)·sin(p)  cos(r) -sin(r)·cos(p) 0 │
-        │ -cos(r)·sin(p)  sin(r)  cos(r)·cos(p) Z │
-        └ 0               0       0             1 ┘
-```
-
-Where `p = dpitchrd`, `r = drollrd`, and `Z = 9.5` (the baseline chassis height above ground in centimeters, `rotm[2][3]`).
-
-The 4th row and column are the homogeneous convention — they allow the rotation and translation (Z height) to be combined in one matrix multiply.
-
-**Why hardcode Z = 9.5 cm?** This is the nominal Z height of the chassis contact points above the ground when the legs are at their neutral extension. This offset ensures the leg height targets computed by the matrix are absolute heights from ground, not pure rotational displacements.
 
 ______________________________________________________________________
 
-## Step 3 — Chassis Geometry Matrix (Lines 278–284)
+## Step 4 — Rotation Matrix Construction (Lines 250, 270)
 
-The `mebot` matrix encodes the physical (X, Y) positions of the four leg contact points relative to the chassis center, in centimeters:
+The total pitch and roll errors are composed into a 4x4 homogeneous rotation matrix:
+
+```cpp
+rotm[0][0] = cos(dpitch_total);
+rotm[0][2] = sin(dpitch_total);
+rotm[1][0] = sin(droll_total) * sin(dpitch_total);
+rotm[1][1] = cos(droll_total);
+rotm[1][2] = -1 * sin(droll_total) * cos(dpitch_total);
+rotm[2][0] = -1 * cos(droll_total) * sin(dpitch_total);
+rotm[2][1] = sin(droll_total);
+rotm[2][2] = cos(droll_total) * cos(dpitch_total);
+rotm[2][3] = 9.5; // Baseline Z height (cm)
+```
+
+`Z = 9.5` is the nominal chassis height above ground.
+
+______________________________________________________________________
+
+## Step 5 — Matrix Multiplication (Lines 272, 289)
+
+The `mebot` matrix encodes the physical (X, Y) positions of the leg contact points in centimeters:
 
 ```cpp
 double mebot[4][4] = {
-    {-34, 34,  34, -34},  // X (left/right) — cm
-    {-31, -11, 11,  31},  // Y (front/back) — cm
-    {  0,   0,  0,   0},  // Z (all at ground plane initially)
-    {  1,   1,  1,   1}   // Homogeneous coordinate
+    {-34, 34, 34, -34}, // X
+    {-31, -11, 11, 31}, // Y
+    {0, 0, 0, 0},       // Z
+    {1, 1, 1, 1}        // Homogeneous
 };
 ```
 
-Column assignment (left to right):
-
-| Column | Joint | Description                                              |
-| ------ | ----- | -------------------------------------------------------- |
-| 0      | `ml`  | Main Left wheel — far left, rear                         |
-| 1      | `rc`  | Rear Caster — right of center, rear                      |
-| 2      | `rc`  | Rear Caster — left of center, rear (averaged with col 1) |
-| 3      | `mr`  | Main Right wheel — far right, rear                       |
-
-> **Note:** Columns 1 and 2 both represent the rear caster's two contact points (or the left/right side of the caster footprint). They are averaged together to produce a single Z target for the rear caster actuator.
+`newmebot = rotm × mebot` applies the rotation to each leg's position. Row 2 of the result gives the required Z height for each contact point.
 
 ______________________________________________________________________
 
-## Step 4 — Matrix Multiplication (Lines 287–294)
+## Step 6 — Target Extraction and Blending (Lines 291, 310)
+
+The Z targets (cm) are extracted and converted to encoder ticks using per-joint constants:
 
 ```cpp
-double newmebot[4][4] = {0};
-for (int row = 0; row < 4; row++) {
-    for (int col = 0; col < 4; col++) {
-        for (int inner = 0; inner < 4; inner++) {
-            newmebot[row][col] += rotm[row][inner] * mebot[inner][col];
-        }
-    }
-}
+float ik_ml = z_target_ml * ML_CM_TO_TICKS;
+float ik_mr = z_target_mr * MR_CM_TO_TICKS;
+float ik_rc = z_target_rc * RC_CM_TO_TICKS;
+float ik_fc = FC_MAX_TICKS;
 ```
 
-`newmebot = rotm × mebot`
-
-This applies the rotation to each leg's XY position. The result is a new set of 3D coordinates representing where each leg contact point needs to be after the tilt correction is applied. Row 2 of `newmebot` gives the required Z height for each column (contact point).
-
-______________________________________________________________________
-
-## Step 5 — Target Extraction and Dispatch (Lines 297–311)
+To prevent violent jerks when IK first engages, the system blends from the initial hold positions to the IK targets over a 2 second period (`LEVEL_BLEND_MS = 2000`):
 
 ```cpp
-float z_target_ml = newmebot[2][0];
-float z_target_rc = (newmebot[2][1] + newmebot[2][2]) / 2.0; // Average caster sides
-float z_target_mr = newmebot[2][3];
+float blend = min(1.0f, (float)(millis() - blend_start) / (float)LEVEL_BLEND_MS);
+
+ml.setTargetPosition(hold_ml + blend * (ik_ml - hold_ml));
+mr.setTargetPosition(hold_mr + blend * (ik_mr - hold_mr));
+rc.setTargetPosition(hold_rc + blend * (ik_rc - hold_rc));
+fc.setTargetPosition(hold_fc + blend * (ik_fc - hold_fc));
 ```
-
-The caster target averages the two columns to get a single height. The Z targets (in cm) are converted to encoder ticks using the `CM_TO_TICKS` constant (currently `17.5 ticks/cm`, see `Constants.h`):
-
-```cpp
-ml.setTargetPosition(z_target_ml * ML_CM_TO_TICKS);
-mr.setTargetPosition(z_target_mr * MR_CM_TO_TICKS);
-rc.setTargetPosition(z_target_rc * RC_CM_TO_TICKS);
-```
-
-The front caster and both carriages are given fixed targets, not dynamically computed ones:
-
-```cpp
-ml_carriage.setTargetPosition(0.1f * CARRIAGE_CM_TO_TICKS); // ~1.75 ticks, near zero
-mr_carriage.setTargetPosition(0.1f * CARRIAGE_CM_TO_TICKS);
-fc.setTargetPosition(FC_MAX_TICKS); // Hardcoded to 0.0 (FC_MAX_TICKS = 0.0f)
-```
-
-This means during self-leveling, only `ml`, `mr`, and `rc` are actively computing geometry-derived targets. The carriages hold a near-zero retracted position, and `fc` is held at its top-of-range (`0.0` ticks, which due to encoder direction and range is the fully-extended position).
 
 ______________________________________________________________________
 
@@ -170,32 +165,45 @@ ______________________________________________________________________
 
 ```mermaid
 flowchart TD
-    IMU[IMU current_quat\nswing quaternion] --> QErr["q_err = q_target × q_meas⁻¹\n(rotation required to level)"]
-    TargetPR[target_pitch / target_roll\nfrom A1 / A2 commands] --> QTarget[q_target quaternion]
+    Start[runSelfLeveling] --> CarrTarget[Set Carriage Targets\nCARRIAGE_LEVEL_TARGET=100.0]
+    CarrTarget --> CarrCheck{Carriages within\nTOLERANCE=200.0?}
+    
+    CarrCheck -- No --> Hold[Hold current leg positions\nWait for carriages]
+    CarrCheck -- Yes --> IKActive{IK was active?}
+    
+    IKActive -- No --> Capture[Capture hold_pos\nStart 2s blend timer]
+    Capture --> IMU
+    IKActive -- Yes --> IMU
+    
+    IMU[IMU current_quat] --> QErr["q_err = q_target × q_meas⁻¹"]
+    TargetPR[target_pitch / target_roll] --> QTarget[q_target quaternion]
     QTarget --> QErr
-
-    QErr --> EulerErr["dpitchrd, drollrd\n(extract X/Y error angles)"]
-    EulerErr --> Deadband["Deadband ±0.001 rad"]
+    
+    QErr --> EulerErr["err_x, err_y\n(Euler extraction)"]
+    EulerErr --> CorrectX["err_x_corrected = err_x - 180.0 + 5.0\n(Mounting + Trim)"]
+    CorrectX --> Rads["dpitchrd, drollrd\n(Radians)"]
+    
+    Rads --> FK["Compute FK Offset\npitch_fk, roll_fk\nfrom current wheel heights"]
+    FK --> TotalErr["dpitch_total = dpitchrd + pitch_fk\ndroll_total = drollrd + roll_fk"]
+    
+    TotalErr --> Deadband["Deadband ±0.01 rad"]
     Deadband --> RotM["Build 4×4 Rotation Matrix\nrotm (pitch × roll + Z=9.5cm)"]
-
-    RotM --> MatMul["newmebot = rotm × mebot\n(apply tilt to leg positions)"]
-    ChassisGeo["mebot\nChassis Geometry\n4 contact points in cm"] --> MatMul
-
-    MatMul --> ExtractZ["Extract Row 2\n(Z heights per contact point)"]
-    ExtractZ --> ML["ml.setTargetPosition()\nz_ml × 17.5 ticks/cm"]
-    ExtractZ --> MR["mr.setTargetPosition()\nz_mr × 17.5 ticks/cm"]
-    ExtractZ --> RC["rc.setTargetPosition()\navg(z_rc_L, z_rc_R) × 17.5 ticks/cm"]
-    ExtractZ --> FC["fc.setTargetPosition()\nFC_MAX_TICKS (fixed)"]
-    ExtractZ --> Carr["carriages.setTargetPosition()\n0.1cm × 17.5 (fixed)"]
+    
+    RotM --> MatMul["newmebot = rotm × mebot"]
+    ChassisGeo["mebot\nChassis Geometry"] --> MatMul
+    
+    MatMul --> ExtractZ["Extract Row 2\n(Z targets in cm)"]
+    ExtractZ --> Blend["Apply 2s Blend\n(hold_pos to IK targets)"]
+    
+    Blend --> Dispatch["Set Motor Targets\n(Ticks per joint)"]
 ```
 
 ______________________________________________________________________
 
 ## Known Limitations and TODOs
 
-| Issue                                     | Location           | Notes                                                                                                                                     |
-| ----------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `CM_TO_TICKS = 17.5` is approximate       | `Constants.h:23`   | Comment says "Roughly 350 ticks per 20cm" — needs physical calibration per joint                                                          |
-| `FC_MAX_TICKS = 0.0f`                     | `Constants.h:28`   | FC is hardcoded to tick value 0 — verify this is actually the top-of-range for FC's encoder direction                                     |
-| Front caster not included in geometry     | `Base.ino:307-311` | The `mebot` geometry matrix has 4 columns (ML, RC_L, RC_R, MR) — FC is not geometrically coupled. Its contribution to leveling is ignored |
-| `CM_TO_TICKS` is shared across all joints | `Constants.h`      | Main wheels and casters likely have different linear travel per tick — per-joint calibration constants are needed                         |
+| Issue                                 | Location           | Notes                                                                                                                                     |
+| ------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `FC_MAX_TICKS = 0.0f`                 | `Constants.h:28`   | FC is hardcoded to tick value 0. Verify this is the top-of-range for FC's encoder direction.                                              |
+| Front caster not included in geometry | `Base.ino:304-309` | The `mebot` geometry matrix has 4 columns (ML, RC_L, RC_R, MR). FC is not geometrically coupled. Its contribution to leveling is ignored. |
+| Per-joint `CM_TO_TICKS` calibration   | `Constants.h:24-26`| ML (~20.1), MR (~21.1), and RC (~36.7) use specific constants. These require periodic validation against physical travel.                  |

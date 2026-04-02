@@ -18,20 +18,20 @@ The Teensy 4.1 has dedicated hardware quadrature decoder pins. Each `Encoder` ob
 
 | Object  | Pins (A, B) | Physical Location (per header comment) |
 | ------- | ----------- | -------------------------------------- |
-| `Enc1`  | 3, 2        | RC top                                 |
-| `Enc2`  | 1, 0        | RC bottom                              |
+| `Enc1`  | 1, 0        | RC bottom                              |
+| `Enc2`  | 3, 2        | RC top                                 |
 | `Enc3`  | 5, 4        | FC top                                 |
-| `Enc4`  | 7, 6        | FC bottom                              |
+| `Enc6`  | 7, 6        | FC bottom                              |
 | `Enc5`  | 9, 8        | ML drive wheel                         |
-| `Enc6`  | 11, 10      | ML front                               |
+| `Enc4`  | 11, 10      | ML front                               |
 | `Enc7`  | 24, 12      | ML carriage                            |
 | `Enc8`  | 26, 25      | MR drive wheel                         |
-| `Enc9`  | 28, 27      | MR carriage                            |
-| `Enc10` | 30, 29      | MR front                               |
+| `Enc10` | 28, 27      | MR carriage                            |
+| `Enc9`  | 30, 29      | MR front                               |
 | `Enc11` | 32, 31      | ML back                                |
 | `Enc12` | 36, 37      | MR back                                |
 
-> **Note:** There is a `// TODO: switch enc1 and enc2 once they are switched back` comment in the header, indicating `Enc1` and `Enc2` were physically swapped at some point and may not yet reflect the final wiring state.
+> **Note:** The object names do **not** follow sequential ordering. `Enc4` and `Enc6` were swapped (comment: "Enc4 connection seems to freeze loop"), and `Enc9` and `Enc10` were swapped (comment: "MR carriage encoder wasn't working"). The physical pin assignments above reflect the actual wiring as declared in `EncoderContainer.h`.
 
 ______________________________________________________________________
 
@@ -42,19 +42,19 @@ This is the most important — and most confusing — aspect of this class. The 
 | Array Index (`encoderf[N]`) | Encoder Object | Physical Location | Used By Motor               |
 | --------------------------- | -------------- | ----------------- | --------------------------- |
 | `[1]`                       | `Enc2`         | RC top            | *(unused by active joints)* |
-| `[2]`                       | `Enc4`         | FC bottom         | `fc` (Joint 2)              |
+| `[2]`                       | `Enc6`         | FC bottom         | `fc` (Joint 2)              |
 | `[3]`                       | `Enc1`         | RC bottom         | `rc` (Joint 1)              |
 | `[4]`                       | `Enc3`         | FC top            | *(unused by active joints)* |
 | `[5]`                       | `Enc12`        | MR back           | `mr` (Joint 4)              |
-| `[6]`                       | `Enc6`         | ML front          | *(unused — commented out)*  |
+| `[6]`                       | `Enc4`         | ML front          | *(unused — commented out)*  |
 | `[7]`                       | `Enc11`        | ML back           | `ml` (Joint 3)              |
-| `[8]`                       | `Enc10`        | MR front          | *(unused — commented out)*  |
-| `[9]`                       | `Enc5`         | ML drive wheel    | *(unused by active joints)* |
-| `[10]`                      | `Enc8`         | MR drive wheel    | *(unused by active joints)* |
+| `[8]`                       | `Enc9`         | MR front          | *(unused — commented out)*  |
+| `[9]`                       | `Enc5`         | ML drive wheel    | `drive_fb` / `drive_lr` (Joints 7–8, via kinematics) |
+| `[10]`                      | `Enc8`         | MR drive wheel    | `drive_fb` / `drive_lr` (Joints 7–8, via kinematics) |
 | `[11]`                      | `Enc7`         | ML carriage       | `ml_carriage` (Joint 5)     |
-| `[12]`                      | `Enc9`         | MR carriage       | `mr_carriage` (Joint 6)     |
+| `[12]`                      | `Enc10`        | MR carriage       | `mr_carriage` (Joint 6)     |
 
-The Motor instances in `Base.ino` (Lines 395–400) use these specific indices:
+The Motor instances in `Base.ino` (Lines 495–514) use these specific indices:
 
 ```cpp
 rc.updateSensorData(EContr.encoderf[3], dt);
@@ -63,9 +63,15 @@ ml.updateSensorData(EContr.encoderf[7], dt);
 mr.updateSensorData(EContr.encoderf[5], dt);
 ml_carriage.updateSensorData(EContr.encoderf[11], dt);
 mr_carriage.updateSensorData(EContr.encoderf[12], dt);
+
+// Drive wheel body-frame kinematics (derived from ML + MR encoders)
+float ml_enc = EContr.encoderf[9] * ml_enc_dir;
+float mr_enc = EContr.encoderf[10] * mr_enc_dir;
+drive_fb.updateSensorData((ml_enc + mr_enc) / 2.0f, dt);
+drive_lr.updateSensorData((ml_enc - mr_enc), dt);
 ```
 
-> **There is a verified TODO in `Base.ino:393`** — "verify map encoders to motor positions (I took a guess, but I'm unsure)" — this mapping should be validated on hardware before assuming it is final.
+This mapping is defined in the centralized `motor_map[]` table (`src/MotorMap/MotorMap.h`) which maps each actuator ID to its encoder array index.
 
 The same index mapping must be mirrored in the `setup()` function for the saved-position offset restore and in the `CMD_HOME` handler. See `Base.ino:362-370` and `Base.ino:594-601`.
 

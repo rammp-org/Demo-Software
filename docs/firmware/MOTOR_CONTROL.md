@@ -1,6 +1,6 @@
 # Motor Control & PID
 
-The `Motor` class (`src/Motor/Motor.h`, `src/Motor/Motor.cpp`) is the core abstraction for moving the robot's physical joints. Six `Motor` instances exist globally in `Base.ino`: `rc`, `fc`, `ml`, `mr`, `ml_carriage`, `mr_carriage`.
+The `Motor` class (`src/Motor/Motor.h`, `src/Motor/Motor.cpp`) is the core abstraction for moving the robot's physical joints. Eight `Motor` instances exist globally in `Base.ino`: `rc`, `fc`, `ml`, `mr`, `ml_carriage`, `mr_carriage`, `drive_fb`, `drive_lr`. The first 6 are position-controlled actuators connected to RoboClaws; the last 2 are body-frame drive wheel controllers derived from ML/MR encoder kinematics (see [Joint Mapping](../shared/JOINT_MAPPING.md)).
 
 ```
 src/Motor/

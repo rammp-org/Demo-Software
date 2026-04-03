@@ -266,7 +266,7 @@ class MEBotControlNode(Node):
             if raw_data.startswith("TELEMETRY"):
                 # self.get_logger().info(raw_data)
                 data = raw_data.split(",")  # All values are str
-                self.get_logger().info(data)
+                self.get_logger().info(str(data))
                 self.update_data(data)  # Update variables with new data
             if raw_data.startswith(
                 "SEQ_STATUS"

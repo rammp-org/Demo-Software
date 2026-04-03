@@ -386,7 +386,12 @@ class MEBotControlNode(Node):
         msg.linear_acceleration.z = self.accel_z
 
         # TODO: add angular velocity
-        msg.tilt = math.acos(math.cos(self.imu_pitch) * math.cos(self.imu_roll))
+        try:
+            msg.tilt = math.acos(
+                max(-1.0, min(1.0, math.cos(self.imu_pitch) * math.cos(self.imu_roll)))
+            )
+        except ValueError:
+            msg.tilt = 0.0
 
         # state
         msg.state = self.state
@@ -442,7 +447,6 @@ class MEBotControlNode(Node):
             stat.add("connection_status", "disconnected")
             stat.summary(DiagnosticStatus.ERROR, "Teensy is disconnected")
         return stat
-
 
     # def manual_seat_control_callback(self, msg: SeatCommand):
     #     if msg.command == SeatCommand.STOP:

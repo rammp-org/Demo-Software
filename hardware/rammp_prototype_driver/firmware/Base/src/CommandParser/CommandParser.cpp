@@ -136,6 +136,9 @@ RobotCommand CommandParser::parse(Stream &serial) {
           case 'J':
             cmd.type = CMD_SEQ_KEYFRAME;
             break;
+          case 'Y':
+            cmd.type = CMD_MANUAL_SEAT;
+            break;
           case 'A':
             if (cmd.actuator_id == 1)
               cmd.type = CMD_LEVEL_PITCH;

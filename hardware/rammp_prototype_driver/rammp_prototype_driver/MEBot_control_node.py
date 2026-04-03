@@ -47,7 +47,7 @@ SEAT_DELTAS: dict[int, list[float]] = {
 def _build_keyframe_payload(deltas: list[float], duration_ms: int) -> str:
     """Build a J0 keyframe payload string in the 32-value format expected by
     parseKeyframePayload():
-        targets(x6), active(x6), relative(x6), duration_ms(x6)
+        targets(x8), active(x8), relative(x8), duration_ms(x8)
 
     Motors with a delta of 0.0 are marked inactive (active=0) so the
     sequence player leaves them at their current position.
@@ -226,9 +226,9 @@ class MEBotControlNode(Node):
 
     def _init_subscribers(self):
         # subscriptions
-        self.manual_seat_control_subscription = self.create_subscription(
-            SeatCommand, "manual_seat_control", self.manual_seat_control_callback, 10
-        )
+        # self.manual_seat_control_subscription = self.create_subscription(
+        #     SeatCommand, "manual_seat_control", self.manual_seat_control_callback, 10
+        # )
 
         self.estop_subscription = self.create_subscription(
             Bool, "estop", self.estop_callback, 10
@@ -266,7 +266,7 @@ class MEBotControlNode(Node):
             if raw_data.startswith("TELEMETRY"):
                 # self.get_logger().info(raw_data)
                 data = raw_data.split(",")  # All values are str
-                self.get_logger().info(str(data))
+                # self.get_logger().info(str(data))
                 self.update_data(data)  # Update variables with new data
             if raw_data.startswith(
                 "SEQ_STATUS"
@@ -352,6 +352,7 @@ class MEBotControlNode(Node):
         self.joint_state_publisher.publish(msg)
 
     def publish_RAMMPPrototypeState(self):
+        self.get_logger().info("publish_RAMMPPrototypeState called")  # temp
         msg = RAMMPPrototypeState()
         msg.header.stamp = self.get_clock().now().to_msg()
 
@@ -399,6 +400,7 @@ class MEBotControlNode(Node):
         # TODO: Add the remaining velocities once they are sent by the Teensy
 
         self.RAMMPPrototypeState_publisher.publish(msg)
+        # self.get_logger().info(str(msg))
 
     def publish_imu_data(self):
         msg = Imu()
@@ -442,37 +444,37 @@ class MEBotControlNode(Node):
         return stat
 
 
-def manual_seat_control_callback(self, msg: SeatCommand):
-    if msg.command == SeatCommand.STOP:
-        # Exit MANUAL_SEAT state on the Teensy — motors hold current position.
-        if self._manual_seat_active:
-            self.write_serial_data("Y1:0\n")
-            self._manual_seat_active = False
-            self.get_logger().info("SeatCommand: STOP — exited MANUAL_SEAT mode")
-        return
+    # def manual_seat_control_callback(self, msg: SeatCommand):
+    #     if msg.command == SeatCommand.STOP:
+    #         # Exit MANUAL_SEAT state on the Teensy — motors hold current position.
+    #         if self._manual_seat_active:
+    #             self.write_serial_data("Y1:0\n")
+    #             self._manual_seat_active = False
+    #             self.get_logger().info("SeatCommand: STOP — exited MANUAL_SEAT mode")
+    #         return
 
-    deltas = SEAT_DELTAS.get(msg.command)
-    if deltas is None:
-        self.get_logger().warn(f"SeatCommand: unknown command {msg.command}, ignoring")
-        return
+    #     deltas = SEAT_DELTAS.get(msg.command)
+    #     if deltas is None:
+    #         self.get_logger().warn(f"SeatCommand: unknown command {msg.command}, ignoring")
+    #         return
 
-    # 1. Enter MANUAL_SEAT on the Teensy if not already active
-    if not self._manual_seat_active:
-        self.write_serial_data("Y1:1\n")
-        self._manual_seat_active = True
-        self.get_logger().info("SeatCommand: entered MANUAL_SEAT mode")
+    #     # 1. Enter MANUAL_SEAT on the Teensy if not already active
+    #     if not self._manual_seat_active:
+    #         self.write_serial_data("Y1:1\n")
+    #         self._manual_seat_active = True
+    #         self.get_logger().info("SeatCommand: entered MANUAL_SEAT mode")
 
-    # 2. Upload keyframe 0 with relative deltas
-    payload = _build_keyframe_payload(deltas, SEAT_MOVE_DURATION_MS)
-    self.write_serial_data(f"J0:{payload}\n")
+    #     # 2. Upload keyframe 0 with relative deltas
+    #     payload = _build_keyframe_payload(deltas, SEAT_MOVE_DURATION_MS)
+    #     self.write_serial_data(f"J0:{payload}\n")
 
-    # 3. Trigger execution (CMD_SEQ_STEP_FWD)
-    self.write_serial_data(">\n")
+    #     # 3. Trigger execution (CMD_SEQ_STEP_FWD)
+    #     self.write_serial_data(">\n")
 
-    self.get_logger().info(
-        f"SeatCommand {msg.command}: keyframe uploaded and triggered "
-        f"(duration={SEAT_MOVE_DURATION_MS}ms)"
-    )
+    #     self.get_logger().info(
+    #         f"SeatCommand {msg.command}: keyframe uploaded and triggered "
+    #         f"(duration={SEAT_MOVE_DURATION_MS}ms)"
+    #     )
 
     def estop_callback(self, msg):
         if msg.data:

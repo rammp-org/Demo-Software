@@ -565,6 +565,24 @@ void loop() {
       if (DEBUG_MODE)
         Serial.println("DEBUG: Exiting SELF_LEVELING mode");
     }
+  } else if (cmd.type == CMD_MANUAL_SEAT) {
+    if (cmd.value > 0.5f) {
+        current_state = MANUAL_SEAT;
+        Motor* seq_motors[SEQ_NUM_MOTORS] = {
+            &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr
+        };
+        sequenceEnter(seq_motors);
+        if (DEBUG_MODE)
+            Serial.println("DEBUG: Entering MANUAL_SEAT mode");
+    } else {
+        Motor* seq_motors[SEQ_NUM_MOTORS] = {
+            &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr
+        };
+        sequenceExit(seq_motors);  // hold all motors at current position on exit
+        current_state = IDLE;
+        if (DEBUG_MODE)
+            Serial.println("DEBUG: Exiting MANUAL_SEAT mode");
+    }
   } else if (cmd.type == CMD_LEVEL_PITCH) {
     target_pitch = cmd.value;
     if (DEBUG_MODE)
@@ -630,6 +648,11 @@ void loop() {
     sequenceHandleCommand(cmd, seq_motors, parser.last_payload);
   }
 
+  if (current_state == MANUAL_SEAT && cmd.type != CMD_NONE) {
+    Motor* seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
+    sequenceHandleCommand(cmd, seq_motors, parser.last_payload);
+  }
+
   // 4. Update Motors
   if (current_state == ESTOP) {
     // Stop all motors safely via DISABLED mode
@@ -645,6 +668,9 @@ void loop() {
     runSelfLeveling(dt);
   } else if (current_state == AUTO_CURB_CLIMBING) {
     Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7: velocity-mode (drive wheels)
+    sequenceUpdate(seq_motors);
+  } else if (current_state == MANUAL_SEAT) {
+    Motor* seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
     sequenceUpdate(seq_motors);
   }
 

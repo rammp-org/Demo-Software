@@ -274,23 +274,38 @@ class SystemControl(rclpy.node.Node):
 
     def mock_base_curb_navigation_traverse_request(self):
         # for testing curb traverse action, will remove after testing
-        self.get_logger().info("Sending curb Navigation request.")
+        self.get_logger().info("Sending mock curb navigation traverse request.")
         self.reqNav()
 
     ## -----------------------------end of mock testing functions------------------------
 
     # -----------------------curb navigation transtion functions-----------------------------
-    def on_enter_Nav(self):
-        self.get_logger().info("Detecting curb to prepare for navigation.")
+    def on_enter_Nav_descendDetecting(self):
+        self.get_logger().info("Detecting curb to prepare for descend.")
         self.enable_curb_detection(
             True
         )  # enable curb detection to detect curb for navigation
         self.get_logger().debug("Mock detecting curb for 5 seconds.")
         self._mock_delay(
-            5.0, self.startDescendConfirm
+            5.0, self.confirm
         )  # should enter Nav_traverse state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
 
-    def on_exit_Nav(self):
+    def on_exit_Nav_descendDetecting(self):
+        self.enable_curb_detection(
+            False
+        )  # ensure curb detection is disabled when exiting detecting curb state
+
+    def on_enter_Nav_ascendDetecting(self):
+        self.get_logger().info("Detecting curb to prepare for ascend.")
+        self.enable_curb_detection(
+            True
+        )  # enable curb detection to detect curb for navigation
+        self.get_logger().debug("Mock detecting curb for 5 seconds.")
+        self._mock_delay(
+            5.0, self.confirm
+        )  # should enter Nav_ascending state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
+
+    def on_exit_Nav_ascendDetecting(self):
         self.enable_curb_detection(
             False
         )  # ensure curb detection is disabled when exiting detecting curb state
@@ -868,9 +883,9 @@ class SystemControl(rclpy.node.Node):
             case UserInputs.Request.CHAIR_CURB_NAVIGATION:
                 self.reqNav()
             case UserInputs.Request.CHAIR_CURB_ASCEND:
-                self.startAscendConfirm()
+                self.reqAscend()
             case UserInputs.Request.CHAIR_CURB_DESCEND:
-                self.startDescendConfirm()
+                self.reqDescend()
             case UserInputs.Request.CHAIR_CURB_CANCEL:
                 self.reqNavCancel()  # should enter Nav_paused state and pause curb traverse for testing, will replace with actual logic to determine when to pause curb traverse later
             case UserInputs.Request.ARM_CONTROL_MAIN:
@@ -1041,6 +1056,8 @@ class SystemControl(rclpy.node.Node):
                 "children": [
                     "SLOff",
                     "SLOn",
+                    "ascendDetecting",
+                    "descendDetecting",
                     "ascending",
                     "descending",
                     "canceling",
@@ -1337,14 +1354,34 @@ class SystemControl(rclpy.node.Node):
                 "after": "after_seat_control",
             },  # seat control command, stay in the same state but call after_seat_control function to process the command
             # navigation sub state transitions
+            # {
+            #     "trigger": "startAscendConfirm",
+            #     "source": "Nav_ascendDetecting",
+            #     "dest": "Nav_ascending",
+            # },
             {
-                "trigger": "startAscendConfirm",
-                "source": ["Nav_SLOff", "Nav_SLOn"],
+                "trigger": "confirm",
+                "source": "Nav_ascendDetecting",
                 "dest": "Nav_ascending",
             },
             {
-                "trigger": "startDescendConfirm",
+                "trigger": "reqAscend",
                 "source": ["Nav_SLOff", "Nav_SLOn"],
+                "dest": "Nav_ascendDetecting",
+            },
+            {
+                "trigger": "reqDescend",
+                "source": ["Nav_SLOff", "Nav_SLOn"],
+                "dest": "Nav_descendDetecting",
+            },
+            # {
+            #     "trigger": "startDescendConfirm",
+            #     "source": "Nav_descendDetecting",
+            #     "dest": "Nav_descending",
+            # },
+            {
+                "trigger": "confirm",
+                "source": "Nav_descendDetecting",
                 "dest": "Nav_descending",
             },
             {
@@ -1372,6 +1409,16 @@ class SystemControl(rclpy.node.Node):
                     "Nav_descending",
                 ],
                 "dest": "Nav_canceling",
+            },
+            {
+                "trigger": "cancel",
+                "source": ["Nav_ascendDetecting", "Nav_descendDetecting"],
+                "dest": "Nav_paused",
+            },
+            {
+                "trigger": "reqNavCancel",
+                "source": ["Nav_ascendDetecting", "Nav_descendDetecting"],
+                "dest": "Nav_paused",
             },
             {"trigger": "reset", "source": "Nav_paused", "dest": "Nav_SLOff"},
         ]

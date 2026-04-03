@@ -10,7 +10,7 @@
       "name": "/drinking_node"
     },
     {
-      "name": "/open_door_node"
+      "name": "/button_push_controller"
     },
     {
       "name": "/cup_stabilizer_node"
@@ -23,6 +23,9 @@
     },
     {
       "name": "/Gui_bridge_node"
+    },
+    {
+      "name": "/button_detector"
     }
   ]
 }

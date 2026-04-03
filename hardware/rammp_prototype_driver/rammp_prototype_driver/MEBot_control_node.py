@@ -60,6 +60,7 @@ class SerialField(IntEnum):
     APP_TIME = 0
     SPEED_ML = 0
     SPEED_MR = 0
+    STATE = 2
 
 
 class MEBotControlNode(Node):
@@ -273,6 +274,9 @@ class MEBotControlNode(Node):
         self.current_speed_ML = float(data[SerialField.SPEED_ML] / 100.0)
         self.prev_speed_MR = self.current_speed_MR
         self.current_speed_MR = float(data[SerialField.SPEED_MR] / 100.0)
+
+        # State
+        self.state = int(data[SerialField.STATE])
 
     def publish_joint_states(self):
         msg = JointState()

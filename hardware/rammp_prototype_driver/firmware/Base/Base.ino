@@ -101,13 +101,17 @@ int16_t scaled_mrc_pwm;
 int16_t scaled_ml_pwm;
 int16_t scaled_mr_pwm;
 
+// IMU offset
+float pitch_trim_deg = 3.0f;
+
+float getPitchTrim() { return pitch_trim_deg; }
+void setPitchTrim(float val) { pitch_trim_deg = val; }
 
 // --- Self Leveling Kinematics ---
 // Ported from legacy Base_old_self_leveling.ino
 
 const float CARRIAGE_LEVEL_TARGET = 100.0f;
 const float CARRIAGE_LEVEL_TOLERANCE = 200.0f;
-const float PITCH_TRIM_DEG = 3.0f;
 const unsigned long LEVEL_BLEND_MS = 2000;
 
 void runSelfLeveling(float dt) {
@@ -150,7 +154,7 @@ void runSelfLeveling(float dt) {
   }
 
   // offset IMU reading
-  double trim_rad = (PITCH_TRIM_DEG * PI / 180.0) / 2.0;
+  double trim_rad = (pitch_trim_deg * PI / 180.0) / 2.0;
   imu::Quaternion q_trim(cos(trim_rad), sin(trim_rad), 0.0, 0.0);
 
   // Apply trim to measured orientation before error calculation

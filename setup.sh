@@ -51,20 +51,7 @@ $SUDO apt-get install -y python3-pip
 
 echo "=== Installing pip dependencies ==="
 pip3 install -r "${REPO_ROOT}/hardware/arm_driver/requirements.txt"
-
-echo "=== Installing cmu_door_opener dependencies ==="
-ARCH="$(uname -m)"
-if [ "${ARCH}" = "aarch64" ]; then
-  echo "Detected aarch64 (Jetson): installing with Jetson PyPI index."
-  pip3 install \
-    --extra-index-url https://pypi.jetson-ai-lab.io/jp6/cu126 \
-    -r "${REPO_ROOT}/demo_modules/cmu_door_opener/requirements.txt"
-else
-  echo "Detected ${ARCH}: skipping aarch64-only wheels (torch/torchvision), installing the rest."
-  grep -v 'pypi.jetson-ai-lab.io' \
-    "${REPO_ROOT}/demo_modules/cmu_door_opener/requirements.txt" \
-    | pip3 install -r /dev/stdin
-fi
+pip3 install -r "${REPO_ROOT}/demo_modules/cmu_door_opener/requirements.txt"
 
 echo "=== Installing ROS dependencies ==="
 rosdep install \

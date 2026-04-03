@@ -264,6 +264,7 @@ class MEBotControlNode(Node):
         if line:
             raw_data = line.decode("utf-8", errors="replace").strip()
             if raw_data.startswith("TELEMETRY"):
+                self.get_logger().info(raw_data)
                 data = raw_data.split(",")  # All values are str
                 self.update_data(data)  # Update variables with new data
             if raw_data.startswith(

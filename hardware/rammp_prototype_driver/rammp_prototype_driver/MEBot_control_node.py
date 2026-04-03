@@ -7,6 +7,7 @@ import time
 import rclpy
 import serial
 from rammp_prototype_interfaces.action import CurbTraverse
+from rammp_prototype_interfaces.msg import SeatCommand
 
 # custom msgs/srvs
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
@@ -17,6 +18,51 @@ from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
 import diagnostic_updater
 from diagnostic_msgs.msg import DiagnosticStatus
+
+
+# Sequence player motor order (must match SEQ_NUM_MOTORS order in Teensy):
+#   0=RC, 1=FC, 2=ML, 3=MR, 4=ML_CARRIAGE, 5=MR_CARRIAGE, 6=DRIVE_FB, 7=DRIVE_LR
+SEQ_NUM_MOTORS = 8
+
+# Duration (ms) for each seat command's interpolation.
+# Increase for slower/smoother motion, decrease for snappier response.
+# *** TUNE to your preference. ***
+SEAT_MOVE_DURATION_MS = 1000
+
+# Per-command relative deltas (encoder ticks) for each motor.
+# Order: [RC, FC, ML, MR, ML_CARRIAGE, MR_CARRIAGE, DRIVE_FB, DRIVE_LR]
+# 0.0 = motor inactive for this command (active flag will be False).
+# *** TUNE these deltas once you know your geometry. ***
+SEAT_DELTAS: dict[int, list[float]] = {
+    #                           RC      FC      ML      MR    ML_C   MR_C    DFB   DLR
+    SeatCommand.RAISE: [50.0, 50.0, 50.0, 50.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.LOWER: [-50.0, -50.0, -50.0, -50.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.TILT_FWD: [50.0, -50.0, -50.0, -50.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.TILT_BACK: [-50.0, 50.0, 50.0, 50.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.LATERAL_LEFT: [0.0, 0.0, -50.0, 50.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 50.0, -50.0, 0.0, 0.0, 0.0, 0.0],
+}
+
+
+def _build_keyframe_payload(deltas: list[float], duration_ms: int) -> str:
+    """Build a J0 keyframe payload string in the 32-value format expected by
+    parseKeyframePayload():
+        targets(x6), active(x6), relative(x6), duration_ms(x6)
+
+    Motors with a delta of 0.0 are marked inactive (active=0) so the
+    sequence player leaves them at their current position.
+    """
+    active = [1 if d != 0.0 else 0 for d in deltas]
+    relative = [1] * SEQ_NUM_MOTORS  # always relative for seat moves
+    durations = [duration_ms] * SEQ_NUM_MOTORS
+
+    parts = (
+        [f"{d:.2f}" for d in deltas]
+        + [str(a) for a in active]
+        + [str(r) for r in relative]
+        + [str(t) for t in durations]
+    )
+    return ",".join(parts)
 
 
 class SerialField(IntEnum):
@@ -181,8 +227,8 @@ class MEBotControlNode(Node):
     def _init_subscribers(self):
         # subscriptions
         self.manual_seat_control_subscription = self.create_subscription(
-            Bool, "manual_seat_control", self.manual_seat_control_callback, 10
-        )  # message type is placeholder
+            SeatCommand, "manual_seat_control", self.manual_seat_control_callback, 10
+        )
 
         self.estop_subscription = self.create_subscription(
             Bool, "estop", self.estop_callback, 10
@@ -393,10 +439,38 @@ class MEBotControlNode(Node):
             stat.summary(DiagnosticStatus.ERROR, "Teensy is disconnected")
         return stat
 
-    def manual_seat_control_callback(self, msg):
-        if msg.data:
-            # content
-            pass
+
+def manual_seat_control_callback(self, msg: SeatCommand):
+    if msg.command == SeatCommand.STOP:
+        # Exit MANUAL_SEAT state on the Teensy — motors hold current position.
+        if self._manual_seat_active:
+            self.write_serial_data("Y1:0\n")
+            self._manual_seat_active = False
+            self.get_logger().info("SeatCommand: STOP — exited MANUAL_SEAT mode")
+        return
+
+    deltas = SEAT_DELTAS.get(msg.command)
+    if deltas is None:
+        self.get_logger().warn(f"SeatCommand: unknown command {msg.command}, ignoring")
+        return
+
+    # 1. Enter MANUAL_SEAT on the Teensy if not already active
+    if not self._manual_seat_active:
+        self.write_serial_data("Y1:1\n")
+        self._manual_seat_active = True
+        self.get_logger().info("SeatCommand: entered MANUAL_SEAT mode")
+
+    # 2. Upload keyframe 0 with relative deltas
+    payload = _build_keyframe_payload(deltas, SEAT_MOVE_DURATION_MS)
+    self.write_serial_data(f"J0:{payload}\n")
+
+    # 3. Trigger execution (CMD_SEQ_STEP_FWD)
+    self.write_serial_data(">\n")
+
+    self.get_logger().info(
+        f"SeatCommand {msg.command}: keyframe uploaded and triggered "
+        f"(duration={SEAT_MOVE_DURATION_MS}ms)"
+    )
 
     def estop_callback(self, msg):
         if msg.data:

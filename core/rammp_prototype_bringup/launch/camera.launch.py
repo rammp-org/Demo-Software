@@ -16,18 +16,23 @@ from launch_ros.actions import PushRosNamespace
 
 
 def generate_launch_description():
+    # ── Launch file paths ─────────────────────────────────────────────────
+    # Locate the RealSense ROS2 wrapper launch file installed via apt
     realsense_launch = os.path.join(
         get_package_share_directory("realsense2_camera"),
         "launch",
         "rs_launch.py",
     )
 
+    # Locate the Orbbec ROS2 wrapper launch file installed via apt
     orbbec_launch = os.path.join(
         get_package_share_directory("orbbec_camera"),
         "launch",
         "gemini_330_series.launch.py",
     )
 
+    # Default config file — both cameras enabled, loaded unless overridden
+    # by the params_file launch argument
     camera_config = os.path.join(
         get_package_share_directory("rammp_prototype_bringup"),
         "config",
@@ -35,29 +40,37 @@ def generate_launch_description():
     )
 
     def load_config(context, *args, **kwargs):
+        # OpaqueFunction runs at launch time (not parse time), so we can
+        # read the YAML file and use its values to decide which cameras to launch
         params_file = LaunchConfiguration("params_file").perform(context)
         config = {}
         if params_file and os.path.exists(params_file):
             with open(params_file, "r") as f:
                 config = yaml.safe_load(f) or {}
 
+        # Read disable flags from YAML config, defaulting to False (enabled)
         disable_realsense = str(config.get("disable_realsense", False)).lower()
         disable_orbbec = str(config.get("disable_orbbec", False)).lower()
         disable_nav2 = str(config.get("disable_nav2", False)).lower()
 
-        # Allow CLI overrides to take precedence
+        # CLI overrides take precedence ONLY if explicitly set to "true".
+        # We check for == "true" (not != "false") to avoid the default "false"
+        # from DeclareLaunchArgument silently overriding a "true" in the YAML.
         cli_realsense = LaunchConfiguration("disable_realsense").perform(context)
         cli_orbbec = LaunchConfiguration("disable_orbbec").perform(context)
         cli_nav2 = LaunchConfiguration("disable_nav2").perform(context)
-        if cli_realsense != "false":
+        if cli_realsense == "true":
             disable_realsense = cli_realsense
-        if cli_orbbec != "false":
+        if cli_orbbec == "true":
             disable_orbbec = cli_orbbec
-        if cli_nav2 != "false":
+        if cli_nav2 == "true":
             disable_nav2 = cli_nav2
 
         actions = []
 
+        # ── Wrist camera (RealSense D435i) ────────────────────────────────
+        # Delayed by 8 seconds to give the Orbbec cameras time to initialize
+        # first. RealSense requires extra startup time on the Jetson.
         if disable_realsense != "true":
             actions.append(
                 TimerAction(
@@ -74,16 +87,22 @@ def generate_launch_description():
                                 "align_depth.enable": "true",
                                 "enable_gyro": "true",
                                 "enable_accel": "true",
+                                # unite_imu_method=2: linear interpolation merges
+                                # gyro + accel into a single /wrist/imu topic
                                 "unite_imu_method": "2",
                                 "pointcloud.enable": "false",
                                 "log_level": "warn",
-                                "params_file": params_file,
                             }.items(),
                         )
                     ],
                 )
             )
 
+        # ── Nav camera (Orbbec Gemini 336L) ───────────────────────────────
+        # PushRosNamespace("camera") prepends /camera to all topics published
+        # by this node, giving us /camera/nav/color/image_raw etc.
+        # Serial number must be passed as a launch arg — Orbbec's config loader
+        # explicitly skips serial_number when reading config_file_path.
         if disable_orbbec != "true":
             actions.append(
                 GroupAction(
@@ -126,13 +145,17 @@ def generate_launch_description():
                                 "exposure_range_mode": "ultimate",
                                 "laser_energy_level": "4",
                                 "enable_ir_auto_exposure": "true",
-                                "config_file_path": params_file,
                             }.items(),
                         ),
                     ]
                 )
             )
 
+        # ── Nav2 shoulder camera (Orbbec Gemini 336L) ─────────────────────
+        # Second Orbbec camera mounted on the shoulder of the robot.
+        # Identical configuration to nav camera — serial number differentiates
+        # the two devices at the USB driver level.
+        # Topics publish under /camera/nav2/...
         if disable_nav2 != "true":
             actions.append(
                 GroupAction(
@@ -175,7 +198,6 @@ def generate_launch_description():
                                 "exposure_range_mode": "ultimate",
                                 "laser_energy_level": "4",
                                 "enable_ir_auto_exposure": "true",
-                                "config_file_path": params_file,
                             }.items(),
                         ),
                     ]
@@ -186,6 +208,7 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            # ── Disable flags — can be set via CLI or YAML config file ─────
             DeclareLaunchArgument(
                 "disable_realsense",
                 default_value="false",
@@ -219,11 +242,15 @@ def generate_launch_description():
                 default_value="",
                 description="Serial number of the Orbbec Gemini 336L shoulder camera.",
             ),
+            # ── Config file — defaults to camera_demo_main.yaml ───────────
+            # Override with params_file:=<path> to use a different config
             DeclareLaunchArgument(
                 "params_file",
                 default_value=camera_config,
                 description="Path to camera config YAML.",
             ),
+            # OpaqueFunction reads the YAML and returns the correct actions
+            # based on which cameras are enabled
             OpaqueFunction(function=load_config),
         ]
     )

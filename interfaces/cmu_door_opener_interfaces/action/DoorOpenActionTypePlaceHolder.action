@@ -1,0 +1,9 @@
+# place holder for DoorOpen's actions type.
+# GOAL: empty, we only one GOAL
+---
+# Result
+bool success
+string message
+---
+# Feedback
+string status

@@ -4,21 +4,23 @@ The Python Application uses a centralized `DataStore` (a Singleton pattern, pass
 
 ## `DataStore` (`data/data_store.py`)
 
-**Lines: 1-659**
+**Lines: 1-828**
 
 ### Core Responsibilities
 
-- Caching the latest values from the `TELEMETRY` stream.
+- Caching the latest values from the `TELEMETRY` stream for all 8 joints.
 - Storing time-series ring buffers (circular arrays) for `pyqtgraph` to plot.
 - Caching the `CONFIG` values downloaded from the Teensy EEPROM.
 - Emitting signals to alert the UI that it needs to redraw.
 
 ### Key Logical Sections
 
-- **Data Classes (Lines 18-93):** Defines the `JointData`, `JointConfig`, and `IMUData` dataclasses.
-- **Initialization (Lines 95-171):** Sets up the underlying `numpy` arrays for high-performance circular buffers.
-- **Signal Definitions (Lines 98-103):** Defines `data_updated`, `config_updated`, `imu_updated`, `limits_updated`.
-- **Parsing Ingestion (Lines 296-418):** `process_telemetry_data()` takes the telemetry packet from the Serial thread, slices it, and updates the ring buffers for all 6 joints simultaneously.
-- **IMU Handling (Lines 420-461):** Slices the IMU and Quaternion data from the telemetry packet.
-- **Strain Gauge Handling:** Slices the strain gauge load cell data from the telemetry packet.
-- **Config Ingestion (Lines 463-492):** `process_config_data()` parses the 15-value EEPROM array and stores it.
+- **Data Classes (Lines 15-302):** Defines the `JointData`, `IMUData` dataclasses.
+- **Initialization (Lines 338-416):** Sets up the underlying `numpy` arrays for high-performance circular buffers and initializes 8 `JointData` instances.
+- **Signal Definitions (Lines 317-331):** Defines 12 signals: `data_updated`, `simulation_changed`, `state_changed`, `imu_updated`, `limits_updated`, `directions_updated`, `mode_changed`, `config_updated`, `leveling_updated`, `strain_gauge_updated`, `seq_status_updated`, and `seq_targets_changed`.
+- **Parsing Ingestion (Lines 675-808):** `process_encoder_data()` takes the telemetry packet from the Serial thread, slices it, and updates the ring buffers for all 8 joints simultaneously.
+- **IMU Handling (Lines 695-718):** Slices the IMU and Quaternion data from the telemetry packet.
+- **Strain Gauge Handling (Lines 730-734):** Slices the strain gauge load cell data from the telemetry packet.
+- **Config Ingestion (Lines 650-653):** `set_config()` stores the `ConfigData` and emits `config_updated`.
+- **Sequence Targets (Lines 823-828):** Manages target positions for automated sequences.
+

@@ -5,7 +5,6 @@ A PyQt6-based GUI application for tuning PID controllers running on Teensy 4.1 m
 ## Features
 
 - **Real-time plotting** of encoder position, velocity, and PWM vs target
-- **Dual-motor control**: Control two motors simultaneously with individual targets
 - **Target controls**: Set absolute targets, timed step inputs (+/-), quick step buttons
 - **Sine wave generator**: Configurable amplitude, frequency, and duration for testing
 - **IMU tracking**: Live readouts and plots of Pitch, Roll, Yaw, and Acceleration
@@ -115,7 +114,7 @@ To preview target signals before connecting to hardware:
 
 | Control            | Description                                                         |
 | ------------------ | ------------------------------------------------------------------- |
-| **Set Target**     | Send absolute target(s) for the primary and (optional) linked joint |
+| **Set Target**     | Send an absolute target for the selected joint                       |
 | **Use Current**    | Copy current encoder position to target input                       |
 | **Set Zero**       | Set target to 0                                                     |
 | **Home Position**  | Send 'H' command to zero the encoder                                |

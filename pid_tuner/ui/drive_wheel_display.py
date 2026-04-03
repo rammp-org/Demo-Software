@@ -1,20 +1,17 @@
-import math
-from typing import Optional
-
 from PyQt6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QVBoxLayout,
-    QLabel,
     QPushButton,
     QGridLayout,
     QLineEdit,
-    QFrame,
+    QLabel,
 )
 from PyQt6.QtCore import Qt, QTimer, QRectF
-from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QPainterPath
+from PyQt6.QtGui import QPainter, QColor, QPen, QFont
 
 from ..data.data_store import DataStore
+from ..serial_driver.serial_handler import SerialHandler
 from ..ros_bridge.luci_client import LuciClient
 from .theme import THEME
 from .scaling import scaled, SIZES
@@ -34,7 +31,7 @@ class ArcTachometer(QWidget):
             self.velocity = velocity
             self.update()
 
-    def paintEvent(self, event):
+    def paintEvent(self, a0):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -125,12 +122,15 @@ _DPAD_BTN = f"""
 
 
 class DriveWheelDisplay(QWidget):
-    def __init__(self, data_store: DataStore, parent=None):
+    def __init__(
+        self, data_store: DataStore, serial_handler: SerialHandler, parent=None
+    ):
         super().__init__(parent)
         self.data_store = data_store
         self._luci = LuciClient(self)
         self._luci.connected_changed.connect(self._on_luci_connection_changed)
         self._luci.error_occurred.connect(self._on_luci_error)
+        self._manual_override = False
 
         self._init_ui()
 
@@ -151,10 +151,49 @@ class DriveWheelDisplay(QWidget):
         arc_row.addWidget(self.right_arc)
         root.addLayout(arc_row)
 
+        dpad = QGridLayout()
+        dpad.setSpacing(scaled(2))
+
+        self._btn_fwd = QPushButton("▲")
+        self._btn_fwd.setStyleSheet(_DPAD_BTN)
+        self._btn_fwd.pressed.connect(lambda: self._dpad_press(DRIVE_SPEED, 0))
+        self._btn_fwd.released.connect(self._dpad_release)
+        self._btn_fwd.setEnabled(False)
+        dpad.addWidget(self._btn_fwd, 0, 1)
+
+        self._btn_left = QPushButton("◀")
+        self._btn_left.setStyleSheet(_DPAD_BTN)
+        self._btn_left.pressed.connect(lambda: self._dpad_press(0, -DRIVE_SPEED))
+        self._btn_left.released.connect(self._dpad_release)
+        self._btn_left.setEnabled(False)
+        dpad.addWidget(self._btn_left, 1, 0)
+
+        self._btn_stop = QPushButton("■")
+        self._btn_stop.setStyleSheet(_DPAD_BTN)
+        self._btn_stop.clicked.connect(self._dpad_release)
+        self._btn_stop.setEnabled(False)
+        dpad.addWidget(self._btn_stop, 1, 1)
+
+        self._btn_right = QPushButton("▶")
+        self._btn_right.setStyleSheet(_DPAD_BTN)
+        self._btn_right.pressed.connect(lambda: self._dpad_press(0, DRIVE_SPEED))
+        self._btn_right.released.connect(self._dpad_release)
+        self._btn_right.setEnabled(False)
+        dpad.addWidget(self._btn_right, 1, 2)
+
+        self._btn_bwd = QPushButton("▼")
+        self._btn_bwd.setStyleSheet(_DPAD_BTN)
+        self._btn_bwd.pressed.connect(lambda: self._dpad_press(-DRIVE_SPEED, 0))
+        self._btn_bwd.released.connect(self._dpad_release)
+        self._btn_bwd.setEnabled(False)
+        dpad.addWidget(self._btn_bwd, 2, 1)
+
+        root.addLayout(dpad)
+
         conn_row = QHBoxLayout()
         conn_row.setSpacing(scaled(4))
 
-        self._host_input = QLineEdit("192.168.0.112")
+        self._host_input = QLineEdit("10.2.10.2")
         self._host_input.setFixedWidth(scaled(120))
         self._host_input.setPlaceholderText("Jetson IP")
         self._host_input.setStyleSheet(f"""
@@ -180,6 +219,7 @@ class DriveWheelDisplay(QWidget):
                 font-weight: bold;
             }}
             QPushButton:hover {{ background-color: {THEME.teal}; }}
+            QPushButton:pressed {{ background-color: {THEME.green}; }}
             QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
         """)
         self._btn_connect.clicked.connect(self._on_connect_clicked)
@@ -193,57 +233,15 @@ class DriveWheelDisplay(QWidget):
         conn_row.addStretch()
         root.addLayout(conn_row)
 
-        dpad = QGridLayout()
-        dpad.setSpacing(scaled(2))
-
-        self._btn_fwd = QPushButton("▲")
-        self._btn_fwd.setStyleSheet(_DPAD_BTN)
-        self._btn_fwd.pressed.connect(lambda: self._luci.set_drive(DRIVE_SPEED, 0))
-        self._btn_fwd.released.connect(self._luci.stop)
-        self._btn_fwd.setEnabled(False)
-        dpad.addWidget(self._btn_fwd, 0, 1)
-
-        self._btn_left = QPushButton("◀")
-        self._btn_left.setStyleSheet(_DPAD_BTN)
-        self._btn_left.pressed.connect(lambda: self._luci.set_drive(0, -DRIVE_SPEED))
-        self._btn_left.released.connect(self._luci.stop)
-        self._btn_left.setEnabled(False)
-        dpad.addWidget(self._btn_left, 1, 0)
-
-        self._btn_stop = QPushButton("■")
-        self._btn_stop.setStyleSheet(_DPAD_BTN)
-        self._btn_stop.clicked.connect(self._luci.stop)
-        self._btn_stop.setEnabled(False)
-        dpad.addWidget(self._btn_stop, 1, 1)
-
-        self._btn_right = QPushButton("▶")
-        self._btn_right.setStyleSheet(_DPAD_BTN)
-        self._btn_right.pressed.connect(lambda: self._luci.set_drive(0, DRIVE_SPEED))
-        self._btn_right.released.connect(self._luci.stop)
-        self._btn_right.setEnabled(False)
-        dpad.addWidget(self._btn_right, 1, 2)
-
-        self._btn_bwd = QPushButton("▼")
-        self._btn_bwd.setStyleSheet(_DPAD_BTN)
-        self._btn_bwd.pressed.connect(lambda: self._luci.set_drive(-DRIVE_SPEED, 0))
-        self._btn_bwd.released.connect(self._luci.stop)
-        self._btn_bwd.setEnabled(False)
-        dpad.addWidget(self._btn_bwd, 2, 1)
-
-        root.addLayout(dpad)
-
     def _on_connect_clicked(self):
         if self._luci.is_connected:
             self._luci.disconnect()
         else:
             host = self._host_input.text().strip()
             if host:
-                self._luci_status.setText("Connecting…")
-                self._btn_connect.setEnabled(False)
                 self._luci.connect(host)
 
     def _on_luci_connection_changed(self, connected: bool):
-        self._btn_connect.setEnabled(True)
         for btn in (
             self._btn_fwd,
             self._btn_bwd,
@@ -252,6 +250,7 @@ class DriveWheelDisplay(QWidget):
             self._btn_stop,
         ):
             btn.setEnabled(connected)
+
         if connected:
             self._btn_connect.setText("Disconnect")
             self._luci_status.setText("Connected")
@@ -265,24 +264,28 @@ class DriveWheelDisplay(QWidget):
                 f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
             )
 
-    def _on_luci_error(self, msg: str):
-        self._btn_connect.setEnabled(True)
-        self._luci_status.setText(msg)
-        self._luci_status.setStyleSheet(
-            f"color: {THEME.red}; font-size: {SIZES['font_small']}pt;"
-        )
+    def _on_luci_error(self, _msg: str):
+        return
+
+    def _dpad_press(self, fb: int, lr: int):
+        self._manual_override = True
+        self._luci.set_drive(fb, lr)
+
+    def _dpad_release(self):
+        self._manual_override = False
+        self._luci.stop()
 
     def _update_display(self):
-        self.left_arc.set_velocity(self.data_store.ml_drive_vel)
-        self.right_arc.set_velocity(self.data_store.mr_drive_vel)
+        self.left_arc.set_velocity(self.data_store.raw_ml_enc_vel)
+        self.right_arc.set_velocity(self.data_store.raw_mr_enc_vel)
 
-        if self._luci.is_connected:
-            ml_pwm = self.data_store.ml_drive_pwm
-            mr_pwm = self.data_store.mr_drive_pwm
+        if self._luci.is_connected and not self._manual_override:
+            fb_pwm = self.data_store.drive_fb_pwm
+            lr_pwm = self.data_store.drive_lr_pwm
 
-            if abs(ml_pwm) > 0.001 or abs(mr_pwm) > 0.001:
-                fb = int(((ml_pwm + mr_pwm) / 2.0) * 100.0)
-                lr = int(((mr_pwm - ml_pwm) / 2.0) * 100.0)
+            if abs(fb_pwm) > 0.001 or abs(lr_pwm) > 0.001:
+                fb = int(fb_pwm * 100.0)
+                lr = int(lr_pwm * 100.0)
                 fb = max(-100, min(100, fb))
                 lr = max(-100, min(100, lr))
                 self._luci.set_drive(fb, lr)

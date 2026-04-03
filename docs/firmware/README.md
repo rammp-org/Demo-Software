@@ -2,13 +2,13 @@
 
 This directory documents the C++ Teensy 4.1 Firmware found in `hardware/rammp_prototype_driver/firmware/Base/`.
 
-The firmware provides a 100-200Hz hard real-time control loop for 6 independent robotic joints using a cascaded PID architecture (Position -> Velocity -> PWM), while continuously managing safety bounds and self-leveling kinematics.
+The firmware provides a 100-200Hz hard real-time control loop for 8 motor controllers (6 actuated joints + 2 body-frame drive wheel controllers) using a cascaded PID architecture (Position -> Velocity -> PWM), while continuously managing safety bounds, self-leveling kinematics, and automated curb-climbing sequences.
 
 ## Navigation
 
 ### High-Level
 
-- [**Architecture**](ARCHITECTURE.md): The overall flow of `Base.ino`, boot sequence, `src/` module table, and loop timing.
+- [**Architecture**](ARCHITECTURE.md): The overall flow of `Base.ino`, boot sequence, `src/` module table (13 modules), and loop timing.
 - [**State Machine**](STATE_MACHINE.md): All 7 `SystemState` values — behaviors, transition triggers, and implementation locations in `Base.ino`.
 
 ### Control & Actuation
@@ -27,5 +27,5 @@ The firmware provides a 100-200Hz hard real-time control loop for 6 independent 
 
 ### Communication
 
-- [**Command Reference**](COMMAND_REFERENCE.md): `CommandParser` — full `CommandType` enum table, parsing state machine, watchdog timer, and the `A`-command sub-discriminator quirk.
-- [**Telemetry**](TELEMETRY.md): How the Teensy builds and transmits the 10Hz telemetry string.
+- [**Command Reference**](COMMAND_REFERENCE.md): `CommandParser` + `CommandDispatch` — full `CommandType` enum table (33 commands), parsing state machine, watchdog timer, and the `A`/`B` sub-discriminator quirks.
+- [**Telemetry**](TELEMETRY.md): How the Teensy builds and transmits the 75-value 10Hz telemetry string via the `Telemetry` module.

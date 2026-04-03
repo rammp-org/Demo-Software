@@ -11,8 +11,8 @@ The `IMU_Class` (`src/IMU_Class/IMU_Class.cpp`) wraps the Adafruit BNO055 9-DOF 
 
 ```
 src/IMU_Class/
-├── IMU_Class.h   (27 lines)  — Public members and declarations
-└── IMU_Class.cpp (109 lines) — initialize(), retrieve_readings(), extractSwing()
+├── IMU_Class.h   — Public members and declarations
+└── IMU_Class.cpp — initialize(), retrieve_readings(), extractSwing()
 ```
 
 ### Key Public Members

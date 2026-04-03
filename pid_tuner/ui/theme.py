@@ -93,8 +93,8 @@ JOINT_COLORS = [
     THEME.green,  # Joint 4: MR
     THEME.sapphire,  # Joint 5: ML_Carriage
     THEME.mauve,  # Joint 6: MR_Carriage
-    THEME.teal,  # Joint 7: ML_Drive
-    THEME.flamingo,  # Joint 8: MR_Drive
+    THEME.teal,  # Joint 7: Drive FB
+    THEME.flamingo,  # Joint 8: Drive LR
 ]
 
 # State colors
@@ -182,7 +182,7 @@ def get_application_stylesheet() -> str:
             border-color: {THEME.overlay0};
         }}
         QPushButton:pressed {{
-            background-color: {THEME.overlay0};
+            background-color: {THEME.surface0};
         }}
         QPushButton:disabled {{
             background-color: {THEME.surface0};
@@ -204,6 +204,9 @@ def get_application_stylesheet() -> str:
         QPushButton[primary="true"]:hover {{
             background-color: {THEME.sapphire};
         }}
+        QPushButton[primary="true"]:pressed {{
+            background-color: {THEME.lavender};
+        }}
 
         /* Danger buttons */
         QPushButton[danger="true"] {{
@@ -214,6 +217,9 @@ def get_application_stylesheet() -> str:
         QPushButton[danger="true"]:hover {{
             background-color: {THEME.maroon};
         }}
+        QPushButton[danger="true"]:pressed {{
+            background-color: {THEME.flamingo};
+        }}
 
         /* Warning buttons */
         QPushButton[warning="true"] {{
@@ -223,6 +229,9 @@ def get_application_stylesheet() -> str:
         }}
         QPushButton[warning="true"]:hover {{
             background-color: {THEME.yellow};
+        }}
+        QPushButton[warning="true"]:pressed {{
+            background-color: {THEME.rosewater};
         }}
 
         /* Combo Boxes */

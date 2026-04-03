@@ -323,16 +323,12 @@ class DataStore(QObject):
     mode_changed = pyqtSignal(
         int
     )  # Emitted when control mode changes (0: Open, 1: Vel, 2: Pos)
-    linked_joint_changed = pyqtSignal(
-        int
-    )  # Emitted when linked joint changes (0 for none)
 
     config_updated = pyqtSignal(int)  # Emits joint_id when config is loaded
     leveling_updated = pyqtSignal()  # Emitted when leveling debug data is updated
     strain_gauge_updated = pyqtSignal()  # Emitted when strain gauge values are updated
-    seq_status_updated = pyqtSignal(
-        int, int, bool
-    )  # current_step, total_steps, interpolating
+    seq_status_updated = pyqtSignal(int, int, int)
+    seq_targets_changed = pyqtSignal()
 
     NUM_JOINTS = 8
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
@@ -346,13 +342,13 @@ class DataStore(QObject):
             for i in range(self.NUM_JOINTS)
         ]
         self._selected_joint: int = 1
-        self._linked_joint: int = 0  # 0 means none
         self._control_mode: int = 0  # 0: Open, 1: Vel, 2: Pos (for selected joint)
         self._control_modes: List[int] = [
             0
         ] * self.NUM_JOINTS  # per-joint modes from telemetry
         self._simulation_mode: bool = False
-        self._current_state: int = 0  # System state from telemetry
+        self._current_state: int = 0
+        self._seq_targets: dict = {}
 
         # IMU data
         self._imu_pitch: float = 0.0
@@ -384,12 +380,16 @@ class DataStore(QObject):
         self._sg_mr_value: float = 0.0
 
         # Drive wheel telemetry
-        self._ml_drive_pos: float = 0.0
-        self._mr_drive_pos: float = 0.0
-        self._ml_drive_vel: float = 0.0
-        self._mr_drive_vel: float = 0.0
-        self._ml_drive_pwm: float = 0.0
-        self._mr_drive_pwm: float = 0.0
+        self._drive_fb_pos: float = 0.0
+        self._drive_lr_pos: float = 0.0
+        self._drive_fb_vel: float = 0.0
+        self._drive_lr_vel: float = 0.0
+        self._drive_fb_pwm: float = 0.0
+        self._drive_lr_pwm: float = 0.0
+        self._raw_ml_enc_pos: float = 0.0
+        self._raw_mr_enc_pos: float = 0.0
+        self._raw_ml_enc_vel: float = 0.0
+        self._raw_mr_enc_vel: float = 0.0
 
         # Motor directions (6 motors)
         self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1, 1, 1]
@@ -468,19 +468,6 @@ class DataStore(QObject):
             self._selected_joint = joint_id
             # Sync mode banner to the newly selected joint's last-known mode
             self.control_mode = self._control_modes[joint_id - 1]
-
-    @property
-    def linked_joint(self) -> int:
-        """Get the currently linked joint (0 for none, or 1-indexed)."""
-        return self._linked_joint
-
-    @linked_joint.setter
-    def linked_joint(self, joint_id: int):
-        """Set the currently linked joint (0 for none, or 1-indexed)."""
-        if 0 <= joint_id <= self.NUM_JOINTS:
-            if self._linked_joint != joint_id:
-                self._linked_joint = joint_id
-                self.linked_joint_changed.emit(joint_id)
 
     @property
     def control_mode(self) -> int:
@@ -615,31 +602,36 @@ class DataStore(QObject):
         return self._sg_mr_value
 
     @property
-    def ml_drive_pos(self) -> float:
-        """Get ML drive wheel position."""
-        return self._ml_drive_pos
+    def drive_fb_pos(self) -> float:
+        return self._drive_fb_pos
 
     @property
-    def mr_drive_pos(self) -> float:
-        """Get MR drive wheel position."""
-        return self._mr_drive_pos
+    def drive_lr_pos(self) -> float:
+        return self._drive_lr_pos
 
     @property
-    def ml_drive_vel(self) -> float:
-        """Get ML drive wheel velocity."""
-        return self._ml_drive_vel
+    def drive_fb_vel(self) -> float:
+        return self._drive_fb_vel
 
     @property
-    def mr_drive_vel(self) -> float:
-        return self._mr_drive_vel
+    def drive_lr_vel(self) -> float:
+        return self._drive_lr_vel
 
     @property
-    def ml_drive_pwm(self) -> float:
-        return self._ml_drive_pwm
+    def drive_fb_pwm(self) -> float:
+        return self._drive_fb_pwm
 
     @property
-    def mr_drive_pwm(self) -> float:
-        return self._mr_drive_pwm
+    def drive_lr_pwm(self) -> float:
+        return self._drive_lr_pwm
+
+    @property
+    def raw_ml_enc_vel(self) -> float:
+        return self._raw_ml_enc_vel
+
+    @property
+    def raw_mr_enc_vel(self) -> float:
+        return self._raw_mr_enc_vel
 
     @property
     def motor_directions(self) -> List[int]:
@@ -742,29 +734,64 @@ class DataStore(QObject):
         self.strain_gauge_updated.emit()
 
         # Store drive wheel telemetry (present from the 63-field packet onward)
-        if hasattr(data, "ml_drive_pos"):
-            self._ml_drive_pos = data.ml_drive_pos
-            self._mr_drive_pos = data.mr_drive_pos
-            self._ml_drive_vel = data.ml_drive_vel
-            self._mr_drive_vel = data.mr_drive_vel
-        if hasattr(data, "ml_drive_pwm"):
-            self._ml_drive_pwm = data.ml_drive_pwm
-            self._mr_drive_pwm = data.mr_drive_pwm
+        if hasattr(data, "drive_fb_pos"):
+            self._drive_fb_pos = data.drive_fb_pos
+            self._drive_lr_pos = data.drive_lr_pos
+            self._drive_fb_vel = data.drive_fb_vel
+            self._drive_lr_vel = data.drive_lr_vel
+        if hasattr(data, "drive_fb_pwm"):
+            self._drive_fb_pwm = data.drive_fb_pwm
+            self._drive_lr_pwm = data.drive_lr_pwm
+        if hasattr(data, "raw_ml_enc_pos"):
+            self._raw_ml_enc_pos = data.raw_ml_enc_pos
+            self._raw_mr_enc_pos = data.raw_mr_enc_pos
+            self._raw_ml_enc_vel = data.raw_ml_enc_vel
+            self._raw_mr_enc_vel = data.raw_mr_enc_vel
+
+        # Feed drive wheel data into JointData for joints 7 (Drive FB) and 8 (Drive LR)
+        # so the plotter can display them when selected.
+        if hasattr(data, "drive_fb_pos"):
+            self._joints[6].add_sample(
+                data.timestamp_ms,
+                data.drive_fb_pos,
+                data.drive_fb_vel,
+                data.drive_fb_pwm,
+            )
+            self._joints[7].add_sample(
+                data.timestamp_ms,
+                data.drive_lr_pos,
+                data.drive_lr_vel,
+                data.drive_lr_pwm,
+            )
 
         # Update per-joint control modes from telemetry (59-field packet onward)
         if getattr(data, "control_mode_values", None):
             for i, mode in enumerate(data.control_mode_values[: self.NUM_JOINTS]):
                 self._control_modes[i] = mode
+        if hasattr(data, "drive_fb_mode"):
+            self._control_modes[6] = data.drive_fb_mode
+            self._control_modes[7] = data.drive_lr_mode
+        if getattr(data, "control_mode_values", None) or hasattr(data, "drive_fb_mode"):
             # Update the selected-joint mode — the property setter emits mode_changed if changed
             self.control_mode = self._control_modes[self._selected_joint - 1]
 
         # Store motor directions
         if data.direction_values:
             self._motor_directions = data.direction_values
+            if hasattr(data, "drive_fb_dir"):
+                while len(self._motor_directions) < 8:
+                    self._motor_directions.append(1)
+                self._motor_directions[6] = data.drive_fb_dir
+                self._motor_directions[7] = data.drive_lr_dir
 
         # Store encoder directions
         if hasattr(data, "encoder_direction_values") and data.encoder_direction_values:
             self._encoder_directions = data.encoder_direction_values
+            if hasattr(data, "drive_fb_enc_dir"):
+                while len(self._encoder_directions) < 8:
+                    self._encoder_directions.append(1)
+                self._encoder_directions[6] = data.drive_fb_enc_dir
+                self._encoder_directions[7] = data.drive_lr_enc_dir
 
         if data.direction_values or (
             hasattr(data, "encoder_direction_values") and data.encoder_direction_values
@@ -790,6 +817,12 @@ class DataStore(QObject):
             joint.clear()
 
     def clear_joint(self, joint_id: int):
-        """Clear data for a specific joint."""
         if 1 <= joint_id <= self.NUM_JOINTS:
             self._joints[joint_id - 1].clear()
+
+    def set_seq_targets(self, targets: dict):
+        self._seq_targets = targets
+        self.seq_targets_changed.emit()
+
+    def get_seq_targets(self) -> dict:
+        return self._seq_targets

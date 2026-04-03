@@ -43,9 +43,7 @@ class SerialHandler(QObject):
     connection_changed = pyqtSignal(bool)  # True = connected, False = disconnected
     error_occurred = pyqtSignal(str)
     seq_ack_received = pyqtSignal(int)  # step_idx
-    seq_status_received = pyqtSignal(
-        int, int, bool
-    )  # current_step, total_steps, interpolating
+    seq_status_received = pyqtSignal(int, int, int)
 
     DEFAULT_BAUD_RATE = 115200
     DEFAULT_TIMEOUT = 0.1  # 100ms read timeout
@@ -357,6 +355,7 @@ class SerialHandler(QObject):
         # Only the latest telemetry data is emitted for performance
         # All configs are emitted
         latest_encoder = None
+        latest_seq_status = None
 
         for line in reversed(lines):
             data = ProtocolParser.parse_line(line)
@@ -369,22 +368,31 @@ class SerialHandler(QObject):
                 elif isinstance(data, SeqAckData):
                     self.seq_ack_received.emit(data.step_idx)
                 elif isinstance(data, SeqStatusData):
-                    self.seq_status_received.emit(
-                        data.current_step, data.total_steps, data.interpolating
-                    )
+                    if latest_seq_status is None:
+                        latest_seq_status = data
 
         if latest_encoder is not None:
             self.data_received.emit(latest_encoder)
+        if latest_seq_status is not None:
+            self.seq_status_received.emit(
+                latest_seq_status.current_step,
+                latest_seq_status.total_steps,
+                latest_seq_status.state,
+            )
 
     def enter_sequence_mode(self, enable: bool):
         """Enter or exit AUTO_CURB_CLIMBING sequence mode."""
         self.send_command(ProtocolEncoder.enter_sequence_mode(enable))
 
-    def send_keyframe(self, index: int, targets: list, active: list, duration_ms: int):
-        """Upload one keyframe to the robot."""
+    def send_keyframe(
+        self, index: int, targets: list, active: list, duration_ms, relative=None
+    ):
         self.send_command(
-            ProtocolEncoder.send_keyframe(index, targets, active, duration_ms)
+            ProtocolEncoder.send_keyframe(index, targets, active, duration_ms, relative)
         )
+
+    def seq_auto_run(self, enable: bool):
+        self.send_command(ProtocolEncoder.seq_auto_run(enable))
 
     def seq_step_forward(self):
         """Step forward to the next keyframe."""

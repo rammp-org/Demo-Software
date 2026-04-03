@@ -2,7 +2,7 @@
 
 Welcome to the central documentation hub for the RAMMP / MEBot prototype software ecosystem.
 
-This repository contains two main software components that communicate with each other over a high-speed serial interface (115200 baud by default, updated to 460800 baud on Jetson/Teensy hardware):
+This repository contains two main software components that communicate with each other over a 460800 baud serial interface:
 
 1. **[PID Tuner Application](pid_tuner/README.md)**: A Python GUI application built with PyQt6 and pyqtgraph for real-time monitoring, tuning, and control of the robot's joints.
 1. **[Base Firmware](firmware/README.md)**: The C++ Arduino/Teensy firmware responsible for hard real-time motor control, PID execution, sensor integration (IMU, Encoders), and system safety.

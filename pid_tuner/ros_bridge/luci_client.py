@@ -61,7 +61,7 @@ class LuciClient(QObject):
         self._auto_input_enabled = False
 
         self._heartbeat_timer = QTimer(self)
-        self._heartbeat_timer.setInterval(50)
+        self._heartbeat_timer.setInterval(5)
         self._heartbeat_timer.timeout.connect(self._send_heartbeat)
         self._ready_from_thread.connect(self._finish_connect)
         self._fb = 0

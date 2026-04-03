@@ -4,7 +4,7 @@ from pathlib import Path
 from rammp_prototype_behavior.node_name_monitor import NodeNameMonitor
 
 json_path = Path(
-    "/home/herl/rammp_ws/src/Demo-Software/core/rammp_prototype_behavior/rammp_prototype_behavior/nodes.json"
+    "/home/herl/rammp_ws/src/Demo-Software/core/rammp_prototype_behavior/rammp_prototype_behavior/test/nodes.json"
 )
 
 

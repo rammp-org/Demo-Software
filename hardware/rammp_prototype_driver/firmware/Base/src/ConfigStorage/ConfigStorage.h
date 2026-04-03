@@ -23,8 +23,8 @@ struct MotorConfig {
  * ConfigStorage - EEPROM storage for motor configuration
  *
  * EEPROM memory map:
- * Address 0-1: Magic number for validity check (0xABD0)
- * Address 10+: Array of 6 MotorConfig structs
+ * Address 0-1: Magic number for validity check (0xABD1)
+ * Address 10+: Array of 8 MotorConfig structs
  */
 class ConfigStorage {
 public:

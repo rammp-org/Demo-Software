@@ -52,15 +52,15 @@ JOINTS: List[JointInfo] = [
     ),
     JointInfo(
         id=7,
-        name="ML Drive",
-        short_name="ML_D",
-        description="Main Left Drive Wheel (encoder only, output via LUCI)",
+        name="Drive FB",
+        short_name="D_FB",
+        description="Forward/Back body-frame velocity controller (output via LUCI)",
     ),
     JointInfo(
         id=8,
-        name="MR Drive",
-        short_name="MR_D",
-        description="Main Right Drive Wheel (encoder only, output via LUCI)",
+        name="Drive LR",
+        short_name="D_LR",
+        description="Left/Right steering correction controller (output via LUCI)",
     ),
 ]
 

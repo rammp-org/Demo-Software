@@ -89,12 +89,22 @@ class EncoderData:
     control_mode_values: List[int] = field(default_factory=list)
 
     # Drive wheel telemetry
-    ml_drive_pos: float = 0.0
-    mr_drive_pos: float = 0.0
-    ml_drive_vel: float = 0.0
-    mr_drive_vel: float = 0.0
-    ml_drive_pwm: float = 0.0
-    mr_drive_pwm: float = 0.0
+    drive_fb_pos: float = 0.0
+    drive_lr_pos: float = 0.0
+    drive_fb_vel: float = 0.0
+    drive_lr_vel: float = 0.0
+    drive_fb_pwm: float = 0.0
+    drive_lr_pwm: float = 0.0
+    drive_fb_mode: int = 0
+    drive_lr_mode: int = 0
+    raw_ml_enc_pos: float = 0.0
+    raw_mr_enc_pos: float = 0.0
+    raw_ml_enc_vel: float = 0.0
+    raw_mr_enc_vel: float = 0.0
+    drive_fb_dir: int = 1
+    drive_lr_dir: int = 1
+    drive_fb_enc_dir: int = 1
+    drive_lr_enc_dir: int = 1
 
     @property
     def num_joints(self) -> int:
@@ -127,6 +137,8 @@ class ConfigData:
     pos_limit_max: int = 0
     pos_max_ramp_rate: float = 0.0
     vel_max_ramp_rate: float = 0.0
+    motor_dir: int = 1
+    encoder_dir: int = 1
 
 
 @dataclass
@@ -138,11 +150,9 @@ class SeqAckData:
 
 @dataclass
 class SeqStatusData:
-    """Status response after a step command or interpolation completion."""
-
     current_step: int
     total_steps: int
-    interpolating: bool
+    state: int
 
 
 class ProtocolParser:
@@ -151,7 +161,7 @@ class ProtocolParser:
     # Matches: TELEMETRY,timestamp,state,<values>
     ENCODER_PATTERN = re.compile(r"^TELEMETRY,(\d+),(\d+),(.+)$")
     CONFIG_PATTERN = re.compile(r"^CONFIG,(\d+),(.+)$")
-    SEQ_STATUS_PATTERN = re.compile(r"^SEQ_STATUS,(\d+),(\d+),([01])$")
+    SEQ_STATUS_PATTERN = re.compile(r"^SEQ_STATUS,(\d+),(\d+),(\d+)$")
     SEQ_ACK_PATTERN = re.compile(r"^SEQ_ACK,(\d+)$")
 
     NUM_JOINTS = 8
@@ -201,6 +211,9 @@ class ProtocolParser:
                     if len(values) >= 15:
                         config_data.pos_max_ramp_rate = values[13]
                         config_data.vel_max_ramp_rate = values[14]
+                    if len(values) >= 17:
+                        config_data.motor_dir = int(values[15])
+                        config_data.encoder_dir = int(values[16])
                     return config_data
             except (ValueError, IndexError):
                 pass
@@ -213,7 +226,7 @@ class ProtocolParser:
                 return SeqStatusData(
                     current_step=int(seq_status_match.group(1)),
                     total_steps=int(seq_status_match.group(2)),
-                    interpolating=bool(int(seq_status_match.group(3))),
+                    state=int(seq_status_match.group(3)),
                 )
             except (ValueError, IndexError):
                 pass
@@ -279,13 +292,26 @@ class ProtocolParser:
                         data.control_mode_values = [int(v) for v in values[53:59]]
                     # Support 63-value format with drive wheel telemetry
                     if len(values) >= 63:
-                        data.ml_drive_pos = values[59]
-                        data.mr_drive_pos = values[60]
-                        data.ml_drive_vel = values[61]
-                        data.mr_drive_vel = values[62]
+                        data.drive_fb_pos = values[59]
+                        data.drive_lr_pos = values[60]
+                        data.drive_fb_vel = values[61]
+                        data.drive_lr_vel = values[62]
                     if len(values) >= 65:
-                        data.ml_drive_pwm = values[63]
-                        data.mr_drive_pwm = values[64]
+                        data.drive_fb_pwm = values[63]
+                        data.drive_lr_pwm = values[64]
+                    if len(values) >= 67:
+                        data.drive_fb_mode = int(values[65])
+                        data.drive_lr_mode = int(values[66])
+                    if len(values) >= 71:
+                        data.raw_ml_enc_pos = values[67]
+                        data.raw_mr_enc_pos = values[68]
+                        data.raw_ml_enc_vel = values[69]
+                        data.raw_mr_enc_vel = values[70]
+                    if len(values) >= 75:
+                        data.drive_fb_dir = int(values[71])
+                        data.drive_lr_dir = int(values[72])
+                        data.drive_fb_enc_dir = int(values[73])
+                        data.drive_lr_enc_dir = int(values[74])
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:
@@ -524,24 +550,41 @@ class ProtocolEncoder:
 
     @staticmethod
     def enter_sequence_mode(enable: bool) -> bytes:
-        """Enter or exit AUTO_CURB_CLIMBING sequence mode."""
         val = 1 if enable else 0
         return f"B1:{val}\n".encode("ascii")
 
     @staticmethod
+    def seq_auto_run(enable: bool) -> bytes:
+        val = 1 if enable else 0
+        return f"B2:{val}\n".encode("ascii")
+
+    @staticmethod
     def send_keyframe(
-        index: int, targets: list, active: list, duration_ms: int
+        index: int,
+        targets: list,
+        active: list,
+        duration_ms,
+        relative: Optional[List[bool]] = None,
     ) -> bytes:
         """
-        Upload one keyframe to the robot.
-        index: 0-based keyframe index
-        targets: list of 6 floats [rc, fc, ml, mr, ml_carriage, mr_carriage]
-        active: list of 6 bools — whether each motor is controlled by this keyframe
-        duration_ms: interpolation duration in milliseconds
+        Upload one keyframe.  Sends the new 32-value format:
+        targets(8), active(8), relative(8), durations(8).
+        duration_ms: single int (broadcast to all motors) or list of 8 ints.
+        relative: list of 8 bools (default all False).
         """
         t_str = ",".join(f"{t:.2f}" for t in targets)
         a_str = ",".join(str(int(bool(a))) for a in active)
-        return f"J{index}:{t_str},{a_str},{duration_ms}\n".encode("ascii")
+
+        if relative is None:
+            relative = [False] * 8
+        r_str = ",".join(str(int(bool(r))) for r in relative)
+
+        if isinstance(duration_ms, (int, float)):
+            d_str = ",".join(str(int(duration_ms)) for _ in range(8))
+        else:
+            d_str = ",".join(str(int(d)) for d in duration_ms)
+
+        return f"J{index}:{t_str},{a_str},{r_str},{d_str}\n".encode("ascii")
 
     @staticmethod
     def seq_step_forward() -> bytes:

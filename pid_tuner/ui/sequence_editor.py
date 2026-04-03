@@ -1,11 +1,8 @@
 """
 Sequence / Trajectory Editor for AUTO_CURB_CLIMBING mode.
 
-Allows creating, editing, saving, loading, and executing keyframe sequences.
-Each keyframe specifies target positions for each of the 6 motors plus a
-duration (in ms) for linear interpolation from the previous keyframe.
-
-Motor order throughout: [RC, FC, ML, MR, ML_Carriage, MR_Carriage]
+Motor order: [RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR]
+All 8 motors use position interpolation during sequences.
 """
 
 from __future__ import annotations
@@ -29,6 +26,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QSizePolicy,
     QSpinBox,
+    QCheckBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer
 from PyQt6.QtGui import QColor, QFont, QBrush
@@ -40,8 +38,8 @@ from .scaling import SIZES, scaled
 
 
 # Motor names in order (matching firmware motor array)
-MOTOR_NAMES = ["RC", "FC", "ML", "MR", "ML_Car", "MR_Car"]
-NUM_MOTORS = 6
+MOTOR_NAMES = ["RC", "FC", "ML", "MR", "ML_Car", "MR_Car", "Drive_FB", "Drive_LR"]
+NUM_MOTORS = 8
 
 # Column indices in the QTableWidget
 COL_LABEL = 0
@@ -51,20 +49,21 @@ COL_ML = 3
 COL_MR = 4
 COL_ML_CAR = 5
 COL_MR_CAR = 6
-COL_DURATION = 7
-NUM_COLS = 8
+COL_DRIVE_FB = 7
+COL_DRIVE_LR = 8
+NUM_COLS = 9
 
 # Sentinel for "inactive" cells (motor not controlled in this keyframe)
 INACTIVE_TEXT = "--"
 
 
 class Keyframe:
-    """Data model for a single keyframe in a sequence."""
-
     def __init__(self):
         self.label: str = ""
-        self.targets: List[Optional[float]] = [None] * NUM_MOTORS  # None = inactive
+        self.targets: List[Optional[float]] = [None] * NUM_MOTORS
         self.duration_ms: int = 1000
+        self.relative: List[bool] = [False] * NUM_MOTORS
+        self.motor_durations: List[Optional[int]] = [None] * NUM_MOTORS
 
     def is_active(self, motor_idx: int) -> bool:
         return self.targets[motor_idx] is not None
@@ -74,6 +73,10 @@ class Keyframe:
             "label": self.label,
             "targets": [t if t is not None else None for t in self.targets],
             "duration_ms": self.duration_ms,
+            "relative": self.relative,
+            "motor_durations": [
+                d if d is not None else None for d in self.motor_durations
+            ],
         }
 
     @classmethod
@@ -81,8 +84,23 @@ class Keyframe:
         kf = cls()
         kf.label = d.get("label", "")
         raw_targets = d.get("targets", [None] * NUM_MOTORS)
-        kf.targets = [(float(t) if t is not None else None) for t in raw_targets]
+        while len(raw_targets) < NUM_MOTORS:
+            raw_targets.append(None)
+        kf.targets = [
+            (float(t) if t is not None else None) for t in raw_targets[:NUM_MOTORS]
+        ]
         kf.duration_ms = int(d.get("duration_ms", 1000))
+        raw_relative = d.get("relative", [False] * NUM_MOTORS)
+        while len(raw_relative) < NUM_MOTORS:
+            raw_relative.append(False)
+        kf.relative = [bool(r) for r in raw_relative[:NUM_MOTORS]]
+        raw_motor_durations = d.get("motor_durations", [None] * NUM_MOTORS)
+        while len(raw_motor_durations) < NUM_MOTORS:
+            raw_motor_durations.append(None)
+        kf.motor_durations = [
+            (max(0, int(float(v))) if v is not None else None)
+            for v in raw_motor_durations[:NUM_MOTORS]
+        ]
         return kf
 
 
@@ -113,7 +131,7 @@ class SequenceEditor(QWidget):
         self._robot_step: int = -1
         self._prev_robot_step: int = -1
         self._robot_total: int = 0
-        self._robot_interpolating: bool = False
+        self._robot_state: int = 0
         self._uploaded: bool = False
 
         # Upload state
@@ -170,6 +188,9 @@ class SequenceEditor(QWidget):
             QPushButton:hover {{
                 background-color: {THEME.surface2};
             }}
+            QPushButton:pressed {{
+                background-color: {THEME.surface0};
+            }}
             QPushButton:disabled {{
                 color: {THEME.overlay0};
             }}
@@ -215,6 +236,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_normal"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.sapphire}; }}
+            QPushButton:pressed {{ background-color: {THEME.lavender}; }}
             QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
         """)
         self._btn_send.clicked.connect(self._on_send_to_robot)
@@ -231,6 +253,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_normal"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.red}; }}
+            QPushButton:pressed {{ background-color: {THEME.flamingo}; }}
             QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
         """)
         self._btn_exit_seq.clicked.connect(self._on_exit_sequence)
@@ -248,7 +271,17 @@ class SequenceEditor(QWidget):
         return bar
 
     def _build_table(self) -> QTableWidget:
-        headers = ["Label", "RC", "FC", "ML", "MR", "ML_Car", "MR_Car", "Duration (ms)"]
+        headers = [
+            "Label",
+            "RC",
+            "FC",
+            "ML",
+            "MR",
+            "ML_Car",
+            "MR_Car",
+            "Drive_FB",
+            "Drive_LR",
+        ]
         self._table = QTableWidget(0, NUM_COLS)
         self._table.setHorizontalHeaderLabels(headers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -262,13 +295,10 @@ class SequenceEditor(QWidget):
             horizontal_header.setSectionResizeMode(
                 COL_LABEL, QHeaderView.ResizeMode.Stretch
             )
-            for col in range(COL_RC, COL_DURATION):
+            for col in range(COL_RC, NUM_COLS):
                 horizontal_header.setSectionResizeMode(
                     col, QHeaderView.ResizeMode.ResizeToContents
                 )
-            horizontal_header.setSectionResizeMode(
-                COL_DURATION, QHeaderView.ResizeMode.ResizeToContents
-            )
         self._table.setStyleSheet(f"""
             QTableWidget {{
                 background-color: {THEME.base};
@@ -299,14 +329,16 @@ class SequenceEditor(QWidget):
         """)
 
         # Color motor column headers to match joint accent colors
-        for motor_idx, col in enumerate(range(COL_RC, COL_DURATION)):
+        for motor_idx, col in enumerate(range(COL_RC, NUM_COLS)):
             item = self._table.horizontalHeaderItem(col)
             if item:
                 item.setForeground(QBrush(QColor(JOINT_COLORS[motor_idx])))
 
         self._table.itemChanged.connect(self._on_table_item_changed)
         self._table.itemSelectionChanged.connect(self._on_table_selection_changed)
-        self._table.cellDoubleClicked.connect(self._on_table_cell_double_clicked)
+
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._on_table_context_menu)
         return self._table
 
     def _build_row_buttons(self) -> QWidget:
@@ -325,6 +357,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_small"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.surface2}; }}
+            QPushButton:pressed {{ background-color: {THEME.surface0}; }}
             QPushButton:disabled {{ color: {THEME.overlay0}; }}
         """
 
@@ -356,6 +389,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_small"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.green}; }}
+            QPushButton:pressed {{ background-color: {THEME.teal}; }}
             QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
         """)
         self._btn_capture.clicked.connect(self._on_capture_positions)
@@ -390,6 +424,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_normal"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.yellow}; }}
+            QPushButton:pressed {{ background-color: {THEME.peach}; }}
             QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
         """)
         self._btn_step_bwd.clicked.connect(self._on_step_backward)
@@ -426,6 +461,7 @@ class SequenceEditor(QWidget):
                 font-size: {SIZES["font_normal"]}pt;
             }}
             QPushButton:hover {{ background-color: {THEME.sapphire}; }}
+            QPushButton:pressed {{ background-color: {THEME.lavender}; }}
             QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
         """)
         self._btn_step_goto.clicked.connect(self._on_step_goto)
@@ -439,6 +475,11 @@ class SequenceEditor(QWidget):
             lambda _v: self._update_button_states()
         )
         layout.addWidget(self._spin_step_goto)
+
+        self._chk_auto_run = QCheckBox("Auto Run")
+        self._chk_auto_run.setToolTip("Automatically advance through sequence")
+        self._chk_auto_run.toggled.connect(self._serial_handler.seq_auto_run)
+        layout.addWidget(self._chk_auto_run)
 
         layout.addStretch()
         return bar
@@ -468,21 +509,26 @@ class SequenceEditor(QWidget):
     # ------------------------------------------------------------------ #
 
     def _populate_table(self):
-        """Rebuild the entire table from self._keyframes."""
         self._table.blockSignals(True)
-        self._table.setRowCount(len(self._keyframes))
-        for row, kf in enumerate(self._keyframes):
-            self._set_row(row, kf)
+        self._table.clearContents()
+        self._table.setRowCount(2 * len(self._keyframes))
+        for keyframe_idx, kf in enumerate(self._keyframes):
+            self._set_keyframe_rows(keyframe_idx, kf)
+        vertical_labels: List[str] = []
+        for i in range(len(self._keyframes)):
+            vertical_labels.extend([f"Step {i}", "dur"])
+        self._table.setVerticalHeaderLabels(vertical_labels)
         self._table.blockSignals(False)
         self._sync_step_goto_range()
         self._highlight_active_step()
 
-    def _set_row(self, row: int, kf: Keyframe):
-        """Write one keyframe into a table row."""
+    def _set_keyframe_rows(self, keyframe_index: int, kf: Keyframe):
+        position_row = 2 * keyframe_index
+        duration_row = position_row + 1
         self._table.blockSignals(True)
 
-        label_item = QTableWidgetItem(kf.label or f"Step {row}")
-        self._table.setItem(row, COL_LABEL, label_item)
+        label_item = QTableWidgetItem(kf.label or f"Step {keyframe_index}")
+        self._table.setItem(position_row, COL_LABEL, label_item)
 
         for motor_idx in range(NUM_MOTORS):
             col = COL_RC + motor_idx
@@ -492,19 +538,38 @@ class SequenceEditor(QWidget):
                 item.setForeground(QBrush(QColor(THEME.overlay0)))
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             else:
-                item = QTableWidgetItem(f"{val:.1f}")
+                text = f"{val:.1f}"
+                if kf.relative[motor_idx]:
+                    text = f"Δ{text}"
+                item = QTableWidgetItem(text)
                 item.setForeground(QBrush(QColor(JOINT_COLORS[motor_idx])))
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._table.setItem(row, col, item)
+            if kf.relative[motor_idx]:
+                item.setBackground(QBrush(QColor(THEME.surface1)))
+            self._table.setItem(position_row, col, item)
 
-        dur_item = QTableWidgetItem(str(kf.duration_ms))
-        dur_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._table.setItem(row, COL_DURATION, dur_item)
+        dur_label_item = QTableWidgetItem("dur")
+        dur_label_item.setFlags(dur_label_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        dur_label_item.setForeground(QBrush(QColor(THEME.overlay0)))
+        dur_label_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        dur_label_item.setBackground(QBrush(QColor(THEME.crust)))
+        self._table.setItem(duration_row, COL_LABEL, dur_label_item)
+
+        for motor_idx in range(NUM_MOTORS):
+            col = COL_RC + motor_idx
+            override = kf.motor_durations[motor_idx]
+            value = override if override is not None else kf.duration_ms
+            dur_item = QTableWidgetItem(str(value))
+            dur_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if override is None:
+                dur_item.setForeground(QBrush(QColor(THEME.subtext0)))
+            dur_item.setBackground(QBrush(QColor(THEME.crust)))
+            self._table.setItem(duration_row, col, dur_item)
 
         self._table.blockSignals(False)
 
     def _highlight_active_step(self):
-        """Bold the row currently active on the robot."""
+        self._table.blockSignals(True)
         normal_font = QFont()
         bold_font = QFont()
         bold_font.setBold(True)
@@ -518,18 +583,46 @@ class SequenceEditor(QWidget):
         back_tint = QColor(THEME.blue).lighter(180)
         fwd_tint = QColor(THEME.green).lighter(180)
 
+        active_rows = set()
+        if 0 <= self._robot_step < len(self._keyframes):
+            active_rows = {2 * self._robot_step, 2 * self._robot_step + 1}
+
         for row in range(self._table.rowCount()):
-            font = bold_font if row == self._robot_step else normal_font
+            font = bold_font if row in active_rows else normal_font
             for col in range(NUM_COLS):
-                item = self._table.item(row, col)
-                if item:
+                try:
+                    item = self._table.item(row, col)
+                except RuntimeError:
+                    continue
+                if item is None:
+                    continue
+                try:
                     item.setFont(font)
-                    item.setBackground(QBrush())
-                    if row == self._robot_step:
+                    self._apply_base_cell_background(row, col, item)
+                    if row in active_rows:
                         if direction < 0:
                             item.setBackground(QBrush(back_tint))
                         elif direction > 0:
                             item.setBackground(QBrush(fwd_tint))
+                except RuntimeError:
+                    continue
+        self._table.blockSignals(False)
+
+    def _apply_base_cell_background(self, row: int, col: int, item: QTableWidgetItem):
+        if row % 2 == 1:
+            item.setBackground(QBrush(QColor(THEME.crust)))
+            return
+
+        if COL_RC <= col <= COL_DRIVE_LR:
+            kf_idx = row // 2
+            motor_idx = col - COL_RC
+            if (
+                0 <= kf_idx < len(self._keyframes)
+                and self._keyframes[kf_idx].relative[motor_idx]
+            ):
+                item.setBackground(QBrush(QColor(THEME.surface1)))
+                return
+        item.setBackground(QBrush())
 
     def _sync_step_goto_range(self):
         max_idx = max(0, len(self._keyframes) - 1)
@@ -549,36 +642,59 @@ class SequenceEditor(QWidget):
     def _on_table_item_changed(self, item: QTableWidgetItem):
         row = item.row()
         col = item.column()
-        if row < 0 or row >= len(self._keyframes):
+        kf_idx = row // 2
+        if row < 0 or kf_idx < 0 or kf_idx >= len(self._keyframes):
             return
-        kf = self._keyframes[row]
+        kf = self._keyframes[kf_idx]
         text = item.text().strip()
+        is_position_row = row % 2 == 0
 
-        if col == COL_LABEL:
+        if is_position_row and col == COL_LABEL:
             kf.label = text
 
-        elif COL_RC <= col <= COL_MR_CAR:
+        elif is_position_row and COL_RC <= col <= COL_DRIVE_LR:
             motor_idx = col - COL_RC
-            if text == INACTIVE_TEXT or text == "" or text == "-":
+            parse_text = text[1:] if text.startswith("Δ") else text
+            if parse_text == INACTIVE_TEXT or parse_text == "" or parse_text == "-":
                 kf.targets[motor_idx] = None
-                item.setForeground(QBrush(QColor(THEME.overlay0)))
-                item.setText(INACTIVE_TEXT)
             else:
                 try:
-                    kf.targets[motor_idx] = float(text)
-                    item.setForeground(QBrush(QColor(JOINT_COLORS[motor_idx])))
+                    kf.targets[motor_idx] = float(parse_text)
                 except ValueError:
-                    # Restore previous value
-                    prev = kf.targets[motor_idx]
-                    item.setText(f"{prev:.1f}" if prev is not None else INACTIVE_TEXT)
+                    pass
 
-        elif col == COL_DURATION:
-            try:
-                kf.duration_ms = max(0, int(float(text)))
-                item.setText(str(kf.duration_ms))
-            except ValueError:
-                item.setText(str(kf.duration_ms))
+        elif (not is_position_row) and COL_RC <= col <= COL_DRIVE_LR:
+            motor_idx = col - COL_RC
+            if text in {"", "-", INACTIVE_TEXT}:
+                kf.motor_durations[motor_idx] = None
+            else:
+                try:
+                    kf.motor_durations[motor_idx] = max(0, int(float(text)))
+                except ValueError:
+                    pass
 
+        self._set_keyframe_rows(kf_idx, kf)
+        self._uploaded = False
+        self._update_button_states()
+
+    def _on_table_context_menu(self, pos):
+        item = self._table.itemAt(pos)
+        if item is None:
+            return
+
+        row = item.row()
+        col = item.column()
+        if row % 2 != 0 or not (COL_RC <= col <= COL_DRIVE_LR):
+            return
+
+        kf_idx = row // 2
+        if kf_idx < 0 or kf_idx >= len(self._keyframes):
+            return
+
+        motor_idx = col - COL_RC
+        kf = self._keyframes[kf_idx]
+        kf.relative[motor_idx] = not kf.relative[motor_idx]
+        self._set_keyframe_rows(kf_idx, kf)
         self._uploaded = False
         self._update_button_states()
 
@@ -680,7 +796,15 @@ class SequenceEditor(QWidget):
         for idx, kf in enumerate(self._keyframes):
             targets = [t if t is not None else 0.0 for t in kf.targets]
             active = [t is not None for t in kf.targets]
-            self._serial_handler.send_keyframe(idx, targets, active, kf.duration_ms)
+            durations = [
+                kf.motor_durations[i]
+                if kf.motor_durations[i] is not None
+                else kf.duration_ms
+                for i in range(NUM_MOTORS)
+            ]
+            self._serial_handler.send_keyframe(
+                idx, targets, active, durations, kf.relative
+            )
 
         # Start a timeout — if not all ACKs arrive within 3s, warn the user
         self._upload_timer.start(3000)
@@ -692,7 +816,7 @@ class SequenceEditor(QWidget):
         self._robot_step = -1
         self._prev_robot_step = -1
         self._robot_total = 0
-        self._robot_interpolating = False
+        self._robot_state = 0
         self._highlight_active_step()
         self._set_status("Exited sequence mode")
         self._update_button_states()
@@ -707,25 +831,28 @@ class SequenceEditor(QWidget):
         # Pre-fill with current live positions if available
         self._apply_live_positions(kf)
         self._keyframes.append(kf)
-        row = len(self._keyframes) - 1
-        self._table.insertRow(row)
-        self._set_row(row, kf)
-        self._table.selectRow(row)
+        keyframe_idx = len(self._keyframes) - 1
+        self._populate_table()
+        self._table.selectRow(2 * keyframe_idx)
         self._uploaded = False
         self._sync_step_goto_range()
         self._update_button_states()
 
     def _on_insert_keyframe_above(self):
         row = self._table.currentRow()
-        if row < 0 or row >= len(self._keyframes):
+        if row < 0:
+            QMessageBox.information(self, "Insert Keyframe", "Select a row first.")
+            return
+        kf_idx = row // 2
+        if kf_idx >= len(self._keyframes):
             QMessageBox.information(self, "Insert Keyframe", "Select a row first.")
             return
         kf = Keyframe()
         kf.label = "New Step"
         self._apply_live_positions(kf)
-        self._keyframes.insert(row, kf)
+        self._keyframes.insert(kf_idx, kf)
         self._populate_table()
-        self._table.selectRow(row)
+        self._table.selectRow(2 * kf_idx)
         self._uploaded = False
         self._update_button_states()
 
@@ -734,9 +861,10 @@ class SequenceEditor(QWidget):
         if not rows:
             return
         row = self._table.currentRow()
-        if 0 <= row < len(self._keyframes):
-            self._keyframes.pop(row)
-            self._table.removeRow(row)
+        kf_idx = row // 2
+        if 0 <= kf_idx < len(self._keyframes):
+            self._keyframes.pop(kf_idx)
+            self._populate_table()
             self._uploaded = False
             self._sync_step_goto_range()
             self._update_button_states()
@@ -744,22 +872,33 @@ class SequenceEditor(QWidget):
     def _on_capture_positions(self):
         """Fill selected row with live motor positions from telemetry."""
         row = self._table.currentRow()
-        if row < 0 or row >= len(self._keyframes):
+        if row < 0:
             QMessageBox.information(self, "Capture Positions", "Select a row first.")
             return
-        kf = self._keyframes[row]
+        if row % 2 == 1:
+            QMessageBox.information(
+                self,
+                "Capture Positions",
+                "Select a position row (Step N), not the dur row.",
+            )
+            return
+        kf_idx = row // 2
+        if kf_idx >= len(self._keyframes):
+            QMessageBox.information(self, "Capture Positions", "Select a row first.")
+            return
+        kf = self._keyframes[kf_idx]
         self._apply_live_positions(kf)
-        self._table.blockSignals(True)
-        self._set_row(row, kf)
-        self._table.blockSignals(False)
-        self._set_status(f"Captured live positions into Step {row}")
+        self._set_keyframe_rows(kf_idx, kf)
+        self._set_status(f"Captured live positions into Step {kf_idx}")
 
     def _apply_live_positions(self, kf: Keyframe):
-        """Read live telemetry positions into a keyframe's targets."""
         for i in range(NUM_MOTORS):
             joint_data = self._data_store.get_joint(i + 1)
             if joint_data is not None:
-                kf.targets[i] = round(joint_data.current_position, 1)
+                if kf.relative[i]:
+                    kf.targets[i] = 0.0
+                else:
+                    kf.targets[i] = round(joint_data.current_position, 1)
 
     # ------------------------------------------------------------------ #
     #  Step commands                                                        #
@@ -781,21 +920,12 @@ class SequenceEditor(QWidget):
 
     def _on_table_selection_changed(self):
         row = self._table.currentRow()
-        if row >= 0 and row <= self._spin_step_goto.maximum():
+        keyframe_idx = row // 2
+        if keyframe_idx >= 0 and keyframe_idx <= self._spin_step_goto.maximum():
             self._spin_step_goto.blockSignals(True)
-            self._spin_step_goto.setValue(row)
+            self._spin_step_goto.setValue(keyframe_idx)
             self._spin_step_goto.blockSignals(False)
         self._update_button_states()
-
-    @pyqtSlot(int, int)
-    def _on_table_cell_double_clicked(self, row: int, _col: int):
-        if self._uploaded and not self._robot_interpolating:
-            self._table.closePersistentEditor(self._table.currentItem())
-            if 0 <= row < len(self._keyframes):
-                self._spin_step_goto.setValue(row)
-                self._serial_handler.seq_goto(row)
-                self._set_status(f"Jumping to step {row + 1}…")
-            return
 
     # ------------------------------------------------------------------ #
     #  Robot response handlers                                             #
@@ -812,7 +942,7 @@ class SequenceEditor(QWidget):
             self._robot_total = len(self._keyframes)
             self._robot_step = -1
             self._prev_robot_step = -1
-            self._robot_interpolating = False
+            self._robot_state = 0
             self._uploaded = True
             self._set_status(
                 f"Upload complete — {len(self._keyframes)} keyframe(s) ready.  "
@@ -820,37 +950,49 @@ class SequenceEditor(QWidget):
             )
             self._update_button_states()
 
-    @pyqtSlot(int, int, bool)
-    def _on_seq_status(self, current_step: int, total_steps: int, interpolating: bool):
-        """Called when the robot sends a SEQ_STATUS update."""
+    @pyqtSlot(int, int, int)
+    def _on_seq_status(self, current_step: int, total_steps: int, state: int):
         self._prev_robot_step = self._robot_step
         self._robot_step = current_step
         self._robot_total = total_steps
-        self._robot_interpolating = interpolating
+        self._robot_state = state
         self._uploaded = total_steps > 0
+        self._push_seq_targets()
         self._sync_step_goto_range()
         self._highlight_active_step()
 
         status_prefix = ""
-        status_color = THEME.green
         if self._prev_robot_step > self._robot_step:
             status_prefix = "↑ "
-            status_color = THEME.blue
         elif self._prev_robot_step < self._robot_step:
             status_prefix = "↓ "
-            status_color = THEME.green
 
-        if interpolating:
+        if state == 1:
             self._set_status(
                 f"{status_prefix}Step {current_step + 1}/{total_steps} — Interpolating…",
                 color=THEME.yellow,
             )
+        elif state == 2:
+            self._set_status(
+                f"{status_prefix}Step {current_step + 1}/{total_steps} — Settling (waiting for motors to reach targets)…",
+                color=THEME.peach,
+            )
         else:
             self._set_status(
                 f"{status_prefix}Step {current_step + 1}/{total_steps} — Ready",
-                color=status_color,
+                color=THEME.green,
             )
         self._update_button_states()
+
+    def _push_seq_targets(self):
+        targets = {}
+        step = self._robot_step
+        if 0 <= step < len(self._keyframes):
+            kf = self._keyframes[step]
+            for i in range(NUM_MOTORS):
+                if kf.targets[i] is not None:
+                    targets[i + 1] = kf.targets[i]
+        self._data_store.set_seq_targets(targets)
 
     def _on_upload_timeout(self):
         if self._upload_pending:
@@ -878,7 +1020,7 @@ class SequenceEditor(QWidget):
         self._btn_insert.setEnabled(has_kf and self._table.currentRow() >= 0)
         self._btn_capture.setEnabled(has_kf)
 
-        can_step = seq_active and not self._robot_interpolating
+        can_step = seq_active and self._robot_state == 0
         self._btn_step_fwd.setEnabled(
             can_step and (self._robot_step < self._robot_total - 1)
         )
@@ -895,7 +1037,7 @@ class SequenceEditor(QWidget):
         goto_idx = self._spin_step_goto.value()
         can_goto = (
             self._uploaded
-            and not self._robot_interpolating
+            and self._robot_state == 0
             and 0 <= goto_idx < len(self._keyframes)
         )
         self._btn_step_goto.setEnabled(can_goto)

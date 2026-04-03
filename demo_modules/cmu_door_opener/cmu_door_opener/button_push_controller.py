@@ -16,7 +16,7 @@ import numpy as np
 
 import rclpy
 from rclpy.node import Node
-from rclpy.action import ActionServer, ActionClient
+from rclpy.action import ActionServer, ActionClient, CancelResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped, TwistStamped
 from diagnostic_msgs.msg import DiagnosticStatus
@@ -85,11 +85,16 @@ class ButtonPushController(Node):
             "/arm/door/open",
             self._execute_open_door,
             callback_group=self._cb_group,
+            cancel_callback=self._cancel_callback,
         )
 
         self.get_logger().info(
             "ButtonPushController ready — waiting for /arm/door/open"
         )
+
+    def _cancel_callback(self, goal_handle):
+        self.get_logger().info("Door open action canceled — stopping arm")
+        return CancelResponse.ACCEPT
 
     def _cb_button_info(self, msg: ButtonInfo):
         self.latest_button_info = msg
@@ -150,6 +155,11 @@ class ButtonPushController(Node):
 
         # Check arm is in OPEN_DOOR mode
         self.get_logger().info(f"[STEP 0] Arm status: {self.latest_arm_status}")
+        # Note From Guo:
+        # the system control node set arm mode to OPEN_DOOR before sending the goal to this action server
+        # But it may takes time for the `self.latest_arm_status` to be updated after the mode is set,
+        # so we may receive the goal before we get the arm status update.
+        # suggest: remove this check or add a short wait here to allow arm status to update before checking.
         if self.latest_arm_status != "OPEN_DOOR":
             result.success = False
             result.message = (
@@ -275,6 +285,13 @@ class ButtonPushController(Node):
                 f"[MOVE] {elapsed:5.2f}s  force={force_mag:6.1f} N  velocity={velocity_str} m/s"
             )
 
+            # handle cancel goal during move
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.success = False
+                result.message = "Door open action canceled during move — stopping arm"
+                return result
+
             if force_mag > FORCE_THRESHOLD:
                 self.get_logger().warn(
                     f"[STEP 2a] Force exceeded during move ({force_mag:.1f} N) — stopping"
@@ -341,6 +358,12 @@ class ButtonPushController(Node):
                 self.stop_arm()
                 contact = True
                 break
+            # handle cancel goal during move
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.success = False
+                result.message = "Door open action canceled during move — stopping arm"
+                return result
 
         if not contact:
             elapsed = time.time() - start_t
@@ -384,6 +407,12 @@ class ButtonPushController(Node):
         # Wait for retract to finish
         deadline = time.time() + 30.0
         while not result_future.done() and time.time() < deadline:
+            # handle cancel goal during move
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.success = False
+                result.message = "Door open action canceled during move — stopping arm"
+                return result
             time.sleep(0.05)
         self.get_logger().info("[STEP 4] Retract complete")
 

@@ -8,7 +8,9 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from std_srvs.srv import SetBool
-from cmu_door_opener_interfaces.action import DoorOpenActionTypePlaceHolder
+from cmu_door_opener_interfaces.action import (
+    DoorOpen as DoorOpenActionTypePlaceHolder,
+)  # using the actual action type instead of placeholder for better type checking
 
 
 class OpenDoor(rclpy.node.Node):

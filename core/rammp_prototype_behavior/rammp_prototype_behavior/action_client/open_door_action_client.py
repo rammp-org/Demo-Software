@@ -2,7 +2,7 @@ from __future__ import annotations
 import asyncio
 
 from rclpy.node import Node
-from cmu_door_opener_interfaces.action import DoorOpenActionTypePlaceHolder
+from cmu_door_opener_interfaces.action import DoorOpen
 from .action_client_wrapper import ActionClientWrapper
 
 
@@ -13,7 +13,7 @@ class OpenDoorActionClient(ActionClientWrapper):
     ):
         super().__init__(
             "/arm/door/open",
-            DoorOpenActionTypePlaceHolder,
+            DoorOpen,
             self.goal_callback,
             self.result_callback,
             self.cancel_callback,
@@ -50,7 +50,7 @@ class OpenDoorActionClient(ActionClientWrapper):
             self._node.reqArmActionCancelFailed()
 
     def send_goal(self):
-        goal = DoorOpenActionTypePlaceHolder.Goal()
+        goal = DoorOpen.Goal()
         asyncio.run_coroutine_threadsafe(super().send_goal(goal), self._node._loop)
 
     def cancel(self):

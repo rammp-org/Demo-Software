@@ -1,4 +1,3 @@
-import ast
 import math
 from enum import IntEnum
 from std_srvs.srv import Empty
@@ -36,26 +35,31 @@ class SerialField(IntEnum):
     """
 
     #  Indices here should match the order of data sent from the Teensy in Base.ino's serial output array
-    IMU_PITCH = 0
-    IMU_ROLL = 1
-    ACCEL_X = 2
-    ACCEL_Y = 3
-    ACCEL_Z = 4
-    FC_POS = 5
-    RC_POS = 6
-    MR_POS = 7
-    ML_POS = 8
-    ML_CARRIAGE_POS = 9
-    MR_CARRIAGE_POS = 10
-    ML_WHEEL_POS = 11
-    MR_WHEEL_POS = 12
-    FC_LOADCELL = 13
-    MR_LOADCELL = 14
-    ML_LOADCELL = 15
-    CA_FLAG = 16
-    APP_TIME = 17
-    SPEED_ML = 18
-    SPEED_MR = 19
+    IMU_PITCH = 37
+    IMU_ROLL = 38
+    IMU_YAW = 39
+    ACCEL_X = 40
+    ACCEL_Y = 41
+    ACCEL_Z = 42
+    IMU_QW = 43
+    IMU_QX = 44
+    IMU_QY = 45
+    IMU_QZ = 46
+    FC_POS = 4
+    RC_POS = 3
+    MR_POS = 6
+    ML_POS = 5
+    ML_CARRIAGE_POS = 7
+    MR_CARRIAGE_POS = 8
+    ML_WHEEL_POS = 0
+    MR_WHEEL_POS = 0
+    FC_LOADCELL = 53
+    RC_LOADCELL = 52
+    MR_LOADCELL = 55
+    ML_LOADCELL = 54
+    APP_TIME = 0
+    SPEED_ML = 0
+    SPEED_MR = 0
 
 
 class MEBotControlNode(Node):
@@ -105,9 +109,14 @@ class MEBotControlNode(Node):
         # IMU
         self.imu_pitch = 0.0
         self.imu_roll = 0.0
+        self.imu_yaw = 0.0
         self.accel_x = 0.0
         self.accel_y = 0.0
         self.accel_z = 0.0
+        self.imu_qw = 0.0
+        self.imu_qx = 0.0
+        self.imu_qy = 0.0
+        self.imu_qz = 0.0
 
         # Encoders
         self.FC_pos = 0.0
@@ -120,12 +129,10 @@ class MEBotControlNode(Node):
         self.MR_wheel_pos = 0.0
 
         # Loadcells
+        self.RC_loadcell = 0.0
         self.FC_loadcell = 0.0
         self.MR_loadcell = 0.0
         self.ML_loadcell = 0.0
-
-        # CA_flag
-        self.CA_flag = 0
 
         # state
         self.state = RAMMPPrototypeState.STATE_IDLE
@@ -201,16 +208,16 @@ class MEBotControlNode(Node):
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
 
     # reading incoming serial data from teensy
+
+    # TODO: Add checks for serial corruption
     def read_serial_data(self):
         if self.ser is None:
             return
         line = self.ser.readline()
         if line:
             raw_data = line.decode("utf-8", errors="replace").strip()
-            if raw_data.startswith("[") and raw_data.endswith(
-                "]"
-            ):  # check if data is in expected list format
-                data = ast.literal_eval(raw_data)
+            if raw_data.startswith("TELEMETRY"):
+                data = raw_data.split(",")  # All values are str
                 self.update_data(data)  # Update variables with new data
             if raw_data.startswith(
                 "SEQ_STATUS"
@@ -228,41 +235,44 @@ class MEBotControlNode(Node):
     # update variables to be published
     def update_data(self, data):
         # IMU
-        self.imu_pitch = data[SerialField.IMU_PITCH]
-        self.imu_roll = data[SerialField.IMU_ROLL]
-        self.accel_x = data[SerialField.ACCEL_X]
-        self.accel_y = data[SerialField.ACCEL_Y]
-        self.accel_z = data[SerialField.ACCEL_Z]
+        self.imu_pitch = float(data[SerialField.IMU_PITCH])
+        self.imu_roll = float(data[SerialField.IMU_ROLL])
+        self.imu_yaw = float(data[SerialField.IMU_YAW])
+        self.accel_x = float(data[SerialField.ACCEL_X])
+        self.accel_y = float(data[SerialField.ACCEL_Y])
+        self.accel_z = float(data[SerialField.ACCEL_Z])
+        self.imu_qw = float(data[SerialField.IMU_QW])
+        self.imu_qx = float(data[SerialField.IMU_QX])
+        self.imu_qy = float(data[SerialField.IMU_QY])
+        self.imu_qz = float(data[SerialField.IMU_QZ])
 
         # Encoders — convert cm to meters
-        self.FC_pos = data[SerialField.FC_POS] / 100.0
-        self.RC_pos = data[SerialField.RC_POS] / 100.0
-        self.MR_pos = data[SerialField.MR_POS] / 100.0
-        self.ML_pos = data[SerialField.ML_POS] / 100.0
-        self.ML_carriage_pos = data[SerialField.ML_CARRIAGE_POS] / 100.0
-        self.MR_carriage_pos = data[SerialField.MR_CARRIAGE_POS] / 100.0
+        self.FC_pos = float(data[SerialField.FC_POS] / 100.0)
+        self.RC_pos = float(data[SerialField.RC_POS] / 100.0)
+        self.MR_pos = float(data[SerialField.MR_POS] / 100.0)
+        self.ML_pos = float(data[SerialField.ML_POS] / 100.0)
+        self.ML_carriage_pos = float(data[SerialField.ML_CARRIAGE_POS] / 100.0)
+        self.MR_carriage_pos = float(data[SerialField.MR_CARRIAGE_POS] / 100.0)
         # TODO: ML/MR wheel joints are revolute — position should be in radians.
         # Convert from distance traveled (m) to radians using wheel radius when known.
-        self.ML_wheel_pos = data[SerialField.ML_WHEEL_POS] / 100.0
-        self.MR_wheel_pos = data[SerialField.MR_WHEEL_POS] / 100.0
+        self.ML_wheel_pos = float(data[SerialField.ML_WHEEL_POS] / 100.0)
+        self.MR_wheel_pos = float(data[SerialField.MR_WHEEL_POS] / 100.0)
 
         # Loadcells
-        self.FC_loadcell = data[SerialField.FC_LOADCELL]
-        self.MR_loadcell = data[SerialField.MR_LOADCELL]
-        self.ML_loadcell = data[SerialField.ML_LOADCELL]
-
-        # CA_flag
-        self.CA_flag = int(data[SerialField.CA_FLAG])
+        self.RC_loadcell = float(data[SerialField.RC_LOADCELL])
+        self.FC_loadcell = float(data[SerialField.FC_LOADCELL])
+        self.MR_loadcell = float(data[SerialField.MR_LOADCELL])
+        self.ML_loadcell = float(data[SerialField.ML_LOADCELL])
 
         # app_time
-        self.app_time = data[SerialField.APP_TIME]
+        self.app_time = float(data[SerialField.APP_TIME])
 
         # Velocity — convert cm/s to m/s
-        # TODO:
+        # TODO: Fix wheel velocities once they are sent by the Teensy (currently sending 0 in SerialField.SPEED_ML and SPEED_MR)
         self.prev_speed_ML = self.current_speed_ML
-        self.current_speed_ML = data[SerialField.SPEED_ML] / 100.0
+        self.current_speed_ML = float(data[SerialField.SPEED_ML] / 100.0)
         self.prev_speed_MR = self.current_speed_MR
-        self.current_speed_MR = data[SerialField.SPEED_MR] / 100.0
+        self.current_speed_MR = float(data[SerialField.SPEED_MR] / 100.0)
 
     def publish_joint_states(self):
         msg = JointState()
@@ -307,12 +317,23 @@ class MEBotControlNode(Node):
         msg.mr_wheel_pos = self.MR_wheel_pos
 
         # loadcells
+        msg.rc_loadcell = self.RC_loadcell
         msg.fc_loadcell = self.FC_loadcell
         msg.mr_loadcell = self.MR_loadcell
         msg.ml_loadcell = self.ML_loadcell
 
-        # CA_flag
-        msg.ca_flag = self.CA_flag
+        # IMU
+        msg.orientation.x = self.imu_qx
+        msg.orientation.y = self.imu_qy
+        msg.orientation.z = self.imu_qz
+        msg.orientation.w = self.imu_qw
+
+        msg.linear_acceleration.x = self.accel_x
+        msg.linear_acceleration.y = self.accel_y
+        msg.linear_acceleration.z = self.accel_z
+
+        # TODO: add angular velocity
+        msg.tilt = math.acos(math.cos(self.imu_pitch) * math.cos(self.imu_roll))
 
         # state
         msg.state = self.state
@@ -334,29 +355,10 @@ class MEBotControlNode(Node):
         msg.linear_acceleration.y = self.accel_y
         msg.linear_acceleration.z = self.accel_z
 
-        # convert IMU angles from degrees to radians for orientation fields
-        pitch = math.radians(self.imu_pitch)
-        roll = math.radians(self.imu_roll)
-        yaw = 0.0  # assuming yaw is 0 since it is not measured by the IMU
-
-        # populate orientation fields using Euler angles (assuming yaw is 0)
-        qx = math.sin(roll / 2) * math.cos(pitch / 2) * math.cos(yaw / 2) - math.cos(
-            roll / 2
-        ) * math.sin(pitch / 2) * math.sin(yaw / 2)
-        qy = math.cos(roll / 2) * math.sin(pitch / 2) * math.cos(yaw / 2) + math.sin(
-            roll / 2
-        ) * math.cos(pitch / 2) * math.sin(yaw / 2)
-        qz = math.cos(roll / 2) * math.cos(pitch / 2) * math.sin(yaw / 2) - math.sin(
-            roll / 2
-        ) * math.sin(pitch / 2) * math.cos(yaw / 2)
-        qw = math.cos(roll / 2) * math.cos(pitch / 2) * math.cos(yaw / 2) + math.sin(
-            roll / 2
-        ) * math.sin(pitch / 2) * math.sin(yaw / 2)
-
-        msg.orientation.x = qx
-        msg.orientation.y = qy
-        msg.orientation.z = qz
-        msg.orientation.w = qw
+        msg.orientation.x = self.imu_qx
+        msg.orientation.y = self.imu_qy
+        msg.orientation.z = self.imu_qz
+        msg.orientation.w = self.imu_qw
 
         self.imu_publisher.publish(msg)
 

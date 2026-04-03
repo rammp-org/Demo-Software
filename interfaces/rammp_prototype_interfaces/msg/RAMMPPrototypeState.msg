@@ -14,10 +14,6 @@ uint8 STATE_CONFIGURATION = 5
 uint8 STATE_AUTO_CURB_CLIMBING = 6
 
 uint8 state
-# CA Flag describes the state/progress of the curb ascent and descent routine.
-# It takes values from 0-7:
-# TODO: document the meaning of each value in the CA routine
-uint8 ca_flag
 
 # Position data from encoders
 # FC - Front Caster
@@ -56,6 +52,7 @@ float32 mr_wheel_vel
 
 #Loadcells
 # Unit: TODO - confirm units
+float32 rc_loadcell
 float32 fc_loadcell
 float32 mr_loadcell
 float32 ml_loadcell

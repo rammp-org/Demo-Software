@@ -294,16 +294,16 @@ class MEBotControlNode(Node):
         self.imu_qz = float(data[SerialField.IMU_QZ])
 
         # Encoders — convert cm to meters
-        self.FC_pos = float(data[SerialField.FC_POS] / 100.0)
-        self.RC_pos = float(data[SerialField.RC_POS] / 100.0)
-        self.MR_pos = float(data[SerialField.MR_POS] / 100.0)
-        self.ML_pos = float(data[SerialField.ML_POS] / 100.0)
-        self.ML_carriage_pos = float(data[SerialField.ML_CARRIAGE_POS] / 100.0)
-        self.MR_carriage_pos = float(data[SerialField.MR_CARRIAGE_POS] / 100.0)
+        self.FC_pos = float(data[SerialField.FC_POS]) / 100.0
+        self.RC_pos = float(data[SerialField.RC_POS]) / 100.0
+        self.MR_pos = float(data[SerialField.MR_POS]) / 100.0
+        self.ML_pos = float(data[SerialField.ML_POS]) / 100.0
+        self.ML_carriage_pos = float(data[SerialField.ML_CARRIAGE_POS]) / 100.0
+        self.MR_carriage_pos = float(data[SerialField.MR_CARRIAGE_POS]) / 100.0
         # TODO: ML/MR wheel joints are revolute — position should be in radians.
         # Convert from distance traveled (m) to radians using wheel radius when known.
-        self.ML_wheel_pos = float(data[SerialField.ML_WHEEL_POS] / 100.0)
-        self.MR_wheel_pos = float(data[SerialField.MR_WHEEL_POS] / 100.0)
+        self.ML_wheel_pos = float(data[SerialField.ML_WHEEL_POS]) / 100.0
+        self.MR_wheel_pos = float(data[SerialField.MR_WHEEL_POS]) / 100.0
 
         # Loadcells
         self.RC_loadcell = float(data[SerialField.RC_LOADCELL])
@@ -317,9 +317,9 @@ class MEBotControlNode(Node):
         # Velocity — convert cm/s to m/s
         # TODO: Fix wheel velocities once they are sent by the Teensy (currently sending 0 in SerialField.SPEED_ML and SPEED_MR)
         self.prev_speed_ML = self.current_speed_ML
-        self.current_speed_ML = float(data[SerialField.SPEED_ML] / 100.0)
+        self.current_speed_ML = float(data[SerialField.SPEED_ML]) / 100.0
         self.prev_speed_MR = self.current_speed_MR
-        self.current_speed_MR = float(data[SerialField.SPEED_MR] / 100.0)
+        self.current_speed_MR = float(data[SerialField.SPEED_MR]) / 100.0
 
         # State
         self.state = int(data[SerialField.STATE])

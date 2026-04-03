@@ -157,6 +157,8 @@ class KinovaArm:
         ]
         self.send_options = RouterClientSendOptions()
         self.send_options.timeout_ms = 50
+        self.control_send_options = RouterClientSendOptions()
+        self.control_send_options.timeout_ms = 200
 
         # clear faults
         self.clear_faults()
@@ -230,7 +232,7 @@ class KinovaArm:
         return self.end_or_abort_event.is_set()
 
     def wait_ready(self):
-        self.end_or_abort_event.wait(KinovaArm.ACTION_TIMEOUT_DURATION)
+        return self.end_or_abort_event.wait(KinovaArm.ACTION_TIMEOUT_DURATION)
 
     def set_arm_servoing_mode(self, mode):
         if mode == "high":
@@ -291,7 +293,7 @@ class KinovaArm:
         command.twist.angular_x = math.degrees(angular_xyz[0])
         command.twist.angular_y = math.degrees(angular_xyz[1])
         command.twist.angular_z = math.degrees(angular_xyz[2])
-        self.base.SendTwistCommand(command)
+        self.base.SendTwistCommand(command, options=self.control_send_options)
 
     def set_intermediate_zero_config(self):
         intermediate_zero_config = [0.0, 0.0, -3.12, 0.0, 0.0, 0.0, 0.0]
@@ -508,7 +510,9 @@ class KinovaArm:
             gripper_request.mode = Base_pb2.GRIPPER_POSITION
             start_time = time.perf_counter()
             while time.perf_counter() - start_time < timeout:
-                gripper_measure = self.base.GetMeasuredGripperMovement(gripper_request)
+                gripper_measure = self.base.GetMeasuredGripperMovement(
+                    gripper_request, options=self.control_send_options
+                )
                 if abs(value - gripper_measure.finger[0].value) < 0.01:
                     break
                 time.sleep(0.01)
@@ -667,12 +671,17 @@ class KinovaArm:
     # def apply_emergency_stop(self):
     #     self.base.ApplyEmergencyStop()
 
-    def clear_faults(self):
+    def clear_faults(self, timeout=5.0):
         if self.base.GetArmState().active_state == Base_pb2.ARMSTATE_IN_FAULT:
             self.base.ClearFaults()
+            deadline = time.perf_counter() + timeout
             while (
                 self.base.GetArmState().active_state != Base_pb2.ARMSTATE_SERVOING_READY
             ):
+                if time.perf_counter() >= deadline:
+                    raise TimeoutError(
+                        f"clear_faults: arm did not reach SERVOING_READY within {timeout}s"
+                    )
                 time.sleep(0.1)
 
 

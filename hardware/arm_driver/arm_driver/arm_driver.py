@@ -489,8 +489,20 @@ class ArmDriverNode(rclpy.node.Node):
         try:
             arm_fn(blocking=False)
             feedback = ReachPreset.Feedback()
+            deadline = time.monotonic() + KinovaArm.ACTION_TIMEOUT_DURATION
             while not self._arm.ready():
                 if self._state == ArmState.ERROR:
+                    goal_handle.abort()
+                    result = ReachPreset.Result()
+                    result.success = False
+                    result.message = self._error_reason
+                    return result
+                if time.monotonic() >= deadline:
+                    self.get_logger().error(
+                        "Reference action timed out waiting for arm ready signal"
+                    )
+                    self._error_reason = "Reference action timed out"
+                    self._transition_to(ArmState.ERROR)
                     goal_handle.abort()
                     result = ReachPreset.Result()
                     result.success = False
@@ -583,7 +595,19 @@ class ArmDriverNode(rclpy.node.Node):
         try:
             self._arm.move_angular_trajectory(waypoints, blocking=False)
             feedback = ExecuteTrajectory.Feedback()
+            deadline = time.monotonic() + KinovaArm.ACTION_TIMEOUT_DURATION
             while not self._arm.ready():
+                if time.monotonic() >= deadline:
+                    self.get_logger().error(
+                        "Trajectory action timed out waiting for arm ready signal"
+                    )
+                    self._error_reason = "Trajectory action timed out"
+                    self._transition_to(ArmState.ERROR)
+                    goal_handle.abort()
+                    result = ExecuteTrajectory.Result()
+                    result.success = False
+                    result.message = self._error_reason
+                    return result
                 state = self._arm.get_state()
                 feedback.joint_states.header.stamp = self.get_clock().now().to_msg()
                 feedback.joint_states.position = state["position"].tolist()

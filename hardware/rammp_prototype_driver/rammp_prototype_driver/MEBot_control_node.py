@@ -1,6 +1,8 @@
-import ast
 import math
 from enum import IntEnum
+from std_srvs.srv import Empty
+from rclpy.executors import MultiThreadedExecutor
+import time
 
 import rclpy
 import serial
@@ -13,6 +15,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
+import diagnostic_updater
+from diagnostic_msgs.msg import DiagnosticStatus
 
 
 class SerialField(IntEnum):
@@ -31,26 +35,32 @@ class SerialField(IntEnum):
     """
 
     #  Indices here should match the order of data sent from the Teensy in Base.ino's serial output array
-    IMU_PITCH = 0
-    IMU_ROLL = 1
-    ACCEL_X = 2
-    ACCEL_Y = 3
-    ACCEL_Z = 4
-    FC_POS = 5
-    RC_POS = 6
-    MR_POS = 7
-    ML_POS = 8
-    ML_CARRIAGE_POS = 9
-    MR_CARRIAGE_POS = 10
-    ML_WHEEL_POS = 11
-    MR_WHEEL_POS = 12
-    FC_LOADCELL = 13
-    MR_LOADCELL = 14
-    ML_LOADCELL = 15
-    CA_FLAG = 16
-    APP_TIME = 17
-    SPEED_ML = 18
-    SPEED_MR = 19
+    IMU_PITCH = 37
+    IMU_ROLL = 38
+    IMU_YAW = 39
+    ACCEL_X = 40
+    ACCEL_Y = 41
+    ACCEL_Z = 42
+    IMU_QW = 43
+    IMU_QX = 44
+    IMU_QY = 45
+    IMU_QZ = 46
+    FC_POS = 4
+    RC_POS = 3
+    MR_POS = 6
+    ML_POS = 5
+    ML_CARRIAGE_POS = 7
+    MR_CARRIAGE_POS = 8
+    ML_WHEEL_POS = 0
+    MR_WHEEL_POS = 0
+    FC_LOADCELL = 53
+    RC_LOADCELL = 52
+    MR_LOADCELL = 55
+    ML_LOADCELL = 54
+    APP_TIME = 0
+    SPEED_ML = 0
+    SPEED_MR = 0
+    STATE = 2
 
 
 class MEBotControlNode(Node):
@@ -62,11 +72,21 @@ class MEBotControlNode(Node):
         serial_port = (
             self.get_parameter("serial_port").get_parameter_value().string_value
         )
-        self.ser = serial.Serial(
-            port=serial_port,
-            baudrate=115200,
-            timeout=1,
-        )
+
+        try:
+            self.ser = serial.Serial(
+                port=serial_port,
+                baudrate=115200,
+                timeout=1,
+            )
+        except serial.SerialException:
+            self.ser = None
+
+        # diagnostics updater init
+        self.updater = diagnostic_updater.Updater(self)
+        self.updater.setHardwareID("MEBot")
+        self.updater.add("LUCI status", self.check_luci_node)
+        self.updater.add("Teensy status", self.check_teensy_connection)
 
         # Data transfer rates
         # Rate to read data from serial
@@ -81,13 +101,23 @@ class MEBotControlNode(Node):
         # timer for serial data reading
         self.serial_timer = self.create_timer(self.serial_rate, self.read_serial_data)
 
+        # Fields to store sequence player data
+        self.current_seq = 0
+        self.seq_length = 0
+        self.seq_mode = 0  # 1= interpolating, 2 = settling, 0 = idle/complete
+
         ### Fields to store incoming data from serial for publishing in ROS messages
         # IMU
         self.imu_pitch = 0.0
         self.imu_roll = 0.0
+        self.imu_yaw = 0.0
         self.accel_x = 0.0
         self.accel_y = 0.0
         self.accel_z = 0.0
+        self.imu_qw = 0.0
+        self.imu_qx = 0.0
+        self.imu_qy = 0.0
+        self.imu_qz = 0.0
 
         # Encoders
         self.FC_pos = 0.0
@@ -100,12 +130,10 @@ class MEBotControlNode(Node):
         self.MR_wheel_pos = 0.0
 
         # Loadcells
+        self.RC_loadcell = 0.0
         self.FC_loadcell = 0.0
         self.MR_loadcell = 0.0
         self.ML_loadcell = 0.0
-
-        # CA_flag
-        self.CA_flag = 0
 
         # state
         self.state = RAMMPPrototypeState.STATE_IDLE
@@ -134,6 +162,14 @@ class MEBotControlNode(Node):
 
         self.self_level_enable_service = self.create_service(
             SetBool, "self_level_enable", self.self_level_enable_callback
+        )
+
+        # LUCI service clients
+        self.set_auto_remote_client = self.create_client(
+            Empty, "/luci/set_auto_remote_input"
+        )
+        self.remove_auto_remote_client = self.create_client(
+            Empty, "/luci/remove_auto_remote_input"
         )
 
     def _init_actions(self):
@@ -173,57 +209,74 @@ class MEBotControlNode(Node):
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
 
     # reading incoming serial data from teensy
+
+    # TODO: Add checks for serial corruption
     def read_serial_data(self):
+        if self.ser is None:
+            return
         line = self.ser.readline()
         if line:
             raw_data = line.decode("utf-8", errors="replace").strip()
-            if raw_data.startswith("[") and raw_data.endswith(
-                "]"
-            ):  # check if data is in expected list format
-                data = ast.literal_eval(raw_data)
+            if raw_data.startswith("TELEMETRY"):
+                data = raw_data.split(",")  # All values are str
                 self.update_data(data)  # Update variables with new data
+            if raw_data.startswith(
+                "SEQ_STATUS"
+            ):  # parsing and storing information about sequence player if running
+                split_data = raw_data.split(",")
+                self.current_seq = split_data[1]
+                self.seq_length = split_data[2]
+                self.seq_mode = split_data[3].strip()
 
     def write_serial_data(self, data):
+        if self.ser is None:
+            return
         self.ser.write(data.encode("utf-8"))
 
     # update variables to be published
     def update_data(self, data):
         # IMU
-        self.imu_pitch = data[SerialField.IMU_PITCH]
-        self.imu_roll = data[SerialField.IMU_ROLL]
-        self.accel_x = data[SerialField.ACCEL_X]
-        self.accel_y = data[SerialField.ACCEL_Y]
-        self.accel_z = data[SerialField.ACCEL_Z]
+        self.imu_pitch = float(data[SerialField.IMU_PITCH])
+        self.imu_roll = float(data[SerialField.IMU_ROLL])
+        self.imu_yaw = float(data[SerialField.IMU_YAW])
+        self.accel_x = float(data[SerialField.ACCEL_X])
+        self.accel_y = float(data[SerialField.ACCEL_Y])
+        self.accel_z = float(data[SerialField.ACCEL_Z])
+        self.imu_qw = float(data[SerialField.IMU_QW])
+        self.imu_qx = float(data[SerialField.IMU_QX])
+        self.imu_qy = float(data[SerialField.IMU_QY])
+        self.imu_qz = float(data[SerialField.IMU_QZ])
 
         # Encoders — convert cm to meters
-        self.FC_pos = data[SerialField.FC_POS] / 100.0
-        self.RC_pos = data[SerialField.RC_POS] / 100.0
-        self.MR_pos = data[SerialField.MR_POS] / 100.0
-        self.ML_pos = data[SerialField.ML_POS] / 100.0
-        self.ML_carriage_pos = data[SerialField.ML_CARRIAGE_POS] / 100.0
-        self.MR_carriage_pos = data[SerialField.MR_CARRIAGE_POS] / 100.0
+        self.FC_pos = float(data[SerialField.FC_POS] / 100.0)
+        self.RC_pos = float(data[SerialField.RC_POS] / 100.0)
+        self.MR_pos = float(data[SerialField.MR_POS] / 100.0)
+        self.ML_pos = float(data[SerialField.ML_POS] / 100.0)
+        self.ML_carriage_pos = float(data[SerialField.ML_CARRIAGE_POS] / 100.0)
+        self.MR_carriage_pos = float(data[SerialField.MR_CARRIAGE_POS] / 100.0)
         # TODO: ML/MR wheel joints are revolute — position should be in radians.
         # Convert from distance traveled (m) to radians using wheel radius when known.
-        self.ML_wheel_pos = data[SerialField.ML_WHEEL_POS] / 100.0
-        self.MR_wheel_pos = data[SerialField.MR_WHEEL_POS] / 100.0
+        self.ML_wheel_pos = float(data[SerialField.ML_WHEEL_POS] / 100.0)
+        self.MR_wheel_pos = float(data[SerialField.MR_WHEEL_POS] / 100.0)
 
         # Loadcells
-        self.FC_loadcell = data[SerialField.FC_LOADCELL]
-        self.MR_loadcell = data[SerialField.MR_LOADCELL]
-        self.ML_loadcell = data[SerialField.ML_LOADCELL]
-
-        # CA_flag
-        self.CA_flag = int(data[SerialField.CA_FLAG])
+        self.RC_loadcell = float(data[SerialField.RC_LOADCELL])
+        self.FC_loadcell = float(data[SerialField.FC_LOADCELL])
+        self.MR_loadcell = float(data[SerialField.MR_LOADCELL])
+        self.ML_loadcell = float(data[SerialField.ML_LOADCELL])
 
         # app_time
-        self.app_time = data[SerialField.APP_TIME]
+        self.app_time = float(data[SerialField.APP_TIME])
 
         # Velocity — convert cm/s to m/s
-        # TODO:
+        # TODO: Fix wheel velocities once they are sent by the Teensy (currently sending 0 in SerialField.SPEED_ML and SPEED_MR)
         self.prev_speed_ML = self.current_speed_ML
-        self.current_speed_ML = data[SerialField.SPEED_ML] / 100.0
+        self.current_speed_ML = float(data[SerialField.SPEED_ML] / 100.0)
         self.prev_speed_MR = self.current_speed_MR
-        self.current_speed_MR = data[SerialField.SPEED_MR] / 100.0
+        self.current_speed_MR = float(data[SerialField.SPEED_MR] / 100.0)
+
+        # State
+        self.state = int(data[SerialField.STATE])
 
     def publish_joint_states(self):
         msg = JointState()
@@ -268,12 +321,23 @@ class MEBotControlNode(Node):
         msg.mr_wheel_pos = self.MR_wheel_pos
 
         # loadcells
+        msg.rc_loadcell = self.RC_loadcell
         msg.fc_loadcell = self.FC_loadcell
         msg.mr_loadcell = self.MR_loadcell
         msg.ml_loadcell = self.ML_loadcell
 
-        # CA_flag
-        msg.ca_flag = self.CA_flag
+        # IMU
+        msg.orientation.x = self.imu_qx
+        msg.orientation.y = self.imu_qy
+        msg.orientation.z = self.imu_qz
+        msg.orientation.w = self.imu_qw
+
+        msg.linear_acceleration.x = self.accel_x
+        msg.linear_acceleration.y = self.accel_y
+        msg.linear_acceleration.z = self.accel_z
+
+        # TODO: add angular velocity
+        msg.tilt = math.acos(math.cos(self.imu_pitch) * math.cos(self.imu_roll))
 
         # state
         msg.state = self.state
@@ -295,31 +359,39 @@ class MEBotControlNode(Node):
         msg.linear_acceleration.y = self.accel_y
         msg.linear_acceleration.z = self.accel_z
 
-        # convert IMU angles from degrees to radians for orientation fields
-        pitch = math.radians(self.imu_pitch)
-        roll = math.radians(self.imu_roll)
-        yaw = 0.0  # assuming yaw is 0 since it is not measured by the IMU
-
-        # populate orientation fields using Euler angles (assuming yaw is 0)
-        qx = math.sin(roll / 2) * math.cos(pitch / 2) * math.cos(yaw / 2) - math.cos(
-            roll / 2
-        ) * math.sin(pitch / 2) * math.sin(yaw / 2)
-        qy = math.cos(roll / 2) * math.sin(pitch / 2) * math.cos(yaw / 2) + math.sin(
-            roll / 2
-        ) * math.cos(pitch / 2) * math.sin(yaw / 2)
-        qz = math.cos(roll / 2) * math.cos(pitch / 2) * math.sin(yaw / 2) - math.sin(
-            roll / 2
-        ) * math.sin(pitch / 2) * math.cos(yaw / 2)
-        qw = math.cos(roll / 2) * math.cos(pitch / 2) * math.cos(yaw / 2) + math.sin(
-            roll / 2
-        ) * math.sin(pitch / 2) * math.sin(yaw / 2)
-
-        msg.orientation.x = qx
-        msg.orientation.y = qy
-        msg.orientation.z = qz
-        msg.orientation.w = qw
+        msg.orientation.x = self.imu_qx
+        msg.orientation.y = self.imu_qy
+        msg.orientation.z = self.imu_qz
+        msg.orientation.w = self.imu_qw
 
         self.imu_publisher.publish(msg)
+
+    def check_luci_node(self, stat):
+        active_nodes = self.get_node_names_and_namespaces()
+        # Build full paths
+        active_nodes = [ns.rstrip("/") + "/" + name for name, ns in active_nodes]
+
+        # TODO: get correct LUCI node name and namespace
+        if "/luci/node" not in active_nodes:
+            stat.add("node_status", "dead")
+            stat.summary(DiagnosticStatus.ERROR, "Luci node not active")
+        else:
+            stat.add("node_status", "active")
+            stat.summary(DiagnosticStatus.OK, "Luci node running")
+
+        return stat
+
+    def check_teensy_connection(self, stat):
+        if self.ser is None:
+            stat.add("connection_status", "not found")
+            stat.summary(DiagnosticStatus.ERROR, "Serial port unavailable")
+        elif self.ser.is_open:
+            stat.add("connection_status", "connected")
+            stat.summary(DiagnosticStatus.OK, "Teensy is connected")
+        else:
+            stat.add("connection_status", "disconnected")
+            stat.summary(DiagnosticStatus.ERROR, "Teensy is disconnected")
+        return stat
 
     def manual_seat_control_callback(self, msg):
         if msg.data:
@@ -328,24 +400,72 @@ class MEBotControlNode(Node):
 
     def estop_callback(self, msg):
         if msg.data:
-            # content
-            pass
-        else:
-            # content
-            pass
+            self.send_remove_luci()  # may be redundent, ensure user has manual control
+            self.write_serial_data(
+                "z\n"
+            )  # triggers MotorController function NO_MOVEMENT
 
-    def curb_traverse_action_callback(self, goal, response):
-        # content
-        return response
+    def send_set_luci(self):
+        request = Empty.Request()
+        future = self.set_auto_remote_client.call_async(request)
+        future.add_done_callback(self.luci_req_done)
+        return future
+
+    def send_remove_luci(self):
+        request = Empty.Request()
+
+        future = self.remove_auto_remote_client.call_async(request)
+        future.add_done_callback(self.luci_req_done)
+        return future
+
+    def luci_req_done(self, future):
+        result = future.result()
+        if result:
+            self.get_logger().info("Service call completed")
+            return
+
+        self.get_logger().error("Service call failed")
+
+    def curb_traverse_action_callback(self, goal):
+        # TODO: add checkpoint here checking if sequence flag is at starting/default state, curb traversal should not be called if MEBot already in curb traversal (default flag is 0)
+        # TODO: add descending flag
+        if goal.request.direction == 1:
+            self.write_serial_data("c\n")
+        if goal.request.direction == 0:
+            self.write_serial_data("d\n")
+
+        feedback_msg = CurbTraverse.Feedback()
+        result = CurbTraverse.Result()
+
+        # Poll CA_flag until the final step is reached
+        while self.current_seq != self.seq_length and self.seq_mode != 0:
+            if goal.is_cancel_requested:
+                goal.canceled()
+                result.success = False
+                return result
+
+            feedback_msg.current_seq = self.current_seq
+            goal.publish_feedback(feedback_msg)
+
+            time.sleep(0.05)
+
+        # TODO: Make success true or false depending on information given by teensy that states whether or not curb traversal succeeded
+        goal.succeed()
+        result.success = True
+
+        # reset sequence player data
+        self.current_seq = 0
+        self.seq_length = 0
+        self.seq_mode = 0
+        return result
 
     def drive_enable_callback(self, request, response):
         if request.data:
-            # content
-            pass
+            self.send_set_luci()
         else:
-            # content
-            pass
+            self.send_remove_luci()
 
+        response.success = True  # just acknowledges request recieved and sent
         return response
 
     def self_level_enable_callback(self, request, response):
@@ -356,14 +476,18 @@ class MEBotControlNode(Node):
             self.write_serial_data("r\n")
             pass
 
-        response.success = True
+        response.success = True  # just acknowledges request recieved and sent
         return response
 
 
 def main(args=None):
     rclpy.init(args=args)
     node = MEBotControlNode()
-    rclpy.spin(node)
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+
+    executor.spin()
+
     rclpy.shutdown()
 
 

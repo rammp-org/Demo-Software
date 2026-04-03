@@ -8,29 +8,43 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from std_srvs.srv import SetBool
-from cmu_door_opener_interfaces.action import (
-    DoorOpen as DoorOpenActionTypePlaceHolder,
-)  # using the actual action type instead of placeholder for better type checking
+from cmu_door_opener_interfaces.action import DoorOpen
+
+
+class ButtonDetector(rclpy.node.Node):
+    def __init__(self):
+        super().__init__("button_detector")
+        self.get_logger().info("Mock Button Detector Node has been started.")
+        self.cb_group = ReentrantCallbackGroup()
+
+        self._srv_detection_enable = self.create_service(
+            SetBool,
+            "/arm/door/detection/enable",
+            self._srv_detection_enable,
+            callback_group=self.cb_group,
+        )
+
+    def _srv_detection_enable(self, request, response):
+        if request.data:
+            self.get_logger().info("Button detection enabled.")
+        else:
+            self.get_logger().info("Button detection disabled.")
+        response.success = True
+        return response
 
 
 class OpenDoor(rclpy.node.Node):
     def __init__(self):
-        super().__init__("open_door_node")
+        super().__init__("button_push_controller")
         self.get_logger().info("Mock Opening Door Node has been started.")
         self._mock_action_reject = False  # default to accept all goals
         self._mock_action_result = True  # default to successful execution
         self._action_running = False
         self._action_counter = 0
         self.cb_group = ReentrantCallbackGroup()
-        self.create_service(
-            SetBool,
-            "/arm/door/detection/enable",
-            self._srv_detection_enable,
-            callback_group=self.cb_group,
-        )
         self._action_server = ActionServer(
             self,
-            DoorOpenActionTypePlaceHolder,
+            DoorOpen,
             "/arm/door/open",
             self._execute_callback,
             callback_group=self.cb_group,
@@ -38,16 +52,8 @@ class OpenDoor(rclpy.node.Node):
             cancel_callback=self._cancel_callback,
         )
 
-    def _srv_detection_enable(self, request, response):
-        if request.data:
-            self.get_logger().info("Door detection enabled.")
-        else:
-            self.get_logger().info("Door detection disabled.")
-        response.success = True
-        return response
-
     def publish_feedback(self, goal_handle) -> bool:
-        feedback = DoorOpenActionTypePlaceHolder.Feedback()
+        feedback = DoorOpen.Feedback()
         while self._action_counter > 0:
             self.get_logger().info("action counter left: " + str(self._action_counter))
             feedback.status = str(self._action_counter)
@@ -70,16 +76,16 @@ class OpenDoor(rclpy.node.Node):
                 "Another action is already running. Rejecting new goal."
             )
             goal_handle.reject()
-            return DoorOpenActionTypePlaceHolder.Result()
+            return DoorOpen.Result()
         self._action_running = True
         self._action_counter = 20  # 2s action time.
         if not self.publish_feedback(goal_handle):  # canceled during action process
-            result = DoorOpenActionTypePlaceHolder.Result()
+            result = DoorOpen.Result()
             self._action_running = False
             return result
         self.get_logger().info("Action execution finished.")
         # mock result
-        result = DoorOpenActionTypePlaceHolder.Result()
+        result = DoorOpen.Result()
         self._action_running = False
 
         if self._mock_action_result:
@@ -101,14 +107,18 @@ def main(args=None):
     """Entry point for the mock opening door node."""
     rclpy.init(args=args)
     node = OpenDoor()
+    button_detector = ButtonDetector()
+
     executor = MultiThreadedExecutor()
     executor.add_node(node)
+    executor.add_node(button_detector)
     try:
         executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
         node.destroy_node()
+        button_detector.destroy_node()
         rclpy.shutdown()
 
 

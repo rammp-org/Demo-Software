@@ -326,6 +326,9 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Arm_Paused(self):
         self.get_logger().info("Arm is paused. Waiting for resume command.")
         self.base_drive_enable(False)  # disable drive while arm is paused
+        self.enable_cup_stabilizer(
+            False
+        )  # disable cup stabilizer if it is on when arm is paused to avoid potential interference with pausing arm
         self.set_arm_mode_idle()  # set arm mode to idle when paused to stop any ongoing arm action
 
     def on_exit_Arm_Paused(self):
@@ -380,14 +383,14 @@ class SystemControl(rclpy.node.Node):
             5.0, self.reqCupStabilizeOff
         )  # should enter Arm_cupStabilize_homing state after stabilizing cup for testing, will replace with actual logic to determine when to turn off cup stabilizer later
 
-    def on_exit_Arm_cupStabilize_stabilizing(self):
-        self.enable_cup_stabilizer(
-            False
-        )  # ensure cup stabilizer is disabled when exiting stabilizing cup state
-        self.set_arm_mode_idle()  # set arm back to idle when exiting stabilizing cup state
+    # def on_exit_Arm_cupStabilize_stabilizing(self):
+    #     # ensure cup stabilizer is disabled when exiting stabilizing cup state
 
     def on_enter_Arm_cupStabilize_homing(self):
         self.get_logger().info("Homing arm after cup stabilization.")
+        self.enable_cup_stabilizer(False)
+        self.set_arm_mode_idle()  # set arm back to idle when exiting stabilizing cup state
+
         self.base_drive_enable(
             False
         )  # disable drive while homing arm after cup stabilization
@@ -1159,15 +1162,9 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_homing",
             },
             {
-                "trigger": "reqCupStabilizeOff",
-                "source": "Arm_cupStabilize_stabilizing",
-                "dest": "Arm_cupStabilize_homing",
-            },
-            {
                 "trigger": "homed",
                 "source": [
                     "Arm_homing",
-                    "Arm_cupStabilize_homing",
                     "Arm_OrderDrink_releasingCup",
                 ],
                 "dest": "Arm_home",
@@ -1219,11 +1216,6 @@ class SystemControl(rclpy.node.Node):
                 "source": "Arm_OrderDrink_holdingCup",
                 "dest": "Arm_OrderDrink_releasingCup",
             },
-            # {
-            #     "trigger": "cupReleased",
-            #     "source": "Arm_OrderDrink_releasingCup",
-            #     "dest": "Arm_home",
-            # },
             {
                 "trigger": "detectDrink",
                 "source": "Arm_home",
@@ -1255,6 +1247,21 @@ class SystemControl(rclpy.node.Node):
                 "source": "Arm_cupStabilize_moving",
                 "dest": "Arm_cupStabilize_stabilizing",
             },
+            {
+                "trigger": "reqCupStabilizeOff",
+                "source": "Arm_cupStabilize_stabilizing",
+                "dest": "Arm_cupStabilize_homing",
+            },
+            {
+                "trigger": "reqHome",
+                "source": "Arm_cupStabilize_stabilizing",
+                "dest": "Arm_cupStabilize_homing",
+            },
+            {
+                "trigger": "homed",
+                "source": "Arm_cupStabilize_homing",
+                "dest": "Arm_homeWithDrink",
+            },
             # drink
             {
                 "trigger": "reqDrink",
@@ -1272,12 +1279,22 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_Drink_placingCupAway",
             },
             {
+                "trigger": "reqHome",
+                "source": "Arm_Drink_sipping",
+                "dest": "Arm_Drink_placingCupAway",
+            },
+            {
                 "trigger": "homed",
                 "source": "Arm_Drink_placingCupAway",
                 "dest": "Arm_homeWithDrink",
             },
             {
                 "trigger": "placeCupBack",
+                "source": "Arm_homeWithDrink",
+                "dest": "Arm_Drink_placingCupBack",
+            },
+            {
+                "trigger": "retract",
                 "source": "Arm_homeWithDrink",
                 "dest": "Arm_Drink_placingCupBack",
             },

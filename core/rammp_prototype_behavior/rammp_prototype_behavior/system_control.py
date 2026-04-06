@@ -1133,6 +1133,7 @@ class SystemControl(rclpy.node.Node):
                     "Arm_OrderDrink_detectingDrink",
                     "Arm_Door_detecting",
                     "Arm_cupStabilize_stabilizing",
+                    "Arm_OrderDrink_holdingCup",
                 ],
                 "dest": "Arm_paused",
             },  # request to cancel current service, move to paused sub state

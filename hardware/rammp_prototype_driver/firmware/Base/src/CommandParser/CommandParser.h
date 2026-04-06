@@ -28,7 +28,6 @@ enum CommandType {
   CMD_VEL_LPF,     // e.g. q<id>:<val> (Velocity PID output LPF alpha)
   CMD_POS_RAMP,    // e.g. U<id>:<val> (Position PID output max ramp rate)
   CMD_VEL_RAMP,    // e.g. u<id>:<val> (Velocity PID output max ramp rate)
-  CMD_MANUAL_SEAT, // Y — enter/exit MANUAL_SEAT mode  (Y1:1 / Y1:0)
   CMD_Z,           // e.g. z (ESTOP)
   CMD_C,           // e.g. c (Clear ESTOP)
   CMD_LEVEL_MODE,  // e.g. L1:1 (On), L1:0 (Off)

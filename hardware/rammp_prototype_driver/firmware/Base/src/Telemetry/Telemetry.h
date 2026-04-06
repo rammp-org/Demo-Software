@@ -11,8 +11,7 @@ enum SystemState {
   ESTOP,
   SELF_LEVELING,
   CONFIGURATION,
-  AUTO_CURB_CLIMBING,
-  MANUAL_SEAT
+  AUTO_CURB_CLIMBING
 };
 
 // System Telemetry

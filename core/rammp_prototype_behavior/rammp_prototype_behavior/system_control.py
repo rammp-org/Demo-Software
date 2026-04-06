@@ -323,7 +323,7 @@ class SystemControl(rclpy.node.Node):
     # -----------------------end of curb navigation transtion functions----------------------
 
     # ---------Arm Pause state transition function calls---------------------------------
-    def on_enter_Arm_Paused(self):
+    def on_enter_Arm_paused(self):
         self.get_logger().info("Arm is paused. Waiting for resume command.")
         self.base_drive_enable(False)  # disable drive while arm is paused
         self.enable_cup_stabilizer(
@@ -331,7 +331,7 @@ class SystemControl(rclpy.node.Node):
         )  # disable cup stabilizer if it is on when arm is paused to avoid potential interference with pausing arm
         self.set_arm_mode_idle()  # set arm mode to idle when paused to stop any ongoing arm action
 
-    def on_exit_Arm_Paused(self):
+    def on_exit_Arm_paused(self):
         self.base_drive_enable(True)  # re-enable drive when exiting paused state
 
     # ---------End of Arm Pause state transition function calls--------------------------

@@ -34,7 +34,7 @@
 
 | Topic                     | Type                            |
 | ------------------------- | ------------------------------- |
-| /base/manual_seat_control | std_msgs/msg/Bool (placeholder) |
+| /base/manual_seat_control | rammp_prototype_interfaces/msg/SeatCommand |
 | /base/estop               | std_msgs/msg/Bool               |
 
 ### Service Servers:

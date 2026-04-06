@@ -49,3 +49,7 @@ Thumbs.db
 # (Usually you want to keep docs, but skip generated Doxygen output)
 docs/_build/
 doxygen_output/
+
+
+# Navigation Models
+demo_modules/neu_navigation/models/*.pth

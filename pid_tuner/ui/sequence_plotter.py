@@ -12,7 +12,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QTimer
 
 from ..data.data_store import DataStore
-from ..data.joint_config import get_joint_names
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES
 

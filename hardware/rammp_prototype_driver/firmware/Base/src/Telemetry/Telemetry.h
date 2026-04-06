@@ -15,12 +15,10 @@ enum SystemState {
 };
 
 // System Telemetry
-// Motor order for all 6-element arrays: [rc, fc, ml, mr, ml_carriage, mr_carriage]
-// Limit switch order: [ml_fwd, ml_bwd, mr_fwd, mr_bwd]
-// IMU order: [pitch, roll, yaw, ax, ay, az]
-// Quaternion order: [w, x, y, z]
-// Leveling order: [pitch_err, roll_err, z_ml, z_rc, z_mr]
-// Strain gauge order: [rc, fc, ml, mr]
+// Motor order for all 6-element arrays: [rc, fc, ml, mr, ml_carriage,
+// mr_carriage] Limit switch order: [ml_fwd, ml_bwd, mr_fwd, mr_bwd] IMU order:
+// [pitch, roll, yaw, ax, ay, az] Quaternion order: [w, x, y, z] Leveling order:
+// [pitch_err, roll_err, z_ml, z_rc, z_mr] Strain gauge order: [rc, fc, ml, mr]
 // Drive arrays [2]: [drive_fb (avg), drive_lr (diff)]
 // drive_modes: control mode for drive_fb/drive_lr
 // raw_enc: direction-corrected individual ML/MR encoder readings

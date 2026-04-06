@@ -27,7 +27,6 @@ import numpy as np
 
 from ..data.data_store import DataStore
 from ..serial_driver.serial_handler import SerialHandler
-from ..serial_driver.protocol import ProtocolEncoder
 from .theme import THEME
 from .scaling import SIZES, scaled
 from .imu_display import IMUDisplay

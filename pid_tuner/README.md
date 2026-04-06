@@ -112,18 +112,18 @@ To preview target signals before connecting to hardware:
 
 ### Controls
 
-| Control            | Description                                                         |
-| ------------------ | ------------------------------------------------------------------- |
-| **Set Target**     | Send an absolute target for the selected joint                       |
-| **Use Current**    | Copy current encoder position to target input                       |
-| **Set Zero**       | Set target to 0                                                     |
-| **Home Position**  | Send 'H' command to zero the encoder                                |
-| **Flip Dir**       | Send 'V' command to flip motor direction (saved to EEPROM)          |
-| **Disable Motors** | Send 'z' command to disable all motors (ESTOP)                      |
-| **Step +/-**       | Execute a timed step of configured amplitude and duration           |
-| **Quick Steps**    | One-click buttons for quick percentage-based steps                  |
-| **Start Sine**     | Begin sine wave oscillation around current target                   |
-| **Stop Sine**      | Stop sine wave and return to center position                        |
+| Control            | Description                                                |
+| ------------------ | ---------------------------------------------------------- |
+| **Set Target**     | Send an absolute target for the selected joint             |
+| **Use Current**    | Copy current encoder position to target input              |
+| **Set Zero**       | Set target to 0                                            |
+| **Home Position**  | Send 'H' command to zero the encoder                       |
+| **Flip Dir**       | Send 'V' command to flip motor direction (saved to EEPROM) |
+| **Disable Motors** | Send 'z' command to disable all motors (ESTOP)             |
+| **Step +/-**       | Execute a timed step of configured amplitude and duration  |
+| **Quick Steps**    | One-click buttons for quick percentage-based steps         |
+| **Start Sine**     | Begin sine wave oscillation around current target          |
+| **Stop Sine**      | Stop sine wave and return to center position               |
 
 ## Serial Protocol
 

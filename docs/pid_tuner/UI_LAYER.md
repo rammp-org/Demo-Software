@@ -134,4 +134,3 @@ A reusable UI component that provides a group box that can be collapsed by click
 **Lines: 1-194**
 
 DPI-aware scaling utilities to ensure a consistent appearance across different screen sizes and resolutions.
-

@@ -6,15 +6,18 @@
 #include <SD.h>
 #include <SPI.h>
 #include "src/Timer/Timer.h"
-// TODO: Timer::updateTime() prints to Serial every loop — remove debug output to reduce serial noise
+// TODO: Timer::updateTime() prints to Serial every loop — remove debug output
+// to reduce serial noise
 #include <Wire.h>
 #include "src/RoboClaw/RoboClaw.h"
-// TODO: Upgrade to basicmicro_arduino library (RoboClaw library is deprecated per vendor README)
+// TODO: Upgrade to basicmicro_arduino library (RoboClaw library is deprecated
+// per vendor README)
 #include <utility/imumaths.h>
 
 #include "src/Motor/Motor.h"
 #include "src/CommandParser/CommandParser.h"
-// TODO: CommandParser uses Arduino String — replace with fixed-size char buffer to avoid heap fragmentation
+// TODO: CommandParser uses Arduino String — replace with fixed-size char buffer
+// to avoid heap fragmentation
 #include "src/MotorMap/MotorMap.h"
 #include "src/SequencePlayer/SequencePlayer.h"
 #include "src/Telemetry/Telemetry.h"
@@ -31,7 +34,8 @@
 #define DRIVE_DEADZONE_TICKS 300.0f
 // TODO: Make DEBUG_MODE runtime-configurable via serial command
 
-// SystemState enum and SystemTelemetry struct moved to src/Telemetry/Telemetry.h
+// SystemState enum and SystemTelemetry struct moved to
+// src/Telemetry/Telemetry.h
 
 // Global State
 SystemState current_state = INIT;
@@ -79,14 +83,14 @@ float raw_ml_enc_vel = 0, raw_mr_enc_vel = 0;
 
 // Centralized motor-encoder mapping table (declared extern in MotorMap.h)
 MotorEntry motor_map[8] = {
-  { &rc,          3,  &roboclaw_casters,   1, true,  true,  "rc" },
-  { &fc,          2,  &roboclaw_casters,   2, true,  true,  "fc" },
-  { &ml,          7,  &roboclaw_main,      1, true,  true,  "ml" },
-  { &mr,          5,  &roboclaw_main,      2, true,  true,  "mr" },
-  { &ml_carriage, 11, &roboclaw_carriages, 1, true,  true,  "ml_carriage" },
-  { &mr_carriage, 12, &roboclaw_carriages, 2, true,  true,  "mr_carriage" },
-  { &drive_fb,    9,  nullptr,             0, false, false, "drive_fb" },
-  { &drive_lr,    10, nullptr,             0, false, false, "drive_lr" },
+    {&rc, 3, &roboclaw_casters, 1, true, true, "rc"},
+    {&fc, 2, &roboclaw_casters, 2, true, true, "fc"},
+    {&ml, 7, &roboclaw_main, 1, true, true, "ml"},
+    {&mr, 5, &roboclaw_main, 2, true, true, "mr"},
+    {&ml_carriage, 11, &roboclaw_carriages, 1, true, true, "ml_carriage"},
+    {&mr_carriage, 12, &roboclaw_carriages, 2, true, true, "mr_carriage"},
+    {&drive_fb, 9, nullptr, 0, false, false, "drive_fb"},
+    {&drive_lr, 10, nullptr, 0, false, false, "drive_lr"},
 };
 
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
@@ -133,10 +137,10 @@ void runSelfLeveling(float dt) {
   ml_carriage.setTargetPosition(CARRIAGE_LEVEL_TARGET);
   mr_carriage.setTargetPosition(CARRIAGE_LEVEL_TARGET);
 
-  bool ml_carr_ready =
-      fabs(ml_carriage.current_pos - CARRIAGE_LEVEL_TARGET) < CARRIAGE_LEVEL_TOLERANCE;
-  bool mr_carr_ready =
-      fabs(mr_carriage.current_pos - CARRIAGE_LEVEL_TARGET) < CARRIAGE_LEVEL_TOLERANCE;
+  bool ml_carr_ready = fabs(ml_carriage.current_pos - CARRIAGE_LEVEL_TARGET) <
+                       CARRIAGE_LEVEL_TOLERANCE;
+  bool mr_carr_ready = fabs(mr_carriage.current_pos - CARRIAGE_LEVEL_TARGET) <
+                       CARRIAGE_LEVEL_TOLERANCE;
 
   if (!ml_carr_ready || !mr_carr_ready) {
     ik_was_active = false;
@@ -159,7 +163,8 @@ void runSelfLeveling(float dt) {
 
   // offset IMU reading
   double pitch_trim_rad = (getPitchTrim() * PI / 180.0) / 2.0;
-  imu::Quaternion q_trim_pitch(cos(pitch_trim_rad), sin(pitch_trim_rad), 0.0, 0.0);
+  imu::Quaternion q_trim_pitch(cos(pitch_trim_rad), sin(pitch_trim_rad), 0.0,
+                               0.0);
 
   double roll_trim_rad = (getRollTrim() * PI / 180.0) / 2.0;
   imu::Quaternion q_trim_roll(cos(roll_trim_rad), 0.0, sin(roll_trim_rad), 0.0);
@@ -285,7 +290,8 @@ void runSelfLeveling(float dt) {
 
   // Blend from hold positions to IK targets over LEVEL_BLEND_MS
   // to prevent violent jerk when IK first engages.
-  float blend = min(1.0f, (float)(millis() - blend_start) / (float)LEVEL_BLEND_MS);
+  float blend =
+      min(1.0f, (float)(millis() - blend_start) / (float)LEVEL_BLEND_MS);
 
   float ik_ml = z_target_ml * ML_CM_TO_TICKS;
   float ik_mr = z_target_mr * MR_CM_TO_TICKS;
@@ -308,8 +314,8 @@ void runSelfLeveling(float dt) {
 
 // Save all 6 motor configs (PID, dirs, limits, current position) to EEPROM
 void saveAllMotorConfigs() {
-  Motor *all_motors[8] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
-                          &drive_fb, &drive_lr};
+  Motor *all_motors[8] = {&rc,          &fc,          &ml,       &mr,
+                          &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
   for (int i = 0; i < 8; i++) {
     Motor *m = all_motors[i];
     int motor_id = i + 1;
@@ -376,7 +382,6 @@ void saveMotorConfig(int motor_id, Motor *m) {
   ConfigStorage::saveMotorConfig(motor_id, conf);
 }
 
-
 void setup() {
   Serial.begin(460800);  // jetson
   Serial3.begin(460800); // roboclaw 1
@@ -406,8 +411,8 @@ void setup() {
     return (isnan(v) || isinf(v)) ? 0.0f : v;
   };
 
-  Motor *all_motors[8] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
-                          &drive_fb, &drive_lr};
+  Motor *all_motors[8] = {&rc,          &fc,          &ml,       &mr,
+                          &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
   for (int i = 0; i < 8; i++) {
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
     all_motors[i]->setDirection(conf.motor_dir);
@@ -415,8 +420,10 @@ void setup() {
     // Restore drive wheel kinematics encoder direction from EEPROM.
     // ml_enc_dir/mr_enc_dir are the runtime source of truth for drive wheel
     // encoder direction; they must match what was saved.
-    if (i == 6) ml_enc_dir = conf.encoder_dir;
-    if (i == 7) mr_enc_dir = conf.encoder_dir;
+    if (i == 6)
+      ml_enc_dir = conf.encoder_dir;
+    if (i == 7)
+      mr_enc_dir = conf.encoder_dir;
     all_motors[i]->setInputLpfAlpha(safe_f(conf.lpf_input_alpha));
     all_motors[i]->pos_pid.kp = safe_f(conf.pos_p);
     all_motors[i]->pos_pid.ki = safe_f(conf.pos_i);
@@ -433,7 +440,7 @@ void setup() {
     all_motors[i]->vel_pid.setRampRate(safe_f(conf.vel_max_ramp_rate));
 
     all_motors[i]->updateLimits(conf.pos_limit_min, conf.pos_limit_max);
-    //TODO: @alex explain this code or fix it, this looks insane VVVVV
+    // TODO: @alex explain this code or fix it, this looks insane VVVVV
 
     // Restore encoder offset so the filtered position resumes from
     // saved_position. Map motor index (0-5) to encoder container index,
@@ -444,8 +451,8 @@ void setup() {
     // Divide by encoder_dir to recover the raw tick count, then set the
     // offset so that (raw_reading - offset) == saved_position.
     // Guard: encoder_dir is validated to ±1 by loadMotorConfig; check anyway.
-    if (conf.encoder_dir != 0 &&
-        !isnan(conf.saved_position) && !isinf(conf.saved_position)) {
+    if (conf.encoder_dir != 0 && !isnan(conf.saved_position) &&
+        !isinf(conf.saved_position)) {
       EContr.encoder_offset[enc_idx] =
           EContr.getRawReading(enc_idx) -
           (signed long)(conf.saved_position / (float)conf.encoder_dir);
@@ -546,8 +553,10 @@ void loop() {
     if (DEBUG_MODE)
       Serial.println("DEBUG: ESTOP Cleared, entering IDLE");
   } else if (cmd.type == CMD_SEQ_MODE) {
-    // All 8 motors are position-controlled during sequences (including drive wheels).
-    Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
+    // All 8 motors are position-controlled during sequences (including drive
+    // wheels).
+    Motor *seq_motors[SEQ_NUM_MOTORS] = {
+        &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
     if (cmd.actuator_id == 1) {
       // B1:1 / B1:0 — enter or exit sequence mode
       if (cmd.value > 0.5f) {
@@ -591,17 +600,12 @@ void loop() {
 
   // Config reads are safe during any state (including E-Stop).
   if (cmd.type == CMD_GET_CONFIG && cmd.type != CMD_NONE) {
-    const MotorEntry* cfg_entry = getMotorEntry(cmd.actuator_id);
+    const MotorEntry *cfg_entry = getMotorEntry(cmd.actuator_id);
     Motor *cfg_m = cfg_entry ? cfg_entry->motor : nullptr;
     if (cfg_m != nullptr) {
-      CommandContext cfg_ctx = {
-        cfg_m,
-        (uint8_t)cmd.actuator_id,
-        cmd.value,
-        parser.last_payload,
-        EContr,
-        cfg_entry
-      };
+      CommandContext cfg_ctx = {cfg_m,     (uint8_t)cmd.actuator_id,
+                                cmd.value, parser.last_payload,
+                                EContr,    cfg_entry};
       dispatchCommand(cmd, cfg_ctx);
     }
   }
@@ -614,27 +618,25 @@ void loop() {
         Serial.println("DEBUG: Saved config for ALL motors (K0)");
       }
     } else {
-      const MotorEntry* entry = getMotorEntry(cmd.actuator_id);
+      const MotorEntry *entry = getMotorEntry(cmd.actuator_id);
       Motor *m = entry ? entry->motor : nullptr;
 
       if (m != nullptr) {
         // Build dispatch context and delegate to table-driven handler
-        CommandContext ctx = {
-          m,
-          (uint8_t)cmd.actuator_id,
-          cmd.value,
-          parser.last_payload,
-          EContr,
-          entry
-        };
+        CommandContext ctx = {m,         (uint8_t)cmd.actuator_id,
+                              cmd.value, parser.last_payload,
+                              EContr,    entry};
         dispatchCommand(cmd, ctx);
       }
     }
   }
 
-    // Sequence command dispatch (delegated to SequencePlayer module)
+  // Sequence command dispatch (delegated to SequencePlayer module)
   if (current_state == AUTO_CURB_CLIMBING && cmd.type != CMD_NONE) {
-    Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7: velocity-mode (drive wheels)
+    Motor *seq_motors[SEQ_NUM_MOTORS] = {
+        &rc,          &fc,       &ml,      &mr, &ml_carriage,
+        &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7:
+                                             // velocity-mode (drive wheels)
     sequenceHandleCommand(cmd, seq_motors, parser.last_payload);
   }
 
@@ -652,7 +654,10 @@ void loop() {
   } else if (current_state == SELF_LEVELING) {
     runSelfLeveling(dt);
   } else if (current_state == AUTO_CURB_CLIMBING) {
-    Motor *seq_motors[SEQ_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7: velocity-mode (drive wheels)
+    Motor *seq_motors[SEQ_NUM_MOTORS] = {
+        &rc,          &fc,       &ml,      &mr, &ml_carriage,
+        &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7:
+                                             // velocity-mode (drive wheels)
     sequenceUpdate(seq_motors);
   }
 
@@ -669,13 +674,15 @@ void loop() {
   // integrator windup near the setpoint produces a non-zero joystick command
   // and the wheelchair creeps even when it should be stationary.
   if (drive_fb.mode == Motor::POSITION_CONTROL &&
-      fabsf(drive_fb.target_pos - drive_fb.current_pos) < DRIVE_DEADZONE_TICKS) {
+      fabsf(drive_fb.target_pos - drive_fb.current_pos) <
+          DRIVE_DEADZONE_TICKS) {
     drive_fb.target_pos = drive_fb.current_pos;
     drive_fb.pos_pid.reset();
     drive_fb.vel_pid.reset();
   }
   if (drive_lr.mode == Motor::POSITION_CONTROL &&
-      fabsf(drive_lr.target_pos - drive_lr.current_pos) < DRIVE_DEADZONE_TICKS) {
+      fabsf(drive_lr.target_pos - drive_lr.current_pos) <
+          DRIVE_DEADZONE_TICKS) {
     drive_lr.target_pos = drive_lr.current_pos;
     drive_lr.pos_pid.reset();
     drive_lr.vel_pid.reset();
@@ -707,9 +714,9 @@ void loop() {
     mrc_pwm = 0;
   }
 
-  // TODO: Check return values from RoboClaw DutyM1/M2 for communication error detection
-  // Write PWM to RoboClaws (constrained strictly to 16-bit signed int +/-
-  // 32767) roboclaw_main: M1 = Main Left, M2 = Main Right
+  // TODO: Check return values from RoboClaw DutyM1/M2 for communication error
+  // detection Write PWM to RoboClaws (constrained strictly to 16-bit signed int
+  // +/- 32767) roboclaw_main: M1 = Main Left, M2 = Main Right
   // TODO: change main wheel controls back to default
   roboclaw_main.DutyM1(0x80, (int16_t)ml_pwm);
 

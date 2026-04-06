@@ -39,20 +39,20 @@ ______________________________________________________________________
 
 This is the most important — and most confusing — aspect of this class. The `Encoder` objects do **not** map sequentially to the `encoder[]` / `encoderf[]` arrays. The `retrieve_readings()` function (Lines 3–32) manually assigns each hardware encoder to a specific array index:
 
-| Array Index (`encoderf[N]`) | Encoder Object | Physical Location | Used By Motor               |
-| --------------------------- | -------------- | ----------------- | --------------------------- |
-| `[1]`                       | `Enc2`         | RC top            | *(unused by active joints)* |
-| `[2]`                       | `Enc6`         | FC bottom         | `fc` (Joint 2)              |
-| `[3]`                       | `Enc1`         | RC bottom         | `rc` (Joint 1)              |
-| `[4]`                       | `Enc3`         | FC top            | *(unused by active joints)* |
-| `[5]`                       | `Enc12`        | MR back           | `mr` (Joint 4)              |
-| `[6]`                       | `Enc4`         | ML front          | *(unused — commented out)*  |
-| `[7]`                       | `Enc11`        | ML back           | `ml` (Joint 3)              |
-| `[8]`                       | `Enc9`         | MR front          | *(unused — commented out)*  |
+| Array Index (`encoderf[N]`) | Encoder Object | Physical Location | Used By Motor                                        |
+| --------------------------- | -------------- | ----------------- | ---------------------------------------------------- |
+| `[1]`                       | `Enc2`         | RC top            | *(unused by active joints)*                          |
+| `[2]`                       | `Enc6`         | FC bottom         | `fc` (Joint 2)                                       |
+| `[3]`                       | `Enc1`         | RC bottom         | `rc` (Joint 1)                                       |
+| `[4]`                       | `Enc3`         | FC top            | *(unused by active joints)*                          |
+| `[5]`                       | `Enc12`        | MR back           | `mr` (Joint 4)                                       |
+| `[6]`                       | `Enc4`         | ML front          | *(unused — commented out)*                           |
+| `[7]`                       | `Enc11`        | ML back           | `ml` (Joint 3)                                       |
+| `[8]`                       | `Enc9`         | MR front          | *(unused — commented out)*                           |
 | `[9]`                       | `Enc5`         | ML drive wheel    | `drive_fb` / `drive_lr` (Joints 7–8, via kinematics) |
 | `[10]`                      | `Enc8`         | MR drive wheel    | `drive_fb` / `drive_lr` (Joints 7–8, via kinematics) |
-| `[11]`                      | `Enc7`         | ML carriage       | `ml_carriage` (Joint 5)     |
-| `[12]`                      | `Enc10`        | MR carriage       | `mr_carriage` (Joint 6)     |
+| `[11]`                      | `Enc7`         | ML carriage       | `ml_carriage` (Joint 5)                              |
+| `[12]`                      | `Enc10`        | MR carriage       | `mr_carriage` (Joint 6)                              |
 
 The Motor instances in `Base.ino` (Lines 495–514) use these specific indices:
 

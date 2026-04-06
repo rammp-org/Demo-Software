@@ -77,44 +77,44 @@ ______________________________________________________________________
 
 All command types are defined in `CommandParser.h:6-43` and dispatched via the table-driven `CommandDispatch` module (`src/CommandDispatch/CommandDispatch.cpp`).
 
-| `CommandType`       | Char | Format            | Value Meaning                                      | Notes                                                                     |
-| ------------------- | ---- | ----------------- | -------------------------------------------------- | ------------------------------------------------------------------------- |
-| `CMD_T`             | `T`  | `T<id>:<val>`     | PWM / velocity / position target (depends on mode) | Dispatches to `setTargetPWM`, `setTargetVelocity`, or `setTargetPosition` |
-| `CMD_M`             | `M`  | `M<id>:<val>`     | `0`=Open Loop, `1`=Velocity, `2`=Position          | Sets `Motor::ControlMode`                                                 |
-| `CMD_POS_P`         | `P`  | `P<id>:<val>`     | Position Kp                                        |                                                                           |
-| `CMD_POS_I`         | `I`  | `I<id>:<val>`     | Position Ki                                        |                                                                           |
-| `CMD_POS_D`         | `D`  | `D<id>:<val>`     | Position Kd                                        |                                                                           |
-| `CMD_POS_FF`        | `F`  | `F<id>:<val>`     | Position Feed-Forward                              |                                                                           |
-| `CMD_VEL_P`         | `p`  | `p<id>:<val>`     | Velocity Kp                                        | Lowercase                                                                 |
-| `CMD_VEL_I`         | `i`  | `i<id>:<val>`     | Velocity Ki                                        | Lowercase                                                                 |
-| `CMD_VEL_D`         | `d`  | `d<id>:<val>`     | Velocity Kd                                        | Lowercase                                                                 |
-| `CMD_VEL_FF`        | `f`  | `f<id>:<val>`     | Velocity Feed-Forward                              | **Divided by 10000 before applying** — see note below                     |
-| `CMD_INPUT_LPF`     | `l`  | `l<id>:<val>`     | Input LPF alpha (0–1)                              | Lowercase                                                                 |
-| `CMD_POS_LPF`       | `Q`  | `Q<id>:<val>`     | Position PID output LPF alpha                      | Uppercase                                                                 |
-| `CMD_VEL_LPF`       | `q`  | `q<id>:<val>`     | Velocity PID output LPF alpha                      | Lowercase                                                                 |
-| `CMD_POS_RAMP`      | `U`  | `U<id>:<val>`     | Position PID output max ramp rate                  | Uppercase                                                                 |
-| `CMD_VEL_RAMP`      | `u`  | `u<id>:<val>`     | Velocity PID output max ramp rate                  | Lowercase                                                                 |
-| `CMD_POS_MIN`       | `n`  | `n<id>:<val>`     | Minimum position limit in ticks                    | Lowercase                                                                 |
-| `CMD_POS_MAX`       | `x`  | `x<id>:<val>`     | Maximum position limit in ticks                    |                                                                           |
-| `CMD_R`             | `R`  | `R<id>`           | Reset PID integrators and filter state             | No value                                                                  |
-| `CMD_HOME`          | `H`  | `H<id>`           | Zero encoder for this joint                        | No value                                                                  |
-| `CMD_OFFSET`        | `O`  | `O<id>:<val>`     | Set encoder position offset to arbitrary value     | Sets the logical position to `val` without moving the joint               |
-| `CMD_DIR`           | `V`  | `V<id>`           | Toggle motor direction                             | `V` = in**V**ert                                                          |
-| `CMD_ENC_DIR`       | `E`  | `E<id>`           | Toggle encoder direction                           | No value                                                                  |
-| `CMD_SAVE_CONFIG`   | `K`  | `K<id>` or `K0`   | Save config to EEPROM. `K0` saves all 8 joints     | No value                                                                  |
-| `CMD_GET_CONFIG`    | `G`  | `G<id>`           | Request CONFIG response for this joint             | No value. Safe during any state including ESTOP.                          |
-| `CMD_Z`             | `z`  | `z`               | ESTOP — disable all motors immediately             | No ID, no value                                                           |
-| `CMD_C`             | `c`  | `c`               | Clear ESTOP, return to IDLE                        | No ID, no value                                                           |
-| `CMD_LEVEL_MODE`    | `L`  | `L1:1` / `L1:0`   | Enable (1) or disable (0) Self-Leveling mode       | ID always `1`                                                             |
-| `CMD_LEVEL_PITCH`   | `A`  | `A1:<deg>`        | Set self-leveling target pitch in degrees          | ID = `1` — see note below                                                 |
-| `CMD_LEVEL_ROLL`    | `A`  | `A2:<deg>`        | Set self-leveling target roll in degrees           | ID = `2` — see note below                                                 |
-| `CMD_SEQ_MODE`      | `B`  | `B1:1` / `B1:0`   | Enter (1) or exit (0) AUTO_CURB_CLIMBING mode      | `B2:1`/`B2:0` toggles auto-run — see note below                          |
-| `CMD_SEQ_KEYFRAME`  | `J`  | `J<idx>:<payload>` | Upload keyframe data at index                      | Payload is CSV; 32-value or 17-value format                               |
-| `CMD_SEQ_STEP_FWD`  | `>`  | `>`               | Step forward to next keyframe                      | No ID, no value                                                           |
-| `CMD_SEQ_STEP_BWD`  | `<`  | `<`               | Step backward to previous keyframe                 | No ID, no value                                                           |
-| `CMD_SEQ_GOTO`      | `@`  | `@<idx>`          | Jump directly to keyframe index                    | No value after index                                                      |
-| `CMD_UNKNOWN`       | —    | —                 | Unrecognized command                               | Parser returns this for syntax errors                                     |
-| `CMD_NONE`          | —    | —                 | No complete command yet this cycle                 | Default return when buffer has no newline                                 |
+| `CommandType`      | Char | Format             | Value Meaning                                      | Notes                                                                     |
+| ------------------ | ---- | ------------------ | -------------------------------------------------- | ------------------------------------------------------------------------- |
+| `CMD_T`            | `T`  | `T<id>:<val>`      | PWM / velocity / position target (depends on mode) | Dispatches to `setTargetPWM`, `setTargetVelocity`, or `setTargetPosition` |
+| `CMD_M`            | `M`  | `M<id>:<val>`      | `0`=Open Loop, `1`=Velocity, `2`=Position          | Sets `Motor::ControlMode`                                                 |
+| `CMD_POS_P`        | `P`  | `P<id>:<val>`      | Position Kp                                        |                                                                           |
+| `CMD_POS_I`        | `I`  | `I<id>:<val>`      | Position Ki                                        |                                                                           |
+| `CMD_POS_D`        | `D`  | `D<id>:<val>`      | Position Kd                                        |                                                                           |
+| `CMD_POS_FF`       | `F`  | `F<id>:<val>`      | Position Feed-Forward                              |                                                                           |
+| `CMD_VEL_P`        | `p`  | `p<id>:<val>`      | Velocity Kp                                        | Lowercase                                                                 |
+| `CMD_VEL_I`        | `i`  | `i<id>:<val>`      | Velocity Ki                                        | Lowercase                                                                 |
+| `CMD_VEL_D`        | `d`  | `d<id>:<val>`      | Velocity Kd                                        | Lowercase                                                                 |
+| `CMD_VEL_FF`       | `f`  | `f<id>:<val>`      | Velocity Feed-Forward                              | **Divided by 10000 before applying** — see note below                     |
+| `CMD_INPUT_LPF`    | `l`  | `l<id>:<val>`      | Input LPF alpha (0–1)                              | Lowercase                                                                 |
+| `CMD_POS_LPF`      | `Q`  | `Q<id>:<val>`      | Position PID output LPF alpha                      | Uppercase                                                                 |
+| `CMD_VEL_LPF`      | `q`  | `q<id>:<val>`      | Velocity PID output LPF alpha                      | Lowercase                                                                 |
+| `CMD_POS_RAMP`     | `U`  | `U<id>:<val>`      | Position PID output max ramp rate                  | Uppercase                                                                 |
+| `CMD_VEL_RAMP`     | `u`  | `u<id>:<val>`      | Velocity PID output max ramp rate                  | Lowercase                                                                 |
+| `CMD_POS_MIN`      | `n`  | `n<id>:<val>`      | Minimum position limit in ticks                    | Lowercase                                                                 |
+| `CMD_POS_MAX`      | `x`  | `x<id>:<val>`      | Maximum position limit in ticks                    |                                                                           |
+| `CMD_R`            | `R`  | `R<id>`            | Reset PID integrators and filter state             | No value                                                                  |
+| `CMD_HOME`         | `H`  | `H<id>`            | Zero encoder for this joint                        | No value                                                                  |
+| `CMD_OFFSET`       | `O`  | `O<id>:<val>`      | Set encoder position offset to arbitrary value     | Sets the logical position to `val` without moving the joint               |
+| `CMD_DIR`          | `V`  | `V<id>`            | Toggle motor direction                             | `V` = in**V**ert                                                          |
+| `CMD_ENC_DIR`      | `E`  | `E<id>`            | Toggle encoder direction                           | No value                                                                  |
+| `CMD_SAVE_CONFIG`  | `K`  | `K<id>` or `K0`    | Save config to EEPROM. `K0` saves all 8 joints     | No value                                                                  |
+| `CMD_GET_CONFIG`   | `G`  | `G<id>`            | Request CONFIG response for this joint             | No value. Safe during any state including ESTOP.                          |
+| `CMD_Z`            | `z`  | `z`                | ESTOP — disable all motors immediately             | No ID, no value                                                           |
+| `CMD_C`            | `c`  | `c`                | Clear ESTOP, return to IDLE                        | No ID, no value                                                           |
+| `CMD_LEVEL_MODE`   | `L`  | `L1:1` / `L1:0`    | Enable (1) or disable (0) Self-Leveling mode       | ID always `1`                                                             |
+| `CMD_LEVEL_PITCH`  | `A`  | `A1:<deg>`         | Set self-leveling target pitch in degrees          | ID = `1` — see note below                                                 |
+| `CMD_LEVEL_ROLL`   | `A`  | `A2:<deg>`         | Set self-leveling target roll in degrees           | ID = `2` — see note below                                                 |
+| `CMD_SEQ_MODE`     | `B`  | `B1:1` / `B1:0`    | Enter (1) or exit (0) AUTO_CURB_CLIMBING mode      | `B2:1`/`B2:0` toggles auto-run — see note below                           |
+| `CMD_SEQ_KEYFRAME` | `J`  | `J<idx>:<payload>` | Upload keyframe data at index                      | Payload is CSV; 32-value or 17-value format                               |
+| `CMD_SEQ_STEP_FWD` | `>`  | `>`                | Step forward to next keyframe                      | No ID, no value                                                           |
+| `CMD_SEQ_STEP_BWD` | `<`  | `<`                | Step backward to previous keyframe                 | No ID, no value                                                           |
+| `CMD_SEQ_GOTO`     | `@`  | `@<idx>`           | Jump directly to keyframe index                    | No value after index                                                      |
+| `CMD_UNKNOWN`      | —    | —                  | Unrecognized command                               | Parser returns this for syntax errors                                     |
+| `CMD_NONE`         | —    | —                  | No complete command yet this cycle                 | Default return when buffer has no newline                                 |
 
 ### Velocity Feed-Forward Scaling Note
 

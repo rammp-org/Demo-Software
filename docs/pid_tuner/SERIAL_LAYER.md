@@ -34,4 +34,3 @@ The Python app must handle 460800 baud serial traffic without stuttering the GUI
 - **Data Classes (Lines 41-156):** `EncoderData`, `ConfigData`, `SeqAckData`, and `SeqStatusData` definitions.
 - **`ProtocolParser` (Lines 158-357):** Translates incoming ASCII strings. Returns data objects identifying the packet type.
 - **`ProtocolEncoder` (Lines 360-601):** Static methods to build output strings like `T1:5000\n` or `J0:10,20,30,40,50,60,70,80,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1000,1000,1000,1000,1000,1000,1000,1000\n`.
-

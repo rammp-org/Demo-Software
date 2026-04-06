@@ -6,19 +6,19 @@ The firmware is designed around a single, tight, non-blocking `loop()` function 
 
 `Base.ino` is 748 lines and contains all global state, motor/sensor object instantiation, the self-leveling kinematics, and the top-level orchestration logic. Complex subsystem logic is delegated to the classes in `src/`.
 
-| Lines     | Section                       | Description                                                                                                                                     |
-| --------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1–24      | Includes                      | Arduino core, all `src/` headers, SD/SPI/Wire libraries                                                                                         |
-| 25        | `DEBUG_MODE`                  | `#define DEBUG_MODE 1` — enables verbose `Serial.print` debug output on every command received and state transition. Set to `0` for production. |
-| 31        | `DRIVE_DEADZONE_TICKS`        | `300.0f` — drive motor position deadzone to prevent joystick creep                                                                              |
-| 37–38     | Global State                  | `current_state`, `telemetry` — SystemState enum and SystemTelemetry struct (defined in `src/Telemetry/Telemetry.h`)                             |
-| 42–44     | Self-Leveling Targets         | `target_pitch`, `target_roll` globals (degrees)                                                                                                |
-| 46–96     | Hardware Objects               | IMU, EContr, timer, parser (60s timeout), RoboClaw instances (3), 8 Motor instances, limit switches, strain gauges                             |
-| 80–90     | `motor_map[8]`                | Centralized motor-encoder-RoboClaw mapping table (defined here, declared in `src/MotorMap/MotorMap.h`)                                         |
-| 105–318   | `runSelfLeveling(dt)`         | Quaternion error → FK offset → rotation matrix → chassis geometry → blended joint targets                                                       |
-| 320–388   | `saveAllMotorConfigs()` / `saveMotorConfig()` | EEPROM write helpers for all 8 motors                                                                                           |
-| 391–475   | `setup()`                     | Hardware init, IMU init, EEPROM load, encoder offset restore for 8 motors                                                                      |
-| 477–748   | `loop()`                      | Main 5ms control loop                                                                                                                           |
+| Lines   | Section                                       | Description                                                                                                                                     |
+| ------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1–24    | Includes                                      | Arduino core, all `src/` headers, SD/SPI/Wire libraries                                                                                         |
+| 25      | `DEBUG_MODE`                                  | `#define DEBUG_MODE 1` — enables verbose `Serial.print` debug output on every command received and state transition. Set to `0` for production. |
+| 31      | `DRIVE_DEADZONE_TICKS`                        | `300.0f` — drive motor position deadzone to prevent joystick creep                                                                              |
+| 37–38   | Global State                                  | `current_state`, `telemetry` — SystemState enum and SystemTelemetry struct (defined in `src/Telemetry/Telemetry.h`)                             |
+| 42–44   | Self-Leveling Targets                         | `target_pitch`, `target_roll` globals (degrees)                                                                                                 |
+| 46–96   | Hardware Objects                              | IMU, EContr, timer, parser (60s timeout), RoboClaw instances (3), 8 Motor instances, limit switches, strain gauges                              |
+| 80–90   | `motor_map[8]`                                | Centralized motor-encoder-RoboClaw mapping table (defined here, declared in `src/MotorMap/MotorMap.h`)                                          |
+| 105–318 | `runSelfLeveling(dt)`                         | Quaternion error → FK offset → rotation matrix → chassis geometry → blended joint targets                                                       |
+| 320–388 | `saveAllMotorConfigs()` / `saveMotorConfig()` | EEPROM write helpers for all 8 motors                                                                                                           |
+| 391–475 | `setup()`                                     | Hardware init, IMU init, EEPROM load, encoder offset restore for 8 motors                                                                       |
+| 477–748 | `loop()`                                      | Main 5ms control loop                                                                                                                           |
 
 ______________________________________________________________________
 
@@ -94,21 +94,21 @@ ______________________________________________________________________
 
 To keep `Base.ino` readable, complex logic is encapsulated in object-oriented C++ classes:
 
-| Class              | File                      | Responsibility                                                                                 | Deep Docs                                     |
-| ------------------ | ------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `Motor`            | `src/Motor/`              | Cascaded PID loops, software position limits, direction abstraction, PWM scaling               | [Motor Control & PID](MOTOR_CONTROL.md)       |
-| `PIDController`    | `src/PIDController/`      | Generic PID with feed-forward, conditional anti-windup, output LPF                             | [PID Controller](PID_CONTROLLER.md)           |
-| `CommandParser`    | `src/CommandParser/`      | Non-blocking byte accumulation, command parsing, watchdog timer                                | [Command Reference](COMMAND_REFERENCE.md)     |
-| `CommandDispatch`  | `src/CommandDispatch/`    | Table-driven command handler dispatch for TUNER_MODE commands                                  | [Command Reference](COMMAND_REFERENCE.md)     |
-| `MotorMap`         | `src/MotorMap/`           | Centralized motor-encoder-RoboClaw mapping table (`motor_map[8]`, `getMotor()`, `getEncoderIndex()`) | —                                        |
-| `Telemetry`        | `src/Telemetry/`          | `SystemState` enum, `SystemTelemetry` struct, `updateTelemetry()`, `sendTelemetry()`           | [Telemetry](TELEMETRY.md)                     |
-| `SequencePlayer`   | `src/SequencePlayer/`     | Keyframe-based sequence playback for AUTO_CURB_CLIMBING (interpolation, settling, auto-run)    | —                                             |
-| `IMU_Class`        | `src/IMU_Class/`          | BNO055 wrapper, quaternion→Euler conversion, upside-down mount correction, swing decomposition | [IMU Layer](IMU_LAYER.md)                     |
-| `EncoderContainer` | `src/EncoderContainer/`   | 12-encoder hardware read, offset-based zeroing, IIR filter                                     | [Encoder Layer](ENCODER_LAYER.md)             |
-| `StrainGauge`      | `src/StrainGauge/`        | Load-cell ADC wrapper with IIR low-pass filter                                                 | —                                             |
-| `ConfigStorage`    | `src/ConfigStorage/`      | EEPROM read/write for 8 `MotorConfig` structs, magic-number validity check                     | [Config Storage](../shared/CONFIG_STORAGE.md) |
-| `Timer`            | `src/Timer/`              | `millis()`-based `dt` computation — see below                                                  | —                                             |
-| `RoboClaw`         | `src/RoboClaw/`           | Third-party driver library for BasicMicro RoboClaw motor controllers                           | —                                             |
+| Class              | File                    | Responsibility                                                                                       | Deep Docs                                     |
+| ------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `Motor`            | `src/Motor/`            | Cascaded PID loops, software position limits, direction abstraction, PWM scaling                     | [Motor Control & PID](MOTOR_CONTROL.md)       |
+| `PIDController`    | `src/PIDController/`    | Generic PID with feed-forward, conditional anti-windup, output LPF                                   | [PID Controller](PID_CONTROLLER.md)           |
+| `CommandParser`    | `src/CommandParser/`    | Non-blocking byte accumulation, command parsing, watchdog timer                                      | [Command Reference](COMMAND_REFERENCE.md)     |
+| `CommandDispatch`  | `src/CommandDispatch/`  | Table-driven command handler dispatch for TUNER_MODE commands                                        | [Command Reference](COMMAND_REFERENCE.md)     |
+| `MotorMap`         | `src/MotorMap/`         | Centralized motor-encoder-RoboClaw mapping table (`motor_map[8]`, `getMotor()`, `getEncoderIndex()`) | —                                             |
+| `Telemetry`        | `src/Telemetry/`        | `SystemState` enum, `SystemTelemetry` struct, `updateTelemetry()`, `sendTelemetry()`                 | [Telemetry](TELEMETRY.md)                     |
+| `SequencePlayer`   | `src/SequencePlayer/`   | Keyframe-based sequence playback for AUTO_CURB_CLIMBING (interpolation, settling, auto-run)          | —                                             |
+| `IMU_Class`        | `src/IMU_Class/`        | BNO055 wrapper, quaternion→Euler conversion, upside-down mount correction, swing decomposition       | [IMU Layer](IMU_LAYER.md)                     |
+| `EncoderContainer` | `src/EncoderContainer/` | 12-encoder hardware read, offset-based zeroing, IIR filter                                           | [Encoder Layer](ENCODER_LAYER.md)             |
+| `StrainGauge`      | `src/StrainGauge/`      | Load-cell ADC wrapper with IIR low-pass filter                                                       | —                                             |
+| `ConfigStorage`    | `src/ConfigStorage/`    | EEPROM read/write for 8 `MotorConfig` structs, magic-number validity check                           | [Config Storage](../shared/CONFIG_STORAGE.md) |
+| `Timer`            | `src/Timer/`            | `millis()`-based `dt` computation — see below                                                        | —                                             |
+| `RoboClaw`         | `src/RoboClaw/`         | Third-party driver library for BasicMicro RoboClaw motor controllers                                 | —                                             |
 
 ### `Timer` Class
 

@@ -21,4 +21,3 @@ python run.py
 - [**Data Layer**](DATA_LAYER.md): Details on the `DataStore` singleton and the schemas of data moving through the app.
 - [**Serial Layer**](SERIAL_LAYER.md): Overview of the multithreaded serial reader and `ProtocolParser`.
 - [**Signals Reference**](SIGNALS_REFERENCE.md): A comprehensive reference of every PyQt signal and slot connecting these components.
-

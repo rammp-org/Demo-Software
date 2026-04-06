@@ -6,14 +6,14 @@ The Teensy 4.1's EEPROM is used to durably store the PID tuning parameters, moto
 
 `hardware/rammp_prototype_driver/firmware/Base/src/ConfigStorage/ConfigStorage.h`
 
-| Address          | Length (bytes) | Description                                                                  |
-| ---------------- | -------------- | ---------------------------------------------------------------------------- |
-| `0`              | 2              | Magic Number `0xABD1`. Used to detect if EEPROM has been initialized.        |
-| `10`             | ~68            | Motor 1 Config (`MotorConfig` struct)                                        |
-| `10 + (1 × 68)` | ~68            | Motor 2 Config                                                               |
-| `10 + (2 × 68)` | ~68            | Motor 3 Config                                                               |
-| ...              | ...            | ...                                                                          |
-| `10 + (7 × 68)` | ~68            | Motor 8 Config (Drive LR)                                                    |
+| Address         | Length (bytes) | Description                                                           |
+| --------------- | -------------- | --------------------------------------------------------------------- |
+| `0`             | 2              | Magic Number `0xABD1`. Used to detect if EEPROM has been initialized. |
+| `10`            | ~68            | Motor 1 Config (`MotorConfig` struct)                                 |
+| `10 + (1 × 68)` | ~68            | Motor 2 Config                                                        |
+| `10 + (2 × 68)` | ~68            | Motor 3 Config                                                        |
+| ...             | ...            | ...                                                                   |
+| `10 + (7 × 68)` | ~68            | Motor 8 Config (Drive LR)                                             |
 
 There are 8 motor config slots total (`NUM_MOTORS = 8`), matching the 8 joints defined in [Joint Mapping](JOINT_MAPPING.md).
 
@@ -51,6 +51,7 @@ struct MotorConfig {
 ## Validation
 
 On load, `ConfigStorage` sanitizes each field:
+
 - **Directions:** Validated to `±1` — reset to `+1` if corrupted.
 - **Saved position:** `NaN`, `Inf`, or values outside `±10,000,000` are rejected and reset to `0.0`.
 - **Float gains:** `NaN` and `Inf` values are sanitized to `0.0` by `Base.ino` during the boot restore sequence.

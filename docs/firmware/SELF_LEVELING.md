@@ -202,8 +202,8 @@ ______________________________________________________________________
 
 ## Known Limitations and TODOs
 
-| Issue                                 | Location           | Notes                                                                                                                                     |
-| ------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `FC_MAX_TICKS = 0.0f`                 | `Constants.h:28`   | FC is hardcoded to tick value 0. Verify this is the top-of-range for FC's encoder direction.                                              |
-| Front caster not included in geometry | `Base.ino:304-309` | The `mebot` geometry matrix has 4 columns (ML, RC_L, RC_R, MR). FC is not geometrically coupled. Its contribution to leveling is ignored. |
-| Per-joint `CM_TO_TICKS` calibration   | `Constants.h:24-26`| ML (~20.1), MR (~21.1), and RC (~36.7) use specific constants. These require periodic validation against physical travel.                  |
+| Issue                                 | Location            | Notes                                                                                                                                     |
+| ------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `FC_MAX_TICKS = 0.0f`                 | `Constants.h:28`    | FC is hardcoded to tick value 0. Verify this is the top-of-range for FC's encoder direction.                                              |
+| Front caster not included in geometry | `Base.ino:304-309`  | The `mebot` geometry matrix has 4 columns (ML, RC_L, RC_R, MR). FC is not geometrically coupled. Its contribution to leveling is ignored. |
+| Per-joint `CM_TO_TICKS` calibration   | `Constants.h:24-26` | ML (~20.1), MR (~21.1), and RC (~36.7) use specific constants. These require periodic validation against physical travel.                 |

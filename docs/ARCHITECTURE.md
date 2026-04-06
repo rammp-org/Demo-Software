@@ -54,10 +54,10 @@ flowchart TB
 
 ## Component Responsibilities
 
-| Component          | Responsibilities                                                                           |
-| ------------------ | ------------------------------------------------------------------------------------------ |
-| **Python GUI**     | Visualizing telemetry (plots, 3D IMU), exposing tuning knobs, managing configurations.     |
-| **Command Parser** | Translating ASCII bytes to structured `RobotCommand` structs, feeding the watchdog.        |
+| Component          | Responsibilities                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| **Python GUI**     | Visualizing telemetry (plots, 3D IMU), exposing tuning knobs, managing configurations.      |
+| **Command Parser** | Translating ASCII bytes to structured `RobotCommand` structs, feeding the watchdog.         |
 | **State Machine**  | Managing `IDLE`, `TUNER_MODE`, `ESTOP`, `SELF_LEVELING`, `AUTO_CURB_CLIMBING` modes safely. |
-| **Motor Class**    | Cascaded PID loops (Position & Velocity), limit switch enforcement, direction abstraction. |
-| **Config Storage** | Abstracting EEPROM to save/load PID gains, limits, and offsets persistently.               |
+| **Motor Class**    | Cascaded PID loops (Position & Velocity), limit switch enforcement, direction abstraction.  |
+| **Config Storage** | Abstracting EEPROM to save/load PID gains, limits, and offsets persistently.                |

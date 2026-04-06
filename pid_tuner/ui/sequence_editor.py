@@ -24,7 +24,6 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QAbstractItemView,
     QFrame,
-    QSizePolicy,
     QSpinBox,
     QCheckBox,
 )

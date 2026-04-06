@@ -36,27 +36,27 @@ enum SystemState {
 
 Groups all telemetry fields before serialization. Key arrays:
 
-| Field                  | Size | Description                                    |
-| ---------------------- | ---- | ---------------------------------------------- |
-| `positions[6]`         | 6    | Joint 1-6 current positions                    |
-| `velocities[6]`       | 6    | Joint 1-6 current velocities                   |
-| `pwms[6]`             | 6    | Joint 1-6 target PWMs                          |
-| `directions[6]`       | 6    | Motor direction (±1) for joints 1-6            |
-| `enc_directions[6]`   | 6    | Encoder direction (±1) for joints 1-6          |
-| `limit_switches[4]`   | 4    | Carriage limit switch states                   |
-| `imu[6]`              | 6    | pitch, roll, yaw, ax, ay, az                   |
-| `quat[4]`             | 4    | Swing quaternion w, x, y, z                    |
-| `leveling[5]`         | 5    | pitch_err, roll_err, z_ml, z_rc, z_mr          |
-| `sg[4]`               | 4    | Strain gauge values (RC, FC, ML, MR)           |
-| `modes[6]`            | 6    | Control mode per joint (0=Open, 1=Vel, 2=Pos)  |
-| `drive_positions[2]`  | 2    | Drive FB/LR positions                          |
-| `drive_velocities[2]` | 2    | Drive FB/LR velocities                         |
-| `drive_pwms[2]`       | 2    | Drive FB/LR PWMs                               |
-| `drive_modes[2]`      | 2    | Drive FB/LR control modes                      |
-| `raw_enc_positions[2]`| 2    | Raw ML/MR encoder positions                    |
-| `raw_enc_velocities[2]`| 2   | Raw ML/MR encoder velocities                   |
-| `drive_directions[2]` | 2    | Drive FB/LR motor directions                   |
-| `drive_enc_directions[2]`| 2 | Drive FB/LR encoder directions                 |
+| Field                     | Size | Description                                   |
+| ------------------------- | ---- | --------------------------------------------- |
+| `positions[6]`            | 6    | Joint 1-6 current positions                   |
+| `velocities[6]`           | 6    | Joint 1-6 current velocities                  |
+| `pwms[6]`                 | 6    | Joint 1-6 target PWMs                         |
+| `directions[6]`           | 6    | Motor direction (±1) for joints 1-6           |
+| `enc_directions[6]`       | 6    | Encoder direction (±1) for joints 1-6         |
+| `limit_switches[4]`       | 4    | Carriage limit switch states                  |
+| `imu[6]`                  | 6    | pitch, roll, yaw, ax, ay, az                  |
+| `quat[4]`                 | 4    | Swing quaternion w, x, y, z                   |
+| `leveling[5]`             | 5    | pitch_err, roll_err, z_ml, z_rc, z_mr         |
+| `sg[4]`                   | 4    | Strain gauge values (RC, FC, ML, MR)          |
+| `modes[6]`                | 6    | Control mode per joint (0=Open, 1=Vel, 2=Pos) |
+| `drive_positions[2]`      | 2    | Drive FB/LR positions                         |
+| `drive_velocities[2]`     | 2    | Drive FB/LR velocities                        |
+| `drive_pwms[2]`           | 2    | Drive FB/LR PWMs                              |
+| `drive_modes[2]`          | 2    | Drive FB/LR control modes                     |
+| `raw_enc_positions[2]`    | 2    | Raw ML/MR encoder positions                   |
+| `raw_enc_velocities[2]`   | 2    | Raw ML/MR encoder velocities                  |
+| `drive_directions[2]`     | 2    | Drive FB/LR motor directions                  |
+| `drive_enc_directions[2]` | 2    | Drive FB/LR encoder directions                |
 
 ## `sendTelemetry()`
 

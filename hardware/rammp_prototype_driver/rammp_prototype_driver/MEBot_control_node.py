@@ -41,7 +41,7 @@ SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_LEFT: [0.0, 0.0, -40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.RESET: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    SeatCommand.RESET: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
 }
 
 
@@ -487,7 +487,9 @@ class MEBotControlNode(Node):
 
             # Trigger execution (CMD_SEQ_STEP_FWD)
             self.write_serial_data(">\n")
-            self.get_logger().info(f"SeatCommand {msg.command} with payload {payload}: Reset to home position")
+            self.get_logger().info(
+                f"SeatCommand {msg.command} with payload {payload}: Reset to home position"
+            )
             return
 
         # Upload keyframe 0 with relative deltas

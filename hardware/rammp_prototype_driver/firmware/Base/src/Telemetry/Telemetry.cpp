@@ -134,22 +134,28 @@ void sendTelemetry() {
     n += snprintf(buf + n, sizeof(buf) - n, ",%d", telemetry.modes[i]);
 
   for (int i = 0; i < 2; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_positions[i]);
+    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f",
+                  telemetry.drive_positions[i]);
   for (int i = 0; i < 2; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_velocities[i]);
+    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f",
+                  telemetry.drive_velocities[i]);
   for (int i = 0; i < 2; i++)
     n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.drive_pwms[i]);
   for (int i = 0; i < 2; i++)
     n += snprintf(buf + n, sizeof(buf) - n, ",%d", telemetry.drive_modes[i]);
   for (int i = 0; i < 2; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.raw_enc_positions[i]);
+    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f",
+                  telemetry.raw_enc_positions[i]);
   for (int i = 0; i < 2; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f", telemetry.raw_enc_velocities[i]);
+    n += snprintf(buf + n, sizeof(buf) - n, ",%.2f",
+                  telemetry.raw_enc_velocities[i]);
 
   for (int i = 0; i < 2; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%d", telemetry.drive_directions[i]);
+    n += snprintf(buf + n, sizeof(buf) - n, ",%d",
+                  telemetry.drive_directions[i]);
   for (int i = 0; i < 2; i++)
-    n += snprintf(buf + n, sizeof(buf) - n, ",%d", telemetry.drive_enc_directions[i]);
+    n += snprintf(buf + n, sizeof(buf) - n, ",%d",
+                  telemetry.drive_enc_directions[i]);
 
   n += snprintf(buf + n, sizeof(buf) - n, "\n");
 

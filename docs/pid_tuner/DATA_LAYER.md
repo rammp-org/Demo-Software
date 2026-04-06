@@ -23,4 +23,3 @@ The Python Application uses a centralized `DataStore` (a Singleton pattern, pass
 - **Strain Gauge Handling (Lines 730-734):** Slices the strain gauge load cell data from the telemetry packet.
 - **Config Ingestion (Lines 650-653):** `set_config()` stores the `ConfigData` and emits `config_updated`.
 - **Sequence Targets (Lines 823-828):** Manages target positions for automated sequences.
-

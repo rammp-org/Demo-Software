@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
 )
 from PyQt6.QtCore import pyqtSlot, pyqtSignal, Qt, QTimer
-from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QBrush
+from PyQt6.QtGui import QColor, QPainter, QPen, QBrush
 
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled

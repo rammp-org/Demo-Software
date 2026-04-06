@@ -69,7 +69,8 @@ RobotCommand CommandParser::parse(Stream &serial) {
         // Commands with value (e.g., T1:0.5)
         else if (colon_idx > 1) {
           cmd.actuator_id = buffer.substring(1, colon_idx).toInt();
-          last_payload = buffer.substring(colon_idx + 1); // full raw payload after ':'
+          last_payload =
+              buffer.substring(colon_idx + 1); // full raw payload after ':'
           cmd.value = last_payload.toFloat();
 
           switch (type_char) {

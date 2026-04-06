@@ -29,12 +29,12 @@ static bool seq_auto_run = false;
 // Compute the final target position for motor i in the current keyframe.
 static inline float finalTarget(const Keyframe &kf, int i) {
   if (kf.relative[i])
-    return seq_start_pos[i] + kf.targets[i];   // relative delta
-  return kf.targets[i];                         // absolute position
+    return seq_start_pos[i] + kf.targets[i]; // relative delta
+  return kf.targets[i];                      // absolute position
 }
 
 // Begin interpolation toward the current keyframe.
-static void beginInterp(Motor* motors[SEQ_NUM_MOTORS]) {
+static void beginInterp(Motor *motors[SEQ_NUM_MOTORS]) {
   for (int i = 0; i < SEQ_NUM_MOTORS; i++)
     seq_start_pos[i] = motors[i]->current_pos;
   seq_interp_start = millis();
@@ -45,7 +45,7 @@ static void beginInterp(Motor* motors[SEQ_NUM_MOTORS]) {
   Serial.print(seq_current);
   Serial.print(",");
   Serial.print(seq_length);
-  Serial.println(",1");   // 1 = interpolating
+  Serial.println(",1"); // 1 = interpolating
 }
 
 // ---------------------------------------------------------------------------
@@ -69,9 +69,9 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
   // New format: 32 values  (targets, active, relative, durations)
   if (count == SEQ_NUM_MOTORS * 4) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      kf.targets[i]     = vals[i];
-      kf.active[i]      = (vals[SEQ_NUM_MOTORS     + i] > 0.5f);
-      kf.relative[i]    = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
+      kf.targets[i] = vals[i];
+      kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
+      kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
       kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
     }
     return true;
@@ -81,28 +81,29 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
   if (count == SEQ_NUM_MOTORS * 2 + 1) {
     uint32_t global_dur = (uint32_t)vals[SEQ_NUM_MOTORS * 2];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      kf.targets[i]     = vals[i];
-      kf.active[i]      = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
-      kf.relative[i]    = false;
+      kf.targets[i] = vals[i];
+      kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
+      kf.relative[i] = false;
       kf.duration_ms[i] = global_dur;
     }
     return true;
   }
 
-  return false;   // unrecognised format
+  return false; // unrecognised format
 }
 
 // ---------------------------------------------------------------------------
 //  Enter / Exit
 // ---------------------------------------------------------------------------
-void sequenceEnter(Motor* motors[SEQ_NUM_MOTORS]) {
+void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS]) {
   seq_length = 0;
   seq_current = -1;
   seq_interpolating = false;
   seq_settling = false;
   seq_auto_run = false;
 
-  // ALL motors — including drive wheels — run position control during sequences.
+  // ALL motors — including drive wheels — run position control during
+  // sequences.
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
     motors[i]->setMode(Motor::POSITION_CONTROL);
     motors[i]->setTargetPosition(motors[i]->current_pos);
@@ -110,7 +111,7 @@ void sequenceEnter(Motor* motors[SEQ_NUM_MOTORS]) {
   }
 }
 
-void sequenceExit(Motor* motors[SEQ_NUM_MOTORS]) {
+void sequenceExit(Motor *motors[SEQ_NUM_MOTORS]) {
   seq_auto_run = false;
   seq_settling = false;
   seq_interpolating = false;
@@ -126,8 +127,9 @@ void sequenceExit(Motor* motors[SEQ_NUM_MOTORS]) {
 // ---------------------------------------------------------------------------
 //  Command handler
 // ---------------------------------------------------------------------------
-void sequenceHandleCommand(const RobotCommand& cmd, Motor* motors[SEQ_NUM_MOTORS],
-                           const String& payload) {
+void sequenceHandleCommand(const RobotCommand &cmd,
+                           Motor *motors[SEQ_NUM_MOTORS],
+                           const String &payload) {
   // ---- Keyframe upload ----
   if (cmd.type == CMD_SEQ_KEYFRAME) {
     int idx = cmd.actuator_id;
@@ -168,8 +170,8 @@ void sequenceHandleCommand(const RobotCommand& cmd, Motor* motors[SEQ_NUM_MOTORS
   // ---- Go to index ----
   if (cmd.type == CMD_SEQ_GOTO) {
     int target_step = cmd.actuator_id;
-    if (!seq_interpolating && !seq_settling &&
-        target_step >= 0 && target_step < seq_length) {
+    if (!seq_interpolating && !seq_settling && target_step >= 0 &&
+        target_step < seq_length) {
       seq_current = target_step;
       beginInterp(motors);
     }
@@ -180,7 +182,7 @@ void sequenceHandleCommand(const RobotCommand& cmd, Motor* motors[SEQ_NUM_MOTORS
 // ---------------------------------------------------------------------------
 //  Update (called every loop iteration while in AUTO_CURB_CLIMBING)
 // ---------------------------------------------------------------------------
-void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
+void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS]) {
   if (!seq_interpolating || seq_current < 0 || seq_current >= seq_length)
     return;
 
@@ -194,7 +196,8 @@ void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
     uint32_t blocking_dur = 0;
 
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      if (!kf.active[i]) continue;
+      if (!kf.active[i])
+        continue;
 
       float t_i = (kf.duration_ms[i] == 0)
                       ? 1.0f
@@ -206,7 +209,7 @@ void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
       }
 
       float dest = finalTarget(kf, i);
-      float pos  = seq_start_pos[i] + t_i * (dest - seq_start_pos[i]);
+      float pos = seq_start_pos[i] + t_i * (dest - seq_start_pos[i]);
       motors[i]->setTargetPosition(pos);
     }
 
@@ -219,12 +222,14 @@ void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
       Serial.print(blocking_dur);
       Serial.print(",active=[");
       for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-        if (i > 0) Serial.print(",");
+        if (i > 0)
+          Serial.print(",");
         Serial.print(kf.active[i] ? "1" : "0");
       }
       Serial.print("],durs=[");
       for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-        if (i > 0) Serial.print(",");
+        if (i > 0)
+          Serial.print(",");
         Serial.print(kf.duration_ms[i]);
       }
       Serial.println("]");
@@ -243,7 +248,7 @@ void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
       Serial.print(seq_current);
       Serial.print(",");
       Serial.print(seq_length);
-      Serial.println(",2");   // 2 = settling
+      Serial.println(",2"); // 2 = settling
     }
     return;
   }
@@ -253,7 +258,8 @@ void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
   unsigned long settle_elapsed = millis() - seq_settle_start;
 
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-    if (!kf.active[i]) continue;
+    if (!kf.active[i])
+      continue;
 
     float dest = finalTarget(kf, i);
     motors[i]->setTargetPosition(dest);
@@ -288,14 +294,14 @@ void sequenceUpdate(Motor* motors[SEQ_NUM_MOTORS]) {
     // Auto-run: advance to next keyframe if available.
     if (seq_auto_run && seq_current < seq_length - 1) {
       seq_current++;
-      beginInterp(motors);                // sends SEQ_STATUS ...,1
+      beginInterp(motors); // sends SEQ_STATUS ...,1
     } else {
       seq_interpolating = false;
       Serial.print("SEQ_STATUS,");
       Serial.print(seq_current);
       Serial.print(",");
       Serial.print(seq_length);
-      Serial.println(",0");               // 0 = idle / complete
+      Serial.println(",0"); // 0 = idle / complete
     }
   }
 }

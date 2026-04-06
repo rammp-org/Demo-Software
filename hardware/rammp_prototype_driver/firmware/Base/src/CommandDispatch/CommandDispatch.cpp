@@ -19,7 +19,7 @@ extern int8_t ml_enc_dir, mr_enc_dir;
 
 // --- Handler implementations (migrated from Base.ino TUNER_MODE switch) ---
 
-void handleSetMode(CommandContext& ctx) {
+void handleSetMode(CommandContext &ctx) {
   if (ctx.value == 0)
     ctx.motor->setMode(Motor::OPEN_LOOP);
   else if (ctx.value == 1)
@@ -32,7 +32,7 @@ void handleSetMode(CommandContext& ctx) {
   }
 }
 
-void handleSetTarget(CommandContext& ctx) {
+void handleSetTarget(CommandContext &ctx) {
   if (ctx.motor->mode == Motor::OPEN_LOOP)
     ctx.motor->setTargetPWM(ctx.value);
   else if (ctx.motor->mode == Motor::VELOCITY_CONTROL)
@@ -45,56 +45,56 @@ void handleSetTarget(CommandContext& ctx) {
   }
 }
 
-void handlePosPGain(CommandContext& ctx) {
+void handlePosPGain(CommandContext &ctx) {
   ctx.motor->pos_pid.kp = ctx.value;
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Pos P");
 }
 
-void handlePosIGain(CommandContext& ctx) {
+void handlePosIGain(CommandContext &ctx) {
   ctx.motor->pos_pid.ki = ctx.value;
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Pos I");
 }
 
-void handlePosDGain(CommandContext& ctx) {
+void handlePosDGain(CommandContext &ctx) {
   ctx.motor->pos_pid.kd = ctx.value;
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Pos D");
 }
 
-void handlePosFeedForward(CommandContext& ctx) {
+void handlePosFeedForward(CommandContext &ctx) {
   ctx.motor->pos_pid.setFeedForward(ctx.value);
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Pos FF");
 }
 
-void handleVelPGain(CommandContext& ctx) {
+void handleVelPGain(CommandContext &ctx) {
   ctx.motor->vel_pid.kp = ctx.value;
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Vel P");
 }
 
-void handleVelIGain(CommandContext& ctx) {
+void handleVelIGain(CommandContext &ctx) {
   ctx.motor->vel_pid.ki = ctx.value;
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Vel I");
 }
 
-void handleVelDGain(CommandContext& ctx) {
+void handleVelDGain(CommandContext &ctx) {
   ctx.motor->vel_pid.kd = ctx.value;
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Vel D");
 }
 
-void handleVelFeedForward(CommandContext& ctx) {
+void handleVelFeedForward(CommandContext &ctx) {
   // TODO: /10000 scaling is inconsistent with other commands — preserved
   // for protocol compatibility. All other FF/gain commands pass raw values.
   ctx.motor->vel_pid.setFeedForward(ctx.value / 10000);
@@ -103,49 +103,49 @@ void handleVelFeedForward(CommandContext& ctx) {
     Serial.println("DEBUG: Set Vel FF");
 }
 
-void handleInputLpf(CommandContext& ctx) {
+void handleInputLpf(CommandContext &ctx) {
   ctx.motor->setInputLpfAlpha(ctx.value);
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Input LPF");
 }
 
-void handlePosLpf(CommandContext& ctx) {
+void handlePosLpf(CommandContext &ctx) {
   ctx.motor->pos_pid.setLpfAlpha(ctx.value);
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Pos LPF");
 }
 
-void handleVelLpf(CommandContext& ctx) {
+void handleVelLpf(CommandContext &ctx) {
   ctx.motor->vel_pid.setLpfAlpha(ctx.value);
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Vel LPF");
 }
 
-void handlePosRamp(CommandContext& ctx) {
+void handlePosRamp(CommandContext &ctx) {
   ctx.motor->pos_pid.setRampRate(ctx.value);
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Pos max ramp rate");
 }
 
-void handleVelRamp(CommandContext& ctx) {
+void handleVelRamp(CommandContext &ctx) {
   ctx.motor->vel_pid.setRampRate(ctx.value);
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE)
     Serial.println("DEBUG: Set Vel max ramp rate");
 }
 
-void handleResetPID(CommandContext& ctx) {
+void handleResetPID(CommandContext &ctx) {
   ctx.motor->pos_pid.reset();
   ctx.motor->vel_pid.reset();
   if (DEBUG_MODE)
     Serial.println("DEBUG: Reset PID state (cleared integrator)");
 }
 
-void handleHome(CommandContext& ctx) {
+void handleHome(CommandContext &ctx) {
   if (ctx.actuator_id == 7 || ctx.actuator_id == 8) {
     ctx.encoders.zeroEncoder(9);
     ctx.encoders.zeroEncoder(10);
@@ -168,15 +168,14 @@ void handleHome(CommandContext& ctx) {
   }
 }
 
-void handleOffset(CommandContext& ctx) {
-  const MotorEntry* oentry = getMotorEntry(ctx.actuator_id);
+void handleOffset(CommandContext &ctx) {
+  const MotorEntry *oentry = getMotorEntry(ctx.actuator_id);
   int enc_idx = oentry ? oentry->encoder_index : 0;
 
   if (enc_idx > 0 && oentry->supports_offset) {
     float raw_pos = (float)ctx.encoders.getRawReading(enc_idx);
     float encoder_dir = ctx.motor->getEncoderDirection();
-    signed long new_offset =
-        (signed long)(raw_pos - (ctx.value / encoder_dir));
+    signed long new_offset = (signed long)(raw_pos - (ctx.value / encoder_dir));
 
     ctx.encoders.setOffset(enc_idx, new_offset);
 
@@ -197,7 +196,7 @@ void handleOffset(CommandContext& ctx) {
   }
 }
 
-void handleToggleDir(CommandContext& ctx) {
+void handleToggleDir(CommandContext &ctx) {
   ctx.motor->toggleDirection();
   MotorConfig conf = ConfigStorage::loadMotorConfig(ctx.actuator_id);
   conf.motor_dir = ctx.motor->getDirection();
@@ -210,9 +209,9 @@ void handleToggleDir(CommandContext& ctx) {
   }
 }
 
-void handleToggleEncDir(CommandContext& ctx) {
+void handleToggleEncDir(CommandContext &ctx) {
   if (ctx.actuator_id == 7 || ctx.actuator_id == 8) {
-    int8_t& enc_dir = (ctx.actuator_id == 7) ? ml_enc_dir : mr_enc_dir;
+    int8_t &enc_dir = (ctx.actuator_id == 7) ? ml_enc_dir : mr_enc_dir;
     enc_dir = (enc_dir >= 0) ? -1 : 1;
     ctx.motor->setEncoderDirection(enc_dir);
     saveMotorConfig(ctx.actuator_id, ctx.motor);
@@ -234,9 +233,9 @@ void handleToggleEncDir(CommandContext& ctx) {
   }
 }
 
-void handleSetEncDir(CommandContext& ctx) {
+void handleSetEncDir(CommandContext &ctx) {
   if (ctx.actuator_id == 7 || ctx.actuator_id == 8) {
-    int8_t& enc_dir = (ctx.actuator_id == 7) ? ml_enc_dir : mr_enc_dir;
+    int8_t &enc_dir = (ctx.actuator_id == 7) ? ml_enc_dir : mr_enc_dir;
     enc_dir = (ctx.value >= 0) ? 1 : -1;
     ctx.motor->setEncoderDirection(enc_dir);
     saveMotorConfig(ctx.actuator_id, ctx.motor);
@@ -258,7 +257,7 @@ void handleSetEncDir(CommandContext& ctx) {
   }
 }
 
-void handleSaveConfig(CommandContext& ctx) {
+void handleSaveConfig(CommandContext &ctx) {
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE) {
     Serial.print("DEBUG: Saved config for motor ");
@@ -266,7 +265,7 @@ void handleSaveConfig(CommandContext& ctx) {
   }
 }
 
-void handlePosMin(CommandContext& ctx) {
+void handlePosMin(CommandContext &ctx) {
   ctx.motor->updateLimits(ctx.value, ctx.motor->pos_limit_max);
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE) {
@@ -275,7 +274,7 @@ void handlePosMin(CommandContext& ctx) {
   }
 }
 
-void handlePosMax(CommandContext& ctx) {
+void handlePosMax(CommandContext &ctx) {
   ctx.motor->updateLimits(ctx.motor->pos_limit_min, ctx.value);
   saveMotorConfig(ctx.actuator_id, ctx.motor);
   if (DEBUG_MODE) {
@@ -284,7 +283,7 @@ void handlePosMax(CommandContext& ctx) {
   }
 }
 
-void handleGetConfig(CommandContext& ctx) {
+void handleGetConfig(CommandContext &ctx) {
   Serial.print("CONFIG,");
   Serial.print(ctx.actuator_id);
   Serial.print(",");
@@ -325,36 +324,25 @@ void handleGetConfig(CommandContext& ctx) {
 
 // --- Dispatch table: 24 TUNER_MODE commands ---
 // State commands (CMD_Z, CMD_C, CMD_LEVEL_*, CMD_SEQ_MODE) stay in Base.ino.
-// Sequence commands (CMD_SEQ_KEYFRAME, CMD_SEQ_STEP_*, CMD_SEQ_GOTO) move to SequencePlayer.
+// Sequence commands (CMD_SEQ_KEYFRAME, CMD_SEQ_STEP_*, CMD_SEQ_GOTO) move to
+// SequencePlayer.
 const CommandDispatchEntry COMMAND_TABLE[] = {
-  { CMD_T,          handleSetTarget },
-  { CMD_M,          handleSetMode },
-  { CMD_POS_P,      handlePosPGain },
-  { CMD_POS_I,      handlePosIGain },
-  { CMD_POS_D,      handlePosDGain },
-  { CMD_POS_FF,     handlePosFeedForward },
-  { CMD_VEL_P,      handleVelPGain },
-  { CMD_VEL_I,      handleVelIGain },
-  { CMD_VEL_D,      handleVelDGain },
-  { CMD_VEL_FF,     handleVelFeedForward },
-  { CMD_R,          handleResetPID },
-  { CMD_HOME,       handleHome },
-  { CMD_OFFSET,     handleOffset },
-  { CMD_DIR,        handleToggleDir },
-  { CMD_ENC_DIR,    handleToggleEncDir },
-  { CMD_SAVE_CONFIG, handleSaveConfig },
-  { CMD_GET_CONFIG,  handleGetConfig },
-  { CMD_POS_MIN,    handlePosMin },
-  { CMD_POS_MAX,    handlePosMax },
-  { CMD_INPUT_LPF,  handleInputLpf },
-  { CMD_POS_LPF,    handlePosLpf },
-  { CMD_VEL_LPF,    handleVelLpf },
-  { CMD_POS_RAMP,   handlePosRamp },
-  { CMD_VEL_RAMP,   handleVelRamp },
+    {CMD_T, handleSetTarget},          {CMD_M, handleSetMode},
+    {CMD_POS_P, handlePosPGain},       {CMD_POS_I, handlePosIGain},
+    {CMD_POS_D, handlePosDGain},       {CMD_POS_FF, handlePosFeedForward},
+    {CMD_VEL_P, handleVelPGain},       {CMD_VEL_I, handleVelIGain},
+    {CMD_VEL_D, handleVelDGain},       {CMD_VEL_FF, handleVelFeedForward},
+    {CMD_R, handleResetPID},           {CMD_HOME, handleHome},
+    {CMD_OFFSET, handleOffset},        {CMD_DIR, handleToggleDir},
+    {CMD_ENC_DIR, handleToggleEncDir}, {CMD_SAVE_CONFIG, handleSaveConfig},
+    {CMD_GET_CONFIG, handleGetConfig}, {CMD_POS_MIN, handlePosMin},
+    {CMD_POS_MAX, handlePosMax},       {CMD_INPUT_LPF, handleInputLpf},
+    {CMD_POS_LPF, handlePosLpf},       {CMD_VEL_LPF, handleVelLpf},
+    {CMD_POS_RAMP, handlePosRamp},     {CMD_VEL_RAMP, handleVelRamp},
 };
 const int COMMAND_TABLE_SIZE = sizeof(COMMAND_TABLE) / sizeof(COMMAND_TABLE[0]);
 
-void dispatchCommand(const RobotCommand& cmd, CommandContext& ctx) {
+void dispatchCommand(const RobotCommand &cmd, CommandContext &ctx) {
   for (int i = 0; i < COMMAND_TABLE_SIZE; i++) {
     if (COMMAND_TABLE[i].type == cmd.type) {
       COMMAND_TABLE[i].handler(ctx);

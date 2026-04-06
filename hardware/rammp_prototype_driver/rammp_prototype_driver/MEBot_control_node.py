@@ -41,7 +41,7 @@ SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_LEFT: [0.0, 0.0, -40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.RESET: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.RESET: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 }
 
 
@@ -74,8 +74,10 @@ def _build_reset_keyframe_payload(deltas: list[float], duration_ms: int) -> str:
     Motors with a delta of 0.0 are marked inactive (active=0) so the
     sequence player leaves them at their current position.
     """
-    active = [1 if d != 0.0 else 0 for d in deltas]
-    relative = [0] * SEQ_NUM_MOTORS  # always relative for seat moves
+    active = [1] * SEQ_NUM_MOTORS
+    relative = [0] * SEQ_NUM_MOTORS  # always absolute for seat reset
+    relative[6] = 1
+    relative[7] = 1
     durations = [duration_ms] * SEQ_NUM_MOTORS
 
     parts = (
@@ -282,21 +284,22 @@ class MEBotControlNode(Node):
     def read_serial_data(self):
         if self.ser is None:
             return
-        line = self.ser.readline()
-        if line:
-            raw_data = line.decode("utf-8", errors="replace").strip()
-            if raw_data.startswith("TELEMETRY"):
-                # self.get_logger().info(raw_data)
-                data = raw_data.split(",")  # All values are str
-                self.get_logger().info(str(data))
-                self.update_data(data)  # Update variables with new data
-            if raw_data.startswith(
-                "SEQ_STATUS"
-            ):  # parsing and storing information about sequence player if running
-                split_data = raw_data.split(",")
-                self.current_seq = split_data[1]
-                self.seq_length = split_data[2]
-                self.seq_mode = split_data[3].strip()
+        if self.ser.in_waiting > 0:
+            line = self.ser.readline()
+            if line:
+                raw_data = line.decode("utf-8", errors="replace").strip()
+                if raw_data.startswith("TELEMETRY"):
+                    # self.get_logger().info(raw_data)
+                    data = raw_data.split(",")  # All values are str
+                    # self.get_logger().info(str(data))
+                    self.update_data(data)  # Update variables with new data
+                if raw_data.startswith(
+                    "SEQ_STATUS"
+                ):  # parsing and storing information about sequence player if running
+                    split_data = raw_data.split(",")
+                    self.current_seq = split_data[1]
+                    self.seq_length = split_data[2]
+                    self.seq_mode = split_data[3].strip()
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -469,6 +472,7 @@ class MEBotControlNode(Node):
         return stat
 
     def manual_seat_control_callback(self, msg: SeatCommand):
+        self.get_logger().info("Seat command callback has been entered")
         deltas = SEAT_DELTAS.get(msg.command)
         if deltas is None:
             self.get_logger().warn(
@@ -478,17 +482,17 @@ class MEBotControlNode(Node):
 
         if all(d == 0.0 for d in deltas):
             payload = _build_reset_keyframe_payload(deltas, SEAT_MOVE_DURATION_MS)
-            self.write_serial_data("b\n")
+            self.write_serial_data("B1:1\n")
             self.write_serial_data(f"J0:{payload}\n")
 
             # Trigger execution (CMD_SEQ_STEP_FWD)
             self.write_serial_data(">\n")
-            self.get_logger().info(f"SeatCommand {msg.command}: Reset to home position")
+            self.get_logger().info(f"SeatCommand {msg.command} with payload {payload}: Reset to home position")
             return
 
         # Upload keyframe 0 with relative deltas
         payload = _build_keyframe_payload(deltas, SEAT_MOVE_DURATION_MS)
-        self.write_serial_data("b\n")
+        self.write_serial_data("B1:1\n")
         self.write_serial_data(f"J0:{payload}\n")
 
         # Trigger execution (CMD_SEQ_STEP_FWD)
@@ -497,6 +501,7 @@ class MEBotControlNode(Node):
         self.get_logger().info(
             f"SeatCommand {msg.command}: keyframe uploaded and triggered "
             f"(duration={SEAT_MOVE_DURATION_MS}ms)"
+            f" for J0:{payload})"
         )
 
     def estop_callback(self, msg):

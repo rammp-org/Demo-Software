@@ -35,12 +35,12 @@ SEAT_MOVE_DURATION_MS = 1000
 # *** TUNE these deltas once you know your geometry. ***
 SEAT_DELTAS: dict[int, list[float]] = {
     #                           RC      FC      ML      MR    ML_C   MR_C    DFB   DLR
-    SeatCommand.RAISE: [50.0, 50.0, 50.0, 50.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.LOWER: [-50.0, -50.0, -50.0, -50.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.TILT_FWD: [50.0, -50.0, -50.0, -50.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.TILT_BACK: [-50.0, 50.0, 50.0, 50.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.LATERAL_LEFT: [0.0, 0.0, -50.0, 50.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 50.0, -50.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.RAISE: [70.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.LOWER: [-70.0, 0.0, -40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.TILT_FWD: [0.0, 0.0, -40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.LATERAL_LEFT: [0.0, 0.0, -40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
 }
 
 

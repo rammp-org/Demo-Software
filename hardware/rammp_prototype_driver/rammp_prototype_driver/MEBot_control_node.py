@@ -41,6 +41,7 @@ SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_LEFT: [0.0, 0.0, -40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.RESET: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
 }
 
 
@@ -54,6 +55,27 @@ def _build_keyframe_payload(deltas: list[float], duration_ms: int) -> str:
     """
     active = [1 if d != 0.0 else 0 for d in deltas]
     relative = [1] * SEQ_NUM_MOTORS  # always relative for seat moves
+    durations = [duration_ms] * SEQ_NUM_MOTORS
+
+    parts = (
+        [f"{d:.2f}" for d in deltas]
+        + [str(a) for a in active]
+        + [str(r) for r in relative]
+        + [str(t) for t in durations]
+    )
+    return ",".join(parts)
+
+
+def _build_reset_keyframe_payload(deltas: list[float], duration_ms: int) -> str:
+    """Build a J0 keyframe payload string in the 32-value format expected by
+    parseKeyframePayload():
+        targets(x6), active(x6), relative(x6), duration_ms(x6)
+
+    Motors with a delta of 0.0 are marked inactive (active=0) so the
+    sequence player leaves them at their current position.
+    """
+    active = [1 if d != 0.0 else 0 for d in deltas]
+    relative = [0] * SEQ_NUM_MOTORS  # always relative for seat moves
     durations = [duration_ms] * SEQ_NUM_MOTORS
 
     parts = (
@@ -452,6 +474,16 @@ class MEBotControlNode(Node):
             self.get_logger().warn(
                 f"SeatCommand: unknown command {msg.command}, ignoring"
             )
+            return
+
+        if all(d == 0.0 for d in deltas):
+            payload = _build_reset_keyframe_payload(deltas, SEAT_MOVE_DURATION_MS)
+            self.write_serial_data("b\n")
+            self.write_serial_data(f"J0:{payload}\n")
+
+            # Trigger execution (CMD_SEQ_STEP_FWD)
+            self.write_serial_data(">\n")
+            self.get_logger().info(f"SeatCommand {msg.command}: Reset to home position")
             return
 
         # Upload keyframe 0 with relative deltas

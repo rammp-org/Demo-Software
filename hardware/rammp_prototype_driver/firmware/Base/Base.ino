@@ -103,9 +103,13 @@ int16_t scaled_mr_pwm;
 
 // IMU offset
 float pitch_trim_deg = 3.0f;
+float roll_trim_deg = 2.0f;
 
 float getPitchTrim() { return pitch_trim_deg; }
 void setPitchTrim(float val) { pitch_trim_deg = val; }
+
+float getRollTrim() { return roll_trim_deg; }
+void setRollTrim(float val) { roll_trim_deg = val; }
 
 // --- Self Leveling Kinematics ---
 // Ported from legacy Base_old_self_leveling.ino
@@ -154,10 +158,14 @@ void runSelfLeveling(float dt) {
   }
 
   // offset IMU reading
-  double trim_rad = (pitch_trim_deg * PI / 180.0) / 2.0;
-  imu::Quaternion q_trim(cos(trim_rad), sin(trim_rad), 0.0, 0.0);
+  double pitch_trim_rad = (getPitchTrim() * PI / 180.0) / 2.0;
+  imu::Quaternion q_trim_pitch(cos(pitch_trim_rad), sin(pitch_trim_rad), 0.0, 0.0);
+
+  double roll_trim_rad = (getRollTrim() * PI / 180.0) / 2.0;
+  imu::Quaternion q_trim_roll(cos(roll_trim_rad), 0.0, sin(roll_trim_rad), 0.0);
 
   // Apply trim to measured orientation before error calculation
+  imu::Quaternion q_trim = q_trim_pitch * q_trim_roll;
   imu::Quaternion q_meas = q_trim * IMU.current_quat;
 
   // Construct target quaternion manually to avoid API differences in
@@ -243,7 +251,7 @@ void runSelfLeveling(float dt) {
   rotm[2][0] = -1 * cos(droll_total) * sin(dpitch_total);
   rotm[2][1] = sin(droll_total);
   rotm[2][2] = cos(droll_total) * cos(dpitch_total);
-  rotm[2][3] = 9.5; // Baseline Z height (cm)
+  rotm[2][3] = 8; // Baseline Z height (cm)
 
   rotm[3][0] = 0.0;
   rotm[3][1] = 0.0;

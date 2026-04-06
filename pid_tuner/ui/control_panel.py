@@ -217,6 +217,10 @@ class ControlPanel(QWidget):
         layout.addWidget(self._stored_seq_group)
         self._panels["Stored Sequences"] = self._stored_seq_group
 
+        self._seat_pos_group = self._create_seat_position_group()
+        layout.addWidget(self._seat_pos_group)
+        self._panels["Seat Position"] = self._seat_pos_group
+
         # IMU Display (wrapped in collapsible group)
         self._imu_display = IMUDisplay(self._data_store)
         self._imu_display_group = CollapsibleGroupBox("IMU Display")
@@ -1217,6 +1221,15 @@ class ControlPanel(QWidget):
             self._on_start_leveling()
 
     NUM_STORED_SLOTS = 6
+    SEAT_POS_SLOTS = [
+        "Elevation +",
+        "Elevation -",
+        "Tilt +",
+        "Tilt -",
+        "Pitch +",
+        "Pitch -",
+        "Home Position",
+    ]
 
     def _create_stored_sequences_group(self) -> CollapsibleGroupBox:
         group = CollapsibleGroupBox("Stored Sequences")
@@ -1303,6 +1316,127 @@ class ControlPanel(QWidget):
         from PyQt6.QtWidgets import QMessageBox
 
         path = self._stored_seq_paths[slot_idx]
+        if not path or not os.path.exists(path):
+            return
+
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            QMessageBox.warning(self, "Load Error", f"Failed to read {path}")
+            return
+
+        keyframes_data = data if isinstance(data, list) else data.get("keyframes", [])
+        if not keyframes_data:
+            QMessageBox.warning(self, "Empty Sequence", "No keyframes found in file.")
+            return
+
+        from .sequence_editor import Keyframe, NUM_MOTORS
+
+        keyframes = [Keyframe.from_dict(d) for d in keyframes_data]
+
+        self._serial_handler.enter_sequence_mode(True)
+        for idx, kf in enumerate(keyframes):
+            targets = [t if t is not None else 0.0 for t in kf.targets]
+            active = [t is not None for t in kf.targets]
+            durations = [
+                kf.motor_durations[i]
+                if kf.motor_durations[i] is not None
+                else kf.duration_ms
+                for i in range(NUM_MOTORS)
+            ]
+            self._serial_handler.send_keyframe(
+                idx, targets, active, durations, kf.relative
+            )
+
+        self._serial_handler.seq_auto_run(True)
+        self._serial_handler.seq_step_forward()
+
+    def _create_seat_position_group(self) -> CollapsibleGroupBox:
+        group = CollapsibleGroupBox("Seat Position")
+        content = QWidget()
+        grid = QGridLayout(content)
+        grid.setSpacing(SIZES["spacing_small"])
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 0)
+
+        self._seat_pos_paths: list[str | None] = [None] * len(self.SEAT_POS_SLOTS)
+        self._seat_pos_choose_btns: list[QPushButton] = []
+        self._seat_pos_play_btns: list[QPushButton] = []
+
+        for i, label in enumerate(self.SEAT_POS_SLOTS):
+            choose_btn = QPushButton(f"{label}: Empty")
+            choose_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {THEME.surface0};
+                    color: {THEME.subtext0};
+                    border: 1px dashed {THEME.surface2};
+                    text-align: left;
+                    padding: 4px 8px;
+                }}
+                QPushButton:hover {{ background-color: {THEME.surface1}; }}
+                QPushButton:pressed {{ background-color: {THEME.surface2}; }}
+            """)
+            choose_btn.clicked.connect(
+                lambda _, idx=i: self._on_choose_seat_pos_sequence(idx)
+            )
+            grid.addWidget(choose_btn, i, 0)
+            self._seat_pos_choose_btns.append(choose_btn)
+
+            play_btn = QPushButton("▶")
+            play_btn.setEnabled(False)
+            play_btn.setFixedWidth(scaled(36))
+            play_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {THEME.green};
+                    color: {THEME.crust};
+                    font-weight: bold;
+                    border-radius: 3px;
+                }}
+                QPushButton:hover {{ background-color: {THEME.teal}; }}
+                QPushButton:pressed {{ background-color: {THEME.sky}; }}
+                QPushButton:disabled {{ background-color: {THEME.surface1}; color: {THEME.overlay0}; }}
+            """)
+            play_btn.clicked.connect(lambda _, idx=i: self._on_seat_pos_play(idx))
+            grid.addWidget(play_btn, i, 1)
+            self._seat_pos_play_btns.append(play_btn)
+
+        group.addWidget(content)
+        return group
+
+    def _on_choose_seat_pos_sequence(self, slot_idx: int):
+        from PyQt6.QtWidgets import QFileDialog
+
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            f"Choose Sequence for {self.SEAT_POS_SLOTS[slot_idx]}",
+            "",
+            "JSON Files (*.json);;All Files (*)",
+            options=QFileDialog.Option.DontUseNativeDialog,
+        )
+        if not path:
+            return
+        self._seat_pos_paths[slot_idx] = path
+        name = os.path.basename(path).replace(".json", "")
+        btn = self._seat_pos_choose_btns[slot_idx]
+        btn.setText(f"{self.SEAT_POS_SLOTS[slot_idx]}: {name}")
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {THEME.surface0};
+                color: {THEME.text};
+                border: 1px solid {THEME.surface2};
+                text-align: left;
+                padding: 4px 8px;
+            }}
+            QPushButton:hover {{ background-color: {THEME.surface1}; }}
+            QPushButton:pressed {{ background-color: {THEME.surface2}; }}
+        """)
+        self._seat_pos_play_btns[slot_idx].setEnabled(True)
+
+    def _on_seat_pos_play(self, slot_idx: int):
+        from PyQt6.QtWidgets import QMessageBox
+
+        path = self._seat_pos_paths[slot_idx]
         if not path or not os.path.exists(path):
             return
 

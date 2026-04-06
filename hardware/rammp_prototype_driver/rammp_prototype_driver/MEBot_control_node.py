@@ -456,6 +456,7 @@ class MEBotControlNode(Node):
 
         # Upload keyframe 0 with relative deltas
         payload = _build_keyframe_payload(deltas, SEAT_MOVE_DURATION_MS)
+        self.write_serial_data("b\n")
         self.write_serial_data(f"J0:{payload}\n")
 
         # Trigger execution (CMD_SEQ_STEP_FWD)

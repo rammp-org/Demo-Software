@@ -4,6 +4,7 @@ import time
 
 import rclpy
 from rammp_prototype_interfaces.action import CurbTraverse
+from rammp_prototype_interfaces.msg import SeatCommand
 
 # custom msgs/srvs
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
@@ -12,7 +13,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
-from std_msgs.msg import Bool, String
+from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
 
 
@@ -158,7 +159,10 @@ class BaseControlNode(Node):
     def _init_subscribers(self):
         # subscriptions
         self.manual_seat_control_subscription = self.create_subscription(
-            String, "/base/manual_seat_control", self.manual_seat_control_callback, 10
+            SeatCommand,
+            "/base/manual_seat_control",
+            self.manual_seat_control_callback,
+            10,
         )  # message type is placeholder
 
         self.estop_subscription = self.create_subscription(
@@ -335,9 +339,11 @@ class BaseControlNode(Node):
         self.imu_publisher.publish(msg)
 
     def manual_seat_control_callback(self, msg):
-        if msg.data:
+        if msg.command:
             # content
-            self.get_logger().info("Manual seat control msg received.")
+            self.get_logger().info(
+                "Manual seat control msg received: " + str(msg.command)
+            )
             pass
 
     def estop_callback(self, msg):

@@ -593,9 +593,6 @@ class MEBotControlNode(Node):
         # Trigger execution (CMD_SEQ_STEP_FWD)
         self.write_serial_data(">\n")
 
-        if self.fb_pwm != 0:
-            self._send_joystick(self.fb_pwm, 0)
-
         self.get_logger().info(
             f"SeatCommand {msg.command}: keyframe uploaded and triggered "
             f"(duration={SEAT_MOVE_DURATION_MS}ms)"

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import Float32, String
 from std_msgs.msg import Bool
 from .unreal_remote_websocket import UnrealRemoteWebsocket
 from .streaming.sender import StreamSender
@@ -280,6 +280,13 @@ class GuiBridge(Node):
             10,
             callback_group=self._cb_group,
         )
+        self.curb_traverse_progress_subscriber = self.create_subscription(
+            Float32,
+            "/nav/curb_traverse_progress",
+            self.curb_traverse_progress_callback,
+            10,
+            callback_group=self._cb_group,
+        )
 
         # init camera subscribers
         # init camera msg to None first.
@@ -475,6 +482,10 @@ class GuiBridge(Node):
             10,
             callback_group=self._cb_group,
         )
+
+    def curb_traverse_progress_callback(self, msg: Float32):
+        self.get_logger().info(f"Curb traverse progress: {msg.data:.2f}%")
+        ### TODO send progress to UE, can use existing send_user_input function or create a new function for sending progress
 
     def door_button_info_callback(self, msg: ButtonInfo):
         self.update_button_info(msg)

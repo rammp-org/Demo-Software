@@ -10,6 +10,7 @@ from rclpy.action.client import ClientGoalHandle
 from rclpy.task import Future
 
 ActionClientCallback = Callable[[bool], None]  # (success, result) -> None
+ActionFeedbackCallback = Callable[[Any], None]  # (feedback_msg) -> None
 
 
 def is_action_type(t: Type[Any]) -> bool:
@@ -25,6 +26,7 @@ class ActionClientWrapper:
         result_callback: ActionClientCallback,
         cancel_callback: ActionClientCallback,
         node: Node,
+        feedback_callback: ActionFeedbackCallback = None,
     ):
         assert is_action_type(
             goal_type
@@ -49,6 +51,7 @@ class ActionClientWrapper:
         self._goal_callback = goal_callback
         self._result_callback = result_callback
         self._cancel_callback = cancel_callback
+        self._feedback_callback = feedback_callback
         self.gh = None
         self._gh_ready = threading.Event()
 
@@ -69,12 +72,17 @@ class ActionClientWrapper:
         self._action_running = True
         self._gh_ready.clear()
         send_goal_future = self._client.send_goal_async(
-            goal
-        )  # no feedback callback here.
+            goal,
+            feedback_callback=self._on_feedback if self._feedback_callback else None,
+        )
         send_goal_future.add_done_callback(self._send_goal_done_callback)
         self._node.get_logger().debug(
             "Goal sent to action server, waiting for response..."
         )
+
+    def _on_feedback(self, feedback_msg) -> None:
+        if self._feedback_callback:
+            self._feedback_callback(feedback_msg.feedback)
 
     def _send_goal_done_callback(self, future: Future):
         try:

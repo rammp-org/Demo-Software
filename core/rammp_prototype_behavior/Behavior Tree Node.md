@@ -30,9 +30,10 @@
 
 ### Publishers:
 
-| Topic  | Type |
-| ------ | ---- |
-| /state |      |
+| Topic                       | Type                 |
+| --------------------------- | -------------------- |
+| /state                      |                      |
+| /nav/curb_traverse_progress | std_msgs/msg/Float32 |
 
 ### Subscriber:
 

@@ -1,7 +1,7 @@
 import asyncio
 import enum
 import threading
-from std_msgs.msg import String
+from std_msgs.msg import String, Float32
 
 import rclpy
 import rclpy.action
@@ -621,6 +621,9 @@ class SystemControl(rclpy.node.Node):
         self.system_state_publisher_timer = self.create_timer(
             0.1, self.publish_system_state, callback_group=self._cb_group
         )
+        self._curb_traverse_progress_publisher = self.create_publisher(
+            Float32, "/nav/curb_traverse_progress", 10
+        )  # message type is placeholder, will replace with actual message type later
 
     def publish_system_state(self):
         # Placeholder for publishing system state, will replace with actual system state message later

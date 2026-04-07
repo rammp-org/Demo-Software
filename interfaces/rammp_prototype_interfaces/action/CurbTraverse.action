@@ -8,4 +8,4 @@ bool success
 string message
 ---
 # Feedback
-uint8 current_seq  # current steps
+float32 progress  # action progress

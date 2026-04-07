@@ -5,6 +5,7 @@ import enum
 from rclpy.node import Node
 from rammp_prototype_interfaces.action import CurbTraverse
 from .action_client_wrapper import ActionClientWrapper
+from std_msgs.msg import Float32
 
 
 class CurbTraverseDirection(enum.IntEnum):
@@ -24,7 +25,16 @@ class ChairCurbTraverseActionClient(ActionClientWrapper):
             self.result_callback,
             self.cancel_callback,
             node,
+            feedback_callback=self.feedback_callback,
         )
+
+    def feedback_callback(self, feedback: CurbTraverse.Feedback):
+        publisher = getattr(self._node, "_curb_traverse_progress_publisher", None)
+        if publisher is not None:
+            progress_msg = Float32()
+            progress_msg.data = feedback.progress
+            publisher.publish(progress_msg)
+            self._node.get_logger().debug(f"CurbTraverse feedback: {feedback}")
 
     def goal_callback(self, success: bool):
         if success:

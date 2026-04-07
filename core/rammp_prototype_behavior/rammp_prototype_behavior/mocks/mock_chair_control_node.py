@@ -363,7 +363,9 @@ class BaseControlNode(Node):
         feedback = CurbTraverse.Feedback()
         while self._action_counter > 0:
             self.get_logger().info("action counter left: " + str(self._action_counter))
-            feedback.current_seq = self._action_counter
+            feedback.progress = (
+                float(20 - self._action_counter) / 20.0 * 100.0
+            )  # convert to percentage
             goal_handle.publish_feedback(feedback)
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()

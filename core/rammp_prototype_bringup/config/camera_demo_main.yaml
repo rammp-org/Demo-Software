@@ -1,0 +1,24 @@
+# camera_demo_main.yaml
+# ============================================================
+# April Demo — Default Camera Configuration
+# ============================================================
+# Both cameras enabled. Loaded by default in camera.launch.py.
+#
+# Usage:
+#   ros2 launch rammp_prototype_bringup camera.launch.py
+# ============================================================
+
+disable_realsense: false
+disable_orbbec: false
+
+/wrist:
+  ros__parameters:
+    camera_name: "wrist"
+    base_frame_id: "wrist_camera_link"
+    serial_no: ""
+
+/camera/nav:
+  ros__parameters:
+    camera_name: "nav"
+    base_frame_id: "nav_camera_link"
+    serial_number: ""

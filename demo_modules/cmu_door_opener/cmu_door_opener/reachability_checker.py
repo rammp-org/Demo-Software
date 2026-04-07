@@ -1,165 +1,94 @@
-"""Lightweight IK-based reachability checker using PyBullet.
+"""Async reachability checker that delegates to the arm driver's Kortex IK solver.
 
-Loads a URDF (from string) of the Kinova Gen3 7-DOF arm in a headless
-(DIRECT) physics server and uses ``pybullet.calculateInverseKinematics``
-to decide whether a target end-effector position is kinematically reachable.
-
-No MoveIt, no ROS dependency, no planning pipeline — just geometry.
+Sends a ``CheckReachability`` service request each detection cycle and caches
+the latest result.  Designed to run inside a single-threaded ROS 2 executor
+without blocking: the request fires in cycle *N* and the response is picked up
+in cycle *N+1* (one-frame latency, ~200 ms at 5 Hz — negligible).
 """
 
-import tempfile
-import os
-import numpy as np
-import pybullet as p
+from arm_interfaces.srv import CheckReachability
 
 
 class ReachabilityChecker:
-    """Check whether the Kinova Gen3 end-effector can reach a given pose.
+    """Non-blocking IK reachability check via ``/arm/check_reachability``.
 
     Parameters
     ----------
-    urdf_string : str
-        The full URDF XML as a string (e.g. from ``/robot_description``).
-    pos_tol : float
-        Position tolerance (metres) for the FK validation step.
-    max_iters : int
-        Maximum refinement iterations per IK attempt.
+    node : rclpy.node.Node
+        The owning ROS node (used to create the service client and for logging).
     """
 
-    def __init__(
-        self,
-        urdf_string: str,
-        pos_tol: float = 0.01,
-        max_iters: int = 50,
-    ):
-        self.pos_tol = pos_tol
-        self.max_iters = max_iters
-
-        # Write URDF to a temp file — PyBullet requires a file path.
-        self._urdf_tmp = tempfile.NamedTemporaryFile(
-            suffix=".urdf", mode="w", delete=False
-        )
-        self._urdf_tmp.write(urdf_string)
-        self._urdf_tmp.close()
-
-        # Headless physics — no rendering, pure kinematics.
-        self._cid = p.connect(p.DIRECT)
-        self._robot = p.loadURDF(
-            self._urdf_tmp.name, useFixedBase=True, physicsClientId=self._cid
-        )
-
-        # Discover joint indices for the 7 arm revolute/continuous joints.
-        self._arm_joints: list[int] = []
-        self._ee_link: int = -1
-        n = p.getNumJoints(self._robot, physicsClientId=self._cid)
-        for i in range(n):
-            info = p.getJointInfo(self._robot, i, physicsClientId=self._cid)
-            joint_name = info[1].decode("utf-8")
-            joint_type = info[2]
-            if joint_name.startswith("gen3_joint_") and joint_type in (
-                p.JOINT_REVOLUTE,
-                p.JOINT_PRISMATIC,
-            ):
-                self._arm_joints.append(i)
-            if joint_name == "gen3_end_effector":
-                # child link index for this fixed joint
-                self._ee_link = i
-
-        # Fallback: search by link name.
-        if self._ee_link == -1:
-            for i in range(n):
-                info = p.getJointInfo(self._robot, i, physicsClientId=self._cid)
-                if info[12].decode("utf-8") == "gen3_end_effector_link":
-                    self._ee_link = i
-                    break
-
-        if not self._arm_joints or self._ee_link == -1:
-            raise RuntimeError(
-                f"URDF parsing failed: found {len(self._arm_joints)} arm joints, "
-                f"ee_link={self._ee_link}"
-            )
-
-        # Cache joint limits for randomised seeding.
-        self._lower = []
-        self._upper = []
-        for jid in self._arm_joints:
-            info = p.getJointInfo(self._robot, jid, physicsClientId=self._cid)
-            lo, hi = info[8], info[9]
-            # Continuous joints have lo >= hi in URDF; use full rotation.
-            if lo >= hi:
-                lo, hi = -np.pi, np.pi
-            self._lower.append(lo)
-            self._upper.append(hi)
-        self._lower = np.array(self._lower)
-        self._upper = np.array(self._upper)
+    def __init__(self, node):
+        self._node = node
+        self._client = node.create_client(CheckReachability, "/arm/check_reachability")
+        self._future = None
+        self._reachable = False
+        self._service_warned = False
 
     # ------------------------------------------------------------------
-    def is_reachable(self, target_pos, target_orn=None, n_seeds: int = 5) -> bool:
-        """Return ``True`` if *target_pos* is within the arm's workspace.
+    def check_async(self, target_xyz, target_quat):
+        """Fire an async reachability check for the given pose.
 
-        Tries *n_seeds* random initial joint configurations to handle the
-        null-space ambiguity of a 7-DOF arm (multiple elbow configs).
+        Safe to call every detection cycle.  If a previous request is still
+        in-flight it is left alone (not duplicated).
 
         Parameters
         ----------
-        target_pos : array-like, shape (3,)
-            Target XYZ in the robot base frame (metres).
-        target_orn : array-like, shape (4,), optional
-            Target orientation as a quaternion [x, y, z, w].  If ``None``,
-            only position is checked (orientation left free).
-        n_seeds : int
-            Number of random restarts.
+        target_xyz : array-like, shape (3,)
+            Target position [x, y, z] in the robot base frame (metres).
+        target_quat : array-like, shape (4,)
+            Target orientation as quaternion [x, y, z, w].
         """
-        target_pos = list(target_pos)
+        # Harvest any completed future first.
+        self._poll()
 
-        for _ in range(n_seeds):
-            seed = np.random.uniform(self._lower, self._upper)
-            for jid, q in zip(self._arm_joints, seed):
-                p.resetJointState(self._robot, jid, q, physicsClientId=self._cid)
+        if not self._client.service_is_ready():
+            if not self._service_warned:
+                self._node.get_logger().warn(
+                    "Reachability service /arm/check_reachability not available "
+                    "— is_pressable will be False until the arm driver is running"
+                )
+                self._service_warned = True
+            self._reachable = False
+            return
 
-            if self._ik_converges(target_pos, target_orn):
-                return True
+        if self._service_warned:
+            self._node.get_logger().info("Reachability service now available")
+            self._service_warned = False
 
-        return False
+        # Don't fire a new request while one is in-flight.
+        if self._future is not None and not self._future.done():
+            return
 
-    # ------------------------------------------------------------------
-    def _ik_converges(self, target_pos, target_orn) -> bool:
-        """Run iterative IK from the current joint state and check FK."""
-        kwargs = dict(
-            bodyUniqueId=self._robot,
-            endEffectorLinkIndex=self._ee_link,
-            targetPosition=target_pos,
-            physicsClientId=self._cid,
-        )
-        if target_orn is not None:
-            kwargs["targetOrientation"] = list(target_orn)
-
-        for _ in range(self.max_iters):
-            joint_angles = p.calculateInverseKinematics(**kwargs)
-
-            for jid, q in zip(self._arm_joints, joint_angles):
-                p.resetJointState(self._robot, jid, q, physicsClientId=self._cid)
-
-            ee_state = p.getLinkState(
-                self._robot, self._ee_link, physicsClientId=self._cid
-            )
-            ee_pos = ee_state[4]  # worldLinkFramePosition
-            if (
-                abs(ee_pos[0] - target_pos[0]) < self.pos_tol
-                and abs(ee_pos[1] - target_pos[1]) < self.pos_tol
-                and abs(ee_pos[2] - target_pos[2]) < self.pos_tol
-            ):
-                return True
-
-        return False
+        req = CheckReachability.Request()
+        req.target_pose.position.x = float(target_xyz[0])
+        req.target_pose.position.y = float(target_xyz[1])
+        req.target_pose.position.z = float(target_xyz[2])
+        req.target_pose.orientation.x = float(target_quat[0])
+        req.target_pose.orientation.y = float(target_quat[1])
+        req.target_pose.orientation.z = float(target_quat[2])
+        req.target_pose.orientation.w = float(target_quat[3])
+        self._future = self._client.call_async(req)
 
     # ------------------------------------------------------------------
-    def destroy(self):
-        """Disconnect the PyBullet physics server and clean up temp file."""
-        if self._cid >= 0:
-            p.disconnect(self._cid)
-            self._cid = -1
-        try:
-            os.unlink(self._urdf_tmp.name)
-        except OSError:
-            pass
+    @property
+    def is_reachable(self) -> bool:
+        """Return the latest cached reachability result."""
+        self._poll()
+        return self._reachable
+
+    # ------------------------------------------------------------------
+    def _poll(self):
+        """Check if the in-flight future has completed and update the cache."""
+        if self._future is not None and self._future.done():
+            try:
+                result = self._future.result()
+                self._reachable = result.reachable if result else False
+                if not self._reachable and result and result.message:
+                    self._node.get_logger().debug(
+                        f"Reachability check: {result.message}"
+                    )
+            except Exception as e:
+                self._node.get_logger().debug(f"Reachability service call failed: {e}")
+                self._reachable = False
+            self._future = None

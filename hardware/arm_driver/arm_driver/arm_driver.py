@@ -5,7 +5,7 @@ import rclpy
 import rclpy.action
 import rclpy.node
 from arm_interfaces.action import ExecuteTrajectory, ReachPreset
-from arm_interfaces.srv import GetSpeedPreset, SetMode, SetSpeedPreset
+from arm_interfaces.srv import CheckReachability, GetSpeedPreset, SetMode, SetSpeedPreset
 from diagnostic_msgs.msg import DiagnosticStatus
 from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped
 from rclpy.action import ActionServer
@@ -188,6 +188,12 @@ class ArmDriverNode(rclpy.node.Node):
             Trigger,
             "/arm/close_gripper",
             self._on_close_gripper,
+            callback_group=self._service_group,
+        )
+        self._check_reachability_srv = self.create_service(
+            CheckReachability,
+            "/arm/check_reachability",
+            self._on_check_reachability,
             callback_group=self._service_group,
         )
 
@@ -504,6 +510,36 @@ class ArmDriverNode(rclpy.node.Node):
         except Exception as e:
             response.success = False
             response.message = str(e)
+        return response
+
+    def _on_check_reachability(self, request, response):
+        """Handle a /arm/check_reachability service request.
+
+        Calls Kortex's ComputeInverseKinematics with the target pose and the
+        arm's current joint angles as the IK seed.  Returns reachable=True if
+        the solver finds a valid joint configuration, False otherwise.
+
+        Args:
+            request: Service request containing ``target_pose`` (geometry_msgs/Pose).
+            response: Service response with ``reachable`` (bool) and ``message`` (string).
+
+        Returns:
+            The populated service response.
+        """
+        if not self._arm:
+            response.reachable = False
+            response.message = "Arm not connected"
+            return response
+
+        p = request.target_pose.position
+        q = request.target_pose.orientation
+        try:
+            self._arm.compute_ik([p.x, p.y, p.z], [q.x, q.y, q.z, q.w])
+            response.reachable = True
+            response.message = "IK solution found"
+        except Exception as e:
+            response.reachable = False
+            response.message = f"IK failed: {e}"
         return response
 
     # -------------------------------------------------------------------------

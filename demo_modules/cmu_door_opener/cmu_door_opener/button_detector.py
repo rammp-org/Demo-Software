@@ -44,6 +44,7 @@ import open3d as o3d
 from scipy.spatial.transform import Rotation
 
 from cmu_door_opener_interfaces.msg import ButtonInfo
+from cmu_door_opener.reachability_checker import ReachabilityChecker
 
 # Default invalid pose — signals "no valid detection this cycle"
 INVALID_POSE = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
@@ -308,17 +309,8 @@ class ButtonPressVisionNode(Node):
             )
             self.get_logger().info("OpenCV window enabled (press 'q' to quit).")
 
-        # ---- IK reachability checker — disabled, see issue #129 ----
-        # self._reachability_checker: ReachabilityChecker | None = None
-        # qos_latched = QoSProfile(
-        #     history=HistoryPolicy.KEEP_LAST,
-        #     depth=1,
-        #     reliability=ReliabilityPolicy.RELIABLE,
-        #     durability=DurabilityPolicy.TRANSIENT_LOCAL,
-        # )
-        # self.create_subscription(
-        #     String, '/robot_description', self._cb_robot_description, qos_latched
-        # )
+        # ---- IK reachability checker (Kortex-backed, async) ----
+        self._reachability_checker = ReachabilityChecker(self)
 
         rate = float(self.get_parameter("process_rate_hz").value)
         period = 1.0 / max(rate, 0.1)
@@ -410,16 +402,6 @@ class ButtonPressVisionNode(Node):
         return response
 
     # ---- Callbacks ----
-    # _cb_robot_description disabled — see issue #129
-    # def _cb_robot_description(self, msg: String):
-    #     """Initialise the IK reachability checker from the URDF string."""
-    #     if self._reachability_checker is not None:
-    #         return  # already initialised
-    #     try:
-    #         self._reachability_checker = ReachabilityChecker(urdf_string=msg.data)
-    #         self.get_logger().info("Reachability checker initialised from /robot_description.")
-    #     except Exception as e:
-    #         self.get_logger().error(f"Failed to init reachability checker: {e}")
 
     def cb_color_info(self, msg: CameraInfo):
         self.color_info = msg
@@ -1132,9 +1114,9 @@ class ButtonPressVisionNode(Node):
         self.button_info_pub.publish(msg)
 
     def _publish_detected_pressable(
-        self, filtered_xyz, filtered_rpy, mask, bbox, confidence
+        self, filtered_xyz, filtered_rpy, mask, bbox, confidence, is_pressable
     ):
-        """State 3: Button detected and pressable. All fields valid."""
+        """State 3: Button detected, pose valid. is_pressable set by reachability check."""
         msg = ButtonInfo()
         msg.id = self._button_id
         mask_uint8 = (mask.astype(np.uint8)) * 255
@@ -1149,11 +1131,7 @@ class ButtonPressVisionNode(Node):
             float(filtered_rpy[1]),
             float(filtered_rpy[2]),
         ]
-        # is_pressable stubbed to True — reachability checker disabled, see issue #129
-        # MAX_REACH = 1.0  # meters from base_link (2D, ignoring z)
-        # dist_from_base_2d = float(np.linalg.norm(filtered_xyz[:2]))
-        # msg.is_pressable = dist_from_base_2d < MAX_REACH
-        msg.is_pressable = True
+        msg.is_pressable = is_pressable
         self.button_info_pub.publish(msg)
 
     # ---- Main loop ----
@@ -1333,14 +1311,27 @@ class ButtonPressVisionNode(Node):
             self._publish_detected_not_pressable(cur_mask, cur_bbox, cur_conf)
             return
 
-        # 6) Full success — publish state 3 (detected and pressable)
-        self.get_logger().debug("[PIPELINE] SUCCESS — publishing pressable ButtonInfo")
+        # 6) Reachability check — can the arm reach 5cm into the push?
+        #    Uses Kortex IK via async service call (result lags one cycle).
+        filtered_xyz = self._pose_filter.xyz
+        filtered_rpy = self._pose_filter.rpy
+        rot = Rotation.from_euler("xyz", filtered_rpy)
+        push_dir = rot.as_matrix()[:, 2]  # tool z-axis = push direction
+        check_xyz = filtered_xyz + 0.05 * push_dir  # 5cm into the 10cm push
+        check_quat = rot.as_quat()  # [x,y,z,w]
+        self._reachability_checker.check_async(check_xyz, check_quat)
+        is_pressable = self._reachability_checker.is_reachable
+
+        self.get_logger().debug(
+            f"[PIPELINE] reachability={is_pressable} — publishing ButtonInfo"
+        )
         self._publish_detected_pressable(
-            filtered_xyz=self._pose_filter.xyz,
-            filtered_rpy=self._pose_filter.rpy,
+            filtered_xyz=filtered_xyz,
+            filtered_rpy=filtered_rpy,
             mask=cur_mask,
             bbox=cur_bbox,
             confidence=cur_conf,
+            is_pressable=is_pressable,
         )
 
         xyz = self._pose_filter.xyz

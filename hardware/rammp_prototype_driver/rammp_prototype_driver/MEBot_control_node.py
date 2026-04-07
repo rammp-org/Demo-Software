@@ -3,7 +3,7 @@ from enum import IntEnum
 from std_srvs.srv import Empty
 from rclpy.executors import MultiThreadedExecutor
 import json
-
+from ament_index_python.packages import get_package_share_directory
 import rclpy
 import serial
 from rammp_prototype_interfaces.action import CurbTraverse
@@ -583,7 +583,10 @@ class MEBotControlNode(Node):
         # feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
 
-        json_path = "curb_climbing_wip.json"
+        json_path = (
+            get_package_share_directory("rammp_prototype_driver")
+            + "/rammp_prototype_drvier/curb_climbing_wip.json"
+        )
         sequence = _build_array_of_keyframes(json_path)
 
         # self.write_serial_data("B1:1\n")  # enter seq mode

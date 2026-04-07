@@ -76,7 +76,8 @@ SEAT_MOVE_DURATION_MS = 1000
 # *** TUNE these deltas once you know your geometry. ***
 SEAT_DELTAS: dict[int, list[float]] = {
     #                           RC      FC      ML      MR    ML_C   MR_C    DFB   DLR
-    SeatCommand.RAISE: [70.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
+    # SeatCommand.RAISE: [70.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.RAISE: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1000, 0.0],
     SeatCommand.LOWER: [-70.0, 0.0, -40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.TILT_FWD: [0.0, 0.0, -40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
@@ -587,6 +588,9 @@ class MEBotControlNode(Node):
 
         # Trigger execution (CMD_SEQ_STEP_FWD)
         self.write_serial_data(">\n")
+
+        if self.fb_pwm != 0:
+            self._send_joystick(self.fb_pwm, 0)
 
         self.get_logger().info(
             f"SeatCommand {msg.command}: keyframe uploaded and triggered "

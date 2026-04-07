@@ -660,6 +660,10 @@ class MEBotControlNode(Node):
 
         self.write_serial_data(">\n")
 
+        # Wait for sequence to actually start
+        while self.seq_mode == 0:
+            time.sleep(0.01)
+
         # Poll sequence step until the final step is reached
         while self.current_seq != self.seq_length and self.seq_mode != 0:
             if goal.is_cancel_requested:

@@ -18,6 +18,8 @@ from sensor_msgs.msg import CameraInfo, JointState, Image
 from rclpy.callback_groups import ReentrantCallbackGroup
 from realsense2_camera_msgs.msg import Extrinsics
 from neu_navigation_interfaces.msg import CurbInfo
+from cmu_door_opener_interfaces.msg import ButtonInfo
+from scipy.spatial.transform import Rotation as R
 
 
 @dataclass
@@ -49,12 +51,12 @@ class CupInfo:
     Message: str
 
 
-@dataclass
-class ButtonInfo:
-    BoundingBox: list[float]  # [x_min, y_min, x_max, y_max] in pixel coordinates
-    Confidence: float
-    Pose: Transform
-    CanPress: bool
+# @dataclass
+# class ButtonInfo:
+#     BoundingBox: list[float]  # [x_min, y_min, x_max, y_max] in pixel coordinates
+#     Confidence: float
+#     Pose: Transform
+#     CanPress: bool
 
 
 class UserInputString(enum.Enum):
@@ -465,6 +467,19 @@ class GuiBridge(Node):
             callback_group=self._cb_group,
         )
 
+        # door button info
+        self.door_button_info_sub = self.create_subscription(
+            ButtonInfo,
+            "/arm/door/button_info",
+            self.door_button_info_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+
+    def door_button_info_callback(self, msg: ButtonInfo):
+        self.update_button_info(msg)
+        self.send_mask(msg.segmentation_mask, "door_button")
+
     def curb_mask_callback(self, msg: Image):
         self.send_mask(msg, "nav")
 
@@ -846,26 +861,35 @@ class GuiBridge(Node):
 
     def update_button_info(self, button_info: ButtonInfo):
         if self.ue.is_connected():
+            float_bounding_box = [
+                float(x) for x in button_info.BoundingBox
+            ]  # Convert BoundingBox to list of floats
+            r = R.from_euler(
+                "xyz",
+                [button_info.Pose[3], button_info.Pose[4], button_info.Pose[5]],
+                degrees=False,
+            )
+            qx, qy, qz, qw = r.as_quat()  # Convert Euler angles to quaternion
             buttonInfoDict = {
-                "BoundingBox": button_info.BoundingBox,
+                "BoundingBox": float_bounding_box,  # Use the converted list of floats
                 "Confidence": button_info.Confidence,
                 "CanPress": button_info.CanPress,
                 "Pose": {
                     "Translation": {
-                        "X": button_info.Pose.Translation.X,
-                        "Y": button_info.Pose.Translation.Y,
-                        "Z": button_info.Pose.Translation.Z,
+                        "X": button_info.Pose[0],
+                        "Y": button_info.Pose[1],
+                        "Z": button_info.Pose[2],
                     },
                     "Rotation": {
-                        "X": button_info.Pose.Rotation.X,
-                        "Y": button_info.Pose.Rotation.Y,
-                        "Z": button_info.Pose.Rotation.Z,
-                        "W": button_info.Pose.Rotation.W,
+                        "X": qx,
+                        "Y": qy,
+                        "Z": qz,
+                        "W": qw,
                     },
                     "Scale3D": {
-                        "X": button_info.Pose.Scale3D.X,
-                        "Y": button_info.Pose.Scale3D.Y,
-                        "Z": button_info.Pose.Scale3D.Z,
+                        "X": 1.0,
+                        "Y": 1.0,
+                        "Z": 1.0,
                     },
                 },
             }

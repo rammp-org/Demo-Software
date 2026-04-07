@@ -1,4 +1,3 @@
-cat > ~/ros2_ws/src/hardware_bringup/setup.sh << 'EOF'
 #!/bin/bash
 set -e
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -82,4 +81,3 @@ else
     echo "then re-run setup.sh to install udev rules."
 fi
 echo "=== Setup complete ==="
-EOF

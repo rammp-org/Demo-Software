@@ -2,7 +2,7 @@ from __future__ import annotations
 import asyncio
 
 from rclpy.node import Node
-from cornell_feeding_interfaces.action import CornellActionsPlaceHolder
+from cornell_feeding_interfaces.action import DrinkAction
 from .action_client_wrapper import ActionClientWrapper
 
 
@@ -12,8 +12,8 @@ class HomeCupActionClient(ActionClientWrapper):
         node: Node,
     ):
         super().__init__(
-            "/arm/drink/HomeCup",
-            CornellActionsPlaceHolder,
+            "/arm/drink/home_cup",
+            DrinkAction,
             self.goal_callback,
             self.result_callback,
             self.cancel_callback,
@@ -22,9 +22,9 @@ class HomeCupActionClient(ActionClientWrapper):
 
     def goal_callback(self, success: bool):
         if success:
-            self._node.get_logger().info("Goal HomeCup accepted by the action server.")
+            self._node.get_logger().info("Goal home_cup accepted by the action server.")
         else:
-            self._node.get_logger().warn("Goal HomeCup rejected by the action server.")
+            self._node.get_logger().warn("Goal home_cup rejected by the action server.")
             self._node.reqArmActionGoalFailed()
 
     def result_callback(self, success: bool):
@@ -50,7 +50,7 @@ class HomeCupActionClient(ActionClientWrapper):
             self._node.reqArmActionCancelFailed()
 
     def send_goal(self):
-        goal = CornellActionsPlaceHolder.Goal()
+        goal = DrinkAction.Goal()
         asyncio.run_coroutine_threadsafe(super().send_goal(goal), self._node._loop)
 
     def cancel(self):

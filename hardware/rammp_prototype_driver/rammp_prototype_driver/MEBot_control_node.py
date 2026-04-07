@@ -7,6 +7,7 @@ import time
 import rclpy
 import serial
 from rammp_prototype_interfaces.action import CurbTraverse
+from rammp_prototype_interfaces.action import calibration
 from rammp_prototype_interfaces.msg import SeatCommand
 
 # custom msgs/srvs
@@ -131,6 +132,12 @@ class SerialField(IntEnum):
     # SPEED_ML = 0
     # SPEED_MR = 0
     STATE = 2
+    RC_vel = 9
+    FC_vel = 10
+    ML_vel = 11
+    MR_vel = 12
+    ML_carr_vel = 13
+    MR_carr_vel = 14
 
 
 class MEBotControlNode(Node):
@@ -218,6 +225,13 @@ class MEBotControlNode(Node):
         self.prev_speed_MR = 0.0
         self.current_speed_MR = 0.0
 
+        self.RC_vel = 0.0
+        self.FC_vel = 0.0
+        self.ML_vel = 0.0
+        self.MR_vel = 0.0
+        self.ML_carr_vel = 0.0
+        self.MR_carr_vel = 0.0
+
         #### Init all ROS interfaces
         self._init_services()
         self._init_actions()
@@ -246,6 +260,10 @@ class MEBotControlNode(Node):
         # actions
         self.curb_traverse_action = ActionServer(
             self, CurbTraverse, "curb_traverse", self.curb_traverse_action_callback
+        )
+
+        self.calibrate_action = ActionServer(
+            self, calibration, "calibrate", self.calibrate_motors_callback
         )
 
     def _init_subscribers(self):
@@ -340,6 +358,13 @@ class MEBotControlNode(Node):
 
         # app_time
         # self.app_time = float(data[SerialField.APP_TIME])
+
+        self.FC_vel = float(data[SerialField.FC_vel])
+        self.RC_vel = float(data[SerialField.RC_vel])
+        self.ML_vel = float(data[SerialField.ML_vel])
+        self.MR_vel = float(data[SerialField.MR_vel])
+        self.ML_carr_vel = float(data[SerialField.ML_carr_vel])
+        self.MR_carr_vel = float(data[SerialField.MR_carr_vel])
 
         # Velocity — convert cm/s to m/s
         # TODO: Fix wheel velocities once they are sent by the Teensy (currently sending 0 in SerialField.SPEED_ML and SPEED_MR)
@@ -533,6 +558,44 @@ class MEBotControlNode(Node):
             return
 
         self.get_logger().error("Service call failed")
+
+    def calibrate_motors_callback(self, goal):
+        if goal.request.enable:
+            self.write_serial_data("M1:1\n")
+            self.write_serial_data("M2:1\n")
+            self.write_serial_data("M3:1\n")
+            self.write_serial_data("M4:1\n")
+            self.write_serial_data("M5:1\n")
+            self.write_serial_data("M6:1\n")
+
+        feedback_msg = calibration.Feedback()
+        result = calibration.Result()
+
+        while (
+            self.FC_vel != 0
+            and self.RC_vel != 0
+            and self.ML_vel != 0
+            and self.MR_vel != 0
+            and self.ML_carr_vel != 0
+            and self.MR_carr_vel != 0
+        ):
+            feedback_msg.FC_vel = self.FC_vel
+            feedback_msg.RC_vel = self.RC_vel
+            feedback_msg.ML_vel = self.ML_vel
+            feedback_msg.MR_vel = self.MR_vel
+            feedback_msg.ML_carr_vel = self.ML_carr_vel
+            feedback_msg.MR_carr_vell = self.MR_carr_vel
+
+        self.write_serial_data("M1:0\n")
+        self.write_serial_data("M2:0\n")
+        self.write_serial_data("M3:0\n")
+        self.write_serial_data("M4:0\n")
+        self.write_serial_data("M5:0\n")
+        self.write_serial_data("M6:0\n")
+
+        goal.succeed()
+        result.success = True
+        return result
 
     def curb_traverse_action_callback(self, goal):
         # TODO: add checkpoint here checking if sequence flag is at starting/default state, curb traversal should not be called if MEBot already in curb traversal (default flag is 0)

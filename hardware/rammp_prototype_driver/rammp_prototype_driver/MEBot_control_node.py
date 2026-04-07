@@ -9,6 +9,8 @@ import rclpy
 import serial
 from rammp_prototype_interfaces.action import CurbTraverse
 from rammp_prototype_interfaces.msg import SeatCommand
+from luci_messages.msg import LuciJoystick
+
 
 # custom msgs/srvs
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
@@ -19,6 +21,44 @@ from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
 import diagnostic_updater
 from diagnostic_msgs.msg import DiagnosticStatus
+
+# LUCI STUFF
+JS_FRONT = 0
+JS_FRONT_LEFT = 1
+JS_FRONT_RIGHT = 2
+JS_LEFT = 3
+JS_RIGHT = 4
+JS_BACK_LEFT = 5
+JS_BACK_RIGHT = 6
+JS_BACK = 7
+JS_ORIGIN = 8
+
+INPUT_REMOTE = 1
+
+JOYSTICK_TOPIC = "luci/remote_joystick"
+JOYSTICK_MSG_TYPE = "luci_messages/msg/LuciJoystick"
+SET_AUTO_SERVICE = "/luci/set_auto_remote_input"
+REMOVE_AUTO_SERVICE = "/luci/remove_auto_remote_input"
+
+
+def _compute_zone(fb: int, lr: int) -> int:
+    if fb == 0 and lr == 0:
+        return JS_ORIGIN
+    if fb > 0 and lr == 0:
+        return JS_FRONT
+    if fb < 0 and lr == 0:
+        return JS_BACK
+    if fb == 0 and lr > 0:
+        return JS_RIGHT
+    if fb == 0 and lr < 0:
+        return JS_LEFT
+    if fb > 0 and lr > 0:
+        return JS_FRONT_RIGHT
+    if fb > 0 and lr < 0:
+        return JS_FRONT_LEFT
+    if fb < 0 and lr > 0:
+        return JS_BACK_RIGHT
+    return JS_BACK_LEFT
 
 
 # Sequence player motor order (must match SEQ_NUM_MOTORS order in Teensy):
@@ -329,6 +369,10 @@ class MEBotControlNode(Node):
             self.state_publish_rate, self.publish_RAMMPPrototypeState
         )
 
+        self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
+
+        # self.luci_heartbeat_timer = self.create_timer(0.005, lambda: self._send_joystick(self.fb_pwm, 0))
+
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
 
@@ -405,7 +449,7 @@ class MEBotControlNode(Node):
         # State
         self.state = int(data[SerialField.STATE])
 
-        self.fb_pwm = float(data[66])  # TODO: put index in SerialField
+        self.fb_pwm = int(data[66])  # TODO: put index in SerialField
 
     def publish_joint_states(self):
         msg = JointState()
@@ -579,6 +623,14 @@ class MEBotControlNode(Node):
 
         self.get_logger().error("Service call failed")
 
+    def _send_joystick(self, fb: int, lr: int):
+        msg = LuciJoystick()
+        msg.forward_back = fb
+        msg.left_right = lr
+        msg.joystick_zone = _compute_zone(fb, lr)
+        msg.input_source = INPUT_REMOTE
+        self.luci_js_publisher.publish(msg)
+
     def curb_traverse_action_callback(self, goal):
         # TODO: add checkpoint here checking if sequence flag is at starting/default state, curb traversal should not be called if MEBot already in curb traversal (default flag is 0)
         # TODO: add descending flag
@@ -586,6 +638,8 @@ class MEBotControlNode(Node):
         #     self.write_serial_data("c\n")
         # if goal.request.direction == 0:
         #     self.write_serial_data("d\n")
+
+        self.send_set_luci()  # enable luci js control
 
         feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
@@ -612,6 +666,9 @@ class MEBotControlNode(Node):
                 goal.canceled()
                 result.success = False
                 return result
+
+            if self.fb_pwm != 0:
+                self._send_joystick(self.fb_pwm, 0)
 
             feedback_msg.current_seq = self.current_seq
             goal.publish_feedback(feedback_msg)

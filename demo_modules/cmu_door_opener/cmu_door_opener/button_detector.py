@@ -1311,15 +1311,14 @@ class ButtonPressVisionNode(Node):
             self._publish_detected_not_pressable(cur_mask, cur_bbox, cur_conf)
             return
 
-        # 6) Reachability check — can the arm reach 5cm into the push?
-        #    Uses Kortex IK via async service call (result lags one cycle).
+        # 6) Reachability check — can the arm reach both the button surface
+        #    (approach) and the full push overshoot?  The checker tests both
+        #    poses to match what ButtonPushController actually commands.
         filtered_xyz = self._pose_filter.xyz
         filtered_rpy = self._pose_filter.rpy
         rot = Rotation.from_euler("xyz", filtered_rpy)
-        push_dir = rot.as_matrix()[:, 2]  # tool z-axis = push direction
-        check_xyz = filtered_xyz + 0.05 * push_dir  # 5cm into the 10cm push
         check_quat = rot.as_quat()  # [x,y,z,w]
-        self._reachability_checker.check_async(check_xyz, check_quat)
+        self._reachability_checker.check_async(filtered_xyz, check_quat)
         is_pressable = self._reachability_checker.is_reachable
 
         self.get_logger().debug(

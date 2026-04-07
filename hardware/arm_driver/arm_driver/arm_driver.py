@@ -494,12 +494,17 @@ class ArmDriverNode(rclpy.node.Node):
         p = request.target_pose.position
         q = request.target_pose.orientation
         try:
-            self._arm.compute_ik([p.x, p.y, p.z], [q.x, q.y, q.z, q.w])
+            ik_result = self._arm.compute_ik([p.x, p.y, p.z], [q.x, q.y, q.z, q.w])
             response.reachable = True
             response.message = "IK solution found"
+            import math
+            response.joint_angles = [
+                math.radians(j.value) for j in ik_result.joint_angles
+            ]
         except Exception as e:
             response.reachable = False
             response.message = f"IK failed: {e}"
+            response.joint_angles = []
         return response
 
     # -------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 import math
+import time
 from enum import IntEnum
 from std_srvs.srv import Empty
 from rclpy.executors import MultiThreadedExecutor
@@ -580,35 +581,36 @@ class MEBotControlNode(Node):
         # if goal.request.direction == 0:
         #     self.write_serial_data("d\n")
 
-        # feedback_msg = CurbTraverse.Feedback()
+        feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
 
         json_path = (
             get_package_share_directory("rammp_prototype_driver")
-            + "/rammp_prototype_drvier/curb_climbing_wip.json"
+            + "/curb_climbing_wip.json"
         )
         sequence = _build_array_of_keyframes(json_path)
+        self.get_logger().info(f"sequence: {sequence}")
 
-        # self.write_serial_data("B1:1\n")  # enter seq mode
-        # self.write_serial_data("B2:1\n")  # enable auto run
+        self.write_serial_data("B1:1\n")  # enter seq mode
+        self.write_serial_data("B2:1\n")  # enable auto run
 
         for i, payload in enumerate(sequence):
-            # self.write_serial_data(f"J{i}:{payload}\n")
-            self.get_logger().info(f"J{i}:{payload}\n")
+            self.write_serial_data(f"J{i}:{payload}\n")
+            # self.get_logger().info(f"J{i}:{payload}")
 
-        # self.write_serial_data(">\n")
+        self.write_serial_data(">\n")
 
         # Poll sequence step until the final step is reached
-        # while self.current_seq != self.seq_length and self.seq_mode != 0:
-        #     if goal.is_cancel_requested:
-        #         goal.canceled()
-        #         result.success = False
-        #         return result
+        while self.current_seq != self.seq_length and self.seq_mode != 0:
+            if goal.is_cancel_requested:
+                goal.canceled()
+                result.success = False
+                return result
 
-        #     feedback_msg.current_seq = self.current_seq
-        #     goal.publish_feedback(feedback_msg)
+            feedback_msg.current_seq = self.current_seq
+            goal.publish_feedback(feedback_msg)
 
-        #     time.sleep(0.05)
+            time.sleep(0.05)
 
         # TODO: Make success true or false depending on information given by teensy that states whether or not curb traversal succeeded
         goal.succeed()

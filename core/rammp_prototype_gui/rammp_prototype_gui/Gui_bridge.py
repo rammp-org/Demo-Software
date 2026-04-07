@@ -781,7 +781,7 @@ class GuiBridge(Node):
             arr[chair_ml_wheel_index] = self.base_joints.position[6] * 180.0 / 3.14159
             arr[chair_mr_wheel_index] = self.base_joints.position[7] * 180.0 / 3.14159
 
-        if self.base_joints is not None and self.arm_joints is not None:
+        if self.base_joints is not None or self.arm_joints is not None:
             self.ue.call_function("setJoints", {"Values": arr})
 
     def send_system_state_to_ue(self):

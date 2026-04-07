@@ -8,4 +8,4 @@ bool success
 string message
 ---
 # Feedback
-uint8 ca_flag  # add comment for description
+uint8 current_seq  # current steps

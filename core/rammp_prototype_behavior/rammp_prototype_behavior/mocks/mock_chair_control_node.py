@@ -290,7 +290,7 @@ class BaseControlNode(Node):
         msg.ml_loadcell = self.ML_loadcell
 
         # CA_flag
-        msg.ca_flag = self.CA_flag
+        # msg.ca_flag = self.CA_flag
 
         # state
         msg.state = self.state
@@ -363,9 +363,7 @@ class BaseControlNode(Node):
         feedback = CurbTraverse.Feedback()
         while self._action_counter > 0:
             self.get_logger().info("action counter left: " + str(self._action_counter))
-            feedback.ca_flag = (
-                0  # mock feedback, can be updated with actual data if needed
-            )
+            feedback.current_seq = self._action_counter
             goal_handle.publish_feedback(feedback)
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()

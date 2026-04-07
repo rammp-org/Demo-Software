@@ -869,9 +869,15 @@ class GuiBridge(Node):
 
     def update_cup_info(self, cup_info: CupInfo):
         if self.ue.is_connected():
+            width = cup_info.segmentation_mask.width
+            height = cup_info.segmentation_mask.height
             float_bounding_box = [
                 float(x) for x in cup_info.BoundingBox
             ]  # Convert BoundingBox to list of floats
+            float_bounding_box[0] /= width  # Normalize x
+            float_bounding_box[1] /= height  # Normalize y
+            float_bounding_box[2] /= width  # Normalize width
+            float_bounding_box[3] /= height  # Normalize height
             cupInfoDict = {
                 "BoundingBox": float_bounding_box,  # Use the converted list of floats
                 "Success": cup_info.success,
@@ -898,9 +904,15 @@ class GuiBridge(Node):
 
     def update_button_info(self, button_info: ButtonInfo):
         if self.ue.is_connected():
+            width = button_info.segmentation_mask.width
+            height = button_info.segmentation_mask.height
             float_bounding_box = [
                 float(x) for x in button_info.BoundingBox
             ]  # Convert BoundingBox to list of floats
+            float_bounding_box[0] /= width  # Normalize x
+            float_bounding_box[1] /= height  # Normalize y
+            float_bounding_box[2] /= width  # Normalize width
+            float_bounding_box[3] /= height  # Normalize height
             r = R.from_euler(
                 "xyz",
                 [button_info.Pose[3], button_info.Pose[4], button_info.Pose[5]],

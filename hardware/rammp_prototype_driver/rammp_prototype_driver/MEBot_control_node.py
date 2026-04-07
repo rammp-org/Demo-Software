@@ -140,7 +140,7 @@ def _build_array_of_keyframes(json_path):
 
     for kf in data["keyframes"]:
         targets = (f"{t:.2f}" for t in kf["targets"])
-        active = (1 if t != 0.0 else 0 for t in kf["targets"])
+        active = (1 for t in kf["targets"])
         duration_ms = kf["duration_ms"]
         relative = [int(r) for r in kf["relative"]]
 
@@ -312,6 +312,7 @@ class MEBotControlNode(Node):
 
         # drive wheel velocities
         self.fb_pwm = 0.0
+        self.test_pwm = 0
 
         #### Init all ROS interfaces
         self._init_services()
@@ -376,7 +377,9 @@ class MEBotControlNode(Node):
 
         self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
-        # self.luci_heartbeat_timer = self.create_timer(0.005, lambda: self._send_joystick(self.fb_pwm, 0))
+        self.luci_heartbeat_timer = self.create_timer(
+            0.005, lambda: self._send_joystick(self.fb_pwm, 0)
+        )
 
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
@@ -639,8 +642,8 @@ class MEBotControlNode(Node):
 
     def test_luci_drive(self, goal):
         if goal.request.direction == 1:
+            self.test_pwm = 1000
             self.send_set_luci()
-            self._send_joystick(1000, 0)
 
         result = CurbTraverse.Result()
 
@@ -690,8 +693,8 @@ class MEBotControlNode(Node):
                 result.success = False
                 return result
 
-            if self.fb_pwm != 0:
-                self._send_joystick(self.fb_pwm, 0)
+            # if self.fb_pwm != 0:
+            #     self._send_joystick(self.fb_pwm, 0)
 
             feedback_msg.current_seq = self.current_seq
             goal.publish_feedback(feedback_msg)

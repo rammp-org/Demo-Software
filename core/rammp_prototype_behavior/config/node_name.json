@@ -1,0 +1,25 @@
+{
+  "nodes": [
+    {
+      "name": "/arm_driver_node"
+    },
+    {
+      "name": "/system_control"
+    },
+    {
+      "name": "/drinking_node"
+    },
+    {
+      "name": "/open_door_node"
+    },
+    {
+      "name": "/cup_stabilizer_node"
+    },
+    {
+      "name": "/base_control_node"
+    },
+    {
+      "name": "/perception_curb_detection_node"
+    }
+  ]
+}

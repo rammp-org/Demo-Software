@@ -1,13 +1,14 @@
 import enum
 import time
 
+import numpy as np
 import rclpy
 import rclpy.action
 import rclpy.node
 from arm_interfaces.action import ExecuteTrajectory, ReachPreset
 from arm_interfaces.srv import CheckReachability, GetSpeedPreset, SetMode, SetSpeedPreset
 from diagnostic_msgs.msg import DiagnosticStatus
-from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped
+from geometry_msgs.msg import PoseStamped, Twist, TwistStamped, Vector3Stamped
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -87,9 +88,6 @@ class ArmDriverNode(rclpy.node.Node):
         self._state = ArmState.IDLE
         self._error_reason: str = ""
         self._arm: KinovaArm | None = None
-        self._latest_twist: Twist | None = None
-        self._latest_twist_time: float = 0.0
-
         # ReentrantCallbackGroup allows action/service callbacks to run concurrently
         # with the rest of the node (timers, subscribers) on the MultiThreadedExecutor,
         # so that blocking service/action handlers don't starve the joint_states timer.
@@ -114,7 +112,9 @@ class ArmDriverNode(rclpy.node.Node):
         )
         self._imu_pub = self.create_publisher(Imu, "/arm/imu", 10)
         self._status_pub = self.create_publisher(DiagnosticStatus, "/arm/status", 10)
-        self._ee_force_pub = self.create_publisher(Vector3Stamped, "/arm/ee_force", 10)
+        self._ee_force_pub = self.create_publisher(Vector3Stamped, "/arm/ee/force", 10)
+        self._ee_pos_pub = self.create_publisher(PoseStamped, "/arm/ee/pose", 10)
+        self._ee_vel_pub = self.create_publisher(TwistStamped, "/arm/ee/velocity", 10)
         self._robot_description_pub = self.create_publisher(
             String, "/robot_description", 10
         )
@@ -221,11 +221,9 @@ class ArmDriverNode(rclpy.node.Node):
         ]
 
     def _init_timers(self):
-        """Create periodic timers for state publishing and twist streaming."""
+        """Create periodic timers for state publishing."""
         self.create_timer(0.01, self._publish_joint_states)  # 100 Hz
         self.create_timer(1.0, self._publish_status)  # 1 Hz
-        self._twist_timer = self.create_timer(0.04, self._stream_twist)  # 25 Hz
-        self._twist_timer.cancel()  # only active while in a TWIST state
 
     def _init_arm(self):
         """Connect to the Kinova arm. Transitions to ERROR on failure."""
@@ -244,9 +242,6 @@ class ArmDriverNode(rclpy.node.Node):
     def _transition_to(self, new_state: ArmState):
         """Transition the node to a new state, logging the change.
 
-        If leaving a TWIST state, clears the cached twist so the streaming timer
-        stops sending commands.
-
         Args:
             new_state: The state to transition to.
         """
@@ -254,18 +249,6 @@ class ArmDriverNode(rclpy.node.Node):
 
         if self._arm:
             self._arm.stop()
-
-        old_mode = COMMAND_MODE.get(self._state)
-        new_mode = COMMAND_MODE.get(new_state)
-
-        if old_mode != CommandMode.TWIST and new_mode == CommandMode.TWIST:
-            self._twist_timer.reset()
-
-        elif new_mode != CommandMode.TWIST:
-            self._twist_timer.cancel()
-            # Clear the twist cache when leaving a TWIST state so the arm stops if we re-enter a TWIST state without receiving a new command
-            self._latest_twist = None
-            self._latest_twist_time = 0.0
 
         self._state = new_state
 
@@ -289,16 +272,19 @@ class ArmDriverNode(rclpy.node.Node):
         handler(msg)
 
     def _handle_twist(self, msg: Twist):
-        """Cache the latest Cartesian twist command for the streaming timer.
+        """Send a Cartesian twist command directly to the arm.
 
-        The actual ``send_twist`` call happens in :meth:`_stream_twist` at 25 Hz
-        so that the arm receives a steady command stream regardless of publisher rate.
+        Bypasses the streaming timer — commands are forwarded to the hardware
+        immediately at whatever rate the publisher sends them.
 
         Args:
             msg: Desired end-effector linear and angular velocity.
         """
-        self._latest_twist = msg
-        self._latest_twist_time = time.monotonic()
+        if self._arm:
+            self._arm.send_twist(
+                [msg.linear.x, msg.linear.y, msg.linear.z],
+                [msg.angular.x, msg.angular.y, msg.angular.z],
+            )
 
     def _handle_joint_position(self, msg: JointState):
         """Command the arm to a target joint position (HIGH_LEVEL).
@@ -317,32 +303,6 @@ class ArmDriverNode(rclpy.node.Node):
         p = msg.pose.position
         q = msg.pose.orientation
         self._arm.move_cartesian([p.x, p.y, p.z], [q.x, q.y, q.z, q.w], blocking=False)
-
-    def _stream_twist(self):
-        """Send the latest cached twist command to the arm at 25 Hz.
-
-        Only active while in a TWIST state (timer is cancelled otherwise). Acts as a
-        watchdog: if no fresh twist has been received within 200 ms, sends a
-        zero-velocity command and clears the cache so the arm comes to a stop.
-        """
-        if not self._arm:
-            return
-
-        now = time.monotonic()
-        if now - self._latest_twist_time > 0.2:
-            # Watchdog expired — stop the arm and clear the cache
-            self._arm.send_twist([0.0, 0.0, 0.0], [0.0, 0.0, 0.0])
-            self._latest_twist = None
-            return
-
-        if self._latest_twist is None:
-            return
-
-        msg = self._latest_twist
-        self._arm.send_twist(
-            [msg.linear.x, msg.linear.y, msg.linear.z],
-            [msg.angular.x, msg.angular.y, msg.angular.z],
-        )
 
     # -------------------------------------------------------------------------
     # Subscribers
@@ -690,20 +650,46 @@ class ArmDriverNode(rclpy.node.Node):
         joint_msg = JointState()
         joint_msg.header.stamp = stamp
         force_msg = Vector3Stamped()
+        vel_msg = TwistStamped()
+        pos_msg = PoseStamped()
         force_msg.header.stamp = stamp
+        vel_msg.header.stamp = stamp
+        pos_msg.header.stamp = stamp
 
         if self._arm:
             state = self._arm.get_state()
+            joint_msg.name = [
+                f"joint_{i + 1}" for i in range(self._arm.actuator_count)
+            ] + ["robotiq_85_left_knuckle_joint"]
             joint_msg.position = state["position"].tolist() + [state["gripper_pos"]]
             joint_msg.velocity = state["velocity"].tolist() + [0.0]
             joint_msg.effort = state["effort"].tolist() + [0.0]
 
-            force = self._arm.get_ee_force()
+            force = state["ee_force"]
             force_msg.vector.x = force[0]
             force_msg.vector.y = force[1]
             force_msg.vector.z = force[2]
 
+            ee_pos = state["ee_pos"]
+            pos_msg.pose.position.x = ee_pos[0]
+            pos_msg.pose.position.y = ee_pos[1]
+            pos_msg.pose.position.z = ee_pos[2]
+            pos_msg.pose.orientation.x = ee_pos[3]
+            pos_msg.pose.orientation.y = ee_pos[4]
+            pos_msg.pose.orientation.z = ee_pos[5]
+            pos_msg.pose.orientation.w = ee_pos[6]
+
+            ee_velocity = state["ee_vel"]
+            vel_msg.twist.linear.x = ee_velocity[0]
+            vel_msg.twist.linear.y = ee_velocity[1]
+            vel_msg.twist.linear.z = ee_velocity[2]
+            vel_msg.twist.angular.x = np.deg2rad(ee_velocity[3])
+            vel_msg.twist.angular.y = np.deg2rad(ee_velocity[4])
+            vel_msg.twist.angular.z = np.deg2rad(ee_velocity[5])
+
         self._joint_state_pub.publish(joint_msg)
+        self._ee_vel_pub.publish(vel_msg)
+        self._ee_pos_pub.publish(pos_msg)
         self._ee_force_pub.publish(force_msg)
 
     def _publish_status(self):

@@ -3,6 +3,7 @@ from enum import IntEnum
 from std_srvs.srv import Empty
 from rclpy.executors import MultiThreadedExecutor
 import time
+import json
 
 import rclpy
 import serial
@@ -44,8 +45,16 @@ SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.RESET: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
 }
 
+# for testing curb traversal action callback
+move_sequence = [
+    SEAT_DELTAS[SeatCommand.RAISE],
+    SEAT_DELTAS[SeatCommand.LOWER],
+    SEAT_DELTAS[SeatCommand.RAISE],
+    SEAT_DELTAS[SeatCommand.LOWER],
+]
 
-def _build_keyframe_payload(deltas: list[float], duration_ms: int) -> str:
+
+def _build_keyframe_payload(deltas: list[float], duration_ms: int, command) -> str:
     """Build a J0 keyframe payload string in the 32-value format expected by
     parseKeyframePayload():
         targets(x6), active(x6), relative(x6), duration_ms(x6)
@@ -53,6 +62,22 @@ def _build_keyframe_payload(deltas: list[float], duration_ms: int) -> str:
     Motors with a delta of 0.0 are marked inactive (active=0) so the
     sequence player leaves them at their current position.
     """
+
+    if command == SeatCommand.RESET:  # reset command
+        active = [1] * SEQ_NUM_MOTORS
+        relative = [0] * SEQ_NUM_MOTORS  # always absolute for seat reset
+        relative[6] = 1
+        relative[7] = 1
+        durations = [duration_ms] * SEQ_NUM_MOTORS
+
+        parts = (
+            [f"{d:.2f}" for d in deltas]
+            + [str(a) for a in active]
+            + [str(r) for r in relative]
+            + [str(t) for t in durations]
+        )
+        return ",".join(parts)
+
     active = [1 if d != 0.0 else 0 for d in deltas]
     relative = [1] * SEQ_NUM_MOTORS  # always relative for seat moves
     durations = [duration_ms] * SEQ_NUM_MOTORS
@@ -66,27 +91,53 @@ def _build_keyframe_payload(deltas: list[float], duration_ms: int) -> str:
     return ",".join(parts)
 
 
-def _build_reset_keyframe_payload(deltas: list[float], duration_ms: int) -> str:
-    """Build a J0 keyframe payload string in the 32-value format expected by
-    parseKeyframePayload():
-        targets(x6), active(x6), relative(x6), duration_ms(x6)
+def _build_array_of_keyframes(json_path):
+    with open(json_path, "r") as f:
+        data = json.load(f)
 
-    Motors with a delta of 0.0 are marked inactive (active=0) so the
-    sequence player leaves them at their current position.
-    """
-    active = [1] * SEQ_NUM_MOTORS
-    relative = [0] * SEQ_NUM_MOTORS  # always absolute for seat reset
-    relative[6] = 1
-    relative[7] = 1
-    durations = [duration_ms] * SEQ_NUM_MOTORS
+    sequence = []
 
-    parts = (
-        [f"{d:.2f}" for d in deltas]
-        + [str(a) for a in active]
-        + [str(r) for r in relative]
-        + [str(t) for t in durations]
-    )
-    return ",".join(parts)
+    for kf in data["keyframes"]:
+        targets = (f"{t:.2f}" for t in kf["targets"])
+        active = (1 if t != 0.0 else 0 for t in kf["targets"])
+        duration_ms = kf["duration_ms"]
+        relative = [int(r) for r in kf["relative"]]
+
+        durations = [duration_ms if md is None else md for md in kf["motor_durations"]]
+
+        parts = (
+            [str(t) for t in targets]
+            + [str(a) for a in active]
+            + [str(r) for r in relative]
+            + [str(t) for t in durations]
+        )
+        row = ",".join(parts)
+        sequence.append(row)
+
+    return sequence
+
+
+# def _build_reset_keyframe_payload(deltas: list[float], duration_ms: int) -> str:
+#     """Build a J0 keyframe payload string in the 32-value format expected by
+#     parseKeyframePayload():
+#         targets(x6), active(x6), relative(x6), duration_ms(x6)
+
+#     Motors with a delta of 0.0 are marked inactive (active=0) so the
+#     sequence player leaves them at their current position.
+#     """
+#     active = [1] * SEQ_NUM_MOTORS
+#     relative = [0] * SEQ_NUM_MOTORS  # always absolute for seat reset
+#     relative[6] = 1
+#     relative[7] = 1
+#     durations = [duration_ms] * SEQ_NUM_MOTORS
+
+#     parts = (
+#         [f"{d:.2f}" for d in deltas]
+#         + [str(a) for a in active]
+#         + [str(r) for r in relative]
+#         + [str(t) for t in durations]
+#     )
+#     return ",".join(parts)
 
 
 class SerialField(IntEnum):
@@ -297,9 +348,9 @@ class MEBotControlNode(Node):
                     "SEQ_STATUS"
                 ):  # parsing and storing information about sequence player if running
                     split_data = raw_data.split(",")
-                    self.current_seq = split_data[1]
-                    self.seq_length = split_data[2]
-                    self.seq_mode = split_data[3].strip()
+                    self.current_seq = int(split_data[1])
+                    self.seq_length = int(split_data[2])
+                    self.seq_mode = int(split_data[3].strip())
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -480,20 +531,8 @@ class MEBotControlNode(Node):
             )
             return
 
-        if all(d == 0.0 for d in deltas):
-            payload = _build_reset_keyframe_payload(deltas, SEAT_MOVE_DURATION_MS)
-            self.write_serial_data("B1:1\n")
-            self.write_serial_data(f"J0:{payload}\n")
-
-            # Trigger execution (CMD_SEQ_STEP_FWD)
-            self.write_serial_data(">\n")
-            self.get_logger().info(
-                f"SeatCommand {msg.command} with payload {payload}: Reset to home position"
-            )
-            return
-
         # Upload keyframe 0 with relative deltas
-        payload = _build_keyframe_payload(deltas, SEAT_MOVE_DURATION_MS)
+        payload = _build_keyframe_payload(deltas, SEAT_MOVE_DURATION_MS, msg.command)
         self.write_serial_data("B1:1\n")
         self.write_serial_data(f"J0:{payload}\n")
 
@@ -545,7 +584,18 @@ class MEBotControlNode(Node):
         feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
 
-        # Poll CA_flag until the final step is reached
+        json_path = "curb_climbing_wip.json"
+        sequence = _build_array_of_keyframes(json_path)
+
+        self.write_serial_data("B1:1\n")  # enter seq mode
+        self.write_serial_data("B2:1\n")  # enable auto run
+
+        for i, payload in enumerate(sequence):
+            self.write_serial_data(f"J{i}:{payload}\n")
+
+        self.write_serial_data(">\n")
+
+        # Poll sequence step until the final step is reached
         while self.current_seq != self.seq_length and self.seq_mode != 0:
             if goal.is_cancel_requested:
                 goal.canceled()

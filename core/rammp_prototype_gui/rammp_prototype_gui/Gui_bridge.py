@@ -478,10 +478,10 @@ class GuiBridge(Node):
 
     def door_button_info_callback(self, msg: ButtonInfo):
         self.update_button_info(msg)
-        self.send_mask(msg.segmentation_mask, "door_button")
+        self.send_mask(msg.segmentation_mask, self.wrist_camera_namespace)
 
     def curb_mask_callback(self, msg: Image):
-        self.send_mask(msg, "nav")
+        self.send_mask(msg, self.nav_camera_namespace_1)
 
     def curb_info_callback(self, msg: CurbInfo):
         self.update_curb_info(msg)
@@ -564,8 +564,11 @@ class GuiBridge(Node):
                     meta = {
                         "w": width,
                         "h": height,
-                        "source": source,
                         "fmt": image.encoding,
+                        "group": source,
+                        "source": source,
+                        "role": "color",
+                        "stream_id": f"{source}/color",
                     }
                     self.stream_sender.send_image(
                         channel=self.image_channel,
@@ -595,6 +598,9 @@ class GuiBridge(Node):
                         "h": height,
                         "source": source,
                         "fmt": depth.encoding,
+                        "group": source,
+                        "role": "depth",
+                        "stream_id": f"{source}/depth",
                     }
                     meta["intrinsics"] = {
                         "fx": fx,
@@ -637,6 +643,9 @@ class GuiBridge(Node):
                         "h": height,
                         "source": source,
                         "fmt": mask.encoding,
+                        "group": source,
+                        "role": "mask",
+                        "stream_id": f"{source}/mask",
                     }
                     self.stream_sender.send_image(
                         channel=self.mask_channel,
@@ -652,7 +661,7 @@ class GuiBridge(Node):
         self.send_image(
             image=self.wrist_camera_image,
             image_info=self.wrist_camera_image_info,
-            source="wrist",
+            source=self.wrist_camera_namespace,
         )
 
     def send_wrist_camera_depth(self):
@@ -660,14 +669,14 @@ class GuiBridge(Node):
             depth=self.wrist_camera_depth,
             depth_info=self.wrist_camera_depth_info,
             extrinsics=self.wrist_camera_extrinsics,
-            source="wrist",
+            source=self.wrist_camera_namespace,
         )
 
     def send_nav_camera_1_image(self):
         self.send_image(
             image=self.nav_camera_1_image,
             image_info=self.nav_camera_1_image_info,
-            source="nav_1",
+            source=self.nav_camera_namespace_1,
         )
 
     def send_nav_camera_1_depth(self):
@@ -675,14 +684,14 @@ class GuiBridge(Node):
             depth=self.nav_camera_1_depth,
             depth_info=self.nav_camera_1_depth_info,
             extrinsics=self.nav_camera_1_extrinsics,
-            source="nav_1",
+            source=self.nav_camera_namespace_1,
         )
 
     def send_nav_camera_2_image(self):
         self.send_image(
             image=self.nav_camera_2_image,
             image_info=self.nav_camera_2_image_info,
-            source="nav_2",
+            source=self.nav_camera_namespace_2,
         )
 
     def send_nav_camera_2_depth(self):
@@ -690,14 +699,14 @@ class GuiBridge(Node):
             depth=self.nav_camera_2_depth,
             depth_info=self.nav_camera_2_depth_info,
             extrinsics=self.nav_camera_2_extrinsics,
-            source="nav_2",
+            source=self.nav_camera_namespace_2,
         )
 
     def send_rear_camera_image(self):
         self.send_image(
             image=self.rear_camera_image,
             image_info=self.rear_camera_image_info,
-            source="rear",
+            source=self.rear_camera_namespace,
         )
 
     def send_rear_camera_depth(self):
@@ -705,7 +714,7 @@ class GuiBridge(Node):
             depth=self.rear_camera_depth,
             depth_info=self.rear_camera_depth_info,
             extrinsics=self.rear_camera_extrinsics,
-            source="rear",
+            source=self.rear_camera_namespace,
         )
 
     def check_streamer_connection(self):

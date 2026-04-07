@@ -19,6 +19,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from realsense2_camera_msgs.msg import Extrinsics
 from neu_navigation_interfaces.msg import CurbInfo
 from cmu_door_opener_interfaces.msg import ButtonInfo
+from cornell_feeding_interfaces.msg import CupInfo
 from scipy.spatial.transform import Rotation as R
 
 
@@ -44,11 +45,11 @@ class Transform:
     Scale3D: Vector
 
 
-@dataclass
-class CupInfo:
-    Pose: Transform
-    Success: bool
-    Message: str
+# @dataclass
+# class CupInfo:
+#     Pose: Transform
+#     Success: bool
+#     Message: str
 
 
 # @dataclass
@@ -287,6 +288,13 @@ class GuiBridge(Node):
             10,
             callback_group=self._cb_group,
         )
+        self.cup_info_subscriber = self.create_subscription(
+            CupInfo,
+            "/arm/drink/cup_info",
+            self.cup_info_callback,
+            10,
+            callback_group=self._cb_group,
+        )
 
         # init camera subscribers
         # init camera msg to None first.
@@ -486,6 +494,12 @@ class GuiBridge(Node):
     def curb_traverse_progress_callback(self, msg: Float32):
         self.get_logger().info(f"Curb traverse progress: {msg.data:.2f}%")
         ### TODO send progress to UE, can use existing send_user_input function or create a new function for sending progress
+
+    def cup_info_callback(self, msg: CupInfo):
+        self.update_cup_info(msg)
+        self.send_mask(
+            msg.segmentation_mask, self.wrist_camera_namespace
+        )  # for now just send the segmentation mask of the cup, can also send cup pose to UE if needed
 
     def door_button_info_callback(self, msg: ButtonInfo):
         self.update_button_info(msg)
@@ -855,25 +869,28 @@ class GuiBridge(Node):
 
     def update_cup_info(self, cup_info: CupInfo):
         if self.ue.is_connected():
+            float_bounding_box = [
+                float(x) for x in cup_info.BoundingBox
+            ]  # Convert BoundingBox to list of floats
             cupInfoDict = {
-                "Message": cup_info.Message,
-                "Success": cup_info.Success,
+                "BoundingBox": float_bounding_box,  # Use the converted list of floats
+                "Success": cup_info.success,
                 "Pose": {
                     "Translation": {
-                        "X": cup_info.Pose.Translation.X,
-                        "Y": cup_info.Pose.Translation.Y,
-                        "Z": cup_info.Pose.Translation.Z,
+                        "X": cup_info.Pose[0],
+                        "Y": cup_info.Pose[1],
+                        "Z": cup_info.Pose[2],
                     },
                     "Rotation": {
-                        "X": cup_info.Pose.Rotation.X,
-                        "Y": cup_info.Pose.Rotation.Y,
-                        "Z": cup_info.Pose.Rotation.Z,
-                        "W": cup_info.Pose.Rotation.W,
+                        "X": cup_info.Pose[3],
+                        "Y": cup_info.Pose[4],
+                        "Z": cup_info.Pose[5],
+                        "W": cup_info.Pose[6],
                     },
                     "Scale3D": {
-                        "X": cup_info.Pose.Scale3D.X,
-                        "Y": cup_info.Pose.Scale3D.Y,
-                        "Z": cup_info.Pose.Scale3D.Z,
+                        "X": 1.0,
+                        "Y": 1.0,
+                        "Z": 1.0,
                     },
                 },
             }

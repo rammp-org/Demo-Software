@@ -661,6 +661,9 @@ class MEBotControlNode(Node):
 
         self.write_serial_data(">\n")
 
+        self.write_serial_data("M7:3\n")
+        self.write_serial_data("M8:3\n")
+
         # Wait for sequence to actually start
         while self.seq_mode == 0:
             time.sleep(0.01)

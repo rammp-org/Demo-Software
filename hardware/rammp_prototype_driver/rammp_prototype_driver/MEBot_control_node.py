@@ -573,11 +573,11 @@ class MEBotControlNode(Node):
 
         while (
             self.FC_vel != 0
-            and self.RC_vel != 0
-            and self.ML_vel != 0
-            and self.MR_vel != 0
-            and self.ML_carr_vel != 0
-            and self.MR_carr_vel != 0
+            or self.RC_vel != 0
+            or self.ML_vel != 0
+            or self.MR_vel != 0
+            or self.ML_carr_vel != 0
+            or self.MR_carr_vel != 0
         ):
             feedback_msg.FC_vel = self.FC_vel
             feedback_msg.RC_vel = self.RC_vel
@@ -586,12 +586,18 @@ class MEBotControlNode(Node):
             feedback_msg.ML_carr_vel = self.ML_carr_vel
             feedback_msg.MR_carr_vell = self.MR_carr_vel
 
-        self.write_serial_data("M1:0\n")
-        self.write_serial_data("M2:0\n")
-        self.write_serial_data("M3:0\n")
-        self.write_serial_data("M4:0\n")
-        self.write_serial_data("M5:0\n")
-        self.write_serial_data("M6:0\n")
+            if self.RC_vel == 0:
+                self.write_serial_data("M1:0\n")
+            if self.FC_vel == 0:
+                self.write_serial_data("M2:0\n")
+            if self.ML_vel == 0:
+                self.write_serial_data("M3:0\n")
+            if self.MR_vel == 0:
+                self.write_serial_data("M4:0\n")
+            if self.ML_carr_vel == 0:
+                self.write_serial_data("M5:0\n")
+            if self.MR_carr_vel == 0:
+                self.write_serial_data("M6:0\n")
 
         goal.succeed()
         result.success = True

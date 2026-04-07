@@ -600,6 +600,7 @@ class MEBotControlNode(Node):
             self.write_serial_data(
                 "z\n"
             )  # triggers MotorController function NO_MOVEMENT
+            self.write_serial_data("K0\n")
             # TODO: send c\n to clear estop
 
     def send_set_luci(self):

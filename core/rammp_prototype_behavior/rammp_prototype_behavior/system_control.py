@@ -1008,10 +1008,15 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Chair(self):
         # for testing
         self.get_logger().info("Entering Chair state")
-        # TODO: enable chair control
+        self.base_drive_enable(True)  # enable base drive when entering chair state
 
     def on_enter_Error(self):
         self.get_logger().info("Entering Error state")
+        self.base_drive_enable(False)  # disable base drive when entering error state
+        self.base_self_leveling_enable(
+            False
+        )  # disable self-leveling when entering error state
+        self.set_arm_mode_idle()  # set arm mode to idle when entering error state to stop any ongoing arm action
 
     def on_enter_Arm(self):
         self.get_logger().info("Entering Arm state")

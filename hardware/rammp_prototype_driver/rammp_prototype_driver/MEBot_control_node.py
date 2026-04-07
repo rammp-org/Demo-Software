@@ -343,6 +343,10 @@ class MEBotControlNode(Node):
             self, CurbTraverse, "curb_traverse", self.curb_traverse_action_callback
         )
 
+        self.test_driving_action = ActionServer(
+            self, CurbTraverse, "test_drive", self.test_luci_drive
+        )
+
     def _init_subscribers(self):
         # subscriptions
         self.manual_seat_control_subscription = self.create_subscription(
@@ -635,6 +639,16 @@ class MEBotControlNode(Node):
         msg.joystick_zone = _compute_zone(fb, lr)
         msg.input_source = INPUT_REMOTE
         self.luci_js_publisher.publish(msg)
+
+    def test_luci_drive(self, goal):
+        if goal.request.direction == 1:
+            self.send_set_luci()
+            self._send_joystick(1000, 0)
+
+        result = CurbTraverse.Result()
+
+        result.success = True
+        return result
 
     def curb_traverse_action_callback(self, goal):
         # TODO: add checkpoint here checking if sequence flag is at starting/default state, curb traversal should not be called if MEBot already in curb traversal (default flag is 0)

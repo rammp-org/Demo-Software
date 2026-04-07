@@ -969,7 +969,7 @@ class GuiBridge(Node):
             self.mapfile.flush()
 
     def user_input_callback(self, input: str):
-        self.get_logger().debug(f"Received user input: {input}")
+        self.get_logger().info(f"Received user input: {input}")
         # Here you can process the user input and send it to UE if needed
         # For example, you can call a UE function with the user input as parameter
         if input in (item.value for item in UserInputString):

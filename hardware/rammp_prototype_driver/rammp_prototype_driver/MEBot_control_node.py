@@ -268,6 +268,9 @@ class MEBotControlNode(Node):
         self.prev_speed_MR = 0.0
         self.current_speed_MR = 0.0
 
+        # drive wheel velocities
+        self.fb_pwm = 0.0
+
         #### Init all ROS interfaces
         self._init_services()
         self._init_actions()
@@ -400,6 +403,8 @@ class MEBotControlNode(Node):
 
         # State
         self.state = int(data[SerialField.STATE])
+
+        self.fb_pwm = float(data[66])  # TODO: put index in SerialField
 
     def publish_joint_states(self):
         msg = JointState()
@@ -550,6 +555,7 @@ class MEBotControlNode(Node):
             self.write_serial_data(
                 "z\n"
             )  # triggers MotorController function NO_MOVEMENT
+            # TODO: send c\n to clear estop
 
     def send_set_luci(self):
         request = Empty.Request()

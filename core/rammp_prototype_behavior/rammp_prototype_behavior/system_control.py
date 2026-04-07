@@ -33,6 +33,17 @@ from arm_interfaces.srv import SetMode, SetSpeedPreset
 from std_srvs.srv import Trigger, SetBool
 from std_msgs.msg import Bool
 from diagnostic_msgs.msg import DiagnosticStatus
+from rammp_prototype_interfaces.msg import SeatCommand
+
+UserInputsToSeatCommand: dict[str, int] = {
+    UserInputs.Request.CHAIR_SEAT_ELEVATE_UP: SeatCommand.RAISE,
+    UserInputs.Request.CHAIR_SEAT_ELEVATE_DOWN: SeatCommand.LOWER,
+    UserInputs.Request.CHAIR_SEAT_RECLINE_FORWARD: SeatCommand.TILT_FWD,
+    UserInputs.Request.CHAIR_SEAT_RECLINE_BACK: SeatCommand.TILT_BACK,
+    UserInputs.Request.CHAIR_SEAT_LTILT_LEFT: SeatCommand.LATERAL_LEFT,
+    UserInputs.Request.CHAIR_SEAT_LTILT_RIGHT: SeatCommand.LATERAL_RIGHT,
+    UserInputs.Request.CHAIR_SEAT_HOME: SeatCommand.RESET,
+}
 
 
 class ArmMode(enum.IntEnum):
@@ -601,7 +612,7 @@ class SystemControl(rclpy.node.Node):
     def init_publisher(self):
         # publishers
         self.base_manual_seat_control_publisher = self.create_publisher(
-            String, "/base/manual_seat_control", 10
+            SeatCommand, "/base/manual_seat_control", 10
         )  # message type is placeholder
         self._seat_control_request = None  # to store seat control command for testing, will replace with actual logic to handle different seat control commands later
         self.system_state_publisher = self.create_publisher(
@@ -828,9 +839,10 @@ class SystemControl(rclpy.node.Node):
         self.curb_traverse_client.send_goal(direction)
 
     def request_manual_seat_control(self, command: str):
-        msg = String()
-        msg.data = command
-        self.base_manual_seat_control_publisher.publish(msg)
+        request = SeatCommand()
+        request.command = UserInputsToSeatCommand.get(command)
+        if request.command is not None:  # some commands may not supported yet
+            self.base_manual_seat_control_publisher.publish(request)
 
     # ----------End of Helper functions to call services and actions for state transitions----------------
 
@@ -874,11 +886,11 @@ class SystemControl(rclpy.node.Node):
                 | UserInputs.Request.CHAIR_SEAT_ELEVATE_DOWN
                 | UserInputs.Request.CHAIR_SEAT_ELEVATE_HOME
                 | UserInputs.Request.CHAIR_SEAT_RECLINE_FORWARD
-                | UserInputs.Request.CHAIR_SEAT_ELEVATE_RECLINE_BACK
-                | UserInputs.Request.CHAIR_SEAT_ELEVATE_RECLINE_HOME
-                | UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_LEFT
-                | UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_RIGHT
-                | UserInputs.Request.CHAIR_SEAT_ELEVATE_LTILT_HOME
+                | UserInputs.Request.CHAIR_SEAT_RECLINE_BACK
+                | UserInputs.Request.CHAIR_SEAT_RECLINE_HOME
+                | UserInputs.Request.CHAIR_SEAT_LTILT_LEFT
+                | UserInputs.Request.CHAIR_SEAT_LTILT_RIGHT
+                | UserInputs.Request.CHAIR_SEAT_LTILT_HOME
                 | UserInputs.Request.CHAIR_SEAT_HOME
             ):
                 self._seat_control_request = request.input  # store the seat control command for testing, will replace with actual logic to handle different seat control commands later

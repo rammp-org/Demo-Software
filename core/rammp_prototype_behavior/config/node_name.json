@@ -7,7 +7,7 @@
       "name": "/system_control"
     },
     {
-      "name": "/drinking_node"
+      "name": "/drink_action_server"
     },
     {
       "name": "/button_push_controller"

@@ -13,7 +13,7 @@ from std_srvs.srv import SetBool
 
 class DrinkingNode(rclpy.node.Node):
     def __init__(self):
-        super().__init__("drinking_node")
+        super().__init__("drink_action_server")
         self.get_logger().info("Mock Drinking Node has been started.")
 
         self._action_group = ReentrantCallbackGroup()

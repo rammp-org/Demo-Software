@@ -28,6 +28,7 @@ endif()
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/CurbTraverse.action"
   "msg/RAMMPPrototypeState.msg"
+  "msg/SeatCommand.msg"
   DEPENDENCIES builtin_interfaces geometry_msgs std_msgs
 )
 

@@ -50,19 +50,19 @@ def generate_launch_description():
 
         # Read disable flags from YAML config, defaulting to False (enabled)
         disable_realsense = str(config.get("disable_realsense", False)).lower()
-        disable_orbbec = str(config.get("disable_orbbec", False)).lower()
+        disable_nav1 = str(config.get("disable_nav1", False)).lower()
         disable_nav2 = str(config.get("disable_nav2", False)).lower()
 
         # CLI overrides take precedence ONLY if explicitly set to "true".
         # We check for == "true" (not != "false") to avoid the default "false"
         # from DeclareLaunchArgument silently overriding a "true" in the YAML.
         cli_realsense = LaunchConfiguration("disable_realsense").perform(context)
-        cli_orbbec = LaunchConfiguration("disable_orbbec").perform(context)
+        cli_nav1 = LaunchConfiguration("disable_nav1").perform(context)
         cli_nav2 = LaunchConfiguration("disable_nav2").perform(context)
         if cli_realsense == "true":
             disable_realsense = cli_realsense
-        if cli_orbbec == "true":
-            disable_orbbec = cli_orbbec
+        if cli_nav1 == "true":
+            disable_nav1 = cli_nav1
         if cli_nav2 == "true":
             disable_nav2 = cli_nav2
 
@@ -100,10 +100,10 @@ def generate_launch_description():
 
         # ── Nav camera (Orbbec Gemini 336L) ───────────────────────────────
         # PushRosNamespace("camera") prepends /camera to all topics published
-        # by this node, giving us /camera/nav/color/image_raw etc.
+        # by this node, giving us /camera/nav1/color/image_raw etc.
         # Serial number must be passed as a launch arg — Orbbec's config loader
         # explicitly skips serial_number when reading config_file_path.
-        if disable_orbbec != "true":
+        if disable_nav1 != "true":
             actions.append(
                 GroupAction(
                     actions=[
@@ -111,11 +111,11 @@ def generate_launch_description():
                         IncludeLaunchDescription(
                             PythonLaunchDescriptionSource(orbbec_launch),
                             launch_arguments={
-                                "camera_name": "nav",
+                                "camera_name": "nav1",
                                 "serial_number": LaunchConfiguration(
-                                    "nav_camera_serial"
+                                    "nav1_camera_serial"
                                 ),
-                                "base_frame_id": "nav_camera_link",
+                                "base_frame_id": "nav1_camera_link",
                                 "enable_point_cloud": "true",
                                 "enable_hole_filling_filter": "false",
                                 "hole_filling_filter_mode": "NEAREST_NEIGHBOR_MAX",
@@ -215,9 +215,9 @@ def generate_launch_description():
                 description="Set to true to disable realsense",
             ),
             DeclareLaunchArgument(
-                "disable_orbbec",
+                "disable_nav1",
                 default_value="false",
-                description="Set to true to disable orbbec nav camera",
+                description="Set to true to disable orbbec nav1 camera",
             ),
             DeclareLaunchArgument(
                 "disable_nav2",
@@ -232,7 +232,7 @@ def generate_launch_description():
             ),
             # ── Nav camera serial (Orbbec Gemini 336L) ────────────────────
             DeclareLaunchArgument(
-                "nav_camera_serial",
+                "nav1_camera_serial",
                 default_value="",
                 description="Serial number of the Orbbec Gemini 336L navigation camera.",
             ),

@@ -11,13 +11,13 @@
 # ============================================================
 
 disable_realsense: true
-disable_orbbec: false
+disable_nav1: false
 disable_nav2: false
 
-/camera/nav:
+/camera/nav1:
   ros__parameters:
-    camera_name: "nav"
-    base_frame_id: "nav_camera_link"
+    camera_name: "nav1"
+    base_frame_id: "nav1_camera_link"
     serial_number: "CPCG8530003P"
 
 /camera/nav2:

@@ -580,7 +580,7 @@ class MEBotControlNode(Node):
 
         json_path = (
             get_package_share_directory("rammp_prototype_driver")
-            + "/curb_climbing_wip.json"
+            + "/test_json_read.json"
         )
         keyframes = _load_keyframes_from_json(json_path)
         self.get_logger().info(f"Loaded {len(keyframes)} keyframes from {json_path}")

@@ -561,10 +561,10 @@ class MEBotControlNode(Node):
 
     def calibrate_motors_callback(self, goal):
         if goal.request.enable:
-            self.write_serial_data("M1:1\n")
-            self.write_serial_data("M2:1\n")
-            self.write_serial_data("M3:1\n")
-            self.write_serial_data("M4:1\n")
+            self.write_serial_data("T1:2000\n")
+            self.write_serial_data("T2:2000\n")
+            self.write_serial_data("T3:2000\n")
+            self.write_serial_data("T4:2000\n")
             # self.write_serial_data("M5:1\n")
             # self.write_serial_data("M6:1\n")
 

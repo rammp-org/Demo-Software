@@ -494,6 +494,41 @@ class KinovaArm:
             else:
                 print("Cartesian movement completed")
 
+    def compute_ik(self, xyz, xyz_quat):
+        """Check if a Cartesian pose is reachable using Kortex's built-in IK solver.
+
+        Uses the arm's current joint angles as the IK seed. Returns the computed
+        joint angles on success; raises on failure (unreachable pose).
+
+        Args:
+            xyz: Target position [x, y, z] in metres (base frame).
+            xyz_quat: Target orientation as quaternion [x, y, z, w].
+
+        Returns:
+            Computed joint angles (Kortex JointAngles message).
+
+        Raises:
+            Exception: If Kortex IK solver cannot find a valid solution.
+        """
+        theta_xyz = R.from_quat(xyz_quat).as_euler("xyz")
+
+        ik_data = Base_pb2.IKData()
+        ik_data.cartesian_pose.x = xyz[0]
+        ik_data.cartesian_pose.y = xyz[1]
+        ik_data.cartesian_pose.z = xyz[2]
+        ik_data.cartesian_pose.theta_x = math.degrees(theta_xyz[0])
+        ik_data.cartesian_pose.theta_y = math.degrees(theta_xyz[1])
+        ik_data.cartesian_pose.theta_z = math.degrees(theta_xyz[2])
+
+        # Seed with current joint angles
+        state = self.get_state()
+        for i in range(self.actuator_count):
+            joint_angle = ik_data.guess.joint_angles.add()
+            joint_angle.joint_identifier = i
+            joint_angle.value = math.degrees(state["position"][i])
+
+        return self.base.ComputeInverseKinematics(ik_data)
+
     def _gripper_position_command(self, value, blocking=True, timeout=1.0):
         # Send gripper command
         gripper_command = Base_pb2.GripperCommand()

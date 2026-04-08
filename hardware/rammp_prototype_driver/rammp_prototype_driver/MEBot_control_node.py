@@ -20,8 +20,8 @@ from std_srvs.srv import SetBool
 import diagnostic_updater
 from diagnostic_msgs.msg import DiagnosticStatus
 
-from ...pid_tuner.serial_driver.protocol import ProtocolEncoder
-from ...pid_tuner.serial_driver.keyframe import Keyframe, NUM_MOTORS
+from .keyframe import Keyframe, NUM_MOTORS
+from .protocol import ProtocolEncoder
 
 # LUCI STUFF
 JS_FRONT = 0

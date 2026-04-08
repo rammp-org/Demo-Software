@@ -14,7 +14,7 @@ setup(
         (os.path.join("share", package_name, "launch"), glob("launch/*.launch.py")),
         (os.path.join("share", package_name), glob("config/*.json")),
     ],
-    install_requires=["setuptools", "pid_tuner"],
+    install_requires=["setuptools"],
     zip_safe=True,
     maintainer="root",
     maintainer_email="root@todo.todo",

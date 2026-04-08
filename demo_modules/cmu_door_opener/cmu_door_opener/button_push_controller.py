@@ -30,10 +30,20 @@ from arm_interfaces.action import ReachPreset
 # Button push parameters
 APPROACH_OFFSET = 0.03  # meters — stop this far in front of the button first
 PUSH_STEP = 0.01  # meters — incremental push distance per step (1cm)
-PUSH_MAX = 0.10  # meters — max total push distance past approach point
+PUSH_MAX = 0.05  # meters — max total push distance past approach point
 FORCE_THRESHOLD = 30.0  # Newtons — contact detection threshold
 PUSH_TIMEOUT = 10.0  # seconds — max time for each phase
 FORCE_CHECK_RATE = 0.02  # seconds between force checks
+
+# Kortex tool-frame correction (metres, in tool-local frame).
+# The Kortex tool frame is offset from the gripper centre.  In the tool's
+# own local frame the gripper centre is at approximately (-3.3, 0, -9.1) cm.
+# We negate this so that commanding (target + offset) places the gripper
+# centre at the desired contact point.
+# All three components matter: ignoring z causes angle-dependent lateral
+# error because the tool z-axis gains lateral components when the button
+# surface is tilted.
+TOOL_OFFSET = np.array([0.033, 0.0, 0.091])  # negative of tool-to-gripper in tool-local
 
 
 class ButtonPushController(Node):
@@ -126,19 +136,28 @@ class ButtonPushController(Node):
         return float(np.linalg.norm(self.latest_ee_velocity))
 
     def _button_info_to_pose(self, info: ButtonInfo) -> PoseStamped:
-        """Convert ButtonInfo pose_xyzrpy to a PoseStamped for arm command."""
+        """Convert ButtonInfo pose_xyzrpy to a PoseStamped for arm command.
+
+        Applies a lateral correction so the gripper centre (not the
+        off-centre Kortex tool frame) reaches the target position.
+        """
         pose = PoseStamped()
         pose.header.stamp = self.get_clock().now().to_msg()
         pose.header.frame_id = "base_link"
 
-        x, y, z = info.pose_xyzrpy[0], info.pose_xyzrpy[1], info.pose_xyzrpy[2]
+        target_xyz = np.array(info.pose_xyzrpy[:3])
         roll, pitch, yaw = info.pose_xyzrpy[3], info.pose_xyzrpy[4], info.pose_xyzrpy[5]
 
-        pose.pose.position.x = x
-        pose.pose.position.y = y
-        pose.pose.position.z = z
-
         rot = Rotation.from_euler("xyz", [roll, pitch, yaw])
+
+        # Shift the commanded position so the gripper centre lands on the
+        # button instead of the off-centre Kortex tool frame.
+        target_xyz += rot.apply(TOOL_OFFSET)
+
+        pose.pose.position.x = float(target_xyz[0])
+        pose.pose.position.y = float(target_xyz[1])
+        pose.pose.position.z = float(target_xyz[2])
+
         quat = rot.as_quat()  # [x, y, z, w]
         pose.pose.orientation.x = float(quat[0])
         pose.pose.orientation.y = float(quat[1])
@@ -295,13 +314,10 @@ class ButtonPushController(Node):
 
             if force_mag > FORCE_THRESHOLD:
                 self.get_logger().warn(
-                    f"[STEP 2a] Force exceeded during move ({force_mag:.1f} N) — stopping"
+                    f"[STEP 2a] Force exceeded during move ({force_mag:.1f} N) — stopping and retracting"
                 )
                 self.stop_arm()
-                goal_handle.abort()
-                result.success = False
-                result.message = f"Force exceeded moving to target: {force_mag:.1f} N"
-                return result
+                break
 
             # After min move time, if velocity near zero → arm has stopped → arrived
             if (
@@ -347,9 +363,12 @@ class ButtonPushController(Node):
         while rclpy.ok() and (time.time() - start_t) < PHASE_TIMEOUT:
             time.sleep(FORCE_CHECK_RATE)
             force_mag = self.get_ee_force_magnitude()
+            velocity = self.get_ee_velocity_magnitude()
             elapsed = time.time() - start_t
+
+            velocity_str = f"{velocity:.4f}" if velocity is not None else "n/a"
             self.get_logger().debug(
-                f"[PUSH] {elapsed:5.2f}s  force={force_mag:6.1f} N  (threshold={FORCE_THRESHOLD})"
+                f"[PUSH] {elapsed:5.2f}s  force={force_mag:6.1f} N  velocity={velocity_str} m/s  (threshold={FORCE_THRESHOLD})"
             )
 
             if force_mag > FORCE_THRESHOLD:
@@ -366,10 +385,22 @@ class ButtonPushController(Node):
                 result.message = "Door open action canceled during move — stopping arm"
                 return result
 
+            # Arm stopped moving without reaching force threshold — it
+            # likely hit a joint limit or the button gave way.
+            if (
+                elapsed > MIN_MOVE_TIME
+                and velocity is not None
+                and velocity < SPEED_THRESHOLD
+            ):
+                self.get_logger().info(
+                    f"[STEP 2b] Arm stopped (velocity={velocity:.4f} m/s) without contact after {elapsed:.2f}s"
+                )
+                break
+
         if not contact:
             elapsed = time.time() - start_t
             self.get_logger().warn(
-                f"[STEP 2b] Timed out after {elapsed:.2f}s (no force > {FORCE_THRESHOLD}N) — stopping arm"
+                f"[STEP 2b] No force contact after {elapsed:.2f}s — stopping arm"
             )
             self.stop_arm()
 

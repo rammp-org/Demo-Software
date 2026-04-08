@@ -1,0 +1,8 @@
+# Service definition for checking if a Cartesian pose is reachable by the arm.
+# Uses Kortex's built-in IK solver — same solver that executes the actual motion.
+
+geometry_msgs/Pose target_pose
+---
+bool reachable
+string message
+float64[] joint_angles  # IK solution (radians) when reachable, empty otherwise

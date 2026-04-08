@@ -32,6 +32,7 @@ from ament_index_python.packages import get_package_share_directory
 from arm_interfaces.srv import SetMode, SetSpeedPreset
 from std_srvs.srv import Trigger, SetBool
 from std_msgs.msg import Bool
+from sensor_msgs.msg import JointState
 from diagnostic_msgs.msg import DiagnosticStatus
 from rammp_prototype_interfaces.msg import SeatCommand
 
@@ -647,6 +648,14 @@ class SystemControl(rclpy.node.Node):
             10,
             callback_group=self._cb_group,
         )
+        self._gripper_opened = False
+        self.arm_joints_subscriber = self.create_subscription(
+            JointState,
+            "/arm/joint_states",
+            self.arm_joints_callback,
+            10,
+            callback_group=self._cb_group,
+        )
 
     def init_services(self):
         self._service_cb_group = ReentrantCallbackGroup()
@@ -872,6 +881,13 @@ class SystemControl(rclpy.node.Node):
                 self.UIDisconnected()
             self._gui_connected = False
 
+    def arm_joints_callback(self, msg: JointState):
+        if self._gripper_opened and msg.position[7] < 0.8:
+            self._gripper_opened = False
+        elif not self._gripper_opened and msg.position[7] > 0.9:
+            self._gripper_opened = True
+        # other state will be openning or closing.
+
     def _srv_user_inputs_callback(
         self, request: UserInputs.Request, response: UserInputs.Response
     ):
@@ -987,9 +1003,8 @@ class SystemControl(rclpy.node.Node):
             return True
         return False
 
-    def is_nav_state_good_for_driving(self):
-        # Placeholder for actual logic to determine if the navigation state is good for driving
-        return True
+    def is_gripper_opened(self):
+        return self._gripper_opened
 
     def is_arm_at_home(self):
         return self.current_arm_state == "Arm_home"
@@ -1189,6 +1204,12 @@ class SystemControl(rclpy.node.Node):
                     "Arm_OrderDrink_releasingCup",
                 ],
                 "dest": "Arm_home",
+            },
+            {
+                "trigger": "homed",
+                "source": "Arm_homing",
+                "dest": "Arm_homeWithDrink",
+                "conditions": "is_gripper_opened",
             },
             # open door
             {

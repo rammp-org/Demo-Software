@@ -587,13 +587,13 @@ class MEBotControlNode(Node):
             # feedback_msg.MR_carr_vell = self.MR_carr_vel
 
             if self.RC_vel == 0:
-                self.write_serial_data("M1:0\n")
+                self.write_serial_data("T1:0\n")
             if self.FC_vel == 0:
-                self.write_serial_data("M2:0\n")
+                self.write_serial_data("T2:0\n")
             if self.ML_vel == 0:
-                self.write_serial_data("M3:0\n")
+                self.write_serial_data("T3:0\n")
             if self.MR_vel == 0:
-                self.write_serial_data("M4:0\n")
+                self.write_serial_data("T4:0\n")
             # if self.ML_carr_vel == 0:
             #     self.write_serial_data("M5:0\n")
             # if self.MR_carr_vel == 0:

@@ -8,11 +8,13 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(builtin_interfaces REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "action/CornellActionsPlaceHolder.action"
-  DEPENDENCIES builtin_interfaces
+  "action/DrinkAction.action"
+  "msg/CupInfo.msg"
+  DEPENDENCIES builtin_interfaces sensor_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)

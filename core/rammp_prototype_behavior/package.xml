@@ -15,6 +15,7 @@
   <depend>cornell_feeding_interfaces</depend>
   <depend>cmu_door_opener_interfaces</depend>
   <depend>rammp_prototype_interfaces</depend>
+  <depend>gui_interfaces</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>image_transport</depend>

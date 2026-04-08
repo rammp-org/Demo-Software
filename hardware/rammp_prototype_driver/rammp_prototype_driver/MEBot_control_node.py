@@ -11,8 +11,6 @@ from rammp_prototype_interfaces.action import CurbTraverse
 from rammp_prototype_interfaces.msg import SeatCommand
 from luci_messages.msg import LuciJoystick
 
-
-# custom msgs/srvs
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
 from rclpy.action import ActionServer
 from rclpy.node import Node
@@ -21,6 +19,9 @@ from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
 import diagnostic_updater
 from diagnostic_msgs.msg import DiagnosticStatus
+
+from pid_tuner.serial_driver.protocol import ProtocolEncoder
+from pid_tuner.serial_driver.keyframe import Keyframe, NUM_MOTORS
 
 # LUCI STUFF
 JS_FRONT = 0
@@ -61,23 +62,10 @@ def _compute_zone(fb: int, lr: int) -> int:
     return JS_BACK_LEFT
 
 
-# Sequence player motor order (must match SEQ_NUM_MOTORS order in Teensy):
-#   0=RC, 1=FC, 2=ML, 3=MR, 4=ML_CARRIAGE, 5=MR_CARRIAGE, 6=DRIVE_FB, 7=DRIVE_LR
-SEQ_NUM_MOTORS = 8
-
-# Duration (ms) for each seat command's interpolation.
-# Increase for slower/smoother motion, decrease for snappier response.
-# *** TUNE to your preference. ***
 SEAT_MOVE_DURATION_MS = 1000
 
-# Per-command relative deltas (encoder ticks) for each motor.
-# Order: [RC, FC, ML, MR, ML_CARRIAGE, MR_CARRIAGE, DRIVE_FB, DRIVE_LR]
-# 0.0 = motor inactive for this command (active flag will be False).
-# *** TUNE these deltas once you know your geometry. ***
 SEAT_DELTAS: dict[int, list[float]] = {
-    #                           RC      FC      ML      MR    ML_C   MR_C    DFB   DLR
-    # SeatCommand.RAISE: [70.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.RAISE: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1000, 0.0],
+    SeatCommand.RAISE: [70.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LOWER: [-70.0, 0.0, -40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.TILT_FWD: [0.0, 0.0, -40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
@@ -86,99 +74,27 @@ SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.RESET: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
 }
 
-# for testing curb traversal action callback
-move_sequence = [
-    SEAT_DELTAS[SeatCommand.RAISE],
-    SEAT_DELTAS[SeatCommand.LOWER],
-    SEAT_DELTAS[SeatCommand.RAISE],
-    SEAT_DELTAS[SeatCommand.LOWER],
-]
 
-
-def _build_keyframe_payload(deltas: list[float], duration_ms: int, command) -> str:
-    """Build a J0 keyframe payload string in the 32-value format expected by
-    parseKeyframePayload():
-        targets(x6), active(x6), relative(x6), duration_ms(x6)
-
-    Motors with a delta of 0.0 are marked inactive (active=0) so the
-    sequence player leaves them at their current position.
-    """
-
-    if command == SeatCommand.RESET:  # reset command
-        active = [1] * SEQ_NUM_MOTORS
-        relative = [0] * SEQ_NUM_MOTORS  # always absolute for seat reset
-        relative[6] = 1
-        relative[7] = 1
-        durations = [duration_ms] * SEQ_NUM_MOTORS
-
-        parts = (
-            [f"{d:.2f}" for d in deltas]
-            + [str(a) for a in active]
-            + [str(r) for r in relative]
-            + [str(t) for t in durations]
-        )
-        return ",".join(parts)
-
-    active = [1 if d != 0.0 else 0 for d in deltas]
-    relative = [1] * SEQ_NUM_MOTORS  # always relative for seat moves
-    durations = [duration_ms] * SEQ_NUM_MOTORS
-
-    parts = (
-        [f"{d:.2f}" for d in deltas]
-        + [str(a) for a in active]
-        + [str(r) for r in relative]
-        + [str(t) for t in durations]
-    )
-    return ",".join(parts)
-
-
-def _build_array_of_keyframes(json_path):
+def _load_keyframes_from_json(json_path: str) -> list[Keyframe]:
     with open(json_path, "r") as f:
         data = json.load(f)
-
-    sequence = []
-
-    for kf in data["keyframes"]:
-        targets = (f"{t:.2f}" for t in kf["targets"])
-        active = (1 for t in kf["targets"])
-        duration_ms = kf["duration_ms"]
-        relative = [int(r) for r in kf["relative"]]
-
-        durations = [duration_ms if md is None else md for md in kf["motor_durations"]]
-
-        parts = (
-            [str(t) for t in targets]
-            + [str(a) for a in active]
-            + [str(r) for r in relative]
-            + [str(t) for t in durations]
-        )
-        row = ",".join(parts)
-        sequence.append(row)
-
-    return sequence
+    keyframes_data = data.get("keyframes", data if isinstance(data, list) else [])
+    return [Keyframe.from_dict(d) for d in keyframes_data]
 
 
-# def _build_reset_keyframe_payload(deltas: list[float], duration_ms: int) -> str:
-#     """Build a J0 keyframe payload string in the 32-value format expected by
-#     parseKeyframePayload():
-#         targets(x6), active(x6), relative(x6), duration_ms(x6)
+def _build_seat_keyframe(deltas: list[float], duration_ms: int, command) -> Keyframe:
+    kf = Keyframe()
+    kf.targets = list(deltas)
+    kf.duration_ms = duration_ms
 
-#     Motors with a delta of 0.0 are marked inactive (active=0) so the
-#     sequence player leaves them at their current position.
-#     """
-#     active = [1] * SEQ_NUM_MOTORS
-#     relative = [0] * SEQ_NUM_MOTORS  # always absolute for seat reset
-#     relative[6] = 1
-#     relative[7] = 1
-#     durations = [duration_ms] * SEQ_NUM_MOTORS
+    if command == SeatCommand.RESET:
+        kf.relative = [False] * NUM_MOTORS
+        kf.relative[6] = True
+        kf.relative[7] = True
+    else:
+        kf.relative = [True] * NUM_MOTORS
 
-#     parts = (
-#         [f"{d:.2f}" for d in deltas]
-#         + [str(a) for a in active]
-#         + [str(r) for r in relative]
-#         + [str(t) for t in durations]
-#     )
-#     return ",".join(parts)
+    return kf
 
 
 class SerialField(IntEnum):
@@ -406,7 +322,30 @@ class MEBotControlNode(Node):
     def write_serial_data(self, data):
         if self.ser is None:
             return
-        self.ser.write(data.encode("utf-8"))
+        if isinstance(data, bytes):
+            self.ser.write(data)
+        else:
+            self.ser.write(data.encode("utf-8"))
+
+    def send_sequence(self, keyframes: list[Keyframe], auto_run: bool = True):
+        self.write_serial_data(ProtocolEncoder.enter_sequence_mode(True))
+        for idx, kf in enumerate(keyframes):
+            targets = [t if t is not None else 0.0 for t in kf.targets]
+            active = [t is not None for t in kf.targets]
+            durations = [
+                kf.motor_durations[i]
+                if kf.motor_durations[i] is not None
+                else kf.duration_ms
+                for i in range(NUM_MOTORS)
+            ]
+            self.write_serial_data(
+                ProtocolEncoder.send_keyframe(
+                    idx, targets, active, durations, kf.relative
+                )
+            )
+        if auto_run:
+            self.write_serial_data(ProtocolEncoder.seq_auto_run(True))
+        self.write_serial_data(ProtocolEncoder.seq_step_forward())
 
     # update variables to be published
     def update_data(self, data):
@@ -584,18 +523,12 @@ class MEBotControlNode(Node):
             )
             return
 
-        # Upload keyframe 0 with relative deltas
-        payload = _build_keyframe_payload(deltas, SEAT_MOVE_DURATION_MS, msg.command)
-        self.write_serial_data("B1:1\n")
-        self.write_serial_data(f"J0:{payload}\n")
-
-        # Trigger execution (CMD_SEQ_STEP_FWD)
-        self.write_serial_data(">\n")
+        kf = _build_seat_keyframe(deltas, SEAT_MOVE_DURATION_MS, msg.command)
+        self.send_sequence([kf], auto_run=False)
 
         self.get_logger().info(
             f"SeatCommand {msg.command}: keyframe uploaded and triggered "
             f"(duration={SEAT_MOVE_DURATION_MS}ms)"
-            f" for J0:{payload})"
         )
 
     def estop_callback(self, msg):
@@ -639,12 +572,8 @@ class MEBotControlNode(Node):
     def curb_traverse_action_callback(self, goal):
         # TODO: add checkpoint here checking if sequence flag is at starting/default state, curb traversal should not be called if MEBot already in curb traversal (default flag is 0)
         # TODO: add descending flag
-        # if goal.request.direction == 1:
-        #     self.write_serial_data("c\n")
-        # if goal.request.direction == 0:
-        #     self.write_serial_data("d\n")
 
-        self.send_set_luci()  # enable luci js control
+        self.send_set_luci()
 
         feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
@@ -653,26 +582,14 @@ class MEBotControlNode(Node):
             get_package_share_directory("rammp_prototype_driver")
             + "/curb_climbing_wip.json"
         )
-        sequence = _build_array_of_keyframes(json_path)
-        self.get_logger().info(f"sequence: {sequence}")
+        keyframes = _load_keyframes_from_json(json_path)
+        self.get_logger().info(f"Loaded {len(keyframes)} keyframes from {json_path}")
 
-        self.write_serial_data("B1:1\n")  # enter seq mode
-        self.write_serial_data("B2:1\n")  # enable auto run
+        self.send_sequence(keyframes, auto_run=True)
 
-        for i, payload in enumerate(sequence):
-            self.write_serial_data(f"J{i}:{payload}\n")
-            # self.get_logger().info(f"J{i}:{payload}")
-
-        self.write_serial_data(">\n")
-
-        self.write_serial_data("M7:2\n")
-        self.write_serial_data("M8:2\n")
-
-        # Wait for sequence to actually start
         while self.seq_mode == 0:
             time.sleep(0.01)
 
-        # Poll sequence step until the final step is reached
         while self.current_seq != self.seq_length and self.seq_mode != 0:
             if goal.is_cancel_requested:
                 goal.canceled()
@@ -691,7 +608,6 @@ class MEBotControlNode(Node):
         goal.succeed()
         result.success = True
 
-        # reset sequence player data
         self.current_seq = 0
         self.seq_length = 0
         self.seq_mode = 0

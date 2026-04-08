@@ -4,16 +4,16 @@ import rclpy
 import rclpy.action
 import rclpy.node
 
-from rclpy.action import ActionServer
+from rclpy.action import ActionServer, CancelResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
-from cornell_feeding_interfaces.action import CornellActionsPlaceHolder
+from cornell_feeding_interfaces.action import DrinkAction
 from std_srvs.srv import SetBool
 
 
 class DrinkingNode(rclpy.node.Node):
     def __init__(self):
-        super().__init__("drinking_node")
+        super().__init__("drink_action_server")
         self.get_logger().info("Mock Drinking Node has been started.")
 
         self._action_group = ReentrantCallbackGroup()
@@ -26,37 +26,42 @@ class DrinkingNode(rclpy.node.Node):
         # Action Server for PickUpAndOrder
         self._pickup_and_order_action_server = ActionServer(
             self,
-            CornellActionsPlaceHolder,
-            "/arm/drink/PickupAndOrder",
+            DrinkAction,
+            "/arm/drink/pickup_and_order",
             self.execute_action_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
         self._grab_cup_from_table_action_server = ActionServer(
             self,
-            CornellActionsPlaceHolder,
-            "/arm/drink/GrabCupFromTable",
+            DrinkAction,
+            "/arm/drink/grab_cup_from_table",
             self.execute_action_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
         self._bring_cup_to_mouth_action_server = ActionServer(
             self,
-            CornellActionsPlaceHolder,
-            "/arm/drink/BringCupToMouth",
+            DrinkAction,
+            "/arm/drink/bring_cup_to_mouth",
             self.execute_action_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
         self._home_cup_action_server = ActionServer(
             self,
-            CornellActionsPlaceHolder,
-            "/arm/drink/HomeCup",
+            DrinkAction,
+            "/arm/drink/home_cup",
             self.execute_action_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
         self._put_cup_back_to_holder_action_server = ActionServer(
             self,
-            CornellActionsPlaceHolder,
-            "/arm/drink/PutCupBackToHolder",
+            DrinkAction,
+            "/arm/drink/put_cup_back_to_holder",
             self.execute_action_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
 
@@ -80,9 +85,9 @@ class DrinkingNode(rclpy.node.Node):
         self._mock_action_reject = reject
 
     def publish_feedback(self, goal_handle) -> bool:
-        feedback = CornellActionsPlaceHolder.Feedback()
+        feedback = DrinkAction.Feedback()
         while self._action_counter > 0:
-            feedback.status = str(self._action_counter)
+            feedback.state = str(self._action_counter)
             goal_handle.publish_feedback(feedback)
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
@@ -92,6 +97,10 @@ class DrinkingNode(rclpy.node.Node):
             time.sleep(0.1)  # sleep 0.1s
         return True
 
+    def _cancel_callback(self, goal_handle):
+        self.get_logger().info("Received an action cancel request.")
+        return CancelResponse.ACCEPT
+
     def execute_action_callback(self, goal_handle):
         self.get_logger().info("Received a  action goal.")
         if self._action_running or self._mock_action_reject:
@@ -99,16 +108,16 @@ class DrinkingNode(rclpy.node.Node):
                 "Another action is already running. Rejecting new goal."
             )
             goal_handle.reject()
-            return CornellActionsPlaceHolder.Result()
+            return DrinkAction.Result()
         self._action_running = True
         self._action_counter = 20  # 2s action time.
         if not self.publish_feedback(goal_handle):  # canceled during action process
-            result = CornellActionsPlaceHolder.Result()
+            result = DrinkAction.Result()
             self._action_running = False
             return result
 
         # mock result
-        result = CornellActionsPlaceHolder.Result()
+        result = DrinkAction.Result()
         self._action_running = False
 
         if self._mock_action_result:

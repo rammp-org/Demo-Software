@@ -453,18 +453,18 @@ class MEBotControlNode(Node):
     def publish_joint_states(self):
         conv = JOINT_CONVERSIONS
         raw_ticks = {
-            "FC_joint": self.FC_pos,
-            "RC_joint": self.RC_pos,
-            "MR_joint": self.MR_pos,
-            "ML_joint": self.ML_pos,
-            "ML_carriage_joint": self.ML_carriage_pos,
-            "MR_carriage_joint": self.MR_carriage_pos,
-            "ML_wheel_joint": self.ML_wheel_pos,
-            "MR_wheel_joint": self.MR_wheel_pos,
+            "front_caster_swing_arm": self.FC_pos,
+            "rear_caster_swing_arm": self.RC_pos,
+            "motor_swing_arm_r": self.MR_pos,
+            "motor_swing_arm_l": self.ML_pos,
+            "dw_main_plate_l": self.ML_carriage_pos,
+            "dw_main_plate_r": self.MR_carriage_pos,
+            "drive_wheel_l": self.ML_wheel_pos,
+            "drive_wheel_r": self.MR_wheel_pos,
         }
         raw_vels = {
-            "ML_wheel_joint": self.ML_wheel_vel,
-            "MR_wheel_joint": self.MR_wheel_vel,
+            "drive_wheel_l": self.ML_wheel_vel,
+            "drive_wheel_r": self.MR_wheel_vel,
         }
 
         msg = JointState()

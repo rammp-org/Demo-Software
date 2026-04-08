@@ -41,8 +41,7 @@ class JointConversion:
 #  driver convention. GuiBridge converts to degrees/cm for Unreal.
 # ──────────────────────────────────────────────────────────────────────
 #
-#  Joint names MUST match the names published in JointState.name[] and
-#  the corresponding joint names in your URDF.
+#  Joint names match URDF joint names.
 #
 #  Tick ranges and output ranges are PLACEHOLDERS. Ranges
 #  are approximate — this is a pure linear scale.
@@ -50,37 +49,37 @@ class JointConversion:
 
 # /base/joint_states topic order — differs from firmware SEAT_DELTAS motor order
 BASE_JOINT_ORDER = (
-    "FC_joint",
-    "RC_joint",
-    "MR_joint",
-    "ML_joint",
-    "ML_carriage_joint",
-    "MR_carriage_joint",
-    "ML_wheel_joint",
-    "MR_wheel_joint",
+    "front_caster_swing_arm",
+    "rear_caster_swing_arm",
+    "motor_swing_arm_r",
+    "motor_swing_arm_l",
+    "dw_main_plate_l",
+    "dw_main_plate_r",
+    "drive_wheel_l",
+    "drive_wheel_r",
 )
 
 JOINT_CONVERSIONS: dict[str, JointConversion] = {
     # ── Vertical actuators: ticks → radians ──────────────────────────
-    "RC_joint": JointConversion(
+    "rear_caster_swing_arm": JointConversion(
         tick_min=0.0,
         tick_max=900.0,
         output_min=math.radians(-5.0),
         output_max=math.radians(75.0),
     ),
-    "FC_joint": JointConversion(
+    "front_caster_swing_arm": JointConversion(
         tick_min=0.0,
         tick_max=900.0,
         output_min=math.radians(-5.0),
         output_max=math.radians(75.0),
     ),
-    "ML_joint": JointConversion(
+    "motor_swing_arm_l": JointConversion(
         tick_min=0.0,
         tick_max=700.0,
         output_min=math.radians(0.0),
         output_max=math.radians(65.0),
     ),
-    "MR_joint": JointConversion(
+    "motor_swing_arm_r": JointConversion(
         tick_min=0.0,
         tick_max=700.0,
         output_min=math.radians(0.0),
@@ -88,13 +87,13 @@ JOINT_CONVERSIONS: dict[str, JointConversion] = {
     ),
     # ── Carriages: ticks → linear displacement (meters) ──────────────
     #    0-12000ish ticks  →  0-0.30m  (length of carriage travel)
-    "ML_carriage_joint": JointConversion(
+    "dw_main_plate_l": JointConversion(
         tick_min=0.0,
         tick_max=12000.0,
         output_min=0.0,
         output_max=0.30,
     ),
-    "MR_carriage_joint": JointConversion(
+    "dw_main_plate_r": JointConversion(
         tick_min=0.0,
         tick_max=12000.0,
         output_min=0.0,
@@ -103,13 +102,13 @@ JOINT_CONVERSIONS: dict[str, JointConversion] = {
     # ── Drive wheels: ticks → radians (continuous rotation) ──────────
     #    velocity: tick_vel * scale = rad/s
     #    Placeholder: 4096 ticks per revolution (adjust to actual encoder × gear ratio)
-    "ML_wheel_joint": JointConversion(
+    "drive_wheel_l": JointConversion(
         tick_min=0.0,
         tick_max=4096.0,
         output_min=0.0,
         output_max=2.0 * math.pi,
     ),
-    "MR_wheel_joint": JointConversion(
+    "drive_wheel_r": JointConversion(
         tick_min=0.0,
         tick_max=4096.0,
         output_min=0.0,

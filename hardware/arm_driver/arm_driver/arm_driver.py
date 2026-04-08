@@ -243,7 +243,13 @@ class ArmDriverNode(rclpy.node.Node):
         self.get_logger().info(f"State: {self._state.name} -> {new_state.name}")
 
         if self._arm:
-            self._arm.stop()
+            try:
+                self._arm.stop()
+            except Exception:
+                self.get_logger().warn(
+                    "stop() failed during state transition — continuing",
+                    throttle_duration_sec=1.0,
+                )
 
         self._state = new_state
 
@@ -276,10 +282,16 @@ class ArmDriverNode(rclpy.node.Node):
             msg: Desired end-effector linear and angular velocity.
         """
         if self._arm:
-            self._arm.send_twist(
-                [msg.linear.x, msg.linear.y, msg.linear.z],
-                [msg.angular.x, msg.angular.y, msg.angular.z],
-            )
+            try:
+                self._arm.send_twist(
+                    [msg.linear.x, msg.linear.y, msg.linear.z],
+                    [msg.angular.x, msg.angular.y, msg.angular.z],
+                )
+            except Exception:
+                self.get_logger().warn(
+                    "send_twist timed out — skipping command",
+                    throttle_duration_sec=1.0,
+                )
 
     def _handle_joint_position(self, msg: JointState):
         """Command the arm to a target joint position (HIGH_LEVEL).
@@ -287,7 +299,15 @@ class ArmDriverNode(rclpy.node.Node):
         Args:
             msg: Desired joint positions in ``msg.position`` (radians).
         """
-        self._arm.move_angular(list(msg.position), blocking=False)
+        if not self._arm:
+            return
+        try:
+            self._arm.move_angular(list(msg.position), blocking=False)
+        except Exception:
+            self.get_logger().warn(
+                "move_angular timed out — skipping command",
+                throttle_duration_sec=1.0,
+            )
 
     def _handle_cartesian_pose(self, msg: PoseStamped):
         """Command the arm to a target end-effector Cartesian pose (HIGH_LEVEL).
@@ -295,9 +315,19 @@ class ArmDriverNode(rclpy.node.Node):
         Args:
             msg: Desired end-effector pose in Cartesian space.
         """
+        if not self._arm:
+            return
         p = msg.pose.position
         q = msg.pose.orientation
-        self._arm.move_cartesian([p.x, p.y, p.z], [q.x, q.y, q.z, q.w], blocking=False)
+        try:
+            self._arm.move_cartesian(
+                [p.x, p.y, p.z], [q.x, q.y, q.z, q.w], blocking=False
+            )
+        except Exception:
+            self.get_logger().warn(
+                "move_cartesian timed out — skipping command",
+                throttle_duration_sec=1.0,
+            )
 
     # -------------------------------------------------------------------------
     # Subscribers
@@ -380,7 +410,12 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = "Arm not connected"
             return response
 
-        self._arm.choose_from_speed_presets(preset)
+        try:
+            self._arm.choose_from_speed_presets(preset)
+        except Exception as e:
+            response.success = False
+            response.message = f"Failed to set speed preset: {e}"
+            return response
         self.get_logger().info(f"Speed preset set to '{preset.name}'.")
         response.success = True
         response.message = f"Speed preset set to '{preset.name}'"
@@ -508,7 +543,15 @@ class ArmDriverNode(rclpy.node.Node):
                     result.success = False
                     result.message = self._error_reason
                     return result
-                state = self._arm.get_state()
+                try:
+                    state = self._arm.get_state()
+                except (TimeoutError, concurrent.futures.TimeoutError):
+                    self.get_logger().warn(
+                        "get_state() timed out in feedback loop — skipping cycle",
+                        throttle_duration_sec=1.0,
+                    )
+                    time.sleep(FEEDBACK_RATE)
+                    continue
                 feedback.joint_states.header.stamp = self.get_clock().now().to_msg()
                 feedback.joint_states.position = state["position"].tolist()
                 feedback.joint_states.velocity = state["velocity"].tolist()
@@ -614,7 +657,15 @@ class ArmDriverNode(rclpy.node.Node):
                     result.success = False
                     result.message = self._error_reason
                     return result
-                state = self._arm.get_state()
+                try:
+                    state = self._arm.get_state()
+                except (TimeoutError, concurrent.futures.TimeoutError):
+                    self.get_logger().warn(
+                        "get_state() timed out in feedback loop — skipping cycle",
+                        throttle_duration_sec=1.0,
+                    )
+                    time.sleep(FEEDBACK_RATE)
+                    continue
                 feedback.joint_states.header.stamp = self.get_clock().now().to_msg()
                 feedback.joint_states.position = state["position"].tolist()
                 feedback.joint_states.velocity = state["velocity"].tolist()

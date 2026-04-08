@@ -18,6 +18,8 @@
   <depend>gui_interfaces</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>image_transport</depend>
+  <depend>compressed_image_transport</depend>
 
   <exec_depend>python3-scipy</exec_depend>
   <exec_depend>python3-pinocchio</exec_depend>

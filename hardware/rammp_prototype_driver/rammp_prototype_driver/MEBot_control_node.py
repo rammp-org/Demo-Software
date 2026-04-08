@@ -565,26 +565,23 @@ class MEBotControlNode(Node):
             self.write_serial_data("M2:1\n")
             self.write_serial_data("M3:1\n")
             self.write_serial_data("M4:1\n")
-            self.write_serial_data("M5:1\n")
-            self.write_serial_data("M6:1\n")
+            # self.write_serial_data("M5:1\n")
+            # self.write_serial_data("M6:1\n")
 
         feedback_msg = calibration.Feedback()
         result = calibration.Result()
 
         while (
-            self.FC_vel != 0
-            or self.RC_vel != 0
-            or self.ML_vel != 0
-            or self.MR_vel != 0
-            or self.ML_carr_vel != 0
-            or self.MR_carr_vel != 0
+            self.FC_vel != 0 or self.RC_vel != 0 or self.ML_vel != 0 or self.MR_vel != 0
+            # or self.ML_carr_vel != 0
+            # or self.MR_carr_vel != 0
         ):
             feedback_msg.FC_vel = self.FC_vel
             feedback_msg.RC_vel = self.RC_vel
             feedback_msg.ML_vel = self.ML_vel
             feedback_msg.MR_vel = self.MR_vel
-            feedback_msg.ML_carr_vel = self.ML_carr_vel
-            feedback_msg.MR_carr_vell = self.MR_carr_vel
+            # feedback_msg.ML_carr_vel = self.ML_carr_vel
+            # feedback_msg.MR_carr_vell = self.MR_carr_vel
 
             if self.RC_vel == 0:
                 self.write_serial_data("M1:0\n")
@@ -594,10 +591,10 @@ class MEBotControlNode(Node):
                 self.write_serial_data("M3:0\n")
             if self.MR_vel == 0:
                 self.write_serial_data("M4:0\n")
-            if self.ML_carr_vel == 0:
-                self.write_serial_data("M5:0\n")
-            if self.MR_carr_vel == 0:
-                self.write_serial_data("M6:0\n")
+            # if self.ML_carr_vel == 0:
+            #     self.write_serial_data("M5:0\n")
+            # if self.MR_carr_vel == 0:
+            #     self.write_serial_data("M6:0\n")
 
         goal.succeed()
         result.success = True

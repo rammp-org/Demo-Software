@@ -245,9 +245,9 @@ class ArmDriverNode(rclpy.node.Node):
         if self._arm:
             try:
                 self._arm.stop()
-            except Exception:
+            except Exception as e:
                 self.get_logger().warn(
-                    "stop() failed during state transition — continuing",
+                    f"stop() failed during state transition — continuing: {e}",
                     throttle_duration_sec=1.0,
                 )
 
@@ -287,16 +287,16 @@ class ArmDriverNode(rclpy.node.Node):
                     [msg.linear.x, msg.linear.y, msg.linear.z],
                     [msg.angular.x, msg.angular.y, msg.angular.z],
                 )
-            except Exception:
+            except Exception as e:
                 self.get_logger().warn(
-                    "send_twist failed — stopping arm to prevent runaway motion",
+                    f"send_twist failed ({e!r}) — stopping arm to prevent runaway motion",
                     throttle_duration_sec=1.0,
                 )
                 try:
                     self._arm.stop()
-                except Exception:
+                except Exception as stop_exc:
                     self.get_logger().warn(
-                        "stop() also failed after send_twist error",
+                        f"stop() also failed after send_twist error ({stop_exc!r})",
                         throttle_duration_sec=1.0,
                     )
 
@@ -310,9 +310,9 @@ class ArmDriverNode(rclpy.node.Node):
             return
         try:
             self._arm.move_angular(list(msg.position), blocking=False)
-        except Exception:
+        except Exception as e:
             self.get_logger().warn(
-                "move_angular timed out — skipping command",
+                f"move_angular failed ({e!r}) — skipping command",
                 throttle_duration_sec=1.0,
             )
 
@@ -330,9 +330,9 @@ class ArmDriverNode(rclpy.node.Node):
             self._arm.move_cartesian(
                 [p.x, p.y, p.z], [q.x, q.y, q.z, q.w], blocking=False
             )
-        except Exception:
+        except Exception as e:
             self.get_logger().warn(
-                "move_cartesian timed out — skipping command",
+                f"move_cartesian failed ({e!r}) — skipping command",
                 throttle_duration_sec=1.0,
             )
 
@@ -552,9 +552,9 @@ class ArmDriverNode(rclpy.node.Node):
                     return result
                 try:
                     state = self._arm.get_state()
-                except Exception:
+                except Exception as e:
                     self.get_logger().warn(
-                        "get_state() failed in feedback loop — skipping cycle",
+                        f"get_state() failed in feedback loop ({e!r}) — skipping cycle",
                         throttle_duration_sec=1.0,
                     )
                     time.sleep(FEEDBACK_RATE)
@@ -666,9 +666,9 @@ class ArmDriverNode(rclpy.node.Node):
                     return result
                 try:
                     state = self._arm.get_state()
-                except Exception:
+                except Exception as e:
                     self.get_logger().warn(
-                        "get_state() failed in feedback loop — skipping cycle",
+                        f"get_state() failed in feedback loop ({e!r}) — skipping cycle",
                         throttle_duration_sec=1.0,
                     )
                     time.sleep(FEEDBACK_RATE)

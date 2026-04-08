@@ -597,6 +597,12 @@ class ArmDriverNode(rclpy.node.Node):
             feedback = ExecuteTrajectory.Feedback()
             deadline = time.monotonic() + KinovaArm.ACTION_TIMEOUT_DURATION
             while not self._arm.ready():
+                if self._state == ArmState.ERROR:
+                    goal_handle.abort()
+                    result = ExecuteTrajectory.Result()
+                    result.success = False
+                    result.message = self._error_reason
+                    return result
                 if time.monotonic() >= deadline:
                     self.get_logger().error(
                         "Trajectory action timed out waiting for arm ready signal"

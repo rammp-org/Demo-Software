@@ -8,7 +8,7 @@ from arm_interfaces.action import ExecuteTrajectory, ReachPreset
 from arm_interfaces.srv import GetSpeedPreset, SetMode, SetSpeedPreset
 from diagnostic_msgs.msg import DiagnosticStatus
 from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped
-from rclpy.action import ActionServer, GoalResponse
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from sensor_msgs.msg import Imu, JointState
@@ -199,6 +199,7 @@ class ArmDriverNode(rclpy.node.Node):
             "/arm/reach_preset",
             self._on_reach_preset,
             goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
         self._execute_trajectory_actions = [
@@ -221,6 +222,10 @@ class ArmDriverNode(rclpy.node.Node):
         # Accept/reject by returning GoalResponse.
         self.get_logger().info("Received an action goal request.")
         return GoalResponse.ACCEPT
+
+    def _cancel_callback(self, goal_handle):
+        self.get_logger().info("Received an action cancel request.")
+        return CancelResponse.ACCEPT
 
     def _init_timers(self):
         """Create periodic timers for state publishing and twist streaming."""

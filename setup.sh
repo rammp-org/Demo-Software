@@ -51,6 +51,7 @@ $SUDO apt-get install -y python3-pip
 
 echo "=== Installing pip dependencies ==="
 pip3 install -r "${REPO_ROOT}/hardware/arm_driver/requirements.txt"
+pip3 install -r "${REPO_ROOT}/demo_modules/cmu_door_opener/requirements.txt"
 
 echo "=== Installing ROS dependencies ==="
 rosdep install \

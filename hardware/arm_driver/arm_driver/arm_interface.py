@@ -105,7 +105,7 @@ class DeviceConnection:
 
 
 class KinovaArm:
-    ACTION_TIMEOUT_DURATION = 60
+    ACTION_TIMEOUT_DURATION = 20
 
     def __init__(self):
         # Check whether arm is connected
@@ -394,9 +394,9 @@ class KinovaArm:
     def move_angular_trajectory(self, trajectory_joint_angles, blocking=True):
         opts = self.control_send_options
         assert len(trajectory_joint_angles) > 0, "Invalid trajectory"
-        assert len(trajectory_joint_angles[0]) == self.actuator_count, (
-            "Invalid number of joint angles"
-        )
+        assert (
+            len(trajectory_joint_angles[0]) == self.actuator_count
+        ), "Invalid number of joint angles"
 
         jointPoses = [
             [math.degrees(angle) for angle in jointPose]
@@ -436,9 +436,9 @@ class KinovaArm:
             print(result.trajectory_error_report)
 
     def move_angular(self, joint_angles, blocking=True):
-        assert len(joint_angles) == self.actuator_count, (
-            "Invalid number of joint angles"
-        )
+        assert (
+            len(joint_angles) == self.actuator_count
+        ), "Invalid number of joint angles"
 
         # Create action
         action = Base_pb2.Action()

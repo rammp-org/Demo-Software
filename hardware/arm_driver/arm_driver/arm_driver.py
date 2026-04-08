@@ -289,9 +289,16 @@ class ArmDriverNode(rclpy.node.Node):
                 )
             except Exception:
                 self.get_logger().warn(
-                    "send_twist timed out — skipping command",
+                    "send_twist failed — stopping arm to prevent runaway motion",
                     throttle_duration_sec=1.0,
                 )
+                try:
+                    self._arm.stop()
+                except Exception:
+                    self.get_logger().warn(
+                        "stop() also failed after send_twist error",
+                        throttle_duration_sec=1.0,
+                    )
 
     def _handle_joint_position(self, msg: JointState):
         """Command the arm to a target joint position (HIGH_LEVEL).
@@ -545,9 +552,9 @@ class ArmDriverNode(rclpy.node.Node):
                     return result
                 try:
                     state = self._arm.get_state()
-                except (TimeoutError, concurrent.futures.TimeoutError):
+                except Exception:
                     self.get_logger().warn(
-                        "get_state() timed out in feedback loop — skipping cycle",
+                        "get_state() failed in feedback loop — skipping cycle",
                         throttle_duration_sec=1.0,
                     )
                     time.sleep(FEEDBACK_RATE)
@@ -659,9 +666,9 @@ class ArmDriverNode(rclpy.node.Node):
                     return result
                 try:
                     state = self._arm.get_state()
-                except (TimeoutError, concurrent.futures.TimeoutError):
+                except Exception:
                     self.get_logger().warn(
-                        "get_state() timed out in feedback loop — skipping cycle",
+                        "get_state() failed in feedback loop — skipping cycle",
                         throttle_duration_sec=1.0,
                     )
                     time.sleep(FEEDBACK_RATE)

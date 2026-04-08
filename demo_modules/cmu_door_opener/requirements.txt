@@ -84,8 +84,10 @@ stack-data==0.6.3
 sympy==1.14.0
 tinycss2==1.4.0
 tomli==2.4.1
-torch @ https://pypi.jetson-ai-lab.io/jp6/cu126/+f/37d/7e156cfb4a646/torch-2.10.0-cp310-cp310-linux_aarch64.whl
-torchvision @ https://pypi.jetson-ai-lab.io/jp6/cu126/+f/1b6/357c5532db61e/torchvision-0.25.0-cp310-cp310-linux_aarch64.whl
+torch==2.10.0 ; sys_platform == "linux" and platform_machine == "x86_64"
+torchvision==0.25.0 ; sys_platform == "linux" and platform_machine == "x86_64"
+torch @ https://pypi.jetson-ai-lab.io/jp6/cu126/+f/37d/7e156cfb4a646/torch-2.10.0-cp310-cp310-linux_aarch64.whl ; sys_platform == "linux" and platform_machine == "aarch64"
+torchvision @ https://pypi.jetson-ai-lab.io/jp6/cu126/+f/1b6/357c5532db61e/torchvision-0.25.0-cp310-cp310-linux_aarch64.whl ; sys_platform == "linux" and platform_machine == "aarch64"
 tornado==6.5.5
 traitlets==5.14.3
 typing_extensions==4.15.0

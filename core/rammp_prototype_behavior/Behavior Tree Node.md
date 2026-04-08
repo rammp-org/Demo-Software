@@ -30,15 +30,15 @@
 
 ### Publishers:
 
-| Topic  | Type |
-| ------ | ---- |
-| /state |      |
+| Topic                       | Type                 |
+| --------------------------- | -------------------- |
+| /state                      |                      |
+| /nav/curb_traverse_progress | std_msgs/msg/Float32 |
 
 ### Subscriber:
 
 | Topic             | Type                                 | Note                                                          |
 | ----------------- | ------------------------------------ | ------------------------------------------------------------- |
-| /user_input       |                                      |                                                               |
 | /arm/status       | diagnostic_msgs/msg/DiagnosticStatus |                                                               |
 | /estop            | std_msgs/msg/Bool                    |                                                               |
 | /arm/door/visible | std_msgs/msg/Bool                    |                                                               |
@@ -47,9 +47,9 @@
 
 ### Service Servers:
 
-| Topic | Type |
-| ----- | ---- |
-|       |      |
+| Topic                 | Type                          |
+| --------------------- | ----------------------------- |
+| /GuiBridge/user_input | gui_interfaces/srv/UserInputs |
 
 ### Service Clients:
 

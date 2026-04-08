@@ -288,6 +288,7 @@ class ButtonPushController(Node):
             # handle cancel goal during move
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
+                self.stop_arm()
                 result.success = False
                 result.message = "Door open action canceled during move — stopping arm"
                 return result

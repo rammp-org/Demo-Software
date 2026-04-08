@@ -39,7 +39,6 @@
 
 | Topic             | Type                                 | Note                                                          |
 | ----------------- | ------------------------------------ | ------------------------------------------------------------- |
-| /user_input       | gui_interface/msg/UserInputs         |                                                               |
 | /arm/status       | diagnostic_msgs/msg/DiagnosticStatus |                                                               |
 | /estop            | std_msgs/msg/Bool                    |                                                               |
 | /arm/door/visible | std_msgs/msg/Bool                    |                                                               |
@@ -48,9 +47,9 @@
 
 ### Service Servers:
 
-| Topic | Type |
-| ----- | ---- |
-|       |      |
+| Topic                 | Type                          |
+| --------------------- | ----------------------------- |
+| /GuiBridge/user_input | gui_interfaces/srv/UserInputs |
 
 ### Service Clients:
 

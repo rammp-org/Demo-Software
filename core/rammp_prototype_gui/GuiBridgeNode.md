@@ -12,7 +12,7 @@
 
 ### UserInputs:
 
-An enum for user inputs from the UI. This Node subscribe the UI exposed porperty `User_Inputs`. When user interactive with UI, this porperty will change accordingly. This node is notified as a porperty value change event. After getting the new value, this Node will publish the user input to other subscriber Node.
+An enum for user inputs from the UI. This node subscribes to the UI-exposed property `User_Inputs`. When the user interacts with the UI, this property changes accordingly. This node is notified through a property value change event. After receiving the new value, this node publishes the user input to other subscriber nodes.
 
 ```
 # chair control / entry points
@@ -103,9 +103,9 @@ string ESTOP="system/stop"
 
 ### Service Clients:
 
-| Topic                 | Type                         |
-| --------------------- | ---------------------------- |
-| /GuiBridge/user_input | gui_interface/srv/UserInputs |
+| Topic                 | Type                          |
+| --------------------- | ----------------------------- |
+| /GuiBridge/user_input | gui_interfaces/srv/UserInputs |
 
 ### Action Servers:
 

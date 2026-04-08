@@ -38,14 +38,14 @@ string ARM_OPEN_DOOR_CONFIRM="arm/openDoor/confirm"
 string ARM_ORDER_DRINK="arm/orderDrink/start"
 string ARM_ORDER_DRINK_RELEASE_CUP="arm/orderDrink/releaseCup"
 string ARM_ORDER_DRINK_RECEIVE="arm/orderDrink/receive/start"
-string ARM_ORDER_DRINK_RECEIVE_CONFIRM="arm/orderDrink/receive/comfirm"
-# arm/cup stablilize
+string ARM_ORDER_DRINK_RECEIVE_CONFIRM="arm/orderDrink/receive/confirm"
+# arm/cup stabilize
 string ARM_CUP_STABLE_ON="arm/cupStable/on"
 string ARM_CUP_STABLE_OFF="arm/cupStable/off"
 # arm/sipping drink
 string ARM_DRINKING_START="arm/drinking/start"
 string ARM_DRINKING_FINISH="arm/drinking/finish"
-# arm/plack cup back to holder
+# arm/place cup back to holder
 string ARM_CUP_BACK="arm/cup/back"
 # general arm cancel
 string ARM_CANCEL="arm/cancel"

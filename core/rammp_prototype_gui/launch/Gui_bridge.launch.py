@@ -24,22 +24,22 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "wrist_camera_namespace",
-                default_value="/camera/wrist_camera",
+                default_value="/camera/wrist",
                 description="Namespace for the wrist camera topics",
             ),
             DeclareLaunchArgument(
                 "nav_camera_namespace_1",
-                default_value="/camera/nav_camera_1",
+                default_value="/camera/nav1",
                 description="Namespace for the first navigation camera topics",
             ),
             DeclareLaunchArgument(
                 "nav_camera_namespace_2",
-                default_value="/camera/nav_camera_2",
+                default_value="/camera/nav2",
                 description="Namespace for the second navigation camera topics",
             ),
             DeclareLaunchArgument(
                 "rear_camera_namespace",
-                default_value="/camera/rear_camera",
+                default_value="/camera/rear",
                 description="Namespace for the rear camera topics",
             ),
             DeclareLaunchArgument(

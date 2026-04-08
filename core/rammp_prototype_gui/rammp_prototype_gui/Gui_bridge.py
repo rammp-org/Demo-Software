@@ -803,7 +803,7 @@ class GuiBridge(Node):
         chair_mr_carriage_index = 4  # index for chair movement carriage joint
         chair_ml_wheel_index = 2  # index for chair movement wheel joint
         chair_mr_wheel_index = 9  # index for chair movement wheel joint
-        if self.base_joints is not None and len(self.base_joints.position) >= 8:
+        if self.arm_joints is not None and len(self.arm_joints.position) >= 8:
             for i in range(7):  # Only take the first 7 joints for the arm joint
                 arr[arm_joint_index_offset + i] = (
                     self.arm_joints.position[i] * 180.0 / 3.14159
@@ -842,26 +842,26 @@ class GuiBridge(Node):
     def update_curb_info(self, curb_info: CurbInfo):
         if self.ue.is_connected():
             curbInfoDict = {
-                "Message": curb_info.Message,
                 "Success": curb_info.Success,
-                "Pose": {
-                    "Translation": {
-                        "X": curb_info.Pose.Translation.X,
-                        "Y": curb_info.Pose.Translation.Y,
-                        "Z": curb_info.Pose.Translation.Z,
-                    },
-                    "Rotation": {
-                        "X": curb_info.Pose.Rotation.X,
-                        "Y": curb_info.Pose.Rotation.Y,
-                        "Z": curb_info.Pose.Rotation.Z,
-                        "W": curb_info.Pose.Rotation.W,
-                    },
-                    "Scale3D": {
-                        "X": curb_info.Pose.Scale3D.X,
-                        "Y": curb_info.Pose.Scale3D.Y,
-                        "Z": curb_info.Pose.Scale3D.Z,
-                    },
-                },
+                # "Pose": {
+                #     "Translation": {
+                #         "X": curb_info.Pose.Translation.X,
+                #         "Y": curb_info.Pose.Translation.Y,
+                #         "Z": curb_info.Pose.Translation.Z,
+                #     },
+                #     "Rotation": {
+                #         "X": curb_info.Pose.Rotation.X,
+                #         "Y": curb_info.Pose.Rotation.Y,
+                #         "Z": curb_info.Pose.Rotation.Z,
+                #         "W": curb_info.Pose.Rotation.W,
+                #     },
+                #     "Scale3D": {
+                #         "X": curb_info.Pose.Scale3D.X,
+                #         "Y": curb_info.Pose.Scale3D.Y,
+                #         "Z": curb_info.Pose.Scale3D.Z,
+                #     },
+                # },
+                "Orientation": curb_info.Orientation,
                 "Distance": curb_info.Distance,
                 "Height": curb_info.Height,
             }
@@ -872,7 +872,7 @@ class GuiBridge(Node):
             width = cup_info.segmentation_mask.width
             height = cup_info.segmentation_mask.height
             float_bounding_box = [
-                float(x) for x in cup_info.BoundingBox
+                float(x) for x in cup_info.bounding_box
             ]  # Convert BoundingBox to list of floats
             float_bounding_box[0] /= width  # Normalize x
             float_bounding_box[1] /= height  # Normalize y
@@ -883,15 +883,15 @@ class GuiBridge(Node):
                 "Success": cup_info.success,
                 "Pose": {
                     "Translation": {
-                        "X": cup_info.Pose[0],
-                        "Y": cup_info.Pose[1],
-                        "Z": cup_info.Pose[2],
+                        "X": cup_info.pose[0],
+                        "Y": cup_info.pose[1],
+                        "Z": cup_info.pose[2],
                     },
                     "Rotation": {
-                        "X": cup_info.Pose[3],
-                        "Y": cup_info.Pose[4],
-                        "Z": cup_info.Pose[5],
-                        "W": cup_info.Pose[6],
+                        "X": cup_info.pose[3],
+                        "Y": cup_info.pose[4],
+                        "Z": cup_info.pose[5],
+                        "W": cup_info.pose[6],
                     },
                     "Scale3D": {
                         "X": 1.0,
@@ -907,7 +907,7 @@ class GuiBridge(Node):
             width = button_info.segmentation_mask.width
             height = button_info.segmentation_mask.height
             float_bounding_box = [
-                float(x) for x in button_info.BoundingBox
+                float(x) for x in button_info.bounding_box
             ]  # Convert BoundingBox to list of floats
             float_bounding_box[0] /= width  # Normalize x
             float_bounding_box[1] /= height  # Normalize y
@@ -915,19 +915,23 @@ class GuiBridge(Node):
             float_bounding_box[3] /= height  # Normalize height
             r = R.from_euler(
                 "xyz",
-                [button_info.Pose[3], button_info.Pose[4], button_info.Pose[5]],
+                [
+                    button_info.pose_xyzrpy[3],
+                    button_info.pose_xyzrpy[4],
+                    button_info.pose_xyzrpy[5],
+                ],
                 degrees=False,
             )
             qx, qy, qz, qw = r.as_quat()  # Convert Euler angles to quaternion
             buttonInfoDict = {
                 "BoundingBox": float_bounding_box,  # Use the converted list of floats
-                "Confidence": button_info.Confidence,
-                "CanPress": button_info.CanPress,
+                "Confidence": button_info.confidence,
+                "CanPress": button_info.is_pressable,
                 "Pose": {
                     "Translation": {
-                        "X": button_info.Pose[0],
-                        "Y": button_info.Pose[1],
-                        "Z": button_info.Pose[2],
+                        "X": button_info.pose_xyzrpy[0],
+                        "Y": button_info.pose_xyzrpy[1],
+                        "Z": button_info.pose_xyzrpy[2],
                     },
                     "Rotation": {
                         "X": qx,
@@ -979,12 +983,14 @@ class GuiBridge(Node):
         # Signal websocket handlers to stop
         self.ue.shutdown()
         # Stop the event loop
-        self.loop.call_soon_threadsafe(self.loop.stop)
-        # Wait for the event loop thread to finish
-        timeout = 5  # seconds
-        start = time.time()
-        while self.loop.is_running() and (time.time() - start) < timeout:
-            time.sleep(0.1)
+        ue_loop = getattr(self.ue, "loop", None)
+        if ue_loop is not None:
+            ue_loop.call_soon_threadsafe(ue_loop.stop)
+            # Wait for the event loop thread to finish
+            timeout = 5  # seconds
+            start = time.time()
+            while ue_loop.is_running() and (time.time() - start) < timeout:
+                time.sleep(0.1)
         if self.use_shared_memory:
             self.mapfile.close()
             self.shm.unlink()

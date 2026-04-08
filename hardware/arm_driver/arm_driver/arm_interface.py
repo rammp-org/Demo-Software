@@ -105,7 +105,7 @@ class DeviceConnection:
 
 
 class KinovaArm:
-    ACTION_TIMEOUT_DURATION = 60
+    ACTION_TIMEOUT_DURATION = 20
 
     def __init__(self):
         # Check whether arm is connected
@@ -156,7 +156,9 @@ class KinovaArm:
             in [Common_pb2.BIG_ACTUATOR, Common_pb2.SMALL_ACTUATOR]
         ]
         self.send_options = RouterClientSendOptions()
-        self.send_options.timeout_ms = 3
+        self.send_options.timeout_ms = 50
+        self.control_send_options = RouterClientSendOptions()
+        self.control_send_options.timeout_ms = 200
 
         # clear faults
         self.clear_faults()
@@ -230,7 +232,7 @@ class KinovaArm:
         return self.end_or_abort_event.is_set()
 
     def wait_ready(self):
-        self.end_or_abort_event.wait(KinovaArm.ACTION_TIMEOUT_DURATION)
+        return self.end_or_abort_event.wait(KinovaArm.ACTION_TIMEOUT_DURATION)
 
     def set_arm_servoing_mode(self, mode):
         if mode == "high":
@@ -244,9 +246,10 @@ class KinovaArm:
 
     def _execute_reference_action(self, action_name, blocking=True):
         # Retrieve reference action
+        opts = self.control_send_options
         action_type = Base_pb2.RequestedActionType()
         action_type.action_type = Base_pb2.REACH_JOINT_ANGLES
-        action_list = self.base.ReadAllActions(action_type)
+        action_list = self.base.ReadAllActions(action_type, options=opts)
         action_handle = None
         for action in action_list.action_list:
             if action.name == action_name:
@@ -256,7 +259,7 @@ class KinovaArm:
 
         # Execute action
         self.end_or_abort_event.clear()
-        self.base.ExecuteActionFromReference(action_handle)
+        self.base.ExecuteActionFromReference(action_handle, options=opts)
         if blocking:
             self.end_or_abort_event.wait(KinovaArm.ACTION_TIMEOUT_DURATION)
 
@@ -291,14 +294,14 @@ class KinovaArm:
         command.twist.angular_x = math.degrees(angular_xyz[0])
         command.twist.angular_y = math.degrees(angular_xyz[1])
         command.twist.angular_z = math.degrees(angular_xyz[2])
-        self.base.SendTwistCommand(command)
+        self.base.SendTwistCommand(command, options=self.control_send_options)
 
     def set_intermediate_zero_config(self):
         intermediate_zero_config = [0.0, 0.0, -3.12, 0.0, 0.0, 0.0, 0.0]
         self.move_angular(intermediate_zero_config)
 
     def get_ee_force(self):
-        base_feedback = self.base_cyclic.RefreshFeedback()
+        base_feedback = self.base_cyclic.RefreshFeedback(options=self.send_options)
         ee_force = np.array(
             [
                 base_feedback.base.tool_external_wrench_force_x,
@@ -309,7 +312,7 @@ class KinovaArm:
         return ee_force
 
     def get_state(self):
-        base_feedback = self.base_cyclic.RefreshFeedback()
+        base_feedback = self.base_cyclic.RefreshFeedback(options=self.send_options)
 
         q, dq, tau = (
             np.zeros(self.actuator_count),
@@ -389,6 +392,7 @@ class KinovaArm:
         }
 
     def move_angular_trajectory(self, trajectory_joint_angles, blocking=True):
+        opts = self.control_send_options
         assert len(trajectory_joint_angles) > 0, "Invalid trajectory"
         assert (
             len(trajectory_joint_angles[0]) == self.actuator_count
@@ -411,12 +415,12 @@ class KinovaArm:
             waypoint.angular_waypoint.duration = 0.5
             index = index + 1
 
-        result = self.base.ValidateWaypointList(waypoints)
+        result = self.base.ValidateWaypointList(waypoints, options=opts)
         if len(result.trajectory_error_report.trajectory_error_elements) == 0:
             print("Reaching angular pose trajectory...")
 
             self.end_or_abort_event.clear()
-            self.base.ExecuteWaypointTrajectory(waypoints)
+            self.base.ExecuteWaypointTrajectory(waypoints, options=opts)
 
             if blocking:
                 print("Waiting for trajectory to finish ...")
@@ -443,9 +447,8 @@ class KinovaArm:
             joint_angle.joint_identifier = i
             joint_angle.value = math.degrees(joint_angles[i])
         self.end_or_abort_event.clear()
-        self.base.ExecuteAction(action)
+        self.base.ExecuteAction(action, options=self.control_send_options)
         if blocking:
-            print("Waiting for angular movement to finish ...")
             self.end_or_abort_event.wait(KinovaArm.ACTION_TIMEOUT_DURATION)
             # read states and check if the arm actually reached the desired position
             current_state = self.get_state()
@@ -457,13 +460,11 @@ class KinovaArm:
                 error = np.where(error < -180, error + 360, error)
 
             if np.any(np.abs(error) > 5):  # 5 degrees
-                print("Arm did not reach desired position")
                 self.stop()
-                print("Arm stopped")
-                self.disconnect()
-                print("Arm disconnected")
-            else:
-                print("Angular movement completed")
+                raise RuntimeError(
+                    f"Arm did not reach desired angular position; "
+                    f"max error {np.max(np.abs(error)):.1f} deg exceeds 5 deg threshold"
+                )
 
     def move_cartesian(self, xyz, xyz_quat, blocking=True):
         theta_xyz = R.from_quat(xyz_quat).as_euler("xyz")
@@ -478,21 +479,18 @@ class KinovaArm:
         cartesian_pose.theta_y = math.degrees(theta_xyz[1])
         cartesian_pose.theta_z = math.degrees(theta_xyz[2])
         self.end_or_abort_event.clear()
-        self.base.ExecuteAction(action)
+        self.base.ExecuteAction(action, options=self.control_send_options)
         if blocking:
-            print("Waiting for cartesian movement to finish ...")
             self.end_or_abort_event.wait(KinovaArm.ACTION_TIMEOUT_DURATION)
             # read states and check if the arm actually reached the desired position
             current_state = self.get_state()
             x = current_state["ee_pos"]
             if not np.allclose(x[:3], xyz, atol=0.01):  # 1 cm
-                print("Arm did not reach desired position")
                 self.stop()
-                print("Arm stopped")
-                self.disconnect()
-                print("Arm disconnected")
-            else:
-                print("Cartesian movement completed")
+                raise RuntimeError(
+                    f"Arm did not reach desired Cartesian position; "
+                    f"actual={x[:3].tolist()}, target={xyz}"
+                )
 
     def compute_ik(self, xyz, xyz_quat):
         """Check if a Cartesian pose is reachable using Kortex's built-in IK solver.
@@ -530,12 +528,14 @@ class KinovaArm:
         return self.base.ComputeInverseKinematics(ik_data)
 
     def _gripper_position_command(self, value, blocking=True, timeout=1.0):
+        b = self.base
+        opts = self.control_send_options
         # Send gripper command
         gripper_command = Base_pb2.GripperCommand()
         gripper_command.mode = Base_pb2.GRIPPER_POSITION
         finger = gripper_command.gripper.finger.add()
         finger.value = value
-        self.base.SendGripperCommand(gripper_command)
+        b.SendGripperCommand(gripper_command, options=opts)
 
         if blocking:
             # Wait for reported position to match value
@@ -543,7 +543,9 @@ class KinovaArm:
             gripper_request.mode = Base_pb2.GRIPPER_POSITION
             start_time = time.perf_counter()
             while time.perf_counter() - start_time < timeout:
-                gripper_measure = self.base.GetMeasuredGripperMovement(gripper_request)
+                gripper_measure = b.GetMeasuredGripperMovement(
+                    gripper_request, options=opts
+                )
                 if abs(value - gripper_measure.finger[0].value) < 0.01:
                     break
                 time.sleep(0.01)
@@ -560,18 +562,20 @@ class KinovaArm:
         acceleration_limits=(80, 80, 80, 80, 80, 80, 80),
         cartesian=False,
     ):
+        cc = self.control_config
+        opts = self.control_send_options
         if cartesian:
             joint_speed_soft_limits = ControlConfig_pb2.JointSpeedSoftLimits()
             joint_speed_soft_limits.control_mode = (
                 ControlConfig_pb2.CARTESIAN_TRAJECTORY
             )
             joint_speed_soft_limits.joint_speed_soft_limits.extend(speed_limits)
-            self.control_config.SetJointSpeedSoftLimits(joint_speed_soft_limits)
+            cc.SetJointSpeedSoftLimits(joint_speed_soft_limits, options=opts)
         else:
             joint_speed_soft_limits = ControlConfig_pb2.JointSpeedSoftLimits()
             joint_speed_soft_limits.control_mode = ControlConfig_pb2.ANGULAR_TRAJECTORY
             joint_speed_soft_limits.joint_speed_soft_limits.extend(speed_limits)
-            self.control_config.SetJointSpeedSoftLimits(joint_speed_soft_limits)
+            cc.SetJointSpeedSoftLimits(joint_speed_soft_limits, options=opts)
             joint_acceleration_soft_limits = (
                 ControlConfig_pb2.JointAccelerationSoftLimits()
             )
@@ -581,11 +585,13 @@ class KinovaArm:
             joint_acceleration_soft_limits.joint_acceleration_soft_limits.extend(
                 acceleration_limits
             )
-            self.control_config.SetJointAccelerationSoftLimits(
-                joint_acceleration_soft_limits
+            cc.SetJointAccelerationSoftLimits(
+                joint_acceleration_soft_limits, options=opts
             )
 
     def choose_from_speed_presets(self, speed_preset: SpeedPreset):
+        cc = self.control_config
+        opts = self.control_send_options
         if not isinstance(speed_preset, SpeedPreset) or speed_preset in [
             SpeedPreset.DEFAULT,
             SpeedPreset.MAX,
@@ -615,25 +621,29 @@ class KinovaArm:
         cartesian_joystick_limits = ControlConfig_pb2.JointSpeedSoftLimits()
         cartesian_joystick_limits.control_mode = ControlConfig_pb2.CARTESIAN_JOYSTICK
         cartesian_joystick_limits.joint_speed_soft_limits.extend(speed_limits)
-        self.control_config.SetJointSpeedSoftLimits(cartesian_joystick_limits)
+        cc.SetJointSpeedSoftLimits(cartesian_joystick_limits, options=opts)
 
     def get_speed_preset(self):
         return self.speed_preset
 
     def set_max_joint_limits(self):
+        cc = self.control_config
+        opts = self.control_send_options
         self.speed_preset = SpeedPreset.MAX
-        speed_limits = self.control_config.GetKinematicHardLimits().joint_speed_limits
-        acceleration_limits = (
-            self.control_config.GetKinematicHardLimits().joint_acceleration_limits
-        )
+        speed_limits = cc.GetKinematicHardLimits(options=opts).joint_speed_limits
+        acceleration_limits = cc.GetKinematicHardLimits(
+            options=opts
+        ).joint_acceleration_limits
         self.set_joint_limits(speed_limits, acceleration_limits)
 
         cartesian_joystick_limits = ControlConfig_pb2.JointSpeedSoftLimits()
         cartesian_joystick_limits.control_mode = ControlConfig_pb2.CARTESIAN_JOYSTICK
         cartesian_joystick_limits.joint_speed_soft_limits.extend(speed_limits)
-        self.control_config.SetJointSpeedSoftLimits(cartesian_joystick_limits)
+        cc.SetJointSpeedSoftLimits(cartesian_joystick_limits, options=opts)
 
     def get_joint_limits(self):
+        cc = self.control_config
+        opts = self.control_send_options
         joint_limits = []
         control_mode_information = ControlConfig_pb2.ControlModeInformation()
         for control_mode in [
@@ -645,11 +655,13 @@ class KinovaArm:
         ]:
             control_mode_information.control_mode = control_mode
             joint_limits.append(
-                self.control_config.GetKinematicSoftLimits(control_mode_information)
+                cc.GetKinematicSoftLimits(control_mode_information, options=opts)
             )
         return joint_limits
 
     def reset_joint_limits(self):
+        cc = self.control_config
+        opts = self.control_send_options
         self.speed_preset = SpeedPreset.DEFAULT
         control_mode_information = ControlConfig_pb2.ControlModeInformation()
         for control_mode in [
@@ -660,54 +672,67 @@ class KinovaArm:
             ControlConfig_pb2.CARTESIAN_WAYPOINT_TRAJECTORY,
         ]:
             control_mode_information.control_mode = control_mode
-            self.control_config.ResetJointSpeedSoftLimits(control_mode_information)
+            cc.ResetJointSpeedSoftLimits(control_mode_information, options=opts)
         for control_mode in [
             ControlConfig_pb2.ANGULAR_JOYSTICK,
             ControlConfig_pb2.ANGULAR_TRAJECTORY,
         ]:
             control_mode_information.control_mode = control_mode
-            self.control_config.ResetJointAccelerationSoftLimits(
-                control_mode_information
-            )
+            cc.ResetJointAccelerationSoftLimits(control_mode_information, options=opts)
 
     def set_twist_linear_limit(self, limit):
+        cc = self.control_config
+        opts = self.control_send_options
         twist_linear_soft_limit = ControlConfig_pb2.TwistLinearSoftLimit()
         twist_linear_soft_limit.control_mode = ControlConfig_pb2.CARTESIAN_TRAJECTORY
         twist_linear_soft_limit.twist_linear_soft_limit = limit
-        self.control_config.SetTwistLinearSoftLimit(twist_linear_soft_limit)
+        cc.SetTwistLinearSoftLimit(twist_linear_soft_limit, options=opts)
 
     def set_max_twist_linear_limit(self):
-        limit = self.control_config.GetKinematicHardLimits().twist_linear  # 0.5
+        cc = self.control_config
+        opts = self.control_send_options
+        limit = cc.GetKinematicHardLimits(options=opts).twist_linear  # 0.5
         self.set_twist_linear_limit(limit)
 
     def reset_twist_linear_limit(self):
+        cc = self.control_config
+        opts = self.control_send_options
         control_mode_information = ControlConfig_pb2.ControlModeInformation()
         control_mode_information.control_mode = ControlConfig_pb2.CARTESIAN_TRAJECTORY
-        self.control_config.ResetTwistLinearSoftLimit(control_mode_information)
+        cc.ResetTwistLinearSoftLimit(control_mode_information, options=opts)
 
     # Rajat ToDo: Check how the following work:
     def pause_action(self):
-        self.base.PauseAction()
+        self.base.PauseAction(options=self.control_send_options)
 
     def resume_action(self):
-        self.base.ResumeAction()
+        self.base.ResumeAction(options=self.control_send_options)
 
     def stop_action(self):
-        self.base.StopAction()
+        self.base.StopAction(options=self.control_send_options)
 
     def stop(self):
-        self.base.Stop()
+        self.base.Stop(options=self.control_send_options)
 
     # Not using this as we haven't tested it
     # def apply_emergency_stop(self):
     #     self.base.ApplyEmergencyStop()
 
-    def clear_faults(self):
-        if self.base.GetArmState().active_state == Base_pb2.ARMSTATE_IN_FAULT:
-            self.base.ClearFaults()
+    def clear_faults(self, timeout=5.0):
+        if (
+            self.base.GetArmState(options=self.control_send_options).active_state
+            == Base_pb2.ARMSTATE_IN_FAULT
+        ):
+            self.base.ClearFaults(options=self.control_send_options)
+            deadline = time.perf_counter() + timeout
             while (
-                self.base.GetArmState().active_state != Base_pb2.ARMSTATE_SERVOING_READY
+                self.base.GetArmState(options=self.control_send_options).active_state
+                != Base_pb2.ARMSTATE_SERVOING_READY
             ):
+                if time.perf_counter() >= deadline:
+                    raise TimeoutError(
+                        f"clear_faults: arm did not reach SERVOING_READY within {timeout}s"
+                    )
                 time.sleep(0.1)
 
 

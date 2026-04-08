@@ -4,13 +4,16 @@ import time
 
 import rclpy
 from rammp_prototype_interfaces.action import CurbTraverse
+from rammp_prototype_interfaces.msg import SeatCommand
 
 # custom msgs/srvs
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
-from rclpy.action import ActionServer, GoalResponse
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
-from std_msgs.msg import Bool, String
+from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
 
 
@@ -142,18 +145,24 @@ class BaseControlNode(Node):
         # actions
         self._action_running = False
         self._action_counter = 0
+        self._action_cb_group = ReentrantCallbackGroup()
         self.curb_traverse_action = ActionServer(
             self,
             CurbTraverse,
             "/base/curb_traverse",
             self._execute_callback,
             goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback,
+            callback_group=self._action_cb_group,
         )
 
     def _init_subscribers(self):
         # subscriptions
         self.manual_seat_control_subscription = self.create_subscription(
-            String, "/base/manual_seat_control", self.manual_seat_control_callback, 10
+            SeatCommand,
+            "/base/manual_seat_control",
+            self.manual_seat_control_callback,
+            10,
         )  # message type is placeholder
 
         self.estop_subscription = self.create_subscription(
@@ -281,7 +290,7 @@ class BaseControlNode(Node):
         msg.ml_loadcell = self.ML_loadcell
 
         # CA_flag
-        msg.ca_flag = self.CA_flag
+        # msg.ca_flag = self.CA_flag
 
         # state
         msg.state = self.state
@@ -330,9 +339,11 @@ class BaseControlNode(Node):
         self.imu_publisher.publish(msg)
 
     def manual_seat_control_callback(self, msg):
-        if msg.data:
+        if msg.command:
             # content
-            self.get_logger().info("Manual seat control msg received.")
+            self.get_logger().info(
+                "Manual seat control msg received: " + str(msg.command)
+            )
             pass
 
     def estop_callback(self, msg):
@@ -352,9 +363,9 @@ class BaseControlNode(Node):
         feedback = CurbTraverse.Feedback()
         while self._action_counter > 0:
             self.get_logger().info("action counter left: " + str(self._action_counter))
-            feedback.ca_flag = (
-                0  # mock feedback, can be updated with actual data if needed
-            )
+            feedback.progress = (
+                float(20 - self._action_counter) / 20.0 * 100.0
+            )  # convert to percentage
             goal_handle.publish_feedback(feedback)
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
@@ -369,6 +380,7 @@ class BaseControlNode(Node):
         if not self.publish_feedback(goal_handle):  # canceled during action process
             result = CurbTraverse.Result()
             self._action_running = False
+            result.success = False
             return result
         self.get_logger().info("Action execution finished.")
         # mock result
@@ -382,6 +394,10 @@ class BaseControlNode(Node):
             goal_handle.abort()
             result.success = False
         return result
+
+    def _cancel_callback(self, goal_handle):
+        self.get_logger().info("Received a cancel request.")
+        return CancelResponse.ACCEPT
 
     def _goal_callback(self, goal_request):
         # goal_callback receives the Goal request message, not a goal handle.
@@ -419,7 +435,9 @@ class BaseControlNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = BaseControlNode()
-    rclpy.spin(node)
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    executor.spin()
     rclpy.shutdown()
 
 

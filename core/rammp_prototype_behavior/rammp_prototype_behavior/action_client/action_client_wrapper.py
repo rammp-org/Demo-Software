@@ -1,4 +1,6 @@
 from __future__ import annotations
+import asyncio
+import threading
 from typing import Any, Callable, Type
 
 import rclpy
@@ -8,6 +10,7 @@ from rclpy.action.client import ClientGoalHandle
 from rclpy.task import Future
 
 ActionClientCallback = Callable[[bool], None]  # (success, result) -> None
+ActionFeedbackCallback = Callable[[Any], None]  # (feedback_msg) -> None
 
 
 def is_action_type(t: Type[Any]) -> bool:
@@ -23,6 +26,7 @@ class ActionClientWrapper:
         result_callback: ActionClientCallback,
         cancel_callback: ActionClientCallback,
         node: Node,
+        feedback_callback: ActionFeedbackCallback = None,
     ):
         assert is_action_type(
             goal_type
@@ -47,7 +51,9 @@ class ActionClientWrapper:
         self._goal_callback = goal_callback
         self._result_callback = result_callback
         self._cancel_callback = cancel_callback
+        self._feedback_callback = feedback_callback
         self.gh = None
+        self._gh_ready = threading.Event()
 
     def is_server_ready(self) -> bool:
         return self._client.server_is_ready()
@@ -64,13 +70,19 @@ class ActionClientWrapper:
             self._goal_callback(False)
             return
         self._action_running = True
+        self._gh_ready.clear()
         send_goal_future = self._client.send_goal_async(
-            goal
-        )  # no feedback callback here.
+            goal,
+            feedback_callback=self._on_feedback if self._feedback_callback else None,
+        )
         send_goal_future.add_done_callback(self._send_goal_done_callback)
         self._node.get_logger().debug(
             "Goal sent to action server, waiting for response..."
         )
+
+    def _on_feedback(self, feedback_msg) -> None:
+        if self._feedback_callback:
+            self._feedback_callback(feedback_msg.feedback)
 
     def _send_goal_done_callback(self, future: Future):
         try:
@@ -91,25 +103,39 @@ class ActionClientWrapper:
             self._node.get_logger().error(f"Exception while sending goal: {e}")
             self._action_running = False
             self._goal_callback(False)
+        finally:
+            self._gh_ready.set()
 
     def _on_result(self, future: Future):
-        try:
-            result = future.result().result
-            if result.success:
-                self._node.get_logger().debug("Action completed successfully.")
-                self._result_callback(True)
-            else:
-                self._node.get_logger().warn("Action failed.")
+        if self._action_running:
+            try:
+                result = future.result().result
+                if result.success:
+                    self._node.get_logger().debug("Action completed successfully.")
+                    self._result_callback(True)
+                else:
+                    self._node.get_logger().warn("Action failed.")
+                    self._result_callback(False)
+            except Exception as e:
+                self._node.get_logger().error(f"Exception while getting result: {e}")
                 self._result_callback(False)
-        except Exception as e:
-            self._node.get_logger().error(f"Exception while getting result: {e}")
-            self._result_callback(False)
-        finally:
-            self._action_running = False
-            self.gh = None
+            finally:
+                self._action_running = False
+                self.gh = None
 
     async def cancel_goal(self):
-        if not self.is_server_ready() or self.gh is None:
+        if not self.is_server_ready():
+            self._cancel_callback(False)
+            return
+        if self.gh is None and self._action_running:
+            ready = await asyncio.get_running_loop().run_in_executor(
+                None, self._gh_ready.wait, 5.0
+            )
+            if not ready:
+                self._node.get_logger().warn(
+                    "Timed out waiting for goal handle before canceling."
+                )
+        if self.gh is None:
             self._cancel_callback(False)
             return
         cancel_future = self.gh.cancel_goal_async()
@@ -123,7 +149,8 @@ class ActionClientWrapper:
             self._cancel_callback(False)
             return False
 
-        if cancel_result.goals_canceling > 0:
+        self._action_running = False
+        if len(cancel_result.goals_canceling) > 0:
             self._node.get_logger().debug(
                 "Goal cancellation accepted by the action server."
             )

@@ -403,6 +403,7 @@ void startCalibration(float pwm) {
   for (int i = 0; i < CAL_NUM_MOTORS; i++) {
     cal_done[i] = false;
     cal_motors[i]->setMode(Motor::OPEN_LOOP);
+    cal_motors[i]->updateLimits(-9999999, cal_motors[i]->pos_limit_max);
     cal_motors[i]->setTargetPWM(cal_pwm);
   }
   if (DEBUG_MODE)
@@ -443,8 +444,15 @@ void runCalibration(float dt) {
   }
 
   if (all_done) {
-    for (int i = 0; i < CAL_NUM_MOTORS; i++)
+    for (int i = 0; i < CAL_NUM_MOTORS; i++) {
       cal_motors[i]->disable();
+      if (i == 4 || i == 5) {
+        cal_motors[i]->updateLimits(100, cal_motors[i]->pos_limit_max);
+      }
+      else {
+        cal_motors[i]->updateLimits(20, cal_motors[i]->pos_limit_max);
+      }
+    }
     current_state = IDLE;
     Serial.println("CAL_DONE");
   }

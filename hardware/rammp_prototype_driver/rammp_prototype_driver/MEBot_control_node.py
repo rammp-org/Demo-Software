@@ -29,6 +29,7 @@ SEQ_NUM_MOTORS = 8
 # Increase for slower/smoother motion, decrease for snappier response.
 # *** TUNE to your preference. ***
 SEAT_MOVE_DURATION_MS = 1000
+CALIBRATION_PWM = 2000
 
 # Per-command relative deltas (encoder ticks) for each motor.
 # Order: [RC, FC, ML, MR, ML_CARRIAGE, MR_CARRIAGE, DRIVE_FB, DRIVE_LR]
@@ -132,12 +133,6 @@ class SerialField(IntEnum):
     # SPEED_ML = 0
     # SPEED_MR = 0
     STATE = 2
-    RC_vel = 9
-    FC_vel = 10
-    ML_vel = 11
-    MR_vel = 12
-    ML_carr_vel = 13
-    MR_carr_vel = 14
 
 
 class MEBotControlNode(Node):
@@ -225,12 +220,8 @@ class MEBotControlNode(Node):
         self.prev_speed_MR = 0.0
         self.current_speed_MR = 0.0
 
-        self.RC_vel = 0.0
-        self.FC_vel = 0.0
-        self.ML_vel = 0.0
-        self.MR_vel = 0.0
-        self.ML_carr_vel = 0.0
-        self.MR_carr_vel = 0.0
+        self.cal_joints_done = 0
+        self.cal_complete = False
 
         #### Init all ROS interfaces
         self._init_services()
@@ -318,6 +309,10 @@ class MEBotControlNode(Node):
                     self.current_seq = split_data[1]
                     self.seq_length = split_data[2]
                     self.seq_mode = split_data[3].strip()
+                if raw_data.startswith("CAL: Homed"):
+                    self.cal_joints_done += 1
+                elif raw_data == "CAL_DONE":
+                    self.cal_complete = True
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -358,13 +353,6 @@ class MEBotControlNode(Node):
 
         # app_time
         # self.app_time = float(data[SerialField.APP_TIME])
-
-        self.FC_vel = float(data[SerialField.FC_vel])
-        self.RC_vel = float(data[SerialField.RC_vel])
-        self.ML_vel = float(data[SerialField.ML_vel])
-        self.MR_vel = float(data[SerialField.MR_vel])
-        self.ML_carr_vel = float(data[SerialField.ML_carr_vel])
-        self.MR_carr_vel = float(data[SerialField.MR_carr_vel])
 
         # Velocity — convert cm/s to m/s
         # TODO: Fix wheel velocities once they are sent by the Teensy (currently sending 0 in SerialField.SPEED_ML and SPEED_MR)
@@ -560,47 +548,36 @@ class MEBotControlNode(Node):
         self.get_logger().error("Service call failed")
 
     def calibrate_motors_callback(self, goal):
-        if goal.request.enable:
-            self.write_serial_data("T1:2000\n")
-            self.write_serial_data("T2:2000\n")
-            self.write_serial_data("T3:2000\n")
-            self.write_serial_data("T4:2000\n")
-            # self.write_serial_data("M5:1\n")
-            # self.write_serial_data("M6:1\n")
-
-        feedback_msg = calibration.Feedback()
         result = calibration.Result()
 
-        while (
-            self.FC_vel != 0
-            and self.RC_vel != 0
-            and self.ML_vel != 0
-            and self.MR_vel != 0
-            # and self.ML_carr_vel != 0
-            # and self.MR_carr_vel != 0
-        ):
-            feedback_msg.FC_vel = self.FC_vel
-            feedback_msg.RC_vel = self.RC_vel
-            feedback_msg.ML_vel = self.ML_vel
-            feedback_msg.MR_vel = self.MR_vel
-            # feedback_msg.ML_carr_vel = self.ML_carr_vel
-            # feedback_msg.MR_carr_vell = self.MR_carr_vel
+        if not goal.request.enable:
+            goal.succeed()
+            result.success = False
+            result.message = "Calibration not enabled"
+            return result
 
-            if self.RC_vel == 0:
-                self.write_serial_data("T1:0\n")
-            if self.FC_vel == 0:
-                self.write_serial_data("T2:0\n")
-            if self.ML_vel == 0:
-                self.write_serial_data("T3:0\n")
-            if self.MR_vel == 0:
-                self.write_serial_data("T4:0\n")
-            # if self.ML_carr_vel == 0:
-            #     self.write_serial_data("M5:0\n")
-            # if self.MR_carr_vel == 0:
-            #     self.write_serial_data("M6:0\n")
+        self.cal_joints_done = 0
+        self.cal_complete = False
+        self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
+        self.get_logger().info("Calibration started via firmware W0 command")
+
+        feedback_msg = calibration.Feedback()
+
+        while not self.cal_complete:
+            if goal.is_cancel_requested:
+                self.write_serial_data("W0:0\n")
+                goal.canceled()
+                result.success = False
+                result.message = "Calibration cancelled"
+                return result
+
+            feedback_msg.joints_calibrated = self.cal_joints_done
+            goal.publish_feedback(feedback_msg)
+            time.sleep(0.1)
 
         goal.succeed()
         result.success = True
+        result.message = f"Calibrated {self.cal_joints_done}/6 joints"
         return result
 
     def curb_traverse_action_callback(self, goal):

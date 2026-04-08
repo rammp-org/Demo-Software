@@ -7,7 +7,7 @@ import time
 import rclpy
 import serial
 from rammp_prototype_interfaces.action import CurbTraverse
-from rammp_prototype_interfaces.action import calibration
+from rammp_prototype_interfaces.action import Calibration
 from rammp_prototype_interfaces.msg import SeatCommand
 
 # custom msgs/srvs
@@ -254,7 +254,7 @@ class MEBotControlNode(Node):
         )
 
         self.calibrate_action = ActionServer(
-            self, calibration, "calibrate", self.calibrate_motors_callback
+            self, Calibration, "calibrate", self.calibrate_motors_callback
         )
 
     def _init_subscribers(self):
@@ -548,7 +548,7 @@ class MEBotControlNode(Node):
         self.get_logger().error("Service call failed")
 
     def calibrate_motors_callback(self, goal):
-        result = calibration.Result()
+        result = Calibration.Result()
 
         if not goal.request.enable:
             goal.succeed()
@@ -561,7 +561,7 @@ class MEBotControlNode(Node):
         self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
         self.get_logger().info("Calibration started via firmware W0 command")
 
-        feedback_msg = calibration.Feedback()
+        feedback_msg = Calibration.Feedback()
 
         while not self.cal_complete:
             if goal.is_cancel_requested:

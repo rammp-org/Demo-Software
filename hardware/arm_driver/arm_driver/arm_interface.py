@@ -283,6 +283,63 @@ class KinovaArm:
     def cup_stabilize(self, blocking=True):
         self._execute_reference_action("Home", blocking=blocking)
 
+    def get_imu_data(self):
+        """Read IMU accelerometer, gyroscope, and end-effector orientation.
+
+        Returns a single RefreshFeedback snapshot so accel, gyro, and
+        orientation are time-coherent.
+
+        Returns:
+            dict with keys:
+                ``accel``  – np.ndarray [ax, ay, az] raw accelerometer.
+                ``gyro``   – np.ndarray [gx, gy, gz] in deg/s.
+                ``ee_euler_deg`` – list [theta_x, theta_y, theta_z] in degrees.
+        """
+        fb = self.base_cyclic.RefreshFeedback()
+        return {
+            "accel": np.array(
+                [
+                    fb.base.imu_acceleration_x,
+                    fb.base.imu_acceleration_y,
+                    fb.base.imu_acceleration_z,
+                ]
+            ),
+            "gyro": np.array(
+                [
+                    fb.base.imu_angular_velocity_x,
+                    fb.base.imu_angular_velocity_y,
+                    fb.base.imu_angular_velocity_z,
+                ]
+            ),
+            "ee_euler_deg": [
+                fb.base.tool_pose_theta_x,
+                fb.base.tool_pose_theta_y,
+                fb.base.tool_pose_theta_z,
+            ],
+        }
+
+    def send_twist_base_frame(self, linear_xyz, angular_xyz):
+        """Send a Cartesian twist in ``CARTESIAN_REFERENCE_FRAME_BASE``.
+
+        Both linear and angular components are expressed in the fixed base
+        frame.  Used by the cup-stabilization controller whose error is
+        computed in the base frame.
+
+        Args:
+            linear_xyz: Linear velocity [vx, vy, vz] in m/s.
+            angular_xyz: Angular velocity [wx, wy, wz] in rad/s.
+        """
+        command = Base_pb2.TwistCommand()
+        command.reference_frame = Base_pb2.CARTESIAN_REFERENCE_FRAME_BASE
+        command.duration = 0
+        command.twist.linear_x = linear_xyz[0]
+        command.twist.linear_y = linear_xyz[1]
+        command.twist.linear_z = linear_xyz[2]
+        command.twist.angular_x = math.degrees(angular_xyz[0])
+        command.twist.angular_y = math.degrees(angular_xyz[1])
+        command.twist.angular_z = math.degrees(angular_xyz[2])
+        self.base.SendTwistCommand(command)
+
     def send_twist(self, linear_xyz, angular_xyz):
         """Send a Cartesian twist velocity command (SINGLE_LEVEL_SERVOING).
 
@@ -402,9 +459,9 @@ class KinovaArm:
     def move_angular_trajectory(self, trajectory_joint_angles, blocking=True):
         opts = self.control_send_options
         assert len(trajectory_joint_angles) > 0, "Invalid trajectory"
-        assert (
-            len(trajectory_joint_angles[0]) == self.actuator_count
-        ), "Invalid number of joint angles"
+        assert len(trajectory_joint_angles[0]) == self.actuator_count, (
+            "Invalid number of joint angles"
+        )
 
         jointPoses = [
             [math.degrees(angle) for angle in jointPose]
@@ -444,9 +501,9 @@ class KinovaArm:
             print(result.trajectory_error_report)
 
     def move_angular(self, joint_angles, blocking=True):
-        assert (
-            len(joint_angles) == self.actuator_count
-        ), "Invalid number of joint angles"
+        assert len(joint_angles) == self.actuator_count, (
+            "Invalid number of joint angles"
+        )
 
         # Create action
         action = Base_pb2.Action()

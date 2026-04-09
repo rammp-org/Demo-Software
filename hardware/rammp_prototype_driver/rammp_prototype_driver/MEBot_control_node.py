@@ -36,8 +36,8 @@ JS_ORIGIN = 8
 
 INPUT_REMOTE = 1
 
-JOYSTICK_TOPIC = "luci/remote_joystick"
-JOYSTICK_MSG_TYPE = "luci_messages/msg/LuciJoystick"
+JOYSTICK_TOPIC = "/luci/remote_joystick"
+JOYSTICK_MSG_TYPE = "/luci_messages/msg/LuciJoystick"
 SET_AUTO_SERVICE = "/luci/set_auto_remote_input"
 REMOVE_AUTO_SERVICE = "/luci/remove_auto_remote_input"
 
@@ -390,7 +390,9 @@ class MEBotControlNode(Node):
         # State
         self.state = int(data[SerialField.STATE])
 
-        self.fb_pwm = int(data[66])  # TODO: put index in SerialField
+        self.fb_pwm = int(100*float(data[66]))  # TODO: put index in SerialField
+        self.get_logger().info(f"fb_pwm: {self.fb_pwm}")
+        
 
     def publish_joint_states(self):
         msg = JointState()
@@ -560,12 +562,16 @@ class MEBotControlNode(Node):
         self.get_logger().error("Service call failed")
 
     def _send_joystick(self):
+
         msg = LuciJoystick()
         msg.forward_back = self.fb_pwm
         msg.left_right = 0
         msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
         msg.input_source = INPUT_REMOTE
         self.luci_js_publisher.publish(msg)
+
+        self.get_logger().info(f"message: {msg.forward_back}")
+
 
     def curb_traverse_action_callback(self, goal):
         # TODO: add checkpoint here checking if sequence flag is at starting/default state, curb traversal should not be called if MEBot already in curb traversal (default flag is 0)
@@ -578,7 +584,7 @@ class MEBotControlNode(Node):
 
         json_path = (
             get_package_share_directory("rammp_prototype_driver")
-            + "/test_json_read.json"
+            + "/config/test_json_read.json"
         )
         keyframes = _load_keyframes_from_json(json_path)
         self.get_logger().info(f"Loaded {len(keyframes)} keyframes from {json_path}")
@@ -609,6 +615,9 @@ class MEBotControlNode(Node):
         self.current_seq = 0
         self.seq_length = 0
         self.seq_mode = 0
+
+        self.send_remove_luci()
+        
         return result
 
     def drive_enable_callback(self, request, response):

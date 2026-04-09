@@ -65,17 +65,17 @@ class LuciHeartBeat(Node):
         self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
         self.luci_heartbeat_timer = self.create_timer(
-            0.005, lambda: self._send_joystick(self.fb_pwm, 0)
+            0.005, self.send_joy
         )
 
     def dummy_pwm_callback(self, msg):
         self.test_pwm = msg.data
 
-    def _send_joystick(self):
+    def send_joy(self):
         msg = LuciJoystick()
         msg.forward_back = self.test_pwm
         msg.left_right = 0
-        msg.joystick_zone = _compute_zone(self.test_pwm, 0)
+        msg.joystick_zone = _compute_zone(msg.forward_back, 0)
         msg.input_source = INPUT_REMOTE
         self.luci_js_publisher.publish(msg)
 

@@ -62,6 +62,8 @@ def _compute_zone(fb: int, lr: int) -> int:
     return JS_BACK_LEFT
 
 
+# Keyframe stuff
+
 SEAT_MOVE_DURATION_MS = 1000
 
 SEAT_DELTAS: dict[int, list[float]] = {
@@ -129,15 +131,15 @@ class SerialField(IntEnum):
     ML_POS = 5
     ML_CARRIAGE_POS = 7
     MR_CARRIAGE_POS = 8
-    # ML_WHEEL_POS = 0
-    # MR_WHEEL_POS = 0
+    # ML_WHEEL_POS = 0      #TODO: add this index
+    # MR_WHEEL_POS = 0      #TODO: add this index
     FC_LOADCELL = 53
     RC_LOADCELL = 52
     MR_LOADCELL = 55
     ML_LOADCELL = 54
     # APP_TIME = 0
-    # SPEED_ML = 0
-    # SPEED_MR = 0
+    # SPEED_ML = 0      #TODO: add this index
+    # SPEED_MR = 0      #TODO: add this index
     STATE = 2
     FB_PWM = 66
 
@@ -491,8 +493,8 @@ class MEBotControlNode(Node):
         # Build full paths
         active_nodes = [ns.rstrip("/") + "/" + name for name, ns in active_nodes]
 
-        # TODO: get correct LUCI node name and namespace
-        if "/luci/node" not in active_nodes:
+        # TODO: test this
+        if "/interfaces" not in active_nodes:
             stat.add("node_status", "dead")
             stat.summary(DiagnosticStatus.ERROR, "Luci node not active")
         else:
@@ -537,7 +539,6 @@ class MEBotControlNode(Node):
                 "z\n"
             )  # triggers MotorController function NO_MOVEMENT
             self.write_serial_data("K0\n")
-            # TODO: send c\n to clear estop
 
     def send_set_luci(self):
         request = Empty.Request()
@@ -547,7 +548,6 @@ class MEBotControlNode(Node):
 
     def send_remove_luci(self):
         request = Empty.Request()
-
         future = self.remove_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
         return future
@@ -557,7 +557,6 @@ class MEBotControlNode(Node):
         if result:
             self.get_logger().info("Service call completed")
             return
-
         self.get_logger().error("Service call failed")
 
     def _send_joystick(self):

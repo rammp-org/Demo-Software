@@ -7,6 +7,7 @@ import time
 import rclpy
 import serial
 from rammp_prototype_interfaces.action import CurbTraverse
+from rammp_prototype_interfaces.action import Calibration
 from rammp_prototype_interfaces.msg import SeatCommand
 
 # custom msgs/srvs
@@ -28,6 +29,7 @@ SEQ_NUM_MOTORS = 8
 # Increase for slower/smoother motion, decrease for snappier response.
 # *** TUNE to your preference. ***
 SEAT_MOVE_DURATION_MS = 1000
+CALIBRATION_PWM = -0.2
 
 # Per-command relative deltas (encoder ticks) for each motor.
 # Order: [RC, FC, ML, MR, ML_CARRIAGE, MR_CARRIAGE, DRIVE_FB, DRIVE_LR]
@@ -218,6 +220,9 @@ class MEBotControlNode(Node):
         self.prev_speed_MR = 0.0
         self.current_speed_MR = 0.0
 
+        self.cal_joints_done = 0
+        self.cal_complete = False
+
         #### Init all ROS interfaces
         self._init_services()
         self._init_actions()
@@ -246,6 +251,10 @@ class MEBotControlNode(Node):
         # actions
         self.curb_traverse_action = ActionServer(
             self, CurbTraverse, "curb_traverse", self.curb_traverse_action_callback
+        )
+
+        self.calibrate_action = ActionServer(
+            self, Calibration, "calibrate", self.calibrate_motors_callback
         )
 
     def _init_subscribers(self):
@@ -300,6 +309,10 @@ class MEBotControlNode(Node):
                     self.current_seq = split_data[1]
                     self.seq_length = split_data[2]
                     self.seq_mode = split_data[3].strip()
+                if raw_data.startswith("CAL: Homed"):
+                    self.cal_joints_done += 1
+                elif raw_data == "CAL_DONE":
+                    self.cal_complete = True
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -533,6 +546,39 @@ class MEBotControlNode(Node):
             return
 
         self.get_logger().error("Service call failed")
+
+    def calibrate_motors_callback(self, goal):
+        result = Calibration.Result()
+
+        if not goal.request.enable:
+            goal.succeed()
+            result.success = False
+            result.message = "Calibration not enabled"
+            return result
+
+        self.cal_joints_done = 0
+        self.cal_complete = False
+        self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
+        self.get_logger().info("Calibration started via firmware W0 command")
+
+        feedback_msg = Calibration.Feedback()
+
+        while not self.cal_complete:
+            if goal.is_cancel_requested:
+                self.write_serial_data("W0:0\n")
+                goal.canceled()
+                result.success = False
+                result.message = "Calibration cancelled"
+                return result
+
+            feedback_msg.joints_calibrated = self.cal_joints_done
+            goal.publish_feedback(feedback_msg)
+            time.sleep(0.1)
+
+        goal.succeed()
+        result.success = True
+        result.message = f"Calibrated {self.cal_joints_done}/6 joints"
+        return result
 
     def curb_traverse_action_callback(self, goal):
         # TODO: add checkpoint here checking if sequence flag is at starting/default state, curb traversal should not be called if MEBot already in curb traversal (default flag is 0)

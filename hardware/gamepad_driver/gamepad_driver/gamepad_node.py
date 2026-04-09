@@ -111,7 +111,9 @@ class gamepadNode(Node):
         future = self.manual_client.call_async(request)
         future.add_done_callback(self.handle_service_response)
 
-    def handle_service_response(self, future):  # can be use by any service client
+    def handle_service_response(
+        self, future
+    ):  # can be use by any service client in this node
         response = future.result()
         if response.success:
             self.get_logger().info("Service call success")
@@ -126,7 +128,6 @@ class gamepadNode(Node):
 
             sensitivity_level = 0.8
 
-            # only one will work
             if abs(msg.axes[0]) - abs(msg.axes[1]) > sensitivity_level:
                 msg.axes[1] = 0.0
             elif abs(msg.axes[1]) - abs(msg.axes[0]) > sensitivity_level:
@@ -155,7 +156,6 @@ class gamepadNode(Node):
             self.twist_pub.publish(final_twist)
 
             # --- HOME BUTTON LOGIC ---
-            # msg.buttons[3] is typically X or Square
             if msg.buttons[0] == 1 and self.last_button_state[0] == 0:
                 self.send_preset(0)
             if msg.buttons[1] == 1 and self.last_button_state[1] == 0:
@@ -166,7 +166,6 @@ class gamepadNode(Node):
                 self.send_preset(3)
 
             # --- Gripper Control (Buttons) ---
-            # msg.buttons[6] = A (Close), msg.buttons[7] = B (Open)
             if msg.buttons[4] == 1 and self.last_button_state[4] == 0:
                 self.closeGripper()
             elif msg.buttons[5] == 1 and self.last_button_state[5] == 0:

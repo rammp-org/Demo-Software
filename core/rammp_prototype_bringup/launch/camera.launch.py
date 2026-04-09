@@ -66,6 +66,35 @@ def generate_launch_description():
         if cli_nav2 == "true":
             disable_nav2 = cli_nav2
 
+        # Read per-camera parameters from YAML ROS parameter sections
+        wrist_params = config.get("/wrist", {}).get("ros__parameters", {})
+        nav1_params = config.get("/camera/nav1", {}).get("ros__parameters", {})
+        nav2_params = config.get("/camera/nav2", {}).get("ros__parameters", {})
+
+        # camera_name and base_frame_id — YAML with hardcoded fallbacks
+        wrist_camera_name = wrist_params.get("camera_name", "wrist")
+        wrist_base_frame = wrist_params.get("base_frame_id", "wrist_camera_link")
+        nav1_camera_name = nav1_params.get("camera_name", "nav1")
+        nav1_base_frame = nav1_params.get("base_frame_id", "nav1_camera_link")
+        nav2_camera_name = nav2_params.get("camera_name", "nav2")
+        nav2_base_frame = nav2_params.get("base_frame_id", "nav2_camera_link")
+
+        # Serial numbers — YAML default, CLI override if non-empty
+        wrist_serial = wrist_params.get("serial_no", "")
+        nav1_serial = nav1_params.get("serial_number", "")
+        nav2_serial = nav2_params.get("serial_number", "")
+
+        cli_wrist_serial = LaunchConfiguration("wrist_camera_serial").perform(context)
+        cli_nav1_serial = LaunchConfiguration("nav1_camera_serial").perform(context)
+        cli_nav2_serial = LaunchConfiguration("nav2_camera_serial").perform(context)
+
+        if cli_wrist_serial:
+            wrist_serial = cli_wrist_serial
+        if cli_nav1_serial:
+            nav1_serial = cli_nav1_serial
+        if cli_nav2_serial:
+            nav2_serial = cli_nav2_serial
+
         actions = []
 
         # ── Wrist camera (RealSense D435i) ────────────────────────────────
@@ -82,9 +111,9 @@ def generate_launch_description():
                         IncludeLaunchDescription(
                             PythonLaunchDescriptionSource(realsense_launch),
                             launch_arguments={
-                                "camera_name": "wrist",
-                                "serial_no": LaunchConfiguration("wrist_camera_serial"),
-                                "base_frame_id": "wrist_camera_link",
+                                "camera_name": wrist_camera_name,
+                                "serial_no": wrist_serial,
+                                "base_frame_id": wrist_base_frame,
                                 "rgb_camera.profile": "640x480x30",
                                 "depth_module.profile": "640x480x30",
                                 "align_depth.enable": "true",
@@ -104,8 +133,9 @@ def generate_launch_description():
         # ── Nav1 camera (Orbbec Gemini 336L) ──────────────────────────────
         # PushRosNamespace("camera") prepends /camera to all topics published
         # by this node, giving us /camera/nav1/color/image_raw etc.
-        # Serial number must be passed as a launch arg — Orbbec's config loader
-        # explicitly skips serial_number when reading config_file_path.
+        # Serial number is read from the YAML config (CLI arg overrides if set).
+        # It must be passed as a launch arg — Orbbec's config loader explicitly
+        # skips serial_number when reading config_file_path.
         if disable_nav1 != "true":
             actions.append(
                 GroupAction(
@@ -114,11 +144,9 @@ def generate_launch_description():
                         IncludeLaunchDescription(
                             PythonLaunchDescriptionSource(orbbec_launch),
                             launch_arguments={
-                                "camera_name": "nav1",
-                                "serial_number": LaunchConfiguration(
-                                    "nav1_camera_serial"
-                                ),
-                                "base_frame_id": "nav1_camera_link",
+                                "camera_name": nav1_camera_name,
+                                "serial_number": nav1_serial,
+                                "base_frame_id": nav1_base_frame,
                                 "enable_point_cloud": "true",
                                 "enable_hole_filling_filter": "false",
                                 "hole_filling_filter_mode": "NEAREST_NEIGHBOR_MAX",
@@ -167,11 +195,9 @@ def generate_launch_description():
                         IncludeLaunchDescription(
                             PythonLaunchDescriptionSource(orbbec_launch),
                             launch_arguments={
-                                "camera_name": "nav2",
-                                "serial_number": LaunchConfiguration(
-                                    "nav2_camera_serial"
-                                ),
-                                "base_frame_id": "nav2_camera_link",
+                                "camera_name": nav2_camera_name,
+                                "serial_number": nav2_serial,
+                                "base_frame_id": nav2_base_frame,
                                 "enable_point_cloud": "true",
                                 "enable_hole_filling_filter": "false",
                                 "hole_filling_filter_mode": "NEAREST_NEIGHBOR_MAX",

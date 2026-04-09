@@ -28,9 +28,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/SetMode.srv"
   "srv/SetSpeedPreset.srv"
   "srv/GetSpeedPreset.srv"
+  "srv/CheckReachability.srv"
   "action/ReachPreset.action"
   "action/ExecuteTrajectory.action"
-  DEPENDENCIES builtin_interfaces sensor_msgs trajectory_msgs
+  DEPENDENCIES builtin_interfaces sensor_msgs trajectory_msgs geometry_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)

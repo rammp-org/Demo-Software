@@ -46,23 +46,21 @@ class ArmPresetActionClient(ActionClientWrapper):
                 f"Arm successfully reached preset {self._current_preset.name}."
             )
             if self._current_preset == ArmPreset.HOME:
-                if (
-                    self._node.state == "Arm_OrderDrink_releasingCup"
-                    or self._node.state == "Arm_cupStabilize_homing"
-                ):  # for testing, will remove after testing
-                    self._node.finish_mock_task()
-                elif (
-                    self._node._mock_state.is_mocking_arm_home()
-                ):  # for testing arm home, will remove after testing
-                    self._node._mock_state.finish_current_mock_task()  # finish mock arm home task after reaching home preset
+                # if (
+                #     self._node.state == "Arm_OrderDrink_releasingCup"
+                #     or self._node.state == "Arm_cupStabilize_homing"
+                # ):  # for testing, will remove after testing
+                #     self._node.finish_mock_task()
+                # elif (
+                #     self._node._mock_state.is_mocking_arm_home()
+                # ):  # for testing arm home, will remove after testing
+                #     self._node._mock_state.finish_current_mock_task()  # finish mock arm home task after reaching home preset
                 self._node.homed()
             elif self._current_preset == ArmPreset.CUP_STABILIZE:
                 self._node.cupStable()  # should enter cup stabilized state after reaching cup stabilize preset
-            elif (
-                self._current_preset == ArmPreset.RETRACT
-                and self._node._mock_state.is_mocking_arm_retract()
-            ):
-                self._node._mock_state.finish_current_mock_task()  # finish mock arm retract task after reaching retract preset
+            elif self._current_preset == ArmPreset.RETRACT:
+                if self._node._mock_state.is_mocking_arm_retract():
+                    self._node._mock_state.finish_current_mock_task()  # finish mock arm retract task after reaching retract preset
                 self._node.retracted()  # should enter arm retracted state after reaching retract preset when mocking arm retract
         else:
             self._node.get_logger().warn(
@@ -91,5 +89,8 @@ class ArmPresetActionClient(ActionClientWrapper):
         asyncio.run_coroutine_threadsafe(self.send_goal(goal), self._node._loop)
 
     def cancel(self):
+        if not self.is_action_running():
+            # do nothing if no action is currently running
+            return
         self._current_preset = None
         asyncio.run_coroutine_threadsafe(self.cancel_goal(), self._node._loop)

@@ -598,7 +598,11 @@ class MEBotControlNode(Node):
                 result.success = False
                 return result
 
-            feedback_msg.current_seq = self.current_seq
+            feedback_msg.progress = (
+                self.current_seq * 100.0 / float(self.seq_length)
+                if self.seq_length > 0
+                else 0.0
+            )
             goal.publish_feedback(feedback_msg)
 
             time.sleep(0.05)

@@ -367,7 +367,7 @@ This node is passive. It just buffers the latest `ButtonInfo` from the detector.
   |     Each iteration:
   |       Read force magnitude (L2 norm of latest_ee_force)
   |       Publish feedback: distance_to_button
-  |       If force > 30 N → stop_arm(), break
+  |       If force > 20 N → stop_arm(), break
   |     Timeout → stop_arm() anyway
   |
   +-- Step 4: Retract arm

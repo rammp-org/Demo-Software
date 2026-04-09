@@ -4,11 +4,9 @@
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/core.hpp>
 
-class ImageRotateNode : public rclcpp::Node
-{
+class ImageRotateNode : public rclcpp::Node {
 public:
-  ImageRotateNode() : Node("image_rotate_node")
-  {
+  ImageRotateNode() : Node("image_rotate_node") {
     this->declare_parameter<int>("rotation_degrees", 90);
     int deg = this->get_parameter("rotation_degrees").as_int();
     rotation_degrees_ = deg;
@@ -20,33 +18,36 @@ public:
     } else if (deg == 270 || deg == -90) {
       rotate_code_ = cv::ROTATE_90_COUNTERCLOCKWISE;
     } else {
-      RCLCPP_ERROR(this->get_logger(), "Unsupported rotation: %d. Use 90, 180, or 270.", deg);
+      RCLCPP_ERROR(this->get_logger(),
+                   "Unsupported rotation: %d. Use 90, 180, or 270.", deg);
       rotate_code_ = -1;
     }
 
     auto qos = rclcpp::QoS(10).reliability(rclcpp::ReliabilityPolicy::Reliable);
 
     sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-      "image_raw", qos,
-      std::bind(&ImageRotateNode::image_callback, this, std::placeholders::_1));
+        "image_raw", qos,
+        std::bind(&ImageRotateNode::image_callback, this,
+                  std::placeholders::_1));
 
-    pub_ = this->create_publisher<sensor_msgs::msg::Image>(
-      "image_rotated", qos);
+    pub_ =
+        this->create_publisher<sensor_msgs::msg::Image>("image_rotated", qos);
 
     // Camera info sub/pub
     info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-      "camera_info", qos,
-      std::bind(&ImageRotateNode::info_callback, this, std::placeholders::_1));
+        "camera_info", qos,
+        std::bind(&ImageRotateNode::info_callback, this,
+                  std::placeholders::_1));
 
     info_pub_ = this->create_publisher<sensor_msgs::msg::CameraInfo>(
-      "camera_info_rotated", qos);
+        "camera_info_rotated", qos);
 
-    RCLCPP_INFO(this->get_logger(), "Image rotate node started (rotation: %d deg)", deg);
+    RCLCPP_INFO(this->get_logger(),
+                "Image rotate node started (rotation: %d deg)", deg);
   }
 
 private:
-  void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
-  {
+  void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr &msg) {
     if (rotate_code_ < 0) {
       pub_->publish(*msg);
       return;
@@ -57,13 +58,12 @@ private:
       cv::rotate(cv_ptr->image, rotated_buf_, rotate_code_);
       cv_bridge::CvImage out_msg(msg->header, msg->encoding, rotated_buf_);
       pub_->publish(*out_msg.toImageMsg());
-    } catch (const cv_bridge::Exception & e) {
+    } catch (const cv_bridge::Exception &e) {
       RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
     }
   }
 
-  void info_callback(const sensor_msgs::msg::CameraInfo::ConstSharedPtr & msg)
-  {
+  void info_callback(const sensor_msgs::msg::CameraInfo::ConstSharedPtr &msg) {
     sensor_msgs::msg::CameraInfo out = *msg;
 
     if (rotate_code_ < 0) {
@@ -80,7 +80,8 @@ private:
     double cx = msg->k[2];
     double cy = msg->k[5];
 
-    int deg = ((rotation_degrees_ % 360) + 360) % 360;  // normalize to 0,90,180,270
+    int deg =
+        ((rotation_degrees_ % 360) + 360) % 360; // normalize to 0,90,180,270
 
     if (deg == 90) {
       // 90° clockwise: (u,v) -> (H-1-v, u)
@@ -110,7 +111,8 @@ private:
       out.p = {fx, 0, new_cx, 0, 0, fy, new_cy, 0, 0, 0, 1, 0};
     }
 
-    // Zero out distortion for rotated image (distortion model no longer valid after rotation)
+    // Zero out distortion for rotated image (distortion model no longer valid
+    // after rotation)
     out.distortion_model = "plumb_bob";
     out.d = {0.0, 0.0, 0.0, 0.0, 0.0};
 
@@ -133,8 +135,7 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr info_pub_;
 };
 
-int main(int argc, char ** argv)
-{
+int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<ImageRotateNode>());
   rclcpp::shutdown();

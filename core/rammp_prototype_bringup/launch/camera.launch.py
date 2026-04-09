@@ -197,17 +197,20 @@ def generate_launch_description():
             )
             actions.append(
                 Node(
-                    package='rammp_prototype_utils',
-                    executable='image_rotate_node',
-                    name='image_rotate_nav1',
+                    package="rammp_prototype_utils",
+                    executable="image_rotate_node",
+                    name="image_rotate_nav1",
                     remappings=[
-                        ('image_raw',           '/camera/nav1/color/image_raw'),
-                        ('image_rotated',       '/camera/nav1/color/image_rotated'),
-                        ('camera_info',         '/camera/nav1/color/camera_info'),
-                        ('camera_info_rotated', '/camera/nav1/color/camera_info_rotated'),
+                        ("image_raw", "/camera/nav1/color/image_raw"),
+                        ("image_rotated", "/camera/nav1/color/image_rotated"),
+                        ("camera_info", "/camera/nav1/color/camera_info"),
+                        (
+                            "camera_info_rotated",
+                            "/camera/nav1/color/camera_info_rotated",
+                        ),
                     ],
-                    parameters=[{'rotation_degrees': 90}],
-                    output='screen'
+                    parameters=[{"rotation_degrees": 90}],
+                    output="screen",
                 )
             )
 
@@ -263,17 +266,20 @@ def generate_launch_description():
             )
             actions.append(
                 Node(
-                    package='rammp_prototype_utils',
-                    executable='image_rotate_node',
-                    name='image_rotate_nav2',
+                    package="rammp_prototype_utils",
+                    executable="image_rotate_node",
+                    name="image_rotate_nav2",
                     remappings=[
-                        ('image_raw',           '/camera/nav2/color/image_raw'),
-                        ('image_rotated',       '/camera/nav2/color/image_rotated'),
-                        ('camera_info',         '/camera/nav2/color/camera_info'),
-                        ('camera_info_rotated', '/camera/nav2/color/camera_info_rotated'),
+                        ("image_raw", "/camera/nav2/color/image_raw"),
+                        ("image_rotated", "/camera/nav2/color/image_rotated"),
+                        ("camera_info", "/camera/nav2/color/camera_info"),
+                        (
+                            "camera_info_rotated",
+                            "/camera/nav2/color/camera_info_rotated",
+                        ),
                     ],
-                    parameters=[{'rotation_degrees': 90}],
-                    output='screen'
+                    parameters=[{"rotation_degrees": 90}],
+                    output="screen",
                 )
             )
 

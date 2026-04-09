@@ -17,7 +17,7 @@ class gamepadNode(Node):
         super().__init__("gamepad_node")
 
         self.button_press_time = {}  # tracks when preset buttons for homing positions were first pressed
-        self.hold_duration = 1.0  # min time required for user to hold down buttons to go to preset locations
+        self.hold_duration = 2.0  # min time required for user to hold down buttons to go to preset locations
 
         # estop
         self.estop_publisher = self.create_publisher(Bool, "estop", 10)

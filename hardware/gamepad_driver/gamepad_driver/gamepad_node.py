@@ -124,16 +124,18 @@ class gamepadNode(Node):
             scale = 0.2  # Max linear speed (m/s)
             ang_scale = 20.0  # rad/s
 
+            sensitivity_level = 0.8
+
             # only one will work
-            if abs(msg.axes[0]) - abs(msg.axes[4]) > 0.5:
-                msg.axes[4] = 0.0
-            elif abs(msg.axes[4]) - abs(msg.axes[0]) > 0.5:
+            if abs(msg.axes[0]) - abs(msg.axes[1]) > sensitivity_level:
+                msg.axes[1] = 0.0
+            elif abs(msg.axes[1]) - abs(msg.axes[0]) > sensitivity_level:
                 msg.axes[0] = 0.0
 
             # lessen sensitivity of right joystick x and y
-            if abs(msg.axes[2]) - abs(msg.axes[3]) > 0.8:
+            if abs(msg.axes[2]) - abs(msg.axes[3]) > sensitivity_level:
                 msg.axes[3] = 0.0
-            elif abs(msg.axes[3]) - abs(msg.axes[2]) > 0.8:
+            elif abs(msg.axes[3]) - abs(msg.axes[2]) > sensitivity_level:
                 msg.axes[2] = 0.0
 
             final_twist = Twist()

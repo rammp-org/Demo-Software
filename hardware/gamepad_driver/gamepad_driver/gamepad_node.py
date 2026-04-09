@@ -16,6 +16,9 @@ class gamepadNode(Node):
     def __init__(self):
         super().__init__("gamepad_node")
 
+        self.button_press_time = {}  # tracks when preset buttons for homing positions were first pressed
+        self.hold_duration = 1.0  # min time required for user to hold down buttons to go to preset locations
+
         # estop
         self.estop_publisher = self.create_publisher(Bool, "estop", 10)
         self.estop_timer = self.create_timer(1.0, self.estop_pub)
@@ -41,7 +44,6 @@ class gamepadNode(Node):
         self.in_preset_mode = False
 
         self.manual_client = self.create_client(SetMode, "/arm/set_mode")
-        self.send_manual_control_request()  # upon init, be in manual mode
 
     def estop_pub(self):
         # msg = Bool()
@@ -156,14 +158,28 @@ class gamepadNode(Node):
             self.twist_pub.publish(final_twist)
 
             # --- HOME BUTTON LOGIC ---
-            if msg.buttons[0] == 1 and self.last_button_state[0] == 0:
-                self.send_preset(0)
-            if msg.buttons[1] == 1 and self.last_button_state[1] == 0:
-                self.send_preset(1)
-            if msg.buttons[2] == 1 and self.last_button_state[2] == 0:
-                self.send_preset(2)
-            if msg.buttons[3] == 1 and self.last_button_state[3] == 0:
-                self.send_preset(3)
+            current_time = (
+                self.get_clock().now().nanoseconds / 1e9
+            )  # convert to seconds
+
+            for button_index, preset_index in enumerate([0, 1, 2, 3]):
+                if msg.buttons[button_index] == 1:
+                    if self.last_button_state[button_index] == 0:
+                        # Button just pressed — record the time
+                        self.button_press_time[button_index] = current_time
+                    else:
+                        # Button still held — check if held long enough
+                        press_duration = current_time - self.button_press_time.get(
+                            button_index, current_time
+                        )
+                        if press_duration >= self.hold_duration:
+                            self.send_preset(preset_index)
+                            self.button_press_time.pop(
+                                button_index
+                            )  # reset so it doesn't fire repeatedly
+                else:
+                    # Button released — clear the timer
+                    self.button_press_time.pop(button_index, None)
 
             # --- Gripper Control (Buttons) ---
             if msg.buttons[4] == 1 and self.last_button_state[4] == 0:

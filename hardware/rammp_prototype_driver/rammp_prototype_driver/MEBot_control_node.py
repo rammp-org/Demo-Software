@@ -390,9 +390,8 @@ class MEBotControlNode(Node):
         # State
         self.state = int(data[SerialField.STATE])
 
-        self.fb_pwm = int(100*float(data[66]))  # TODO: put index in SerialField
+        self.fb_pwm = int(100 * float(data[66]))  # TODO: put index in SerialField
         self.get_logger().info(f"fb_pwm: {self.fb_pwm}")
-        
 
     def publish_joint_states(self):
         msg = JointState()
@@ -562,7 +561,6 @@ class MEBotControlNode(Node):
         self.get_logger().error("Service call failed")
 
     def _send_joystick(self):
-
         msg = LuciJoystick()
         msg.forward_back = self.fb_pwm
         msg.left_right = 0
@@ -572,20 +570,23 @@ class MEBotControlNode(Node):
 
         self.get_logger().info(f"message: {msg.forward_back}")
 
-
     def curb_traverse_action_callback(self, goal):
-        # TODO: add checkpoint here checking if sequence flag is at starting/default state, curb traversal should not be called if MEBot already in curb traversal (default flag is 0)
-        # TODO: add descending flag
-
-        self.send_set_luci()
+        self.send_set_luci()  # enable LUCI control over js
 
         feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
 
-        json_path = (
-            get_package_share_directory("rammp_prototype_driver")
-            + "/config/test_json_read.json"
-        )
+        if goal.direction == 1:
+            json_path = (
+                get_package_share_directory("rammp_prototype_driver")
+                + "/config/curb_ascending.json"
+            )
+        else:
+            json_path = (
+                get_package_share_directory("rammp_prototype_driver")
+                + "/config/curb_descending.json"
+            )
+
         keyframes = _load_keyframes_from_json(json_path)
         self.get_logger().info(f"Loaded {len(keyframes)} keyframes from {json_path}")
 
@@ -600,15 +601,11 @@ class MEBotControlNode(Node):
                 result.success = False
                 return result
 
-            # if self.fb_pwm != 0:
-            #     self._send_joystick(self.fb_pwm, 0)
-
             feedback_msg.current_seq = self.current_seq
             goal.publish_feedback(feedback_msg)
 
             time.sleep(0.05)
 
-        # TODO: Make success true or false depending on information given by teensy that states whether or not curb traversal succeeded
         goal.succeed()
         result.success = True
 
@@ -617,7 +614,6 @@ class MEBotControlNode(Node):
         self.seq_mode = 0
 
         self.send_remove_luci()
-        
         return result
 
     def drive_enable_callback(self, request, response):

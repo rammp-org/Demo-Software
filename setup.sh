@@ -94,4 +94,8 @@ else
     echo "Install ros-humble-orbbec-camera or pyorbbecsdk first,"
     echo "then re-run setup.sh to install udev rules."
 fi
+
+echo "=== Configuring Jetson max performance mode ==="
+bash "${REPO_ROOT}/scripts/jetson_max_performance.sh" "$@"
+
 echo "=== Setup complete ==="

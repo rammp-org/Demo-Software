@@ -12,7 +12,7 @@ from launch.actions import (
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import PushRosNamespace
+from launch_ros.actions import PushRosNamespace, Node
 
 
 def generate_launch_description():
@@ -125,6 +125,21 @@ def generate_launch_description():
                             }.items(),
                         ),
                     ]
+                )
+            )
+            actions.append(
+                Node(
+                    package='rammp_prototype_utils',
+                    executable='image_rotate_node',
+                    name='image_rotate_nav',
+                    remappings=[
+                        ('image_raw',           '/camera/nav/color/image_raw'),
+                        ('image_rotated',       '/camera/nav/color/image_rotated'),
+                        ('camera_info',         '/camera/nav/color/camera_info'),
+                        ('camera_info_rotated', '/camera/nav/color/camera_info_rotated'),
+                    ],
+                    parameters=[{'rotation_degrees': 90}],
+                    output='screen'
                 )
             )
 

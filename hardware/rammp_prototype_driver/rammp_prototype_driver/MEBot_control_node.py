@@ -139,6 +139,7 @@ class SerialField(IntEnum):
     # SPEED_ML = 0
     # SPEED_MR = 0
     STATE = 2
+    FB_PWM = 66
 
 
 class MEBotControlNode(Node):
@@ -390,8 +391,7 @@ class MEBotControlNode(Node):
         # State
         self.state = int(data[SerialField.STATE])
 
-        self.fb_pwm = int(100 * float(data[66]))  # TODO: put index in SerialField
-        self.get_logger().info(f"fb_pwm: {self.fb_pwm}")
+        self.fb_pwm = int(100 * float(SerialField.FB_PWM))
 
     def publish_joint_states(self):
         msg = JointState()

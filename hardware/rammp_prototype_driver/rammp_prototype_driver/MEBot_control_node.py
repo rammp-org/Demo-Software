@@ -289,9 +289,7 @@ class MEBotControlNode(Node):
 
         self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
-        self.luci_heartbeat_timer = self.create_timer(
-            0.005, lambda: self._send_joystick(self.fb_pwm, 0)
-        )
+        self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
 
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
@@ -561,11 +559,11 @@ class MEBotControlNode(Node):
 
         self.get_logger().error("Service call failed")
 
-    def _send_joystick(self, fb: int, lr: int):
+    def _send_joystick(self):
         msg = LuciJoystick()
-        msg.forward_back = fb
-        msg.left_right = lr
-        msg.joystick_zone = _compute_zone(fb, lr)
+        msg.forward_back = self.fb_pwm
+        msg.left_right = 0
+        msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
         msg.input_source = INPUT_REMOTE
         self.luci_js_publisher.publish(msg)
 

@@ -71,6 +71,9 @@ def generate_launch_description():
         # ── Wrist camera (RealSense D435i) ────────────────────────────────
         # Delayed by 8 seconds to give the Orbbec cameras time to initialize
         # first. RealSense requires extra startup time on the Jetson.
+        # Note: The params_file is NOT passed to RealSense to avoid warnings
+        # about unrecognized keys (disable_nav1, nav1_camera_serial, etc.).
+        # These keys are only used by OpaqueFunction above.
         if disable_realsense != "true":
             actions.append(
                 TimerAction(
@@ -98,7 +101,7 @@ def generate_launch_description():
                 )
             )
 
-        # ── Nav camera (Orbbec Gemini 336L) ───────────────────────────────
+        # ── Nav1 camera (Orbbec Gemini 336L) ──────────────────────────────
         # PushRosNamespace("camera") prepends /camera to all topics published
         # by this node, giving us /camera/nav1/color/image_raw etc.
         # Serial number must be passed as a launch arg — Orbbec's config loader
@@ -153,7 +156,7 @@ def generate_launch_description():
 
         # ── Nav2 shoulder camera (Orbbec Gemini 336L) ─────────────────────
         # Second Orbbec camera mounted on the shoulder of the robot.
-        # Identical configuration to nav camera — serial number differentiates
+        # Identical configuration to nav1 camera — serial number differentiates
         # the two devices at the USB driver level.
         # Topics publish under /camera/nav2/...
         if disable_nav2 != "true":
@@ -230,20 +233,23 @@ def generate_launch_description():
                 default_value="",
                 description="Serial number of the RealSense D435i wrist camera.",
             ),
-            # ── Nav camera serial (Orbbec Gemini 336L) ────────────────────
+            # ── Nav1 camera serial (Orbbec Gemini 336L) ───────────────────
             DeclareLaunchArgument(
                 "nav1_camera_serial",
                 default_value="",
-                description="Serial number of the Orbbec Gemini 336L navigation camera.",
+                description="Serial number of the Orbbec Gemini 336L nav1 camera.",
             ),
             # ── Nav2 camera serial (Orbbec Gemini 336L) ───────────────────
             DeclareLaunchArgument(
                 "nav2_camera_serial",
                 default_value="",
-                description="Serial number of the Orbbec Gemini 336L shoulder camera.",
+                description="Serial number of the Orbbec Gemini 336L nav2 shoulder camera.",
             ),
             # ── Config file — defaults to camera_demo_main.yaml ───────────
-            # Override with params_file:=<path> to use a different config
+            # Override with params_file:=<path> to use a different config.
+            # Note: Custom keys in this file (disable_nav1, nav1_camera_serial
+            # etc.) are read by OpaqueFunction only and are not passed to
+            # camera nodes, avoiding unsupported parameter warnings.
             DeclareLaunchArgument(
                 "params_file",
                 default_value=camera_config,

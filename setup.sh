@@ -69,12 +69,13 @@ echo "=== Installing Orbbec udev rules ==="
 #   - From ROS source build:   ${REPO_ROOT}/third_party/OrbbecSDK_ROS2/orbbec_camera/scripts/
 #   - From pyorbbecsdk:        ${HOME}/pyorbbecsdk/scripts/env_setup/
 ORBBEC_UDEV_RULES=""
+REAL_HOME=$(eval echo ~${SUDO_USER:-$USER})
 SEARCH_PATHS=(
     "/opt/ros/humble/share/orbbec_camera/scripts/99-obsensor-libusb.rules"
     "/opt/ros/humble/lib/orbbec_camera/orbbec_camera/scripts/99-obsensor-libusb.rules"
     "${REPO_ROOT}/third_party/OrbbecSDK_ROS2/orbbec_camera/scripts/99-obsensor-libusb.rules"
-    "${HOME}/ros2_ws/src/OrbbecSDK_ROS2/orbbec_camera/scripts/99-obsensor-libusb.rules"
-    "${HOME}/pyorbbecsdk/scripts/env_setup/99-obsensor-libusb.rules"
+    "${REAL_HOME}/ros2_ws/src/OrbbecSDK_ROS2/orbbec_camera/scripts/99-obsensor-libusb.rules"
+    "${REAL_HOME}/pyorbbecsdk/scripts/env_setup/99-obsensor-libusb.rules"
 )
 for path in "${SEARCH_PATHS[@]}"; do
     if [ -f "${path}" ]; then

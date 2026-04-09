@@ -29,7 +29,7 @@ SEQ_NUM_MOTORS = 8
 # Increase for slower/smoother motion, decrease for snappier response.
 # *** TUNE to your preference. ***
 SEAT_MOVE_DURATION_MS = 1000
-CALIBRATION_PWM = -.2
+CALIBRATION_PWM = -0.2
 
 # Per-command relative deltas (encoder ticks) for each motor.
 # Order: [RC, FC, ML, MR, ML_CARRIAGE, MR_CARRIAGE, DRIVE_FB, DRIVE_LR]

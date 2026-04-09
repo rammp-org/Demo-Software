@@ -398,8 +398,8 @@ bool cal_done[CAL_NUM_MOTORS] = {};
 void startCalibration(float pwm) {
   cal_start_ms = millis();
   cal_pwm = pwm;
-  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage,
-                                       &mr_carriage};
+  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc,          &ml,
+                                       &mr, &ml_carriage, &mr_carriage};
   for (int i = 0; i < CAL_NUM_MOTORS; i++) {
     cal_done[i] = false;
     cal_motors[i]->setMode(Motor::OPEN_LOOP);
@@ -411,8 +411,8 @@ void startCalibration(float pwm) {
 }
 
 void runCalibration(float dt) {
-  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage,
-                                       &mr_carriage};
+  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc,          &ml,
+                                       &mr, &ml_carriage, &mr_carriage};
   unsigned long elapsed = millis() - cal_start_ms;
   bool all_done = true;
 
@@ -448,8 +448,7 @@ void runCalibration(float dt) {
       cal_motors[i]->disable();
       if (i == 4 || i == 5) {
         cal_motors[i]->updateLimits(100, cal_motors[i]->pos_limit_max);
-      }
-      else {
+      } else {
         cal_motors[i]->updateLimits(20, cal_motors[i]->pos_limit_max);
       }
     }
@@ -459,8 +458,8 @@ void runCalibration(float dt) {
 }
 
 void abortCalibration() {
-  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc, &ml, &mr, &ml_carriage,
-                                       &mr_carriage};
+  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc,          &ml,
+                                       &mr, &ml_carriage, &mr_carriage};
   for (int i = 0; i < CAL_NUM_MOTORS; i++)
     cal_motors[i]->disable();
   current_state = IDLE;

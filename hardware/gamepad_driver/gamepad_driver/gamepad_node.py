@@ -119,14 +119,8 @@ class gamepadNode(Node):
             self.get_logger().info("Service call failed")
 
     def joy_callback(self, msg):  # includes twist publishing
-        # --- PRINTING AXES ---
-        # axes_str = " | ".join(
-        #     [f"Axis {i}: {val:.2f}" for i, val in enumerate(msg.axes)]
-        # )
-        # self.get_logger().info(f"Readings: {axes_str}")
         try:
             # --- Arm Control (Twist) ---
-            # twist = Twist() Not used anywhere??
             scale = 0.2  # Max linear speed (m/s)
             ang_scale = 20.0  # rad/s
 
@@ -137,9 +131,9 @@ class gamepadNode(Node):
                 msg.axes[0] = 0.0
 
             # lessen sensitivity of right joystick x and y
-            if abs(msg.axes[2]) - abs(msg.axes[3]) > 0.5:
+            if abs(msg.axes[2]) - abs(msg.axes[3]) > 0.8:
                 msg.axes[3] = 0.0
-            elif abs(msg.axes[3]) - abs(msg.axes[2]) > 0.5:
+            elif abs(msg.axes[3]) - abs(msg.axes[2]) > 0.8:
                 msg.axes[2] = 0.0
 
             final_twist = Twist()

@@ -273,9 +273,9 @@ def generate_launch_description():
             ),
             # ── Config file — defaults to camera_demo_main.yaml ───────────
             # Override with params_file:=<path> to use a different config.
-            # Note: Custom keys in this file (disable_nav1, nav1_camera_serial
-            # etc.) are read by OpaqueFunction only and are not passed to
-            # camera nodes, avoiding unsupported parameter warnings.
+            # Note: The top-level keys in this file (disable_realsense,
+            # disable_nav1, disable_nav2) are read by OpaqueFunction only and
+            # are not passed to camera nodes, avoiding unsupported parameter warnings.
             DeclareLaunchArgument(
                 "params_file",
                 default_value=camera_config,

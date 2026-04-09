@@ -95,6 +95,20 @@ def generate_launch_description():
         if cli_nav2_serial:
             nav2_serial = cli_nav2_serial
 
+        # Remove our custom args from the launch context so they don't leak
+        # into sub-launch files (RealSense, Orbbec) and cause "unsupported
+        # parameter" warnings. All values have already been extracted above.
+        for key in [
+            "params_file",
+            "disable_realsense",
+            "disable_nav1",
+            "disable_nav2",
+            "wrist_camera_serial",
+            "nav1_camera_serial",
+            "nav2_camera_serial",
+        ]:
+            context.launch_configurations.pop(key, None)
+
         actions = []
 
         # ── Wrist camera (RealSense D435i) ────────────────────────────────
@@ -114,8 +128,8 @@ def generate_launch_description():
                                 "camera_name": wrist_camera_name,
                                 "serial_no": wrist_serial,
                                 "base_frame_id": wrist_base_frame,
-                                "rgb_camera.profile": "640x480x30",
-                                "depth_module.profile": "640x480x30",
+                                "rgb_camera.color_profile": "640x480x30",
+                                "depth_module.depth_profile": "640x480x30",
                                 "align_depth.enable": "true",
                                 "enable_gyro": "true",
                                 "enable_accel": "true",
@@ -179,21 +193,6 @@ def generate_launch_description():
                             }.items(),
                         ),
                     ]
-                )
-            )
-            actions.append(
-                Node(
-                    package='rammp_prototype_utils',
-                    executable='image_rotate_node',
-                    name='image_rotate_nav1',
-                    remappings=[
-                        ('image_raw',           '/camera/nav1/color/image_raw'),
-                        ('image_rotated',       '/camera/nav1/color/image_rotated'),
-                        ('camera_info',         '/camera/nav1/color/camera_info'),
-                        ('camera_info_rotated', '/camera/nav1/color/camera_info_rotated'),
-                    ],
-                    parameters=[{'rotation_degrees': 90}],
-                    output='screen'
                 )
             )
 
@@ -303,9 +302,9 @@ def generate_launch_description():
             ),
             # ── Config file — defaults to camera_demo_main.yaml ───────────
             # Override with params_file:=<path> to use a different config.
-            # Note: Custom keys in this file (disable_nav1, nav1_camera_serial
-            # etc.) are read by OpaqueFunction only and are not passed to
-            # camera nodes, avoiding unsupported parameter warnings.
+            # Note: The top-level keys in this file (disable_realsense,
+            # disable_nav1, disable_nav2) are read by OpaqueFunction only and
+            # are not passed to camera nodes, avoiding unsupported parameter warnings.
             DeclareLaunchArgument(
                 "params_file",
                 default_value=camera_config,

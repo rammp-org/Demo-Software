@@ -639,17 +639,13 @@ class GuiBridge(Node):
                         "cy": cy,
                     }
                     if extrinsics is not None:
-                        # from rotation matrix to get Euler angles
-                        roll, pitch, yaw = rotation_matrix_to_euler_zyx(
-                            np.array(extrinsics.rotation).reshape(3, 3)
-                        )
                         meta["transform"] = {
-                            "x": extrinsics.translation.x,
-                            "y": extrinsics.translation.y,
-                            "z": extrinsics.translation.z,
-                            "pitch": pitch,
-                            "roll": roll,
-                            "yaw": yaw,
+                            "x": extrinsics.location.x,
+                            "y": extrinsics.location.y,
+                            "z": extrinsics.location.z,
+                            "pitch": extrinsics.rotation.x,
+                            "roll": extrinsics.rotation.z,
+                            "yaw": extrinsics.rotation.y,
                         }
                         meta["transform_space"] = "relative"
                     self.stream_sender.send_image(
@@ -696,17 +692,13 @@ class GuiBridge(Node):
                         "cy": cy,
                     }
                     if extrinsics is not None:
-                        # from rotation matrix to get Euler angles
-                        roll, pitch, yaw = rotation_matrix_to_euler_zyx(
-                            np.array(extrinsics.rotation).reshape(3, 3)
-                        )
                         meta["transform"] = {
-                            "x": extrinsics.translation.x,
-                            "y": extrinsics.translation.y,
-                            "z": extrinsics.translation.z,
-                            "pitch": pitch,
-                            "roll": roll,
-                            "yaw": yaw,
+                            "x": extrinsics.location.x,
+                            "y": extrinsics.location.y,
+                            "z": extrinsics.location.z,
+                            "pitch": extrinsics.rotation.x,
+                            "roll": extrinsics.rotation.z,
+                            "yaw": extrinsics.rotation.y,
                         }
                         meta["transform_space"] = "relative"
                     self.stream_sender.send_depth_uint16(

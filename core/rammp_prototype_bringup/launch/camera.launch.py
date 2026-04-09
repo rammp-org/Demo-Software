@@ -195,6 +195,21 @@ def generate_launch_description():
                     ]
                 )
             )
+            actions.append(
+                Node(
+                    package='rammp_prototype_utils',
+                    executable='image_rotate_node',
+                    name='image_rotate_nav1',
+                    remappings=[
+                        ('image_raw',           '/camera/nav1/color/image_raw'),
+                        ('image_rotated',       '/camera/nav1/color/image_rotated'),
+                        ('camera_info',         '/camera/nav1/color/camera_info'),
+                        ('camera_info_rotated', '/camera/nav1/color/camera_info_rotated'),
+                    ],
+                    parameters=[{'rotation_degrees': 90}],
+                    output='screen'
+                )
+            )
 
         # ── Nav2 shoulder camera (Orbbec Gemini 336L) ─────────────────────
         # Second Orbbec camera mounted on the shoulder of the robot.
@@ -257,7 +272,7 @@ def generate_launch_description():
                         ('camera_info',         '/camera/nav2/color/camera_info'),
                         ('camera_info_rotated', '/camera/nav2/color/camera_info_rotated'),
                     ],
-                    parameters=[{'rotation_degrees': -90}],
+                    parameters=[{'rotation_degrees': 90}],
                     output='screen'
                 )
             )

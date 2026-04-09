@@ -32,6 +32,10 @@
 // cleared so the telemetry PWM output (read by the RNET joystick spoofer)
 // stays exactly zero rather than hunting.
 #define DRIVE_DEADZONE_TICKS 300.0f
+
+#define CAL_NUM_MOTORS 6
+#define CAL_MIN_DRIVE_MS 3000
+#define CAL_VEL_THRESHOLD 2.0f
 // TODO: Make DEBUG_MODE runtime-configurable via serial command
 
 // SystemState enum and SystemTelemetry struct moved to
@@ -382,6 +386,87 @@ void saveMotorConfig(int motor_id, Motor *m) {
   ConfigStorage::saveMotorConfig(motor_id, conf);
 }
 
+// --- Calibration ---
+// Drives all 6 actuated motors open-loop until they stall against their
+// mechanical limits, then zeros the encoders. Requires at least
+// CAL_MIN_DRIVE_MS of driving before checking for stall.
+
+unsigned long cal_start_ms = 0;
+float cal_pwm = 0.0f;
+bool cal_done[CAL_NUM_MOTORS] = {};
+
+void startCalibration(float pwm) {
+  cal_start_ms = millis();
+  cal_pwm = pwm;
+  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc,          &ml,
+                                       &mr, &ml_carriage, &mr_carriage};
+  for (int i = 0; i < CAL_NUM_MOTORS; i++) {
+    cal_done[i] = false;
+    cal_motors[i]->setMode(Motor::OPEN_LOOP);
+    cal_motors[i]->updateLimits(-9999999, cal_motors[i]->pos_limit_max);
+    cal_motors[i]->setTargetPWM(cal_pwm);
+  }
+  if (DEBUG_MODE)
+    Serial.println("CAL: Started calibration");
+}
+
+void runCalibration(float dt) {
+  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc,          &ml,
+                                       &mr, &ml_carriage, &mr_carriage};
+  unsigned long elapsed = millis() - cal_start_ms;
+  bool all_done = true;
+
+  for (int i = 0; i < CAL_NUM_MOTORS; i++) {
+    if (cal_done[i])
+      continue;
+
+    all_done = false;
+
+    if (elapsed >= CAL_MIN_DRIVE_MS &&
+        fabsf(cal_motors[i]->current_vel) < CAL_VEL_THRESHOLD) {
+      cal_motors[i]->setTargetPWM(0);
+
+      int enc_idx = motor_map[i].encoder_index;
+      EContr.zeroEncoder(enc_idx);
+      cal_motors[i]->pos_pid.reset();
+      cal_motors[i]->vel_pid.reset();
+      cal_motors[i]->target_pos = 0;
+      cal_motors[i]->current_pos = 0;
+      cal_motors[i]->prev_pos = 0;
+
+      cal_done[i] = true;
+
+      if (DEBUG_MODE) {
+        Serial.print("CAL: Homed ");
+        Serial.println(motor_map[i].name);
+      }
+    }
+  }
+
+  if (all_done) {
+    for (int i = 0; i < CAL_NUM_MOTORS; i++) {
+      cal_motors[i]->disable();
+      if (i == 4 || i == 5) {
+        cal_motors[i]->updateLimits(100, cal_motors[i]->pos_limit_max);
+      } else {
+        cal_motors[i]->updateLimits(20, cal_motors[i]->pos_limit_max);
+      }
+    }
+    current_state = IDLE;
+    Serial.println("CAL_DONE");
+  }
+}
+
+void abortCalibration() {
+  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc,          &ml,
+                                       &mr, &ml_carriage, &mr_carriage};
+  for (int i = 0; i < CAL_NUM_MOTORS; i++)
+    cal_motors[i]->disable();
+  current_state = IDLE;
+  if (DEBUG_MODE)
+    Serial.println("CAL: Aborted");
+}
+
 void setup() {
   Serial.begin(460800);  // jetson
   Serial3.begin(460800); // roboclaw 1
@@ -572,6 +657,13 @@ void loop() {
       // B2:1 / B2:0 — enable or disable auto-run
       sequenceSetAutoRun(cmd.value > 0.5f);
     }
+  } else if (cmd.type == CMD_CALIBRATE) {
+    if (cmd.value != 0.0f) {
+      current_state = CALIBRATING;
+      startCalibration(cmd.value);
+    } else if (current_state == CALIBRATING) {
+      abortCalibration();
+    }
   } else if (cmd.type == CMD_LEVEL_MODE) {
     if (cmd.value > 0.5) {
       current_state = SELF_LEVELING;
@@ -659,6 +751,8 @@ void loop() {
         &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7:
                                              // velocity-mode (drive wheels)
     sequenceUpdate(seq_motors);
+  } else if (current_state == CALIBRATING) {
+    runCalibration(dt);
   }
 
   float rc_pwm = rc.update(dt);

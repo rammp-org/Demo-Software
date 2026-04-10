@@ -7,14 +7,21 @@
 # Usage:
 #   ros2 launch rammp_prototype_bringup camera.launch.py \
 #       params_file:=$(ros2 pkg prefix rammp_prototype_bringup \
-#           --share)/config/camera_nav.yaml
+#               --share)/config/camera_nav.yaml
 # ============================================================
 
 disable_realsense: true
-disable_orbbec: false
+disable_nav1: false
+disable_nav2: false
 
-/camera/nav:
+/camera/nav1:
   ros__parameters:
-    camera_name: "nav"
-    base_frame_id: "nav_camera_link"
-    serial_number: ""
+    camera_name: "nav1"
+    base_frame_id: "nav1_camera_link"
+    serial_number: "CPCG8530003P"
+
+/camera/nav2:
+  ros__parameters:
+    camera_name: "nav2"
+    base_frame_id: "nav2_camera_link"
+    serial_number: "CPCG853000HF"

@@ -7,10 +7,10 @@
       "name": "/system_control"
     },
     {
-      "name": "/drinking_node"
+      "name": "/drink_action_server"
     },
     {
-      "name": "/open_door_node"
+      "name": "/button_push_controller"
     },
     {
       "name": "/cup_stabilizer_node"
@@ -20,6 +20,12 @@
     },
     {
       "name": "/perception_curb_detection_node"
+    },
+    {
+      "name": "/Gui_bridge_node"
+    },
+    {
+      "name": "/button_detector"
     }
   ]
 }

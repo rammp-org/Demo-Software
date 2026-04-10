@@ -8,6 +8,7 @@ from ament_index_python.packages import get_package_share_directory
 import rclpy
 import serial
 from rammp_prototype_interfaces.action import CurbTraverse
+from rammp_prototype_interfaces.action import Calibration
 from rammp_prototype_interfaces.msg import SeatCommand
 from luci_messages.msg import LuciJoystick
 
@@ -65,6 +66,7 @@ def _compute_zone(fb: int, lr: int) -> int:
 # Keyframe stuff
 
 SEAT_MOVE_DURATION_MS = 1000
+CALIBRATION_PWM = -0.2
 
 SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.RAISE: [70.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
@@ -229,6 +231,9 @@ class MEBotControlNode(Node):
         self.prev_speed_MR = 0.0
         self.current_speed_MR = 0.0
 
+        self.cal_joints_done = 0
+        self.cal_complete = False
+
         # drive wheel velocities
         self.fb_pwm = 0.0
         self.test_pwm = 0
@@ -261,6 +266,10 @@ class MEBotControlNode(Node):
         # actions
         self.curb_traverse_action = ActionServer(
             self, CurbTraverse, "curb_traverse", self.curb_traverse_action_callback
+        )
+
+        self.calibrate_action = ActionServer(
+            self, Calibration, "calibrate", self.calibrate_motors_callback
         )
 
     def _init_subscribers(self):
@@ -319,6 +328,10 @@ class MEBotControlNode(Node):
                     self.current_seq = int(split_data[1])
                     self.seq_length = int(split_data[2])
                     self.seq_mode = int(split_data[3].strip())
+                if raw_data.startswith("CAL: Homed"):
+                    self.cal_joints_done += 1
+                elif raw_data == "CAL_DONE":
+                    self.cal_complete = True
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -559,6 +572,39 @@ class MEBotControlNode(Node):
             return
         self.get_logger().error("Service call failed")
 
+    def calibrate_motors_callback(self, goal):
+        result = Calibration.Result()
+
+        if not goal.request.enable:
+            goal.succeed()
+            result.success = False
+            result.message = "Calibration not enabled"
+            return result
+
+        self.cal_joints_done = 0
+        self.cal_complete = False
+        self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
+        self.get_logger().info("Calibration started via firmware W0 command")
+
+        feedback_msg = Calibration.Feedback()
+
+        while not self.cal_complete:
+            if goal.is_cancel_requested:
+                self.write_serial_data("W0:0\n")
+                goal.canceled()
+                result.success = False
+                result.message = "Calibration cancelled"
+                return result
+
+            feedback_msg.joints_calibrated = self.cal_joints_done
+            goal.publish_feedback(feedback_msg)
+            time.sleep(0.1)
+
+        goal.succeed()
+        result.success = True
+        result.message = f"Calibrated {self.cal_joints_done}/6 joints"
+        return result
+
     def _send_joystick(self):
         msg = LuciJoystick()
         msg.forward_back = self.fb_pwm
@@ -600,7 +646,11 @@ class MEBotControlNode(Node):
                 result.success = False
                 return result
 
-            feedback_msg.current_seq = self.current_seq
+            feedback_msg.progress = (
+                self.current_seq * 100.0 / float(self.seq_length)
+                if self.seq_length > 0
+                else 0.0
+            )
             goal.publish_feedback(feedback_msg)
 
             time.sleep(0.05)
@@ -626,11 +676,9 @@ class MEBotControlNode(Node):
 
     def self_level_enable_callback(self, request, response):
         if request.data:
-            self.write_serial_data("s\n")
-            pass
+            self.write_serial_data("L1:1\n")
         else:
-            self.write_serial_data("r\n")
-            pass
+            self.write_serial_data("L1:0\n")
 
         response.success = True  # just acknowledges request recieved and sent
         return response

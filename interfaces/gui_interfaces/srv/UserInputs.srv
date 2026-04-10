@@ -1,0 +1,65 @@
+
+# chair control / entry points
+string CHAIR_CONTROL_MAIN="chair/main"
+
+# chair features
+string CHAIR_SELFLEVELING_ON="chair/selfLeveling/on"
+string CHAIR_SELFLEVELING_OFF="chair/selfLeveling/off"
+string CHAIR_SEAT_ELEVATE_UP="chair/seat/elevate/up"
+string CHAIR_SEAT_ELEVATE_DOWN="chair/seat/elevate/down"
+string CHAIR_SEAT_ELEVATE_HOME="chair/seat/elevate/home"
+string CHAIR_SEAT_RECLINE_FORWARD="chair/seat/recline/forward"
+string CHAIR_SEAT_RECLINE_BACK="chair/seat/recline/back"
+string CHAIR_SEAT_RECLINE_HOME="chair/seat/recline/home"
+string CHAIR_SEAT_LTILT_LEFT="chair/seat/lateralTilt/left"
+string CHAIR_SEAT_LTILT_RIGHT="chair/seat/lateralTilt/right"
+string CHAIR_SEAT_LTILT_HOME="chair/seat/lateralTilt/home"
+string CHAIR_SEAT_HOME="chair/seat/home"
+
+
+# curb navigation
+string CHAIR_CURB_NAVIGATION="chair/curb/navigation"
+string CHAIR_CURB_ASCEND="chair/curb/ascend"
+string CHAIR_CURB_DESCEND="chair/curb/descend"
+string CHAIR_CURB_CANCEL="chair/curb/cancel"
+
+# arm control / entry points
+string ARM_CONTROL_MAIN="arm/main"
+
+# arm modes / tasks
+string ARM_RETRACT="arm/retract"
+string ARM_HOME="arm/home"
+string ARM_MANUAL_ON="arm/manual/on"
+string ARM_MANUAL_OFF="arm/manual/off"
+# arm/open door
+string ARM_OPEN_DOOR="arm/openDoor/start"
+string ARM_OPEN_DOOR_CONFIRM="arm/openDoor/confirm"
+# arm/order drink
+string ARM_ORDER_DRINK="arm/orderDrink/start"
+string ARM_ORDER_DRINK_RELEASE_CUP="arm/orderDrink/releaseCup"
+string ARM_ORDER_DRINK_RECEIVE="arm/orderDrink/receive/start"
+string ARM_ORDER_DRINK_RECEIVE_CONFIRM="arm/orderDrink/receive/confirm"
+# arm/cup stabilize
+string ARM_CUP_STABLE_ON="arm/cupStable/on"
+string ARM_CUP_STABLE_OFF="arm/cupStable/off"
+# arm/sipping drink
+string ARM_DRINKING_START="arm/drinking/start"
+string ARM_DRINKING_FINISH="arm/drinking/finish"
+# arm/place cup back to holder
+string ARM_CUP_BACK="arm/cup/back"
+# general arm cancel
+string ARM_CANCEL="arm/cancel"
+
+# System
+string RESET="system/reset"
+string ESTOP="system/stop"
+string CONFIRM="system/confirm"
+string CANCEL="system/cancel"
+
+
+# Request message
+string input
+---
+# Response message
+bool success
+string message

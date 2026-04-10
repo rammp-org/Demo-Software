@@ -1,0 +1,8 @@
+bool enable
+---
+# Result
+bool success
+string message
+---
+# Feedback
+int32 joints_calibrated

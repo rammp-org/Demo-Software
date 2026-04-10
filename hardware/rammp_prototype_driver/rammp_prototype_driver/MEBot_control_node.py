@@ -578,7 +578,7 @@ class MEBotControlNode(Node):
         if goal.direction == 1:
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/curb_ascending.json"
+                + "/config/dry_run_seq.json"
             )
         else:
             json_path = (

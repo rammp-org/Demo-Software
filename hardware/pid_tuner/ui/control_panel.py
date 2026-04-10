@@ -1330,7 +1330,7 @@ class ControlPanel(QWidget):
             QMessageBox.warning(self, "Empty Sequence", "No keyframes found in file.")
             return
 
-        from .sequence_editor import Keyframe, NUM_MOTORS
+        from ..serial_driver.keyframe import Keyframe, NUM_MOTORS
 
         keyframes = [Keyframe.from_dict(d) for d in keyframes_data]
 
@@ -1451,7 +1451,7 @@ class ControlPanel(QWidget):
             QMessageBox.warning(self, "Empty Sequence", "No keyframes found in file.")
             return
 
-        from .sequence_editor import Keyframe, NUM_MOTORS
+        from ..serial_driver.keyframe import Keyframe, NUM_MOTORS
 
         keyframes = [Keyframe.from_dict(d) for d in keyframes_data]
 

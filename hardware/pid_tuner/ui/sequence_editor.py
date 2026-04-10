@@ -32,15 +32,13 @@ from PyQt6.QtGui import QColor, QFont, QBrush
 
 from ..data.data_store import DataStore
 from ..serial_driver.serial_handler import SerialHandler
+from ..serial_driver.keyframe import Keyframe, NUM_MOTORS
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
 
 
-# Motor names in order (matching firmware motor array)
 MOTOR_NAMES = ["RC", "FC", "ML", "MR", "ML_Car", "MR_Car", "Drive_FB", "Drive_LR"]
-NUM_MOTORS = 8
 
-# Column indices in the QTableWidget
 COL_LABEL = 0
 COL_RC = 1
 COL_FC = 2
@@ -52,55 +50,7 @@ COL_DRIVE_FB = 7
 COL_DRIVE_LR = 8
 NUM_COLS = 9
 
-# Sentinel for "inactive" cells (motor not controlled in this keyframe)
 INACTIVE_TEXT = "--"
-
-
-class Keyframe:
-    def __init__(self):
-        self.label: str = ""
-        self.targets: List[Optional[float]] = [None] * NUM_MOTORS
-        self.duration_ms: int = 1000
-        self.relative: List[bool] = [False] * NUM_MOTORS
-        self.motor_durations: List[Optional[int]] = [None] * NUM_MOTORS
-
-    def is_active(self, motor_idx: int) -> bool:
-        return self.targets[motor_idx] is not None
-
-    def to_dict(self) -> dict:
-        return {
-            "label": self.label,
-            "targets": [t if t is not None else None for t in self.targets],
-            "duration_ms": self.duration_ms,
-            "relative": self.relative,
-            "motor_durations": [
-                d if d is not None else None for d in self.motor_durations
-            ],
-        }
-
-    @classmethod
-    def from_dict(cls, d: dict) -> "Keyframe":
-        kf = cls()
-        kf.label = d.get("label", "")
-        raw_targets = d.get("targets", [None] * NUM_MOTORS)
-        while len(raw_targets) < NUM_MOTORS:
-            raw_targets.append(None)
-        kf.targets = [
-            (float(t) if t is not None else None) for t in raw_targets[:NUM_MOTORS]
-        ]
-        kf.duration_ms = int(d.get("duration_ms", 1000))
-        raw_relative = d.get("relative", [False] * NUM_MOTORS)
-        while len(raw_relative) < NUM_MOTORS:
-            raw_relative.append(False)
-        kf.relative = [bool(r) for r in raw_relative[:NUM_MOTORS]]
-        raw_motor_durations = d.get("motor_durations", [None] * NUM_MOTORS)
-        while len(raw_motor_durations) < NUM_MOTORS:
-            raw_motor_durations.append(None)
-        kf.motor_durations = [
-            (max(0, int(float(v))) if v is not None else None)
-            for v in raw_motor_durations[:NUM_MOTORS]
-        ]
-        return kf
 
 
 class SequenceEditor(QWidget):

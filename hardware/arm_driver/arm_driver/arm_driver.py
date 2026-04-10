@@ -1,3 +1,4 @@
+import concurrent.futures
 import enum
 import time
 
@@ -6,7 +7,12 @@ import rclpy
 import rclpy.action
 import rclpy.node
 from arm_interfaces.action import ExecuteTrajectory, ReachPreset
-from arm_interfaces.srv import GetSpeedPreset, SetMode, SetSpeedPreset
+from arm_interfaces.srv import (
+    CheckReachability,
+    GetSpeedPreset,
+    SetMode,
+    SetSpeedPreset,
+)
 from diagnostic_msgs.msg import DiagnosticStatus
 from geometry_msgs.msg import PoseStamped, Twist, TwistStamped, Vector3Stamped
 from rclpy.action import ActionServer
@@ -88,9 +94,6 @@ class ArmDriverNode(rclpy.node.Node):
         self._state = ArmState.IDLE
         self._error_reason: str = ""
         self._arm: KinovaArm | None = None
-        self._latest_twist: Twist | None = None
-        self._latest_twist_time: float = 0.0
-
         # ReentrantCallbackGroup allows action/service callbacks to run concurrently
         # with the rest of the node (timers, subscribers) on the MultiThreadedExecutor,
         # so that blocking service/action handlers don't starve the joint_states timer.
@@ -193,6 +196,12 @@ class ArmDriverNode(rclpy.node.Node):
             self._on_close_gripper,
             callback_group=self._service_group,
         )
+        self._check_reachability_srv = self.create_service(
+            CheckReachability,
+            "/arm/check_reachability",
+            self._on_check_reachability,
+            callback_group=self._service_group,
+        )
 
     def _init_actions(self):
         """Create all ROS action servers."""
@@ -218,11 +227,9 @@ class ArmDriverNode(rclpy.node.Node):
         ]
 
     def _init_timers(self):
-        """Create periodic timers for state publishing and twist streaming."""
+        """Create periodic timers for state publishing."""
         self.create_timer(0.01, self._publish_joint_states)  # 100 Hz
         self.create_timer(1.0, self._publish_status)  # 1 Hz
-        self._twist_timer = self.create_timer(0.025, self._stream_twist)  # 40 Hz
-        self._twist_timer.cancel()  # only active while in a TWIST state
 
     def _init_arm(self):
         """Connect to the Kinova arm. Transitions to ERROR on failure."""
@@ -241,32 +248,19 @@ class ArmDriverNode(rclpy.node.Node):
     def _transition_to(self, new_state: ArmState):
         """Transition the node to a new state, logging the change.
 
-        If leaving a TWIST state, clears the cached twist so the streaming timer
-        stops sending commands.
-
         Args:
             new_state: The state to transition to.
         """
         self.get_logger().info(f"State: {self._state.name} -> {new_state.name}")
 
         if self._arm:
-            self._arm.stop()
-
-        old_mode = COMMAND_MODE.get(self._state)
-        new_mode = COMMAND_MODE.get(new_state)
-
-        if self._arm and new_mode == CommandMode.TWIST:
-            self._arm.set_arm_servoing_mode("high")
-
-        if old_mode != CommandMode.TWIST and new_mode == CommandMode.TWIST:
-            pass  # stream timer not used — twist sent directly in _handle_twist
-            # self._twist_timer.reset()
-
-        elif new_mode != CommandMode.TWIST:
-            self._twist_timer.cancel()
-            # Clear the twist cache when leaving a TWIST state so the arm stops if we re-enter a TWIST state without receiving a new command
-            self._latest_twist = None
-            self._latest_twist_time = 0.0
+            try:
+                self._arm.stop()
+            except Exception as e:
+                self.get_logger().warn(
+                    f"stop() failed during state transition — continuing: {e}",
+                    throttle_duration_sec=1.0,
+                )
 
         self._state = new_state
 
@@ -298,15 +292,24 @@ class ArmDriverNode(rclpy.node.Node):
         Args:
             msg: Desired end-effector linear and angular velocity.
         """
-        # Cache retained for potential watchdog / stream-timer re-enable later
-        self._latest_twist = msg
-        self._latest_twist_time = time.monotonic()
-
         if self._arm:
-            self._arm.send_twist(
-                [msg.linear.x, msg.linear.y, msg.linear.z],
-                [msg.angular.x, msg.angular.y, msg.angular.z],
-            )
+            try:
+                self._arm.send_twist(
+                    [msg.linear.x, msg.linear.y, msg.linear.z],
+                    [msg.angular.x, msg.angular.y, msg.angular.z],
+                )
+            except Exception as e:
+                self.get_logger().warn(
+                    f"send_twist failed ({e!r}) — stopping arm to prevent runaway motion",
+                    throttle_duration_sec=1.0,
+                )
+                try:
+                    self._arm.stop()
+                except Exception as stop_exc:
+                    self.get_logger().warn(
+                        f"stop() also failed after send_twist error ({stop_exc!r})",
+                        throttle_duration_sec=1.0,
+                    )
 
     def _handle_joint_position(self, msg: JointState):
         """Command the arm to a target joint position (HIGH_LEVEL).
@@ -314,7 +317,15 @@ class ArmDriverNode(rclpy.node.Node):
         Args:
             msg: Desired joint positions in ``msg.position`` (radians).
         """
-        self._arm.move_angular(list(msg.position), blocking=False)
+        if not self._arm:
+            return
+        try:
+            self._arm.move_angular(list(msg.position), blocking=False)
+        except Exception as e:
+            self.get_logger().warn(
+                f"move_angular failed ({e!r}) — skipping command",
+                throttle_duration_sec=1.0,
+            )
 
     def _handle_cartesian_pose(self, msg: PoseStamped):
         """Command the arm to a target end-effector Cartesian pose (HIGH_LEVEL).
@@ -322,35 +333,19 @@ class ArmDriverNode(rclpy.node.Node):
         Args:
             msg: Desired end-effector pose in Cartesian space.
         """
-        p = msg.pose.position
-        q = msg.pose.orientation
-        self._arm.move_cartesian([p.x, p.y, p.z], [q.x, q.y, q.z, q.w], blocking=False)
-
-    def _stream_twist(self):
-        """Send the latest cached twist command to the arm at 40 Hz.
-
-        Only active while in a TWIST state (timer is cancelled otherwise). Acts as a
-        watchdog: if no fresh twist has been received within 200 ms, sends a
-        zero-velocity command and clears the cache so the arm comes to a stop.
-        """
         if not self._arm:
             return
-
-        # now = time.monotonic()
-        # if now - self._latest_twist_time > 0.2:
-        #     # Watchdog expired — stop the arm and clear the cache
-        #     self._arm.send_twist([0.0, 0.0, 0.0], [0.0, 0.0, 0.0])
-        #     self._latest_twist = None
-        #     return
-
-        # if self._latest_twist is None:
-        #     return
-
-        # msg = self._latest_twist
-        # self._arm.send_twist(
-        #     [msg.linear.x, msg.linear.y, msg.linear.z],
-        #     [msg.angular.x, msg.angular.y, msg.angular.z],
-        # )
+        p = msg.pose.position
+        q = msg.pose.orientation
+        try:
+            self._arm.move_cartesian(
+                [p.x, p.y, p.z], [q.x, q.y, q.z, q.w], blocking=False
+            )
+        except Exception as e:
+            self.get_logger().warn(
+                f"move_cartesian failed ({e!r}) — skipping command",
+                throttle_duration_sec=1.0,
+            )
 
     # -------------------------------------------------------------------------
     # Subscribers
@@ -433,7 +428,12 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = "Arm not connected"
             return response
 
-        self._arm.choose_from_speed_presets(preset)
+        try:
+            self._arm.choose_from_speed_presets(preset)
+        except Exception as e:
+            response.success = False
+            response.message = f"Failed to set speed preset: {e}"
+            return response
         self.get_logger().info(f"Speed preset set to '{preset.name}'.")
         response.success = True
         response.message = f"Speed preset set to '{preset.name}'"
@@ -520,6 +520,42 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = str(e)
         return response
 
+    def _on_check_reachability(self, request, response):
+        """Handle a /arm/check_reachability service request.
+
+        Calls Kortex's ComputeInverseKinematics with the target pose and the
+        arm's current joint angles as the IK seed.  Returns reachable=True if
+        the solver finds a valid joint configuration, False otherwise.
+
+        Args:
+            request: Service request containing ``target_pose`` (geometry_msgs/Pose).
+            response: Service response with ``reachable`` (bool) and ``message`` (string).
+
+        Returns:
+            The populated service response.
+        """
+        if not self._arm:
+            response.reachable = False
+            response.message = "Arm not connected"
+            return response
+
+        p = request.target_pose.position
+        q = request.target_pose.orientation
+        try:
+            ik_result = self._arm.compute_ik([p.x, p.y, p.z], [q.x, q.y, q.z, q.w])
+            response.reachable = True
+            response.message = "IK solution found"
+            import math
+
+            response.joint_angles = [
+                math.radians(j.value) for j in ik_result.joint_angles
+            ]
+        except Exception as e:
+            response.reachable = False
+            response.message = f"IK failed: {e}"
+            response.joint_angles = []
+        return response
+
     # -------------------------------------------------------------------------
     # Action handlers
     # -------------------------------------------------------------------------
@@ -542,6 +578,7 @@ class ArmDriverNode(rclpy.node.Node):
         try:
             arm_fn(blocking=False)
             feedback = ReachPreset.Feedback()
+            deadline = time.monotonic() + KinovaArm.ACTION_TIMEOUT_DURATION
             while not self._arm.ready():
                 if self._state == ArmState.ERROR:
                     goal_handle.abort()
@@ -549,7 +586,26 @@ class ArmDriverNode(rclpy.node.Node):
                     result.success = False
                     result.message = self._error_reason
                     return result
-                state = self._arm.get_state()
+                if time.monotonic() >= deadline:
+                    self.get_logger().error(
+                        "Reference action timed out waiting for arm ready signal"
+                    )
+                    self._error_reason = "Reference action timed out"
+                    self._transition_to(ArmState.ERROR)
+                    goal_handle.abort()
+                    result = ReachPreset.Result()
+                    result.success = False
+                    result.message = self._error_reason
+                    return result
+                try:
+                    state = self._arm.get_state()
+                except Exception as e:
+                    self.get_logger().warn(
+                        f"get_state() failed in feedback loop ({e!r}) — skipping cycle",
+                        throttle_duration_sec=1.0,
+                    )
+                    time.sleep(FEEDBACK_RATE)
+                    continue
                 feedback.joint_states.header.stamp = self.get_clock().now().to_msg()
                 feedback.joint_states.position = state["position"].tolist()
                 feedback.joint_states.velocity = state["velocity"].tolist()
@@ -636,8 +692,34 @@ class ArmDriverNode(rclpy.node.Node):
         try:
             self._arm.move_angular_trajectory(waypoints, blocking=False)
             feedback = ExecuteTrajectory.Feedback()
+            deadline = time.monotonic() + KinovaArm.ACTION_TIMEOUT_DURATION
             while not self._arm.ready():
-                state = self._arm.get_state()
+                if self._state == ArmState.ERROR:
+                    goal_handle.abort()
+                    result = ExecuteTrajectory.Result()
+                    result.success = False
+                    result.message = self._error_reason
+                    return result
+                if time.monotonic() >= deadline:
+                    self.get_logger().error(
+                        "Trajectory action timed out waiting for arm ready signal"
+                    )
+                    self._error_reason = "Trajectory action timed out"
+                    self._transition_to(ArmState.ERROR)
+                    goal_handle.abort()
+                    result = ExecuteTrajectory.Result()
+                    result.success = False
+                    result.message = self._error_reason
+                    return result
+                try:
+                    state = self._arm.get_state()
+                except Exception as e:
+                    self.get_logger().warn(
+                        f"get_state() failed in feedback loop ({e!r}) — skipping cycle",
+                        throttle_duration_sec=1.0,
+                    )
+                    time.sleep(FEEDBACK_RATE)
+                    continue
                 feedback.joint_states.header.stamp = self.get_clock().now().to_msg()
                 feedback.joint_states.position = state["position"].tolist()
                 feedback.joint_states.velocity = state["velocity"].tolist()
@@ -666,16 +748,6 @@ class ArmDriverNode(rclpy.node.Node):
         stamp = self.get_clock().now().to_msg()
 
         joint_msg = JointState()
-        joint_msg.name = [
-            "joint_1",
-            "joint_2",
-            "joint_3",
-            "joint_4",
-            "joint_5",
-            "joint_6",
-            "joint_7",
-            "gripper",
-        ]
         joint_msg.header.stamp = stamp
         force_msg = Vector3Stamped()
         vel_msg = TwistStamped()
@@ -685,7 +757,17 @@ class ArmDriverNode(rclpy.node.Node):
         pos_msg.header.stamp = stamp
 
         if self._arm:
-            state = self._arm.get_state()
+            try:
+                state = self._arm.get_state()
+            except (TimeoutError, concurrent.futures.TimeoutError):
+                self.get_logger().warn(
+                    "RefreshFeedback timed out — skipping publish cycle",
+                    throttle_duration_sec=1.0,
+                )
+                return
+            joint_msg.name = [
+                f"joint_{i + 1}" for i in range(self._arm.actuator_count)
+            ] + ["robotiq_85_left_knuckle_joint"]
             joint_msg.position = state["position"].tolist() + [state["gripper_pos"]]
             joint_msg.velocity = state["velocity"].tolist() + [0.0]
             joint_msg.effort = state["effort"].tolist() + [0.0]

@@ -640,12 +640,12 @@ class GuiBridge(Node):
                     }
                     if extrinsics is not None:
                         meta["transform"] = {
-                            "x": extrinsics.location.x,
-                            "y": extrinsics.location.y,
-                            "z": extrinsics.location.z,
-                            "pitch": extrinsics.rotation.x,
-                            "roll": extrinsics.rotation.z,
-                            "yaw": extrinsics.rotation.y,
+                            "x": extrinsics.location.X,
+                            "y": extrinsics.location.Y,
+                            "z": extrinsics.location.Z,
+                            "pitch": extrinsics.rotation.X,
+                            "roll": extrinsics.rotation.Z,
+                            "yaw": extrinsics.rotation.Y,
                         }
                         meta["transform_space"] = "relative"
                     self.stream_sender.send_image(
@@ -693,12 +693,12 @@ class GuiBridge(Node):
                     }
                     if extrinsics is not None:
                         meta["transform"] = {
-                            "x": extrinsics.location.x,
-                            "y": extrinsics.location.y,
-                            "z": extrinsics.location.z,
-                            "pitch": extrinsics.rotation.x,
-                            "roll": extrinsics.rotation.z,
-                            "yaw": extrinsics.rotation.y,
+                            "x": extrinsics.location.X,
+                            "y": extrinsics.location.Y,
+                            "z": extrinsics.location.Z,
+                            "pitch": extrinsics.rotation.X,
+                            "roll": extrinsics.rotation.Z,
+                            "yaw": extrinsics.rotation.Y,
                         }
                         meta["transform_space"] = "relative"
                     self.stream_sender.send_depth_uint16(

@@ -41,10 +41,10 @@ class PerceptionCurbDescentDetectionNode(Node):
         self.declare_parameter(
             "input_info_topic", "/camera/nav1/color/camera_info_rotated"
         )
-        self.declare_parameter("output_marker_topic", "/perception/curb_descent_visual")
+        self.declare_parameter("output_marker_topic", "/perception/curb_visual")
         self.declare_parameter("curb_info_topic", "/nav/curb_descent/info")
-        self.declare_parameter("segmentation_mask_topic", "/perception/curb_descent_mask")
-        self.declare_parameter("mask_image_topic", "/perception/curb_descent_mask_image")
+        self.declare_parameter("segmentation_mask_topic", "/perception/curb_mask")
+        self.declare_parameter("mask_image_topic", "/perception/curb_mask_image")
         
         # specific class mapping based on curb_road_point_extractor
         self.declare_parameter("curb_class_id", 0)  # curb class from model

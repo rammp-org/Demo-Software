@@ -22,11 +22,8 @@
 | /nav/curb/info                      | neu_navigation_interfaces/msg/CurbInfo |
 | /nav/curb_descent/info              | neu_navigation_interfaces/msg/CurbInfo |
 | /perception/curb_visual             | visualization_msgs/msg/Marker          |
-| /perception/curb_descent_visual     | visualization_msgs/msg/Marker          |
 | /perception/curb_mask               | sensor_msgs/msg/Image (mono8)          |
-| /perception/curb_descent_mask       | sensor_msgs/msg/Image (mono8)          |
 | /perception/curb_mask_image         | sensor_msgs/msg/Image (bgr8)           |
-| /perception/curb_descent_mask_image | sensor_msgs/msg/Image (bgr8)           |
 
 ### Subscriber:
 

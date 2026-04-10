@@ -319,7 +319,7 @@ class GuiBridge(Node):
         self.nav_camera_1_depth = None
         self.nav_camera_1_extrinsics = Extrinsics(
             location=Vector(3.634, -26.4223, 38.361),
-            rotation=Vector(0, -20.0, 0),
+            rotation=Vector(0.0, -20.0, 0),
             scale=Vector(1, 1, 1),
         )
         self.nav_camera_2_image_info = None
@@ -328,7 +328,7 @@ class GuiBridge(Node):
         self.nav_camera_2_depth = None
         self.nav_camera_2_extrinsics = Extrinsics(
             location=Vector(3.634, 26.4223, 38.361),
-            rotation=Vector(0, -20.0, 0),
+            rotation=Vector(0, -40.0, 0),
             scale=Vector(1, 1, 1),
         )
         self.rear_camera_image_info = None
@@ -643,9 +643,9 @@ class GuiBridge(Node):
                             "x": extrinsics.location.X,
                             "y": extrinsics.location.Y,
                             "z": extrinsics.location.Z,
-                            "pitch": extrinsics.rotation.X,
-                            "roll": extrinsics.rotation.Z,
-                            "yaw": extrinsics.rotation.Y,
+                            "pitch": extrinsics.rotation.Y,
+                            "roll": extrinsics.rotation.X,
+                            "yaw": extrinsics.rotation.Z,
                         }
                         meta["transform_space"] = "relative"
                     self.stream_sender.send_image(
@@ -696,9 +696,9 @@ class GuiBridge(Node):
                             "x": extrinsics.location.X,
                             "y": extrinsics.location.Y,
                             "z": extrinsics.location.Z,
-                            "pitch": extrinsics.rotation.X,
-                            "roll": extrinsics.rotation.Z,
-                            "yaw": extrinsics.rotation.Y,
+                            "pitch": extrinsics.rotation.Y,
+                            "roll": extrinsics.rotation.X,
+                            "yaw": extrinsics.rotation.Z,
                         }
                         meta["transform_space"] = "relative"
                     self.stream_sender.send_depth_uint16(

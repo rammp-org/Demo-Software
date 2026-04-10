@@ -628,11 +628,9 @@ class MEBotControlNode(Node):
 
     def self_level_enable_callback(self, request, response):
         if request.data:
-            self.write_serial_data("s\n")
-            pass
+            self.write_serial_data("L1:1\n")
         else:
-            self.write_serial_data("r\n")
-            pass
+            self.write_serial_data("L1:0\n")
 
         response.success = True  # just acknowledges request recieved and sent
         return response

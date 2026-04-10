@@ -15,13 +15,13 @@
       ],
       "relative": [
         true,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
       ],
       "targets": [
         100,
@@ -49,13 +49,13 @@
       ],
       "relative": [
         true,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
       ],
       "targets": [
         -100.0,

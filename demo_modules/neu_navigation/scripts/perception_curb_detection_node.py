@@ -32,12 +32,8 @@ class PerceptionCurbDetectionNode(Node):
         # Parameters
         self.declare_parameter("model_name", "segmentation_ascent.pth")
         self.declare_parameter("confidence_threshold", 0.5)
-        self.declare_parameter(
-            "input_image_topic", "/camera/nav1/color/image_rotated"
-        )
-        self.declare_parameter(
-            "input_depth_topic", "/camera/nav1/depth/image_rotated"
-        )
+        self.declare_parameter("input_image_topic", "/camera/nav1/color/image_rotated")
+        self.declare_parameter("input_depth_topic", "/camera/nav1/depth/image_rotated")
         self.declare_parameter(
             "input_info_topic", "/camera/nav1/color/camera_info_rotated"
         )
@@ -294,7 +290,7 @@ class PerceptionCurbDetectionNode(Node):
                         header=img_msg.header,
                     )
                 )
-                
+
             if self.mask_image_pub.get_subscription_count() > 0:
                 labels = [
                     f"{self.class_names.get(class_id, 'unknown')} {confidence:.2f}"
@@ -361,7 +357,7 @@ class PerceptionCurbDetectionNode(Node):
             # Project to camera 3D
             fx, fy = info_msg.k[0], info_msg.k[4]
             cx, cy = info_msg.k[2], info_msg.k[5]
-            
+
             x_cam_rot = (u_orig - cx) * depths / fx
             y_cam_rot = (v_orig - cy) * depths / fy
             z_cam = depths

@@ -1,5 +1,3 @@
-# cornell_feeding_interfaces/msg/CupInfo.msg
-
 # Segmentation mask (single-channel, same resolution as input image)
 sensor_msgs/Image segmentation_mask
 

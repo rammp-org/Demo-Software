@@ -71,7 +71,7 @@ echo "=== Installing Orbbec udev rules ==="
 ORBBEC_UDEV_RULES=""
 REAL_HOME=$(eval echo ~${SUDO_USER:-$USER})
 SEARCH_PATHS=(
-    "${REPO_ROOT}/udev/99-obsensor-libusb.rules"
+    "${REPO_ROOT}/hardware/udev/99-obsensor-libusb.rules"
     "/opt/ros/humble/share/orbbec_camera/scripts/99-obsensor-libusb.rules"
     "/opt/ros/humble/lib/orbbec_camera/orbbec_camera/scripts/99-obsensor-libusb.rules"
     "${REPO_ROOT}/third_party/OrbbecSDK_ROS2/orbbec_camera/scripts/99-obsensor-libusb.rules"

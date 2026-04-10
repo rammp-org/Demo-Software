@@ -1,6 +1,5 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Vector3
@@ -19,14 +18,10 @@ class gamepadNode(Node):
         self.button_press_time = {}  # tracks when preset buttons for homing positions were first pressed
         self.hold_duration = 2.0  # min time required for user to hold down buttons to go to preset locations
 
-        # estop
-        self.estop_publisher = self.create_publisher(Bool, "estop", 10)
-        self.estop_timer = self.create_timer(1.0, self.estop_pub)
-
         # joy node
         self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
 
-        self.last_button_state = [0] * 12  # Adjust based on your controller
+        self.last_button_state = [0] * 12
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -44,10 +39,6 @@ class gamepadNode(Node):
         self.in_preset_mode = False
 
         self.manual_client = self.create_client(SetMode, "/arm/set_mode")
-
-    def estop_pub(self):
-        # msg = Bool()
-        pass
 
     def send_preset(self, value):
         if self.in_preset_mode:
@@ -130,6 +121,7 @@ class gamepadNode(Node):
 
             sensitivity_level = 0.8
 
+            # lessen sensitivity of left joystick x and y
             if abs(msg.axes[0]) - abs(msg.axes[1]) > sensitivity_level:
                 msg.axes[1] = 0.0
             elif abs(msg.axes[1]) - abs(msg.axes[0]) > sensitivity_level:

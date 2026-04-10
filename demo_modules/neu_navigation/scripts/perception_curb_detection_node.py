@@ -30,16 +30,16 @@ class PerceptionCurbDetectionNode(Node):
         from ament_index_python.packages import get_package_share_directory
 
         # Parameters
-        self.declare_parameter("model_name", "segmentation_best.pth")
+        self.declare_parameter("model_name", "segmentation_ascent.pth")
         self.declare_parameter("confidence_threshold", 0.5)
         self.declare_parameter(
-            "input_image_topic", "/camera/nav/color/image_raw_rotated"
+            "input_image_topic", "/camera/nav1/color/image_rotated"
         )
         self.declare_parameter(
-            "input_depth_topic", "/camera/nav/depth/image_raw_rotated"
+            "input_depth_topic", "/camera/nav1/depth/image_rotated"
         )
         self.declare_parameter(
-            "input_info_topic", "/camera/nav/color/camera_info_rotated"
+            "input_info_topic", "/camera/nav1/color/camera_info_rotated"
         )
         self.declare_parameter("output_marker_topic", "/perception/curb_visual")
         self.declare_parameter("curb_info_topic", "/nav/curb/info")
@@ -50,7 +50,7 @@ class PerceptionCurbDetectionNode(Node):
         self.declare_parameter("target_frame", "base_link")
         self.declare_parameter("ransac_threshold", 0.1)
         self.declare_parameter("ransac_iterations", 100)
-        self.declare_parameter("detection_rate_hz", 5.0)
+        self.declare_parameter("detection_rate_hz", 30.0)
 
         model_name = self.get_parameter("model_name").get_parameter_value().string_value
         self.conf_threshold = (

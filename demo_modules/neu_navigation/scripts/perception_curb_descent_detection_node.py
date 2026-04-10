@@ -30,16 +30,16 @@ class PerceptionCurbDescentDetectionNode(Node):
         from ament_index_python.packages import get_package_share_directory
 
         # Parameters
-        self.declare_parameter("model_name", "segmentation_best.pth")
+        self.declare_parameter("model_name", "segmentation_descent.pth")
         self.declare_parameter("confidence_threshold", 0.5)
         self.declare_parameter(
-            "input_image_topic", "/camera_01/color/image_rotated"
+            "input_image_topic", "/camera/nav1/color/image_rotated"
         )
         self.declare_parameter(
-            "input_depth_topic", "/camera_01/depth/image_raw"
+            "input_depth_topic", "/camera/nav1/depth/image_rotated"
         )
         self.declare_parameter(
-            "input_info_topic", "/camera_01/color/camera_info_rotated"
+            "input_info_topic", "/camera/nav1/color/camera_info_rotated"
         )
         self.declare_parameter("output_marker_topic", "/perception/curb_descent_visual")
         self.declare_parameter("curb_info_topic", "/nav/curb_descent/info")
@@ -290,15 +290,15 @@ class PerceptionCurbDescentDetectionNode(Node):
         y = points[:, 1]
         n = len(x)
 
-        idx1 = np.random.randint(0, n, self.ransac_iters)
-        idx2 = np.random.randint(0, n, self.ransac_iters)
+        idx1 = np.random.randint(0, n, self.ransac_iters * 2)
+        idx2 = np.random.randint(0, n, self.ransac_iters * 2)
         same = idx1 == idx2
         idx2[same] = (idx2[same] + 1) % n
 
         vx = x[idx2] - x[idx1]
         vy = y[idx2] - y[idx1]
         mag = np.hypot(vx, vy)
-        valid = mag > 1e-6
+        valid = mag > 0.05  # Enforce points must be at least 5cm apart to create a stable slope
         if not np.any(valid):
             return None
 
@@ -388,18 +388,31 @@ class PerceptionCurbDescentDetectionNode(Node):
             # 2. 3D Projection for curb and road
             depth_img = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="16UC1")
 
-            if self.rotation == 90:
-                depth_proc = cv2.rotate(depth_img, cv2.ROTATE_90_CLOCKWISE)
-            elif self.rotation == -90 or self.rotation == 270:
-                depth_proc = cv2.rotate(depth_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            elif self.rotation == 180:
-                depth_proc = cv2.rotate(depth_img, cv2.ROTATE_180)
+            # Check if depth rotation is needed manually by comparing matrix bounds
+            if curb_mask.shape != depth_img.shape:
+                if self.rotation == 90:
+                    depth_proc = cv2.rotate(depth_img, cv2.ROTATE_90_CLOCKWISE)
+                elif self.rotation == -90 or self.rotation == 270:
+                    depth_proc = cv2.rotate(depth_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                elif self.rotation == 180:
+                    depth_proc = cv2.rotate(depth_img, cv2.ROTATE_180)
+                else:
+                    depth_proc = depth_img
             else:
                 depth_proc = depth_img
 
             if curb_mask.shape != depth_proc.shape:
-                curb_mask = cv2.resize(curb_mask.astype(np.uint8), (depth_proc.shape[1], depth_proc.shape[0]), interpolation=cv2.INTER_NEAREST) > 0
-                road_mask = cv2.resize(road_mask.astype(np.uint8), (depth_proc.shape[1], depth_proc.shape[0]), interpolation=cv2.INTER_NEAREST) > 0
+                curb_mask_u8 = cv2.resize(curb_mask.astype(np.uint8), (depth_proc.shape[1], depth_proc.shape[0]), interpolation=cv2.INTER_NEAREST)
+                road_mask_u8 = cv2.resize(road_mask.astype(np.uint8), (depth_proc.shape[1], depth_proc.shape[0]), interpolation=cv2.INTER_NEAREST)
+            else:
+                curb_mask_u8 = curb_mask.astype(np.uint8)
+                road_mask_u8 = road_mask.astype(np.uint8)
+
+            # Use 2D morph dilation to intersect the masks. This reveals the true edge pixels where Curb and Road touch cleanly regardless of viewing angle.
+            kernel = np.ones((11, 11), np.uint8)
+            road_dilated = cv2.dilate(road_mask_u8, kernel, iterations=1)
+            
+            curb_edge_mask = (curb_mask_u8 > 0) & (road_dilated > 0)
 
             # Transform matrix fetch before projection
             try:
@@ -474,24 +487,9 @@ class PerceptionCurbDescentDetectionNode(Node):
                 points_3d = (points_cam @ mat.T)[:, :3].astype(np.float32)
                 return points_3d
 
-            curb_pts = extract_and_project(curb_mask)
-            road_pts = extract_and_project(road_mask)
+            curb_edge = extract_and_project(curb_edge_mask)
 
-            if curb_pts is None or road_pts is None:
-                return None
-
-            # 3. Edge extraction & Fitting
-            # Road inner edge (closest to robot in XY)
-            road_xy_dist = np.hypot(road_pts[:, 0], road_pts[:, 1])
-            road_min_d = road_xy_dist.min()
-            road_edge = road_pts[road_xy_dist <= road_min_d + self.edge_band_width]
-
-            # Curb outer edge (farthest from robot in XY)
-            curb_xy_dist = np.hypot(curb_pts[:, 0], curb_pts[:, 1])
-            curb_max_d = curb_xy_dist.max()
-            curb_edge = curb_pts[curb_xy_dist >= curb_max_d - self.edge_band_width]
-
-            if len(curb_edge) < self.min_points or len(road_edge) < self.min_points:
+            if curb_edge is None:
                 return None
 
             # User Request: Align to the beginning of the curb (curb cut start)
@@ -505,7 +503,22 @@ class PerceptionCurbDescentDetectionNode(Node):
 
             # Compute height based on z-drop
             curb_z = float(np.mean(curb_inliers[:, 2]))
-            road_z = float(np.mean(road_edge[:, 2]))  # Mean of the road inner edge
+            
+            # Fetch total road point cloud to extract flat ground samples
+            road_pts = extract_and_project(road_mask_u8)
+            if road_pts is not None:
+                # Calculate perpendicular distance of all road points to our fitted curb plane
+                road_dists = np.abs(a * road_pts[:, 0] + b * road_pts[:, 1] + d)
+                
+                # Filter road points to a flat band safely past the cliff drop artifact (15cm to 75cm away)
+                road_band = road_pts[(road_dists > 0.15) & (road_dists < 0.75)]
+                if len(road_band) >= 5:
+                    road_z = float(np.mean(road_band[:, 2]))
+                else:
+                    road_z = float(np.mean(road_pts[:, 2]))
+            else:
+                road_z = curb_z - 0.15 # hardware fallback
+
             height = curb_z - road_z  # positive -> road is below curb
 
             # Metrics

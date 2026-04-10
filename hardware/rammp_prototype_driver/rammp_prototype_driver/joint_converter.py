@@ -76,14 +76,14 @@ JOINT_CONVERSIONS: dict[str, JointConversion] = {
     "motor_swing_arm_l": JointConversion(
         tick_min=0.0,
         tick_max=700.0,
-        output_min=math.radians(0.0),
-        output_max=math.radians(65.0),
+        output_min=math.radians(-65.0),
+        output_max=math.radians(0),
     ),
     "motor_swing_arm_r": JointConversion(
         tick_min=0.0,
         tick_max=700.0,
-        output_min=math.radians(0.0),
-        output_max=math.radians(65.0),
+        output_min=math.radians(-65.0),
+        output_max=math.radians(0.0),
     ),
     # ── Carriages: ticks → linear displacement (meters) ──────────────
     #    0-12000ish ticks  →  0-0.30m  (length of carriage travel)

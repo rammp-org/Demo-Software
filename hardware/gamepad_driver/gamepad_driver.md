@@ -1,14 +1,17 @@
-# XBox Controller Node
+# Xbox Controller Node
 
-> **summary**
-> This Node is used to get xbox controller input and control the arm manually.  It is also act like an Emergency stop input.
+> **Summary**
+> This node reads Xbox controller input for manual arm control. It also acts as an emergency-stop input.
 >
-> - At any time, when Emergency Stop button pressed, publish `/estop`
-> - Publish `/arm/xbox/twist` when get input from xbox controller.
+> - At any time, when the emergency-stop button combination is pressed, publish `/estop` (for example, A and B pressed together).
+> - Publish `/arm/xbox/twist` when receiving joystick input.
+> - Home button: pressing it moves the arm to the home position.
+> - Manual control request button: pressing this button requests manual control from the system. The request may be rejected if the current system state cannot transition to manual control mode. Pressing this button again requests exit from manual control.
+> - Open/close gripper button.
 
-> **TODO:**
->
-> - \[x\] Does the controller node handle converting raw control inputs into actions? I think, yes
+> **Note**
+> The `home button`, `manual request button`, and `open/close gripper` controls do not send requests directly to the `Arm Driver`. Instead, this node sends a service request to `/GuiBridge/user_input` to simulate user input from the UI.
+> Add more `UserInputs` definitions in `interfaces/gui_interfaces/` if needed.
 
 ### Publishers:
 
@@ -31,9 +34,9 @@
 
 ### Service Clients:
 
-| Topic | Type |
-| ----- | ---- |
-|       |      |
+| Topic                 | Type                          |
+| --------------------- | ----------------------------- |
+| /GuiBridge/user_input | gui_interfaces/srv/UserInputs |
 
 ### Action Servers:
 

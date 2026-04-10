@@ -86,8 +86,12 @@ for path in "${SEARCH_PATHS[@]}"; do
 done
 if [ -n "${ORBBEC_UDEV_RULES}" ]; then
     $SUDO cp "${ORBBEC_UDEV_RULES}" /etc/udev/rules.d/
-    $SUDO udevadm control --reload-rules
-    $SUDO udevadm trigger
+    # Reload udev rules if udev daemon is running (skipped in CI/containers)
+    if $SUDO udevadm control --reload-rules 2>/dev/null; then
+        $SUDO udevadm trigger
+    else
+        echo "Note: udev daemon not running — rules copied but not reloaded (OK in CI/containers)"
+    fi
     echo "Orbbec udev rules installed from: ${ORBBEC_UDEV_RULES}"
 elif [ -f "/etc/udev/rules.d/99-obsensor-libusb.rules" ]; then
     echo "Orbbec udev rules already installed at /etc/udev/rules.d/ — skipping."

@@ -73,8 +73,8 @@ SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.LOWER: [-70.0, 0.0, -40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.TILT_FWD: [0.0, 0.0, -40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.LATERAL_LEFT: [0.0, 0.0, -40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.LATERAL_LEFT: [0.0, 0.0, -30.0, 30.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 30.0, -30.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.RESET: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
 }
 
@@ -235,7 +235,7 @@ class MEBotControlNode(Node):
         self.cal_complete = False
 
         # drive wheel velocities
-        self.fb_pwm = 0.0
+        self.fb_pwm = 0
         self.test_pwm = 0
 
         #### Init all ROS interfaces
@@ -406,7 +406,7 @@ class MEBotControlNode(Node):
         # State
         self.state = int(data[SerialField.STATE])
 
-        self.fb_pwm = int(100 * float(SerialField.FB_PWM))
+        self.fb_pwm = int(100.0 * float(SerialField.FB_PWM))
 
     def publish_joint_states(self):
         msg = JointState()
@@ -613,15 +613,13 @@ class MEBotControlNode(Node):
         msg.input_source = INPUT_REMOTE
         self.luci_js_publisher.publish(msg)
 
-        self.get_logger().info(f"message: {msg.forward_back}")
-
     def curb_traverse_action_callback(self, goal):
         self.send_set_luci()  # enable LUCI control over js
 
         feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
 
-        if goal.direction == 1:
+        if goal.request.direction == 1:
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
                 + "/config/dry_run_seq.json"
@@ -629,7 +627,7 @@ class MEBotControlNode(Node):
         else:
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/curb_descending.json"
+                + "/config/dry_run_seq_2.json"
             )
 
         keyframes = _load_keyframes_from_json(json_path)

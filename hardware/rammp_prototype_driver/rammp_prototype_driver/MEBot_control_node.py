@@ -135,6 +135,17 @@ class SerialField(IntEnum):
     STATE = 2
 
 
+class SystemState:
+    INIT = (0,)
+    IDLE = (1,)
+    TUNER_MODE = (2,)
+    ESTOP = (3,)
+    SELF_LEVELING = (4,)
+    CONFIGURATION = (5,)
+    AUTO_CURB_CLIMBING = (6,)
+    CALIBRATING = 7
+
+
 class MEBotControlNode(Node):
     def __init__(self):
         super().__init__("MEBot_control_node")
@@ -492,6 +503,32 @@ class MEBotControlNode(Node):
             stat.add("connection_status", "disconnected")
             stat.summary(DiagnosticStatus.ERROR, "Teensy is disconnected")
         return stat
+
+    def check_teensy_state(self, stat):
+        if self.state == SystemState.ESTOP:
+            stat.add("state_status", "ESTOP state")
+            stat.summary(DiagnosticStatus.ERROR, "Teensy in estop state")
+        elif self.state == SystemState.INIT:
+            stat.add("state_status", "Initialization state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in initialization state")
+        elif self.state == SystemState.IDLE:
+            stat.add("state_status", "Idle state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in idle state")
+        elif self.state == SystemState.TUNER_MODE:
+            stat.add("state_status", "Tuner mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in tuner mode")
+        elif self.state == SystemState.SELF_LEVELING:
+            stat.add("state_status", "Self-leveling mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in self-leveling mode")
+        elif self.state == SystemState.CONFIGURATION:
+            stat.add("state_status", "Configuration mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in configuration mode")
+        elif self.state == SystemState.AUTO_CURB_CLIMBING:
+            stat.add("state_status", "Auto curb climbing mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in auto curb climbing mode")
+        elif self.state == SystemState.CALIBRATING:
+            stat.add("state_status", "Calibrating")
+            stat.summary(DiagnosticStatus.OK, "Teensy is calibrating")
 
     def manual_seat_control_callback(self, msg: SeatCommand):
         self.get_logger().info("Seat command callback has been entered")

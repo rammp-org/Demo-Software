@@ -159,6 +159,7 @@ class MEBotControlNode(Node):
         self.updater.setHardwareID("MEBot")
         self.updater.add("LUCI status", self.check_luci_node)
         self.updater.add("Teensy status", self.check_teensy_connection)
+        self.updater.add("Teensy status", self.check_teensy_state)
 
         # Data transfer rates
         # Rate to read data from serial
@@ -172,6 +173,11 @@ class MEBotControlNode(Node):
 
         # timer for serial data reading
         self.serial_timer = self.create_timer(self.serial_rate, self.read_serial_data)
+
+        # heartbeat to send serial message from jetson ->teensy to prevent teensy from timing out
+        self.serial_timer = self.create_timer(
+            self.serial_rate, self.send_serial_heartbeat
+        )
 
         # Fields to store sequence player data
         self.current_seq = 0
@@ -318,6 +324,9 @@ class MEBotControlNode(Node):
         if self.ser is None:
             return
         self.ser.write(data.encode("utf-8"))
+
+    def send_serial_heartbeat(self):
+        self.ser.write("\n")
 
     # update variables to be published
     def update_data(self, data):

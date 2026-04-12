@@ -762,7 +762,7 @@ class MEBotControlNode(Node):
         if request.data:
             self.write_serial_data("L1:1\n")
             kf = _build_seat_keyframe(
-                SEAT_DELTAS[SeatCommand.RESET], 1000, SEAT_DELTAS[SeatCommand.RESET]
+                SEAT_DELTAS[SeatCommand.RESET], 1000, SeatCommand.RESET
             )
             self.send_sequence([kf], auto_run=False)
         else:

@@ -56,7 +56,15 @@ except ModuleNotFoundError:
 # the output here.  These are registered on the Kortex controller at boot under
 # the names below so they override nothing on Kinova's side.
 # ---------------------------------------------------------------------------
-RAMMP_HOME_JOINTS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # TODO: tune
+RAMMP_HOME_JOINTS = [
+    -0.067677,
+    -0.729245,
+    -3.094726,
+    -2.444951,
+    -0.020545,
+    0.166237,
+    1.616856,
+]  # TODO: tune
 RAMMP_RETRACT_JOINTS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # TODO: tune
 RAMMP_CUP_STABILIZE_JOINTS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # TODO: tune
 
@@ -278,6 +286,7 @@ class KinovaArm:
         action_type = Base_pb2.RequestedActionType()
         action_type.action_type = Base_pb2.REACH_JOINT_ANGLES
         action_list = self.base.ReadAllActions(action_type, options=opts)
+        print(action_list)
         action_handle = None
         for action in action_list.action_list:
             if action.name == action_name:
@@ -320,13 +329,13 @@ class KinovaArm:
         self._execute_reference_action("RAMMP_HOME", blocking=blocking)
 
     def retract(self, blocking=True):
-        self._execute_reference_action("RAMMP_RETRACT", blocking=blocking)
+        self._execute_reference_action("Retract", blocking=blocking)
 
     def zero(self, blocking=True):
         self._execute_reference_action("Zero", blocking=blocking)
 
     def cup_stabilize(self, blocking=True):
-        self._execute_reference_action("RAMMP_CUP_STABILIZE", blocking=blocking)
+        self._execute_reference_action("RAMMP_HOME", blocking=blocking)
 
     def send_twist(self, linear_xyz, angular_xyz):
         """Send a Cartesian twist velocity command (SINGLE_LEVEL_SERVOING).

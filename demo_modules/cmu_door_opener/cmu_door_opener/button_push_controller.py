@@ -28,9 +28,9 @@ from arm_interfaces.action import ReachPreset
 
 
 # Button push parameters
-APPROACH_OFFSET = 0.03  # meters — stop this far in front of the button first
+APPROACH_OFFSET = 0.2  # meters — stop this far in front of the button first
 PUSH_STEP = 0.01  # meters — incremental push distance per step (1cm)
-PUSH_MAX = 0.05  # meters — max total push distance past approach point
+PUSH_MAX = 0.15  # meters — max total push distance past approach point
 FORCE_THRESHOLD = 30.0  # Newtons — contact detection threshold
 PUSH_TIMEOUT = 10.0  # seconds — max time for each phase
 FORCE_CHECK_RATE = 0.02  # seconds between force checks
@@ -43,7 +43,7 @@ FORCE_CHECK_RATE = 0.02  # seconds between force checks
 # All three components matter: ignoring z causes angle-dependent lateral
 # error because the tool z-axis gains lateral components when the button
 # surface is tilted.
-TOOL_OFFSET = np.array([0.033, 0.0, 0.091])  # negative of tool-to-gripper in tool-local
+TOOL_OFFSET = np.array([0.03, 0.0, -0.204])  # negative of tool-to-gripper in tool-local
 
 
 class ButtonPushController(Node):
@@ -179,6 +179,7 @@ class ButtonPushController(Node):
         # But it may takes time for the `self.latest_arm_status` to be updated after the mode is set,
         # so we may receive the goal before we get the arm status update.
         # suggest: remove this check or add a short wait here to allow arm status to update before checking.
+        time.sleep(1)
         if self.latest_arm_status != "OPEN_DOOR":
             result.success = False
             result.message = (
@@ -415,7 +416,7 @@ class ButtonPushController(Node):
             return result
 
         retract_goal = ReachPreset.Goal()
-        retract_goal.preset = ReachPreset.Goal.PRESET_RETRACT
+        retract_goal.preset = ReachPreset.Goal.PRESET_HOME
         self.get_logger().info("[STEP 4] Sending retract goal...")
         retract_future = self._reach_preset_client.send_goal_async(retract_goal)
 

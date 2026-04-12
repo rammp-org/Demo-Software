@@ -157,6 +157,17 @@ class SystemState:
     CALIBRATING = 7
 
 
+class SystemState:
+    INIT = (0,)
+    IDLE = (1,)
+    TUNER_MODE = (2,)
+    ESTOP = (3,)
+    SELF_LEVELING = (4,)
+    CONFIGURATION = (5,)
+    AUTO_CURB_CLIMBING = (6,)
+    CALIBRATING = 7
+
+
 class MEBotControlNode(Node):
     def __init__(self):
         super().__init__("MEBot_control_node")
@@ -377,6 +388,9 @@ class MEBotControlNode(Node):
         if auto_run:
             self.write_serial_data(ProtocolEncoder.seq_auto_run(True))
         self.write_serial_data(ProtocolEncoder.seq_step_forward())
+
+    def send_serial_heartbeat(self):
+        self.ser.write("\n")
 
     def send_serial_heartbeat(self):
         self.ser.write("\n")

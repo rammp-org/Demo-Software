@@ -95,6 +95,15 @@ else
     echo "then re-run setup.sh to install udev rules."
 fi
 
+echo "=== Adding user to input group for keyboard access ==="
+if ! groups "$USER" | grep -q '\binput\b'; then
+    $SUDO usermod -aG input "$USER"
+    echo "User $USER added to input group."
+    echo "WARNING: Log out and back in (or reboot) for this to take effect."
+else
+    echo "User $USER is already in input group. Skipping."
+fi
+
 echo "=== Configuring Jetson max performance mode ==="
 bash "${REPO_ROOT}/scripts/jetson_max_performance.sh" "$@"
 

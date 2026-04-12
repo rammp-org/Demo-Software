@@ -765,6 +765,16 @@ class MEBotControlNode(Node):
             )
             self.send_sequence([kf], auto_run=False)
             self.write_serial_data("L1:1\n")
+            json_path = (
+                get_package_share_directory("rammp_prototype_driver")
+                + "/config/self_level_transition.json"
+            )
+
+            keyframes = _load_keyframes_from_json(json_path)
+            self.get_logger().info(
+                f"Loaded {len(keyframes)} keyframes from {json_path}"
+            )
+            self.send_sequence(keyframes, auto_run=True)
         else:
             self.write_serial_data("L1:0\n")
 

@@ -761,16 +761,10 @@ class MEBotControlNode(Node):
     def self_level_enable_callback(self, request, response):
         if request.data:
             self.write_serial_data("L1:1\n")
-            json_path = (
-                get_package_share_directory("rammp_prototype_driver")
-                + "/config/self_level_transition.json"
+            kf = _build_seat_keyframe(
+                SEAT_DELTAS[SeatCommand.RESET], 1000, SEAT_DELTAS[SeatCommand.RESET]
             )
-
-            keyframes = _load_keyframes_from_json(json_path)
-            self.get_logger().info(
-                f"Loaded {len(keyframes)} keyframes from {json_path}"
-            )
-            self.send_sequence(keyframes, auto_run=True)
+            self.send_sequence([kf], auto_run=False)
         else:
             self.write_serial_data("L1:0\n")
 

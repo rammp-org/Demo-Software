@@ -95,7 +95,7 @@ else
     echo "then re-run setup.sh to install udev rules."
 fi
 
-echo "=== Adding user to input group for keyboard access ==="
+echo "=== Adding user to input group for keyboard access for estop node ==="
 if ! groups "$USER" | grep -q '\binput\b'; then
     $SUDO usermod -aG input "$USER"
     echo "User $USER added to input group."

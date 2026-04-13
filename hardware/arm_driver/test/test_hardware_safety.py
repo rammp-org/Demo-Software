@@ -43,6 +43,7 @@ from arm_interfaces.srv import SetMode
 from diagnostic_msgs.msg import DiagnosticStatus
 from geometry_msgs.msg import Twist
 from rclpy.action import ActionClient
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool
@@ -102,6 +103,13 @@ class SafetyTestNode(Node):
         self._set_mode_cli = self.create_client(SetMode, "/arm/set_mode")
         self._reach_preset_cli = ActionClient(self, ReachPreset, "/arm/reach_preset")
 
+        # Spin in a dedicated background thread so test methods never call
+        # spin_once themselves — eliminating all re-entrancy issues.
+        self._executor = MultiThreadedExecutor()
+        self._executor.add_node(self)
+        self._spin_thread = threading.Thread(target=self._executor.spin, daemon=True)
+        self._spin_thread.start()
+
     # ── callbacks ─────────────────────────────────────────────────────────────
 
     def _on_joints(self, msg: JointState):
@@ -114,11 +122,6 @@ class SafetyTestNode(Node):
             self._driver_state = msg.message
 
     # ── helpers ───────────────────────────────────────────────────────────────
-
-    def spin_for(self, seconds: float):
-        deadline = time.monotonic() + seconds
-        while time.monotonic() < deadline:
-            rclpy.spin_once(self, timeout_sec=0.05)
 
     def joint_velocities(self) -> np.ndarray | None:
         with self._lock:
@@ -141,9 +144,17 @@ class SafetyTestNode(Node):
     def wait_for_state(self, target: str, timeout: float) -> bool:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            rclpy.spin_once(self, timeout_sec=0.05)
             if self.driver_state() == target:
                 return True
+            time.sleep(0.05)
+        return False
+
+    def wait_for_topics(self, timeout: float) -> bool:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.joint_velocities() is not None and self.driver_state() is not None:
+                return True
+            time.sleep(0.1)
         return False
 
     def estop(self):
@@ -155,7 +166,9 @@ class SafetyTestNode(Node):
         req = SetMode.Request()
         req.mode = mode
         future = self._set_mode_cli.call_async(req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
+        deadline = time.monotonic() + 5.0
+        while not future.done() and time.monotonic() < deadline:
+            time.sleep(0.05)
         result = future.result()
         return result is not None and result.success
 
@@ -164,27 +177,27 @@ class SafetyTestNode(Node):
         goal = ReachPreset.Goal()
         goal.preset = ReachPreset.Goal.PRESET_HOME
         send_future = self._reach_preset_cli.send_goal_async(goal)
-        rclpy.spin_until_future_complete(self, send_future, timeout_sec=10.0)
+        deadline = time.monotonic() + 10.0
+        while not send_future.done() and time.monotonic() < deadline:
+            time.sleep(0.05)
         goal_handle = send_future.result()
         if goal_handle is None or not goal_handle.accepted:
             print("  ERROR: home goal rejected")
             return False
         result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(
-            self, result_future, timeout_sec=HOME_TIMEOUT_S
-        )
+        deadline = time.monotonic() + HOME_TIMEOUT_S
+        while not result_future.done() and time.monotonic() < deadline:
+            time.sleep(0.1)
         result = result_future.result()
         return result is not None and result.result.success
 
     def recover_from_error(self):
         """Reset ERROR state and home the arm so the next test starts clean."""
-        # Cycle through IDLE to clear ERROR (set_mode rejects from ERROR,
-        # so we rely on arm_driver being restarted if needed — but try anyway)
         self.set_mode(SetMode.Request.MODE_IDLE)
-        self.spin_for(SETTLE_S)
+        time.sleep(SETTLE_S)
         self.home()
         self.set_mode(SetMode.Request.MODE_IDLE)
-        self.spin_for(SETTLE_S)
+        time.sleep(SETTLE_S)
 
     def stream_twist(self, vel_x: float, duration: float):
         """Publish a constant linear-x twist at ~20 Hz for `duration` seconds."""
@@ -193,7 +206,7 @@ class SafetyTestNode(Node):
         deadline = time.monotonic() + duration
         while time.monotonic() < deadline:
             self._twist_pub.publish(msg)
-            rclpy.spin_once(self, timeout_sec=0.05)
+            time.sleep(0.05)
 
     def prompt(self, message: str) -> str:
         """Print a prompt and wait for the user to press Enter."""
@@ -229,7 +242,7 @@ class SafetyTestNode(Node):
         twist_thread.start()
 
         # Let the arm build up some velocity before firing the e-stop
-        self.spin_for(0.5)
+        time.sleep(0.5)
 
         print("  Publishing /estop...")
         self.estop()
@@ -287,7 +300,7 @@ class SafetyTestNode(Node):
             f"  Publisher silent. Waiting {TWIST_WATCHDOG_SETTLE_S}s "
             f"(watchdog timeout = 0.5s)..."
         )
-        self.spin_for(TWIST_WATCHDOG_SETTLE_S)
+        time.sleep(TWIST_WATCHDOG_SETTLE_S)
 
         stopped = self.is_stopped()
         state = self.driver_state()
@@ -296,7 +309,7 @@ class SafetyTestNode(Node):
         if stopped and still_manual:
             print("  PASS — arm stopped, state still MANUAL (recoverable)")
             self.set_mode(SetMode.Request.MODE_IDLE)
-            self.spin_for(SETTLE_S)
+            time.sleep(SETTLE_S)
             return True
         else:
             issues = []
@@ -349,13 +362,13 @@ class SafetyTestNode(Node):
         deadline = time.monotonic() + NORMAL_MOTION_STREAM_S
         while time.monotonic() < deadline:
             self._twist_pub.publish(msg)
-            rclpy.spin_once(self, timeout_sec=0.05)
+            time.sleep(0.05)
             if self.driver_state() == "ERROR":
                 error_detected = True
                 break
 
         self.set_mode(SetMode.Request.MODE_IDLE)
-        self.spin_for(SETTLE_S)
+        time.sleep(SETTLE_S)
 
         if not error_detected:
             print("  PASS — no spurious collision detected during normal motion")
@@ -412,7 +425,7 @@ class SafetyTestNode(Node):
 
         stream_thread = threading.Thread(target=stream, daemon=True)
         stream_thread.start()
-        self.spin_for(0.5)  # let arm start moving
+        time.sleep(0.5)  # let arm start moving
 
         self.prompt("Arm is moving — push firmly on it now, then release")
 
@@ -442,12 +455,7 @@ class SafetyTestNode(Node):
         results: dict[str, bool | None] = {}
 
         print("\nWaiting for /arm/joint_states and /arm/status...")
-        deadline = time.monotonic() + 10.0
-        while time.monotonic() < deadline:
-            rclpy.spin_once(self, timeout_sec=0.1)
-            if self.joint_velocities() is not None and self.driver_state() is not None:
-                break
-        else:
+        if not self.wait_for_topics(timeout=10.0):
             print(
                 "ERROR: timed out waiting for arm_driver topics. Is arm_driver running?"
             )
@@ -468,7 +476,7 @@ class SafetyTestNode(Node):
             print("ERROR: failed to home arm before tests.")
             return False
         self.set_mode(SetMode.Request.MODE_IDLE)
-        self.spin_for(SETTLE_S)
+        time.sleep(SETTLE_S)
 
         # Run tests
         results["1_estop"] = self.test_estop_halts_motion()

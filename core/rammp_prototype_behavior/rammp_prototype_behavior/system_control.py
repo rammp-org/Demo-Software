@@ -899,6 +899,8 @@ class SystemControl(rclpy.node.Node):
             self._gui_connected = False
 
     def arm_joints_callback(self, msg: JointState):
+        if len(msg.position) < 8:
+            return  # ensure the message has enough joint positions to check gripper state, avoid potential index error
         if self._gripper_opened and msg.position[7] < 0.8:
             self._gripper_opened = False
         elif not self._gripper_opened and msg.position[7] > 0.9:

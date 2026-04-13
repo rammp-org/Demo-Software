@@ -16,6 +16,8 @@ def generate_launch_description():
                 executable="joy_node",
                 name="joy_node",
                 output="screen",
+                # Configure autorepeat
+                parameters=[{"autorepeat_rate": 40.0}],
             ),
         ]
     )

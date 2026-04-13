@@ -1,24 +1,20 @@
 import threading
 
 import rclpy
-from rclpy.node import Node
-from geometry_msgs.msg import Twist
-from sensor_msgs.msg import Joy
-from geometry_msgs.msg import Vector3
-import tf2_ros
+from geometry_msgs.msg import Twist, Vector3
 from gui_interfaces.srv import UserInputs
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.node import Node
+from sensor_msgs.msg import Joy
 
 
-class gamepadNode(Node):
+class GamepadNode(Node):
     def __init__(self):
         super().__init__("gamepad_node")
 
         self.button_press_time = {}  # tracks when preset buttons for homing positions were first pressed
-        self.hold_duration = 2.0  # min time required for user to hold down buttons to go to preset locations
-
-        # joy node
-        self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
+        self.hold_duration = 1.0  # min time required for user to hold down buttons to go to preset locations
+        self._button_lock = threading.Lock()
 
         self.last_button_state = [0] * 12
 
@@ -26,7 +22,13 @@ class gamepadNode(Node):
         self.home_button_index = (
             self.get_parameter("home_button_index").get_parameter_value().integer_value
         )
-        self.declare_parameter("manual_control_button_index", 1)
+        self.declare_parameter("retract_button_index", 2)
+        self.retract_button_index = (
+            self.get_parameter("retract_button_index")
+            .get_parameter_value()
+            .integer_value
+        )
+        self.declare_parameter("manual_control_button_index", 7)
         self.manual_control_button_index = (
             self.get_parameter("manual_control_button_index")
             .get_parameter_value()
@@ -64,6 +66,12 @@ class gamepadNode(Node):
             )
 
         self._cb_group = ReentrantCallbackGroup()
+
+        # joy node
+        self.joy_sub = self.create_subscription(
+            Joy, "/joy", self.joy_callback, 10, callback_group=self._cb_group
+        )
+
         # Arm Velocity Publisher
         self.twist_pub = self.create_publisher(
             Twist, "/arm/xbox/twist", 10, callback_group=self._cb_group
@@ -77,11 +85,11 @@ class gamepadNode(Node):
 
     def openGripper(self):
         self.get_logger().info("Requesting gripper to open")
-        self.send_user_input(UserInputs.Request.ARM_OPEN_GRIPPER)
+        self.send_user_input(UserInputs.Request.ARM_GRIPPER_OPEN)
 
     def closeGripper(self):
         self.get_logger().info("Requesting gripper to close")
-        self.send_user_input(UserInputs.Request.ARM_CLOSE_GRIPPER)
+        self.send_user_input(UserInputs.Request.ARM_GRIPPER_CLOSE)
 
     def send_user_input(self, input: str):
         self.get_logger().info(f"Sending user input to ROS: {input}")
@@ -113,6 +121,10 @@ class gamepadNode(Node):
         self.get_logger().info("Requesting arm to move to home position")
         self.send_user_input(UserInputs.Request.ARM_HOME)
 
+    def send_retract_request(self):
+        self.get_logger().info("Requesting arm to retract")
+        self.send_user_input(UserInputs.Request.ARM_RETRACT)
+
     def joy_callback(self, msg):  # includes twist publishing
         try:
             # --- Arm Control (Twist) ---
@@ -128,21 +140,21 @@ class gamepadNode(Node):
                 msg.axes[0] = 0.0
 
             # lessen sensitivity of right joystick x and y
-            if abs(msg.axes[2]) - abs(msg.axes[3]) > sensitivity_level:
+            if abs(msg.axes[4]) - abs(msg.axes[3]) > sensitivity_level:
                 msg.axes[3] = 0.0
-            elif abs(msg.axes[3]) - abs(msg.axes[2]) > sensitivity_level:
-                msg.axes[2] = 0.0
+            elif abs(msg.axes[3]) - abs(msg.axes[4]) > sensitivity_level:
+                msg.axes[4] = 0.0
 
             final_twist = Twist()
 
             # Map Angular Input (Directly to Tool Frame)
             tool_angular = Vector3()
-            tool_angular.x = msg.axes[5] * -ang_scale  # Pitch
-            tool_angular.y = msg.axes[2] * -ang_scale  # Yaw
-            tool_angular.z = msg.axes[4] * -ang_scale  # Roll
+            tool_angular.x = msg.axes[7] * -ang_scale  # Pitch
+            tool_angular.y = msg.axes[3] * -ang_scale  # Yaw
+            tool_angular.z = msg.axes[6] * -ang_scale  # Roll
 
             # Map linear input
-            final_twist.linear.x = msg.axes[3] * scale
+            final_twist.linear.x = msg.axes[4] * scale
             final_twist.linear.y = msg.axes[0] * scale
             final_twist.linear.z = msg.axes[1] * scale
 
@@ -154,58 +166,70 @@ class gamepadNode(Node):
                 self.get_clock().now().nanoseconds / 1e9
             )  # convert to seconds
 
-            for button_index in enumerate(
-                [self.home_button_index, self.manual_control_button_index]
-            ):
-                if msg.buttons[button_index] == 1:
-                    if self.last_button_state[button_index] == 0:
-                        # Button just pressed — record the time
-                        self.button_press_time[button_index] = current_time
+            hold_actions = []  # (callable,) to invoke after releasing the lock
+            gripper_action = None
+
+            with self._button_lock:
+                for button_index in [
+                    self.home_button_index,
+                    self.manual_control_button_index,
+                    self.retract_button_index,
+                ]:
+                    if msg.buttons[button_index] == 1:
+                        if self.last_button_state[button_index] == 0:
+                            # Button just pressed — record the time
+                            self.button_press_time[button_index] = current_time
+                        else:
+                            # Button still held — check if held long enough
+                            press_duration = current_time - self.button_press_time.get(
+                                button_index, current_time
+                            )
+                            if press_duration >= self.hold_duration:
+                                if button_index == self.home_button_index:
+                                    hold_actions.append(self.request_home)
+                                elif button_index == self.manual_control_button_index:
+                                    hold_actions.append(
+                                        self.send_manual_control_request
+                                    )
+                                elif button_index == self.retract_button_index:
+                                    hold_actions.append(self.send_retract_request)
+                                self.button_press_time.pop(
+                                    button_index
+                                )  # reset so it doesn't fire repeatedly
                     else:
-                        # Button still held — check if held long enough
-                        press_duration = current_time - self.button_press_time.get(
-                            button_index, current_time
-                        )
-                        if press_duration >= self.hold_duration:
-                            if button_index == self.home_button_index:
-                                self.request_home()
-                            elif button_index == self.manual_control_button_index:
-                                self.send_manual_control_request()
-                            self.button_press_time.pop(
-                                button_index
-                            )  # reset so it doesn't fire repeatedly
-                else:
-                    # Button released — clear the timer
-                    self.button_press_time.pop(button_index, None)
+                        # Button released — clear the timer
+                        self.button_press_time.pop(button_index, None)
 
-            # --- Gripper Control (Buttons) ---
-            if (
-                msg.buttons[self.close_gripper_button_index] == 1
-                and self.last_button_state[self.close_gripper_button_index] == 0
-            ):
-                self.closeGripper()
-            elif (
-                msg.buttons[self.open_gripper_button_index] == 1
-                and self.last_button_state[self.open_gripper_button_index] == 0
-            ):
-                self.openGripper()
+                # --- Gripper Control (Buttons) ---
+                if (
+                    msg.buttons[self.close_gripper_button_index] == 1
+                    and self.last_button_state[self.close_gripper_button_index] == 0
+                ):
+                    gripper_action = self.closeGripper
+                elif (
+                    msg.buttons[self.open_gripper_button_index] == 1
+                    and self.last_button_state[self.open_gripper_button_index] == 0
+                ):
+                    gripper_action = self.openGripper
 
-            self.last_button_state = list(msg.buttons)
+                self.last_button_state = list(msg.buttons)
 
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as e:
-            self.get_logger().warn(f"Waiting for TF: {e}", throttle_duration_sec=2.0)
+            # Service calls happen outside the lock — they block for up to 5 s
+            for action in hold_actions:
+                action()
+            if gripper_action is not None:
+                gripper_action()
+
         except Exception as e:
             self.get_logger().error(f"Unexpected Error: {e}")
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = gamepadNode()
-    rclpy.spin(node)
+    node = GamepadNode()
+    executor = rclpy.executors.MultiThreadedExecutor()
+    executor.add_node(node)
+    executor.spin()
     rclpy.shutdown()
 
 

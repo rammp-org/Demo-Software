@@ -19,7 +19,6 @@ class ButtonInfoPublisher(Node):
         msg = ButtonInfo()
         msg.id = 1
 
-        # Segmentation mask (empty placeholder image
         mask = Image()
         mask.header.stamp = self.get_clock().now().to_msg()
         mask.header.frame_id = "camera_frame"

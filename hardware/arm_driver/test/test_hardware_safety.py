@@ -147,7 +147,10 @@ class SafetyTestNode(Node):
             if self.driver_state() == target:
                 return True
             time.sleep(0.05)
-        return False
+        # Final check: /arm/status publishes at 1 Hz so the update may arrive
+        # right as the deadline expires.  Give it one extra polling period.
+        time.sleep(0.1)
+        return self.driver_state() == target
 
     def wait_for_topics(self, timeout: float) -> bool:
         deadline = time.monotonic() + timeout

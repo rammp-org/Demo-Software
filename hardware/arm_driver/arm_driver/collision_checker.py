@@ -54,6 +54,9 @@ class CollisionChecker:
         # Full neutral configuration used as the base when building q vectors.
         # Gripper joints stay at their neutral position during arm collision checks.
         self._q_neutral = pin.neutral(self._model)
+        # Per-joint residuals from the most recent check() call (7,).
+        # Exposed for diagnostics without changing the bool return type.
+        self.last_residuals: np.ndarray = np.zeros(self._ARM_NV)
 
     # ------------------------------------------------------------------
     # Public API
@@ -87,7 +90,8 @@ class CollisionChecker:
         )
         tau_model_arm = self._model_data.tau[: self._ARM_NV].copy()
 
-        residual = float(np.max(np.abs(tau - tau_model_arm)))
+        self.last_residuals = np.abs(tau - tau_model_arm)
+        residual = float(np.max(self.last_residuals))
         threshold = self._thresholds.get(state_name, self._thresholds["DEFAULT"])
         return residual > threshold
 

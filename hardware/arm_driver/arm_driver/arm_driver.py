@@ -23,8 +23,11 @@ from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger
 
 from arm_driver.arm_interface import KinovaArm, SpeedPreset
+from arm_driver.collision_checker import CollisionChecker
 
 FEEDBACK_RATE = 0.1  # seconds between feedback publishes during action execution
+COMMS_TIMEOUT_S = 0.5  # seconds without arm feedback before transitioning to ERROR
+TWIST_TIMEOUT_S = 0.5  # seconds since last twist command before stopping the arm
 
 
 # Build enum matching service definition
@@ -71,6 +74,11 @@ COMMAND_MODE = {
     ArmState.ERROR: CommandMode.NONE,
 }
 
+# States that accept continuous twist commands (arm runs last command until next arrives)
+_TWIST_STATES = frozenset(
+    state for state, mode in COMMAND_MODE.items() if mode == CommandMode.TWIST
+)
+
 # Derived: command mode expected from each source (each source must map to a single mode)
 _SOURCE_MODE = {
     source: COMMAND_MODE[state]
@@ -94,11 +102,19 @@ class ArmDriverNode(rclpy.node.Node):
         self._state = ArmState.IDLE
         self._error_reason: str = ""
         self._arm: KinovaArm | None = None
+        self._collision_checker = None  # set in _init_arm after CollisionChecker lands
+        self._last_feedback_time: float = time.monotonic()
+        self._last_twist_time: float | None = None
         # ReentrantCallbackGroup allows action/service callbacks to run concurrently
         # with the rest of the node (timers, subscribers) on the MultiThreadedExecutor,
         # so that blocking service/action handlers don't starve the joint_states timer.
         self._action_group = ReentrantCallbackGroup()
         self._service_group = ReentrantCallbackGroup()
+
+        # Collision checker parameters — set urdf_path in your launch file
+        self.declare_parameter("collision_checker.urdf_path", "")
+        self.declare_parameter("collision_checker.threshold_default", 100.0)
+        self.declare_parameter("collision_checker.threshold_open_door", 500.0)
 
         self._init_publishers()
         self._init_subscribers()
@@ -229,10 +245,11 @@ class ArmDriverNode(rclpy.node.Node):
     def _init_timers(self):
         """Create periodic timers for state publishing."""
         self.create_timer(0.01, self._publish_joint_states)  # 100 Hz
+        self.create_timer(0.1, self._check_twist_timeout)  # 10 Hz twist watchdog
         self.create_timer(1.0, self._publish_status)  # 1 Hz
 
     def _init_arm(self):
-        """Connect to the Kinova arm. Transitions to ERROR on failure."""
+        """Connect to the Kinova arm and initialise the collision checker."""
         try:
             self._arm = KinovaArm()
             self.get_logger().info("Arm connected successfully.")
@@ -240,6 +257,31 @@ class ArmDriverNode(rclpy.node.Node):
             self.get_logger().error(f"Failed to connect to arm: {e}")
             self._error_reason = f"Arm connection failed: {e}"
             self._transition_to(ArmState.ERROR)
+
+        urdf_path = self.get_parameter("collision_checker.urdf_path").value
+        if urdf_path:
+            try:
+                thresholds = {
+                    "DEFAULT": self.get_parameter(
+                        "collision_checker.threshold_default"
+                    ).value,
+                    "OPEN_DOOR": self.get_parameter(
+                        "collision_checker.threshold_open_door"
+                    ).value,
+                }
+                self._collision_checker = CollisionChecker(urdf_path, thresholds)
+                self.get_logger().info(
+                    f"CollisionChecker initialised (URDF: {urdf_path})"
+                )
+            except Exception as e:
+                self.get_logger().error(
+                    f"Failed to initialise CollisionChecker: {e} — collision "
+                    "detection disabled"
+                )
+        else:
+            self.get_logger().warn(
+                "collision_checker.urdf_path not set — collision detection disabled"
+            )
 
     # -------------------------------------------------------------------------
     # State machine
@@ -292,6 +334,7 @@ class ArmDriverNode(rclpy.node.Node):
         Args:
             msg: Desired end-effector linear and angular velocity.
         """
+        self._last_twist_time = time.monotonic()
         if self._arm:
             try:
                 self._arm.send_twist(
@@ -361,7 +404,11 @@ class ArmDriverNode(rclpy.node.Node):
         """
         if msg.data:
             self.get_logger().warn("E-stop received.")
-            # STUB: self._arm.stop()
+            if self._arm:
+                try:
+                    self._arm.stop()
+                except Exception as e:
+                    self.get_logger().warn(f"stop() failed during e-stop ({e!r})")
             self._error_reason = "E-stop triggered"
             self._transition_to(ArmState.ERROR)
 
@@ -759,12 +806,35 @@ class ArmDriverNode(rclpy.node.Node):
         if self._arm:
             try:
                 state = self._arm.get_state()
+                self._last_feedback_time = time.monotonic()
             except (TimeoutError, concurrent.futures.TimeoutError):
                 self.get_logger().warn(
                     "RefreshFeedback timed out — skipping publish cycle",
                     throttle_duration_sec=1.0,
                 )
+                if (
+                    self._state != ArmState.ERROR
+                    and time.monotonic() - self._last_feedback_time > COMMS_TIMEOUT_S
+                ):
+                    self.get_logger().error(
+                        f"Arm communication lost — no feedback for {COMMS_TIMEOUT_S}s"
+                    )
+                    self._error_reason = "Arm communication timeout"
+                    self._transition_to(ArmState.ERROR)
                 return
+
+            if self._collision_checker is not None and self._state != ArmState.ERROR:
+                if self._collision_checker.check(
+                    state["position"],
+                    state["velocity"],
+                    state["effort"],
+                    self._state.name,
+                ):
+                    self.get_logger().error("Collision detected — stopping arm.")
+                    self._error_reason = "Collision detected"
+                    self._transition_to(ArmState.ERROR)
+                    return
+
             joint_msg.name = [
                 f"joint_{i + 1}" for i in range(self._arm.actuator_count)
             ] + ["robotiq_85_left_knuckle_joint"]
@@ -798,6 +868,31 @@ class ArmDriverNode(rclpy.node.Node):
         self._ee_vel_pub.publish(vel_msg)
         self._ee_pos_pub.publish(pos_msg)
         self._ee_force_pub.publish(force_msg)
+
+    def _check_twist_timeout(self):
+        """Stop the arm if no twist command has arrived recently while in a twist state.
+
+        Prevents runaway motion when a twist publisher dies mid-stream. Does not
+        transition to ERROR — the publisher may recover and send new commands.
+        """
+        if self._state not in _TWIST_STATES:
+            return
+        if self._last_twist_time is None:
+            return
+        if time.monotonic() - self._last_twist_time > TWIST_TIMEOUT_S:
+            self.get_logger().warn(
+                "Twist command timeout — stopping arm to prevent runaway motion.",
+                throttle_duration_sec=1.0,
+            )
+            if self._arm:
+                try:
+                    self._arm.stop()
+                except Exception as e:
+                    self.get_logger().warn(
+                        f"stop() failed in twist watchdog ({e!r})",
+                        throttle_duration_sec=1.0,
+                    )
+            self._last_twist_time = None  # reset so we only stop once per stale window
 
     def _publish_status(self):
         """Publish the node's diagnostic status at 1 Hz."""

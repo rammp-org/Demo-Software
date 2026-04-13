@@ -117,7 +117,7 @@ class ArmDriverNode(rclpy.node.Node):
         self._service_group = ReentrantCallbackGroup()
 
         # Collision checker threshold parameters (Nm)
-        self.declare_parameter("collision_checker.threshold_default", 10.0)
+        self.declare_parameter("collision_checker.threshold_default", 30.0)
         self.declare_parameter("collision_checker.threshold_open_door", 50.0)
 
         self._init_publishers()
@@ -832,26 +832,12 @@ class ArmDriverNode(rclpy.node.Node):
                 return
 
             if self._collision_checker is not None and self._state != ArmState.ERROR:
-                collision = self._collision_checker.check(
+                if self._collision_checker.check(
                     state["position"],
                     state["velocity"],
                     state["effort"],
                     self._state.name,
-                )
-                # DEBUG: log per-joint residuals at 1 Hz so threshold tuning is visible.
-                # Remove once threshold is validated.
-                res = self._collision_checker.last_residuals
-                threshold = self._collision_checker._thresholds.get(
-                    self._state.name,
-                    self._collision_checker._thresholds["DEFAULT"],
-                )
-                self.get_logger().info(
-                    f"[collision] max={float(res.max()):.2f} Nm  "
-                    f"threshold={threshold:.1f} Nm  "
-                    f"per_joint={[f'{v:.2f}' for v in res]}",
-                    throttle_duration_sec=1.0,
-                )
-                if collision:
+                ):
                     self.get_logger().error("Collision detected — stopping arm.")
                     self._error_reason = "Collision detected"
                     self._transition_to(ArmState.ERROR)

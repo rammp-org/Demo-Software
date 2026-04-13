@@ -735,16 +735,17 @@ class GuiBridge(Node):
                         "role": "mask",
                         "stream_id": f"{source}/mask",
                     }
-                    meta["MaterialScalarParameters"] = {
+                    material_params = {
                         "NumSegmentIDs": num_seg_ids,
-                        "MaskScale": 255,
+                        "MaskScale": 255.0,
                     }
-                    self.stream_sender.send_image(
+                    self.stream_sender.send_mask(
                         channel=channel,
-                        image_bytes=mask.data.tobytes(),
+                        mask_bytes=mask.data.tobytes(),
                         width=width,
                         height=height,
                         metadata=meta,
+                        material_params=material_params,
                     )
                 except Exception as e:
                     self.get_logger().warn(f"Failed to send {source} mask image: {e}")

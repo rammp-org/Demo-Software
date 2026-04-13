@@ -10,6 +10,8 @@
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
   <depend>joy</depend>
+  <depend>arm_interfaces</depend>
+  <depend>gui_interfaces</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

@@ -3,7 +3,6 @@
 > **Summary**
 > This node reads Xbox controller input for manual arm control. It also acts as an emergency-stop input.
 >
-> - At any time, when the emergency-stop button combination is pressed, publish `/estop` (for example, A and B pressed together).
 > - Publish `/arm/xbox/twist` when receiving joystick input.
 > - Home button: pressing it moves the arm to the home position.
 > - Manual control request button: pressing this button requests manual control from the system. The request may be rejected if the current system state cannot transition to manual control mode. Pressing this button again requests exit from manual control.
@@ -18,7 +17,6 @@
 | Topic           | Type                    |
 | --------------- | ----------------------- |
 | /arm/xbox/twist | geometry_msgs/msg/Twist |
-| /estop          | std_msgs/msg/Bool       |
 
 ### Subscriber:
 

@@ -4,11 +4,7 @@ from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Vector3
 import tf2_ros
-from trajectory_msgs.msg import JointTrajectory
-from rclpy.action import ActionClient
-from arm_interfaces.srv import SetMode
-from arm_interfaces.action import ReachPreset
-from std_srvs.srv import Trigger
+from gui_interfaces.srv import UserInputs
 
 
 class gamepadNode(Node):
@@ -28,90 +24,84 @@ class gamepadNode(Node):
 
         # Arm Velocity Publisher
         self.twist_pub = self.create_publisher(Twist, "/arm/xbox/twist", 10)
-        self.home_pub = self.create_publisher(
-            JointTrajectory, "/joint_trajectory_controller/joint_trajectory", 10
+
+        # UserInputs Service Client
+        self.user_input_service_client = self.create_client(
+            UserInputs, "/GuiBridge/user_input", callback_group=self._cb_group
         )
+        # self.home_pub = self.create_publisher(
+        #     JointTrajectory, "/joint_trajectory_controller/joint_trajectory", 10
+        # )
 
-        self.open_gripper_client = self.create_client(Trigger, "/arm/open_gripper")
-        self.close_gripper_client = self.create_client(Trigger, "/arm/close_gripper")
+        # self.open_gripper_client = self.create_client(Trigger, "/arm/open_gripper")
+        # self.close_gripper_client = self.create_client(Trigger, "/arm/close_gripper")
 
-        self.preset_client = ActionClient(self, ReachPreset, "/arm/reach_preset")
-        self.in_preset_mode = False
+        # self.preset_client = ActionClient(self, ReachPreset, "/arm/reach_preset")
+        # self.in_preset_mode = False
 
-        self.manual_client = self.create_client(SetMode, "/arm/set_mode")
+        # self.manual_client = self.create_client(SetMode, "/arm/set_mode")
 
-    def send_preset(self, value):
-        if self.in_preset_mode:
-            return
-        self.in_preset_mode = True
+    # def send_preset(self, value):
+    #     if self.in_preset_mode:
+    #         return
+    #     self.in_preset_mode = True
 
-        self.preset_client.wait_for_server()
+    #     self.preset_client.wait_for_server()
 
-        goal_msg = ReachPreset.Goal()
-        goal_msg.preset = value
+    #     goal_msg = ReachPreset.Goal()
+    #     goal_msg.preset = value
 
-        self.send_goal_future = self.preset_client.send_goal_async(
-            goal_msg, feedback_callback=self.feedback_callback
-        )
+    #     self.send_goal_future = self.preset_client.send_goal_async(
+    #         goal_msg, feedback_callback=self.feedback_callback
+    #     )
 
-        self.send_goal_future.add_done_callback(self.goal_response_callback)
+    #     self.send_goal_future.add_done_callback(self.goal_response_callback)
 
-    def goal_response_callback(self, future):
-        goal_handle = future.result()
+    # def goal_response_callback(self, future):
+    #     goal_handle = future.result()
 
-        if not goal_handle.accepted:
-            self.get_logger().info("Goal rejected")
-            self.in_preset_mode = False
-            self.send_manual_control_request()
-            return
+    #     if not goal_handle.accepted:
+    #         self.get_logger().info("Goal rejected")
+    #         self.in_preset_mode = False
+    #         self.send_manual_control_request()
+    #         return
 
-        self.get_logger().info("Goal accepeted")
+    #     self.get_logger().info("Goal accepeted")
 
-        self._get_result_future = goal_handle.get_result_async()
-        self._get_result_future.add_done_callback(self.result_callback)
+    #     self._get_result_future = goal_handle.get_result_async()
+    #     self._get_result_future.add_done_callback(self.result_callback)
 
-    def feedback_callback(self, feedback_msg):
-        feedback = feedback_msg.feedback
-        self.get_logger().info(f"Feedback: {feedback.joint_states}")
+    # def feedback_callback(self, feedback_msg):
+    #     feedback = feedback_msg.feedback
+    #     self.get_logger().info(f"Feedback: {feedback.joint_states}")
 
-    def result_callback(self, future):
-        result = future.result().result
-        self.get_logger().info(f"Result: {result.success}")
-        self.in_preset_mode = False
-        self.send_manual_control_request()
+    # def result_callback(self, future):
+    #     result = future.result().result
+    #     self.get_logger().info(f"Result: {result.success}")
+    #     self.in_preset_mode = False
+    #     self.send_manual_control_request()
 
     def openGripper(self):
-        self.open_gripper_client.wait_for_service()
+        # self.open_gripper_client.wait_for_service()
 
-        request = Trigger.Request()
-        future = self.open_gripper_client.call_async(request)
-        future.add_done_callback(self.handle_service_response)
+        # request = Trigger.Request()
+        # future = self.open_gripper_client.call_async(request)
+        # future.add_done_callback(self.handle_service_response)
+        return
 
     def closeGripper(self):
-        self.close_gripper_client.wait_for_service()
-
-        request = Trigger.Request()
-        future = self.close_gripper_client.call_async(request)
-        future.add_done_callback(self.handle_service_response)
+        return
 
     def send_manual_control_request(self):
-        # Wait until service is available
-        while not self.manual_client.wait_for_service():
-            self.get_logger().info("Service not available, waiting...")
+        return
+        # # Wait until service is available
+        # while not self.manual_client.wait_for_service():
+        #     self.get_logger().info("Service not available, waiting...")
 
-        request = SetMode.Request()
-        request.mode = 5
-        future = self.manual_client.call_async(request)
-        future.add_done_callback(self.handle_service_response)
-
-    def handle_service_response(
-        self, future
-    ):  # can be use by any service client in this node
-        response = future.result()
-        if response.success:
-            self.get_logger().info("Service call success")
-        else:
-            self.get_logger().info("Service call failed")
+        # request = SetMode.Request()
+        # request.mode = 5
+        # future = self.manual_client.call_async(request)
+        # future.add_done_callback(self.handle_service_response)
 
     def joy_callback(self, msg):  # includes twist publishing
         try:

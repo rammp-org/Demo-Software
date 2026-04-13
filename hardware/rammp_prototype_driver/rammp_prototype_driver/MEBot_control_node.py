@@ -760,11 +760,11 @@ class MEBotControlNode(Node):
 
     def self_level_enable_callback(self, request, response):
         if request.data:
-            self.write_serial_data("L1:1\n")
             kf = _build_seat_keyframe(
                 SEAT_DELTAS[SeatCommand.RESET], 1000, SeatCommand.RESET
             )
             self.send_sequence([kf], auto_run=False)
+            self.write_serial_data("L1:1\n")
         else:
             self.write_serial_data("L1:0\n")
 

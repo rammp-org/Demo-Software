@@ -55,7 +55,7 @@ class ButtonInfoPublisher(Node):
 
         msg.confidence = 0.92
         msg.pose_xyzrpy = [0.5, 0.1, 1.2, 0.0, 0.0, 0.0]  # [x, y, z, roll, pitch, yaw]
-        msg.is_pressable = False
+        msg.is_pressable = True
 
         self.publisher_.publish(msg)
         self.get_logger().info(

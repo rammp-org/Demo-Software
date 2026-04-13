@@ -737,6 +737,7 @@ class GuiBridge(Node):
                     }
                     meta["MaterialScalarParameters"] = {
                         "NumSegmentIDs": num_seg_ids,
+                        "MaskScale": 255,
                     }
                     self.stream_sender.send_image(
                         channel=channel,

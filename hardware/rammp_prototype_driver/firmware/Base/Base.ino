@@ -126,6 +126,109 @@ const float CARRIAGE_LEVEL_TARGET = 100.0f;
 const float CARRIAGE_LEVEL_TOLERANCE = 200.0f;
 const unsigned long LEVEL_BLEND_MS = 2000;
 
+// --- Self-Leveling PID Gain Scheduler ---
+// When self-leveling is active, ML/MR/RC use these hard-coded "stiff" gains
+// for tight position tracking of IK targets. On exit, the normal "soft" gains
+// are restored from EEPROM and PID state is cleared for a clean handoff.
+//
+// Every tuneable parameter of PIDController is broken out here so leveling
+// mode has full independent control of the cascaded pos→vel PID loops.
+struct LevelingPIDGains {
+  // Position loop
+  float pos_kp, pos_ki, pos_kd, pos_kff;
+  float pos_lpf_alpha;
+  float pos_max_ramp_rate;
+  // Velocity loop
+  float vel_kp, vel_ki, vel_kd, vel_kff;
+  float vel_lpf_alpha;
+  float vel_max_ramp_rate;
+};
+
+// TODO: Tune these gains on the physical robot.
+// Each motor gets its own set because ML/MR/RC have different gear ratios
+// (ML_CM_TO_TICKS, MR_CM_TO_TICKS, RC_CM_TO_TICKS differ).
+//
+// Fields:  pos_kp  pos_ki  pos_kd  pos_kff  pos_lpf  pos_ramp
+//          vel_kp  vel_ki  vel_kd  vel_kff  vel_lpf  vel_ramp
+static const LevelingPIDGains LEVEL_ML_GAINS = {
+    1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, // pos loop
+    0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f   // vel loop
+};
+static const LevelingPIDGains LEVEL_MR_GAINS = {
+    1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, // pos loop
+    0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f   // vel loop
+};
+static const LevelingPIDGains LEVEL_RC_GAINS = {
+    1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, // pos loop
+    0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f   // vel loop
+};
+
+// True while self-leveling gains are loaded on ML/MR/RC.
+// Checked before any EEPROM auto-save to prevent persisting leveling gains.
+bool leveling_gains_active = false;
+
+static void applyGainsToMotor(Motor &m, const LevelingPIDGains &g) {
+  m.pos_pid.reset();
+  m.vel_pid.reset();
+
+  m.pos_pid.setGains(g.pos_kp, g.pos_ki, g.pos_kd);
+  m.pos_pid.setFeedForward(g.pos_kff);
+  m.pos_pid.setLpfAlpha(g.pos_lpf_alpha);
+  m.pos_pid.setRampRate(g.pos_max_ramp_rate);
+
+  m.vel_pid.setGains(g.vel_kp, g.vel_ki, g.vel_kd);
+  m.vel_pid.setFeedForward(g.vel_kff);
+  m.vel_pid.setLpfAlpha(g.vel_lpf_alpha);
+  m.vel_pid.setRampRate(g.vel_max_ramp_rate);
+}
+
+// Load hard-coded stiff gains onto ML, MR, RC for self-leveling.
+void applyLevelingGains() {
+  applyGainsToMotor(ml, LEVEL_ML_GAINS);
+  applyGainsToMotor(mr, LEVEL_MR_GAINS);
+  applyGainsToMotor(rc, LEVEL_RC_GAINS);
+  leveling_gains_active = true;
+  if (DEBUG_MODE)
+    Serial.println("GAINS: Applied self-leveling gains to ML, MR, RC");
+}
+
+// Restore normal EEPROM-stored gains to ML, MR, RC and clear PID state.
+// Safe to call even if leveling gains are not active (early-out).
+void restoreNormalGains() {
+  if (!leveling_gains_active)
+    return;
+
+  auto safe_f = [](float v) -> float {
+    return (isnan(v) || isinf(v)) ? 0.0f : v;
+  };
+
+  // motor_map IDs: ml=3, mr=4, rc=1
+  Motor *motors[3] = {&ml, &mr, &rc};
+  int ids[3] = {3, 4, 1};
+
+  for (int i = 0; i < 3; i++) {
+    MotorConfig conf = ConfigStorage::loadMotorConfig(ids[i]);
+    motors[i]->pos_pid.reset();
+    motors[i]->vel_pid.reset();
+
+    motors[i]->pos_pid.setGains(safe_f(conf.pos_p), safe_f(conf.pos_i),
+                                safe_f(conf.pos_d));
+    motors[i]->pos_pid.setFeedForward(safe_f(conf.pos_ff));
+    motors[i]->pos_pid.setLpfAlpha(safe_f(conf.pos_lpf_alpha));
+    motors[i]->pos_pid.setRampRate(safe_f(conf.pos_max_ramp_rate));
+
+    motors[i]->vel_pid.setGains(safe_f(conf.vel_p), safe_f(conf.vel_i),
+                                safe_f(conf.vel_d));
+    motors[i]->vel_pid.setFeedForward(safe_f(conf.vel_ff));
+    motors[i]->vel_pid.setLpfAlpha(safe_f(conf.vel_lpf_alpha));
+    motors[i]->vel_pid.setRampRate(safe_f(conf.vel_max_ramp_rate));
+  }
+
+  leveling_gains_active = false;
+  if (DEBUG_MODE)
+    Serial.println("GAINS: Restored normal EEPROM gains to ML, MR, RC");
+}
+
 void runSelfLeveling(float dt) {
   static bool ik_was_active = false;
   static unsigned long blend_start = 0;
@@ -616,6 +719,9 @@ void loop() {
   // 3. Update State Machine
   if (parser.isTimedOut() && current_state != ESTOP) {
     current_state = ESTOP;
+    // Restore EEPROM gains BEFORE auto-save so leveling gains are never
+    // persisted to EEPROM. restoreNormalGains() early-outs if not active.
+    restoreNormalGains();
     Serial.println("WATCHDOG TIMEOUT -> ESTOP");
     // Auto-save all motor configs on disconnect (fires once per disconnect)
     if (was_connected) {
@@ -627,6 +733,7 @@ void loop() {
 
   if (cmd.type == CMD_Z) {
     if (current_state != ESTOP) {
+      restoreNormalGains();
       current_state = ESTOP;
       if (DEBUG_MODE)
         Serial.println("DEBUG: Manual ESTOP Triggered");
@@ -667,9 +774,11 @@ void loop() {
   } else if (cmd.type == CMD_LEVEL_MODE) {
     if (cmd.value > 0.5) {
       current_state = SELF_LEVELING;
+      applyLevelingGains();
       if (DEBUG_MODE)
         Serial.println("DEBUG: Entering SELF_LEVELING mode");
     } else {
+      restoreNormalGains();
       current_state = IDLE; // Fall back to IDLE so next cmd kicks to TUNER_MODE
       if (DEBUG_MODE)
         Serial.println("DEBUG: Exiting SELF_LEVELING mode");

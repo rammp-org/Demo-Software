@@ -718,6 +718,19 @@ class KinovaArm:
     # def apply_emergency_stop(self):
     #     self.base.ApplyEmergencyStop()
 
+    def get_fault_state(self) -> tuple[str, bool]:
+        """Return the Kortex arm's current active state and whether it is faulted.
+
+        Returns:
+            Tuple of (state_name, is_faulted) where state_name is the
+            ``RoboticsArmState`` enum name (e.g. ``"ARMSTATE_SERVOING_READY"``)
+            and is_faulted is True when the arm is in ``ARMSTATE_IN_FAULT``.
+        """
+        arm_state = self.base.GetArmState(options=self.control_send_options)
+        state_name = Base_pb2.RoboticsArmState.Name(arm_state.active_state)
+        is_faulted = arm_state.active_state == Base_pb2.ARMSTATE_IN_FAULT
+        return state_name, is_faulted
+
     def clear_faults(self, timeout=5.0):
         if (
             self.base.GetArmState(options=self.control_send_options).active_state

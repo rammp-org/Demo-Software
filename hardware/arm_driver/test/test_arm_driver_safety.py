@@ -37,6 +37,7 @@ def _make_node():
     ):
         mock_arm = MagicMock()
         mock_arm.actuator_count = 7
+        mock_arm.get_fault_state.return_value = ("ARMSTATE_SERVOING_READY", False)
         MockArm.return_value = mock_arm
 
         # Simulate xacro producing a URDF string
@@ -346,5 +347,83 @@ class TestErrorState:
             # Route through _on_command exactly as the subscriber would
             node._on_command("xbox", node._handle_twist, msg)
             mock_arm.send_twist.assert_not_called()
+        finally:
+            node.destroy_node()
+
+
+# ---------------------------------------------------------------------------
+# Hardware fault detection and clearing
+# ---------------------------------------------------------------------------
+
+
+class TestHardwareFault:
+    def test_fault_detected_transitions_to_error(self):
+        node, mock_arm, ArmState = _make_node()
+        try:
+            mock_arm.get_fault_state.return_value = ("ARMSTATE_IN_FAULT", True)
+            node._check_hardware_fault()
+            assert node._state == ArmState.ERROR
+            assert "Kortex hardware fault" in node._error_reason
+            assert "ARMSTATE_IN_FAULT" in node._error_reason
+        finally:
+            node.destroy_node()
+
+    def test_healthy_arm_state_no_transition(self):
+        node, mock_arm, ArmState = _make_node()
+        try:
+            mock_arm.get_fault_state.return_value = ("ARMSTATE_SERVOING_READY", False)
+            node._check_hardware_fault()
+            assert node._state == ArmState.IDLE
+            assert node._kortex_arm_state == "ARMSTATE_SERVOING_READY"
+        finally:
+            node.destroy_node()
+
+    def test_fault_check_skipped_when_already_in_error(self):
+        """Redundant TCP calls avoided once ERROR is already set."""
+        node, mock_arm, ArmState = _make_node_in_error()
+        try:
+            node._check_hardware_fault()
+            mock_arm.get_fault_state.assert_not_called()
+        finally:
+            node.destroy_node()
+
+    def test_clear_error_calls_clear_faults(self):
+        node, mock_arm, ArmState = _make_node_in_error()
+        try:
+            req = Trigger.Request()
+            resp = Trigger.Response()
+            resp = node._on_clear_error(req, resp)
+            mock_arm.clear_faults.assert_called_once()
+            assert resp.success
+            assert node._state == ArmState.IDLE
+        finally:
+            node.destroy_node()
+
+    def test_clear_error_fails_if_clear_faults_raises_timeout(self):
+        node, mock_arm, ArmState = _make_node_in_error()
+        try:
+            mock_arm.clear_faults.side_effect = TimeoutError("arm did not clear")
+            req = Trigger.Request()
+            resp = Trigger.Response()
+            resp = node._on_clear_error(req, resp)
+            assert not resp.success
+            assert node._state == ArmState.ERROR  # not transitioned
+        finally:
+            node.destroy_node()
+
+    def test_status_includes_kortex_keyvalues(self):
+        node, mock_arm, ArmState = _make_node_in_error()
+        try:
+            node._kortex_arm_state = "ARMSTATE_IN_FAULT"
+            node._error_reason = "Kortex hardware fault: ARMSTATE_IN_FAULT"
+            # Capture published message by intercepting the publisher
+            published = []
+            node._status_pub.publish = lambda msg: published.append(msg)
+            node._publish_status()
+            assert len(published) == 1
+            msg = published[0]
+            keys = {kv.key: kv.value for kv in msg.values}
+            assert keys.get("kortex_arm_state") == "ARMSTATE_IN_FAULT"
+            assert "ARMSTATE_IN_FAULT" in keys.get("error_reason", "")
         finally:
             node.destroy_node()

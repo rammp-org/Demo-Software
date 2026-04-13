@@ -13,7 +13,7 @@ from arm_interfaces.srv import (
     SetMode,
     SetSpeedPreset,
 )
-from diagnostic_msgs.msg import DiagnosticStatus
+from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
 from geometry_msgs.msg import PoseStamped, Twist, TwistStamped, Vector3Stamped
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -110,6 +110,7 @@ class ArmDriverNode(rclpy.node.Node):
         self._collision_checker = None  # set in _init_arm after CollisionChecker lands
         self._last_feedback_time: float = time.monotonic()
         self._last_twist_time: float | None = None
+        self._kortex_arm_state: str = ""  # last known Kortex RoboticsArmState name
         # ReentrantCallbackGroup allows action/service callbacks to run concurrently
         # with the rest of the node (timers, subscribers) on the MultiThreadedExecutor,
         # so that blocking service/action handlers don't starve the joint_states timer.
@@ -256,6 +257,7 @@ class ArmDriverNode(rclpy.node.Node):
         """Create periodic timers for state publishing."""
         self.create_timer(0.01, self._publish_joint_states)  # 100 Hz
         self.create_timer(0.1, self._check_twist_timeout)  # 10 Hz twist watchdog
+        self.create_timer(1.0, self._check_hardware_fault)  # 1 Hz Kortex fault poll
         self.create_timer(1.0, self._publish_status)  # 1 Hz
 
     def _init_arm(self):
@@ -599,7 +601,21 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = f"Not in ERROR state (current state: {self._state.name})"
             return response
 
+        if self._arm:
+            try:
+                self._arm.clear_faults()
+            except TimeoutError as e:
+                response.success = False
+                response.message = f"Kortex fault could not be cleared: {e}"
+                return response
+            except Exception as e:
+                # Non-fault errors (e.g. comms blip) — log but don't block recovery
+                self.get_logger().warn(
+                    f"clear_faults() raised unexpected error ({e!r})"
+                )
+
         self._error_reason = ""
+        self._kortex_arm_state = ""
         self._transition_to(ArmState.IDLE)
         response.success = True
         response.message = "Error cleared — arm is IDLE"
@@ -950,6 +966,28 @@ class ArmDriverNode(rclpy.node.Node):
                     )
             self._last_twist_time = None  # reset so we only stop once per stale window
 
+    def _check_hardware_fault(self):
+        """Poll the Kortex base for hardware fault state at 1 Hz.
+
+        Transitions to ERROR if the arm enters ARMSTATE_IN_FAULT so that
+        software state stays consistent with hardware reality.  Skipped when
+        already in ERROR to avoid redundant TCP calls.
+        """
+        if not self._arm or self._state == ArmState.ERROR:
+            return
+        try:
+            state_name, is_faulted = self._arm.get_fault_state()
+            self._kortex_arm_state = state_name
+            if is_faulted:
+                self.get_logger().error(f"Kortex hardware fault detected: {state_name}")
+                self._error_reason = f"Kortex hardware fault: {state_name}"
+                self._transition_to(ArmState.ERROR)
+        except Exception as e:
+            self.get_logger().warn(
+                f"get_fault_state() failed ({e!r})",
+                throttle_duration_sec=5.0,
+            )
+
     def _publish_status(self):
         """Publish the node's diagnostic status at 1 Hz."""
         msg = DiagnosticStatus()
@@ -960,6 +998,15 @@ class ArmDriverNode(rclpy.node.Node):
             if self._state == ArmState.ERROR
             else DiagnosticStatus.OK
         )
+        kv_hw = KeyValue()
+        kv_hw.key = "kortex_arm_state"
+        kv_hw.value = self._kortex_arm_state
+        msg.values.append(kv_hw)
+        if self._error_reason:
+            kv_err = KeyValue()
+            kv_err.key = "error_reason"
+            kv_err.value = self._error_reason
+            msg.values.append(kv_err)
         self._status_pub.publish(msg)
 
 

@@ -117,8 +117,8 @@ class ArmDriverNode(rclpy.node.Node):
         self._service_group = ReentrantCallbackGroup()
 
         # Collision checker threshold parameters (Nm)
-        self.declare_parameter("collision_checker.threshold_default", 100.0)
-        self.declare_parameter("collision_checker.threshold_open_door", 500.0)
+        self.declare_parameter("collision_checker.threshold_default", 10.0)
+        self.declare_parameter("collision_checker.threshold_open_door", 50.0)
 
         self._init_publishers()
         self._init_subscribers()

@@ -116,7 +116,6 @@ $SUDO tee "${CYCLONE_CONFIG_PATH}" > /dev/null << 'EOF'
 </CycloneDDS>
 EOF
 echo "CycloneDDS config written to ${CYCLONE_CONFIG_PATH}"
-echo "CYCLONEDDS_URI exported in ~/.bashrc (reload shell or source ~/.bashrc to apply)"
 
 echo "=== Configuring Jetson max performance mode ==="
 bash "${REPO_ROOT}/scripts/jetson_max_performance.sh" "$@"

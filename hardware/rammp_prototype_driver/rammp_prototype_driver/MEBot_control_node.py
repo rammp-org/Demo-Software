@@ -201,7 +201,7 @@ class MEBotControlNode(Node):
             self.serial_rate, self.send_serial_heartbeat
         )
 
-        self.estop
+        self.estop = False
 
         # Fields to store sequence player data
         self.current_seq = 0

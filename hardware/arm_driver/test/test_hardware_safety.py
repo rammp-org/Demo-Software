@@ -488,6 +488,10 @@ class SafetyTestNode(Node):
             print("ERROR: /arm/reach_preset not available.")
             return False
 
+        # Clear any leftover error from a previous run before starting
+        self.clear_error()
+        time.sleep(SETTLE_S)
+
         # Home before starting
         if not self.home():
             print("ERROR: failed to home arm before tests.")
@@ -498,12 +502,16 @@ class SafetyTestNode(Node):
         # Run tests
         results["1_estop"] = self.test_estop_halts_motion()
 
+        self.clear_error()
+        time.sleep(SETTLE_S)
         if not self.home():
             print("ERROR: failed to home before test 2 — aborting remaining tests")
             return False
         results["2_twist_watchdog"] = self.test_twist_watchdog()
 
         if not skip_collision:
+            self.clear_error()
+            time.sleep(SETTLE_S)
             if not self.home():
                 print("ERROR: failed to home before test 3 — skipping collision tests")
                 results["3_no_false_positives"] = None
@@ -513,6 +521,8 @@ class SafetyTestNode(Node):
                     self.test_no_false_positive_collisions()
                 )
 
+                self.clear_error()
+                time.sleep(SETTLE_S)
                 if not self.home():
                     print("ERROR: failed to home before test 4 — skipping")
                     results["4_collision_on_contact"] = None

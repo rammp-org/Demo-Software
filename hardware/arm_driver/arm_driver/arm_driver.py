@@ -127,7 +127,11 @@ class ArmDriverNode(rclpy.node.Node):
         self._init_services()
         self._init_actions()
         self._init_timers()
-        self._init_arm()
+
+        # Arm connection is attempted on a 2 Hz timer so the node starts cleanly
+        # even when the arm is powered on after the node.  The timer cancels itself
+        # once connection succeeds.
+        self._connect_timer = self.create_timer(0.5, self._try_connect_arm)
 
     # -------------------------------------------------------------------------
     # Initialization
@@ -261,16 +265,33 @@ class ArmDriverNode(rclpy.node.Node):
         self.create_timer(1.0, self._check_hardware_fault)  # 1 Hz Kortex fault poll
         self.create_timer(1.0, self._publish_status)  # 1 Hz
 
-    def _init_arm(self):
-        """Connect to the Kinova arm and initialise the collision checker. Transitions to ERROR if arm not connected."""
+    def _try_connect_arm(self):
+        """Attempt to connect to the Kinova arm at 2 Hz until successful.
+
+        On success, initialises the CollisionChecker and cancels this timer.
+        While disconnected, _publish_status surfaces an ERROR-level diagnostic
+        so the outside world can observe the waiting state.
+        """
         try:
             self._arm = KinovaArm()
             self.get_logger().info("Arm connected successfully.")
         except Exception as e:
-            self.get_logger().error(f"Failed to connect to arm: {e}")
-            self._error_reason = f"Arm connection failed: {e}"
-            self._transition_to(ArmState.ERROR)
+            self.get_logger().warn(
+                f"Arm not available, retrying: {e}",
+                throttle_duration_sec=5.0,
+            )
+            return
 
+        self._connect_timer.cancel()
+        self._init_collision_checker()
+
+    def _init_collision_checker(self):
+        """Initialise the CollisionChecker from the kortex_description URDF.
+
+        Called once, immediately after arm connection succeeds.  Collision
+        detection is disabled (self._collision_checker remains None) if this
+        fails, but the node continues operating.
+        """
         try:
             xacro_file = os.path.join(
                 get_package_share_directory("kortex_description"),
@@ -996,9 +1017,13 @@ class ArmDriverNode(rclpy.node.Node):
         msg.message = self._state.name
         msg.level = (
             DiagnosticStatus.ERROR
-            if self._state == ArmState.ERROR
+            if (self._state == ArmState.ERROR or self._arm is None)
             else DiagnosticStatus.OK
         )
+        kv_connected = KeyValue()
+        kv_connected.key = "arm_connected"
+        kv_connected.value = str(self._arm is not None).lower()
+        msg.values.append(kv_connected)
         kv_hw = KeyValue()
         kv_hw.key = "kortex_arm_state"
         kv_hw.value = self._kortex_arm_state

@@ -137,6 +137,14 @@ class KinovaArm:
         with open(self.lock_file, "w") as f:
             f.write(str(os.getpid()))
 
+        try:
+            self._connect()
+        except Exception:
+            os.remove(self.lock_file)
+            raise
+
+    def _connect(self):
+        """Establish TCP/UDP connections and fully initialise the arm. Called by __init__."""
         # General Kortex setup
         self.tcp_connection = DeviceConnection.createTcpConnection()
         self.udp_connection = DeviceConnection.createUdpConnection()

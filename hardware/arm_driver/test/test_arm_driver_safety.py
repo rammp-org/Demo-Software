@@ -14,6 +14,7 @@ import pytest
 import rclpy
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
+from std_srvs.srv import Trigger
 from unittest.mock import MagicMock, patch
 
 
@@ -255,5 +256,95 @@ class TestCollisionIntegration:
             node._last_feedback_time = time.monotonic()
             node._publish_joint_states()
             assert node._state == ArmState.IDLE
+        finally:
+            node.destroy_node()
+
+
+# ---------------------------------------------------------------------------
+# ERROR state: clear_error service and action/command rejection
+# ---------------------------------------------------------------------------
+
+
+def _make_node_in_error():
+    """Return (node, mock_arm, ArmState) with the node already in ERROR state."""
+    node, mock_arm, ArmState = _make_node()
+    node._error_reason = "test-induced error"
+    node._state = ArmState.ERROR
+    return node, mock_arm, ArmState
+
+
+class TestErrorState:
+    # ── clear_error service ───────────────────────────────────────────────
+
+    def test_clear_error_transitions_to_idle(self):
+        node, mock_arm, ArmState = _make_node_in_error()
+        try:
+            req = Trigger.Request()
+            resp = Trigger.Response()
+            resp = node._on_clear_error(req, resp)
+            assert resp.success
+            assert node._state == ArmState.IDLE
+            assert node._error_reason == ""
+        finally:
+            node.destroy_node()
+
+    def test_clear_error_rejects_when_not_in_error(self):
+        node, mock_arm, ArmState = _make_node()
+        try:
+            assert node._state == ArmState.IDLE
+            req = Trigger.Request()
+            resp = Trigger.Response()
+            resp = node._on_clear_error(req, resp)
+            assert not resp.success
+            assert node._state == ArmState.IDLE  # unchanged
+        finally:
+            node.destroy_node()
+
+    # ── set_mode rejected from ERROR ─────────────────────────────────────
+
+    def test_set_mode_rejected_from_error(self):
+        node, mock_arm, ArmState = _make_node_in_error()
+        try:
+            from arm_interfaces.srv import SetMode
+
+            req = SetMode.Request()
+            req.mode = SetMode.Request.MODE_IDLE
+            resp = SetMode.Response()
+            resp = node._on_set_mode(req, resp)
+            assert not resp.success
+            assert node._state == ArmState.ERROR  # unchanged
+        finally:
+            node.destroy_node()
+
+    # ── reach_preset action rejected from ERROR ───────────────────────────
+
+    def test_reach_preset_aborts_from_error(self):
+        node, mock_arm, ArmState = _make_node_in_error()
+        try:
+            from arm_interfaces.action import ReachPreset
+
+            goal_handle = MagicMock()
+            goal_handle.request.preset = ReachPreset.Goal.PRESET_HOME
+            result = node._on_reach_preset(goal_handle)
+            goal_handle.abort.assert_called_once()
+            assert not result.success
+            assert "ERROR" in result.message
+            # Must not have transitioned away from ERROR
+            assert node._state == ArmState.ERROR
+        finally:
+            node.destroy_node()
+
+    # ── twist commands ignored in ERROR ──────────────────────────────────
+
+    def test_twist_ignored_in_error(self):
+        """_on_command gates by authorized source; ERROR has no authorized source
+        so twist messages must be silently dropped."""
+        node, mock_arm, ArmState = _make_node_in_error()
+        try:
+            msg = Twist()
+            msg.linear.x = 0.5
+            # Route through _on_command exactly as the subscriber would
+            node._on_command("xbox", node._handle_twist, msg)
+            mock_arm.send_twist.assert_not_called()
         finally:
             node.destroy_node()

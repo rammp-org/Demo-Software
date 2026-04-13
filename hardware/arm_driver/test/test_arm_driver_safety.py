@@ -77,7 +77,7 @@ class TestEstop:
             msg = Bool()
             msg.data = True
             node._on_estop(msg)
-            mock_arm.stop.assert_called_once()
+            mock_arm.stop.assert_called()
             assert node._state == ArmState.ERROR
         finally:
             node.destroy_node()

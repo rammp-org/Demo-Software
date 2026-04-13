@@ -349,7 +349,7 @@ class SystemControl(rclpy.node.Node):
     # ---------End of Arm Pause state transition function calls--------------------------
 
     # ---------arm manual control state transition function calls------------------------
-    def on_enter_Arm_manual(self):
+    def on_enter_Arm_manual_stopped(self):
         self.get_logger().info(
             "Arm is in manual control mode, waiting for manual commands."
         )
@@ -361,6 +361,10 @@ class SystemControl(rclpy.node.Node):
         self._mock_delay(
             5.0, self.exitManualControl
         )  # should enter Arm_retracted state after manual control for testing, will replace with actual logic to determine when to exit manual control later
+
+    def on_enter_Arm_manual_homing(self):
+        self.get_logger().info("Moving arm to home position.")
+        self.arm_preset_client.set_preset(ArmPreset.HOME)
 
     def on_exit_Arm_manual(self):
         self.get_logger().info("Exiting manual control mode, setting arm back to idle.")
@@ -574,6 +578,10 @@ class SystemControl(rclpy.node.Node):
 
     def on_enter_Arm_retracting(self):
         self.get_logger().info("Retracting arm to prepare for next action.")
+        self.arm_preset_client.set_preset(ArmPreset.RETRACT)
+
+    def on_enter_Arm_manual_retracting(self):
+        self.get_logger().info("Retracting arm in manual control mode.")
         self.arm_preset_client.set_preset(ArmPreset.RETRACT)
 
     def on_enter_Arm_homing(self):
@@ -1065,7 +1073,11 @@ class SystemControl(rclpy.node.Node):
                     "homing",
                     "retracting",
                     "retracted",
-                    "manual",
+                    {
+                        "name": "manual",
+                        "initial": "stopped",
+                        "children": ["stopped", "homing", "retracting"],
+                    },
                     {
                         "name": "Door",
                         "initial": "raisingArm",
@@ -1122,13 +1134,23 @@ class SystemControl(rclpy.node.Node):
             # arm sub state transitions
             {
                 "trigger": "retract",
-                "source": ["Arm_paused", "Arm_home", "Arm_manual"],
+                "source": ["Arm_paused", "Arm_home"],
                 "dest": "Arm_retracting",
             },
             {
                 "trigger": "retracted",
                 "source": "Arm_retracting",
                 "dest": "Arm_retracted",
+            },
+            {
+                "trigger": "retract",
+                "source": "Arm_manual_stopped",
+                "dest": "Arm_manual_retracting",
+            },
+            {
+                "trigger": "retracted",
+                "source": "Arm_manual_retracting",
+                "dest": "Arm_manual_stopped",
             },
             {
                 "trigger": "reqArmActionCancel",
@@ -1207,8 +1229,18 @@ class SystemControl(rclpy.node.Node):
             },  # request action, but fail to start action, pause arm to maintain current state and allow for retry or other recovery actions
             {
                 "trigger": "reqHome",
-                "source": ["Arm_retracted", "Arm_paused", "Arm_manual"],
+                "source": ["Arm_retracted", "Arm_paused"],
                 "dest": "Arm_homing",
+            },
+            {
+                "trigger": "reqHome",
+                "source": "Arm_manual_stopped",
+                "dest": "Arm_manual_homing",
+            },
+            {
+                "trigger": "homed",
+                "source": "Arm_manual_homing",
+                "dest": "Arm_manual_stopped",
             },
             {
                 "trigger": "homed",
@@ -1371,24 +1403,24 @@ class SystemControl(rclpy.node.Node):
             },
             {
                 "trigger": "reqManualControl",  # same request will also exit manual control if already in manual control
-                "source": "Arm_manual",
+                "source": "Arm_manual_stopped",
                 "dest": "Arm_paused",
             },
             {
                 "trigger": "exitManualControl",
-                "source": "Arm_manual",
+                "source": "Arm_manual_stopped",
                 "dest": "Arm_paused",
             },
             {
                 "trigger": "openGripper",
-                "source": "Arm_manual",
-                "dest": "Arm_manual",
+                "source": "Arm_manual_stopped",
+                "dest": "Arm_manual_stopped",
                 "after": "after_open_gripper",
             },
             {
                 "trigger": "closeGripper",
-                "source": "Arm_manual",
-                "dest": "Arm_manual",
+                "source": "Arm_manual_stopped",
+                "dest": "Arm_manual_stopped",
                 "after": "after_close_gripper",
             },
             # global transitions

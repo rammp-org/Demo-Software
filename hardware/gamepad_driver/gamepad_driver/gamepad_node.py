@@ -63,9 +63,6 @@ class gamepadNode(Node):
                 "Button indices for home, manual control, open gripper, and close gripper must be unique."
             )
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
-
         self._cb_group = ReentrantCallbackGroup()
         # Arm Velocity Publisher
         self.twist_pub = self.create_publisher(

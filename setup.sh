@@ -115,9 +115,6 @@ $SUDO tee "${CYCLONE_CONFIG_PATH}" > /dev/null << 'EOF'
   </Domain>
 </CycloneDDS>
 EOF
-
-grep -qxF "export CYCLONEDDS_URI=${CYCLONE_CONFIG_PATH}" ~/.bashrc \
-  || echo "export CYCLONEDDS_URI=${CYCLONE_CONFIG_PATH}" >> ~/.bashrc
 echo "CycloneDDS config written to ${CYCLONE_CONFIG_PATH}"
 echo "CYCLONEDDS_URI exported in ~/.bashrc (reload shell or source ~/.bashrc to apply)"
 

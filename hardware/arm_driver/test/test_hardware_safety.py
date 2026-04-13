@@ -47,6 +47,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool
+from std_srvs.srv import Trigger
 
 # ── tunables ──────────────────────────────────────────────────────────────────
 
@@ -101,6 +102,7 @@ class SafetyTestNode(Node):
 
         # Service + action clients
         self._set_mode_cli = self.create_client(SetMode, "/arm/set_mode")
+        self._clear_error_cli = self.create_client(Trigger, "/arm/clear_error")
         self._reach_preset_cli = ActionClient(self, ReachPreset, "/arm/reach_preset")
 
         # Spin in a dedicated background thread so test methods never call
@@ -194,9 +196,17 @@ class SafetyTestNode(Node):
         result = result_future.result()
         return result is not None and result.result.success
 
+    def clear_error(self) -> bool:
+        future = self._clear_error_cli.call_async(Trigger.Request())
+        deadline = time.monotonic() + 5.0
+        while not future.done() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        result = future.result()
+        return result is not None and result.success
+
     def recover_from_error(self):
-        """Reset ERROR state and home the arm so the next test starts clean."""
-        self.set_mode(SetMode.Request.MODE_IDLE)
+        """Clear ERROR state and home the arm so the next test starts clean."""
+        self.clear_error()
         time.sleep(SETTLE_S)
         self.home()
         self.set_mode(SetMode.Request.MODE_IDLE)
@@ -467,6 +477,10 @@ class SafetyTestNode(Node):
         print("Waiting for /arm/set_mode service...")
         if not self._set_mode_cli.wait_for_service(timeout_sec=5.0):
             print("ERROR: /arm/set_mode not available.")
+            return False
+
+        if not self._clear_error_cli.wait_for_service(timeout_sec=5.0):
+            print("ERROR: /arm/clear_error not available.")
             return False
 
         print("Waiting for /arm/reach_preset action server...")

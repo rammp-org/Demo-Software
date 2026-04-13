@@ -222,6 +222,12 @@ class ArmDriverNode(rclpy.node.Node):
             self._on_check_reachability,
             callback_group=self._service_group,
         )
+        self._clear_error_srv = self.create_service(
+            Trigger,
+            "/arm/clear_error",
+            self._on_clear_error,
+            callback_group=self._service_group,
+        )
 
     def _init_actions(self):
         """Create all ROS action servers."""
@@ -575,6 +581,30 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = str(e)
         return response
 
+    def _on_clear_error(self, request, response):
+        """Handle a /arm/clear_error service request.
+
+        Transitions the node from ERROR back to IDLE, allowing normal operation
+        to resume.  Rejected if the node is not currently in ERROR state.
+
+        Args:
+            request: Empty Trigger request.
+            response: Trigger response with ``success`` (bool) and ``message`` (str).
+
+        Returns:
+            The populated service response.
+        """
+        if self._state != ArmState.ERROR:
+            response.success = False
+            response.message = f"Not in ERROR state (current state: {self._state.name})"
+            return response
+
+        self._error_reason = ""
+        self._transition_to(ArmState.IDLE)
+        response.success = True
+        response.message = "Error cleared — arm is IDLE"
+        return response
+
     def _on_check_reachability(self, request, response):
         """Handle a /arm/check_reachability service request.
 
@@ -703,6 +733,15 @@ class ArmDriverNode(rclpy.node.Node):
         Returns:
             ReachPreset result with success flag and optional message.
         """
+        if self._state == ArmState.ERROR:
+            result = ReachPreset.Result()
+            result.success = False
+            result.message = (
+                f"Cannot execute preset while in ERROR state: {self._error_reason}"
+            )
+            goal_handle.abort()
+            return result
+
         dispatch = {
             ReachPreset.Goal.PRESET_HOME: self._arm.home,
             ReachPreset.Goal.PRESET_RETRACT: self._arm.retract,
@@ -734,6 +773,15 @@ class ArmDriverNode(rclpy.node.Node):
         Returns:
             ExecuteTrajectory result with success flag and optional message.
         """
+        if self._state == ArmState.ERROR:
+            result = ExecuteTrajectory.Result()
+            result.success = False
+            result.message = (
+                f"Cannot execute trajectory while in ERROR state: {self._error_reason}"
+            )
+            goal_handle.abort()
+            return result
+
         if AUTHORIZED_SOURCE.get(self._state) != source:
             result = ExecuteTrajectory.Result()
             result.success = False

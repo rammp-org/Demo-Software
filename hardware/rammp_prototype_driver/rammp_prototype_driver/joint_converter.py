@@ -20,13 +20,14 @@ class JointConversion:
     tick_max: float
     output_min: float  # radians for revolute, meters for prismatic
     output_max: float
+    sign: float = 1
 
     @property
     def scale(self) -> float:
         tick_range = self.tick_max - self.tick_min
         if tick_range == 0.0:
             return 0.0
-        return (self.output_max - self.output_min) / tick_range
+        return self.sign * (self.output_max - self.output_min) / tick_range
 
     def position(self, ticks: float) -> float:
         return self.output_min + (ticks - self.tick_min) * self.scale
@@ -78,12 +79,14 @@ JOINT_CONVERSIONS: dict[str, JointConversion] = {
         tick_max=700.0,
         output_min=math.radians(0.0),
         output_max=math.radians(65.0),
+        sign=-1,
     ),
     "motor_swing_arm_r": JointConversion(
         tick_min=0.0,
         tick_max=700.0,
         output_min=math.radians(0.0),
         output_max=math.radians(65.0),
+        sign=-1,
     ),
     # ── Carriages: ticks → linear displacement (meters) ──────────────
     #    0-12000ish ticks  →  0-0.30m  (length of carriage travel)
@@ -103,10 +106,7 @@ JOINT_CONVERSIONS: dict[str, JointConversion] = {
     #    velocity: tick_vel * scale = rad/s
     #    Placeholder: 4096 ticks per revolution (adjust to actual encoder × gear ratio)
     "drive_wheel_l": JointConversion(
-        tick_min=0.0,
-        tick_max=4096.0,
-        output_min=0.0,
-        output_max=2.0 * math.pi,
+        tick_min=0.0, tick_max=4096.0, output_min=0.0, output_max=2.0 * math.pi, sign=-1
     ),
     "drive_wheel_r": JointConversion(
         tick_min=0.0,

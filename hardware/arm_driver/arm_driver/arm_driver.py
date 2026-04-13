@@ -1,11 +1,14 @@
 import concurrent.futures
 import enum
+import os
+import subprocess
 import time
 
 import numpy as np
 import rclpy
 import rclpy.action
 import rclpy.node
+from ament_index_python.packages import get_package_share_directory
 from arm_interfaces.action import ExecuteTrajectory, ReachPreset
 from arm_interfaces.srv import (
     CheckReachability,
@@ -21,11 +24,6 @@ from rclpy.executors import MultiThreadedExecutor
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger
-
-import os
-import subprocess
-
-from ament_index_python.packages import get_package_share_directory
 
 from arm_driver.arm_interface import KinovaArm, SpeedPreset
 from arm_driver.collision_checker import CollisionChecker
@@ -110,7 +108,10 @@ class ArmDriverNode(rclpy.node.Node):
         self._collision_checker = None  # set in _init_arm after CollisionChecker lands
         self._last_feedback_time: float = time.monotonic()
         self._last_twist_time: float | None = None
-        self._kortex_arm_state: str = ""  # last known Kortex RoboticsArmState name
+
+        # Last known arm state from Kortex, for fault handling
+        self._kortex_arm_state: str = ""
+
         # ReentrantCallbackGroup allows action/service callbacks to run concurrently
         # with the rest of the node (timers, subscribers) on the MultiThreadedExecutor,
         # so that blocking service/action handlers don't starve the joint_states timer.
@@ -261,7 +262,7 @@ class ArmDriverNode(rclpy.node.Node):
         self.create_timer(1.0, self._publish_status)  # 1 Hz
 
     def _init_arm(self):
-        """Connect to the Kinova arm and initialise the collision checker."""
+        """Connect to the Kinova arm and initialise the collision checker. Transitions to ERROR if arm not connected."""
         try:
             self._arm = KinovaArm()
             self.get_logger().info("Arm connected successfully.")

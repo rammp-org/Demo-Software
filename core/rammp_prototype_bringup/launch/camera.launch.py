@@ -231,30 +231,6 @@ def generate_launch_description():
                     output="screen",
                 )
             )
-            actions.append(
-                Node(
-                    package="tf2_ros",
-                    executable="static_transform_publisher",
-                    name="static_tf_nav1",
-                    arguments=[
-                        "--frame-id",
-                        "base_link",
-                        "--child-frame-id",
-                        "nav1_link",
-                        "--roll",
-                        "1.5708",
-                        "--pitch",
-                        "0.5",
-                        "--z",
-                        "0.513616",
-                        "--y",
-                        "0.262443",
-                        "--x",
-                        "0.036343",
-                    ],
-                    output="screen",
-                )
-            )
 
         # ── Nav2 shoulder camera (Orbbec Gemini 336L) ─────────────────────
         # Second Orbbec camera mounted on the shoulder of the robot.
@@ -304,30 +280,6 @@ def generate_launch_description():
                             }.items(),
                         ),
                     ]
-                )
-            )
-            actions.append(
-                Node(
-                    package="tf2_ros",
-                    executable="static_transform_publisher",
-                    name="static_tf_nav2",
-                    arguments=[
-                        "--frame-id",
-                        "base_link",
-                        "--child-frame-id",
-                        "nav2_link",
-                        "--roll",
-                        "-0.1",
-                        "--pitch",
-                        "0.91",
-                        "--z",
-                        "0.463616",
-                        "--y",
-                        "-0.262443",
-                        "--x",
-                        "0.036343",
-                    ],
-                    output="screen",
                 )
             )
 

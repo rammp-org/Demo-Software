@@ -127,22 +127,8 @@ const float CARRIAGE_LEVEL_TOLERANCE = 200.0f;
 const unsigned long LEVEL_BLEND_MS = 2000;
 
 // --- Self-Leveling PID Gain Scheduler ---
-// When self-leveling is active, ML/MR/RC use these hard-coded "stiff" gains
-// for tight position tracking of IK targets. On exit, the normal "soft" gains
-// are restored from EEPROM and PID state is cleared for a clean handoff.
-//
-// Every tuneable parameter of PIDController is broken out here so leveling
-// mode has full independent control of the cascaded pos→vel PID loops.
-struct LevelingPIDGains {
-  // Position loop
-  float pos_kp, pos_ki, pos_kd, pos_kff;
-  float pos_lpf_alpha;
-  float pos_max_ramp_rate;
-  // Velocity loop
-  float vel_kp, vel_ki, vel_kd, vel_kff;
-  float vel_lpf_alpha;
-  float vel_max_ramp_rate;
-};
+// LevelingPIDGains struct lives in Constants.h so the Arduino preprocessor
+// sees the type before it auto-generates function prototypes for Base.ino.
 
 // TODO: Tune these gains on the physical robot.
 // Each motor gets its own set because ML/MR/RC have different gear ratios

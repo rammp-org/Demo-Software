@@ -29,4 +29,18 @@ const float FC_MAX_TICKS = 0.0f; // Hardcoded top-of-range for front caster
 
 const float DG = 180.0f / 3.14159f;
 
+// Self-leveling PID gain scheduler — full per-loop parameter set.
+// Defined here (not in Base.ino) so the Arduino preprocessor can see
+// the type before it auto-generates function prototypes.
+struct LevelingPIDGains {
+  // Position loop
+  float pos_kp, pos_ki, pos_kd, pos_kff;
+  float pos_lpf_alpha;
+  float pos_max_ramp_rate;
+  // Velocity loop
+  float vel_kp, vel_ki, vel_kd, vel_kff;
+  float vel_lpf_alpha;
+  float vel_max_ramp_rate;
+};
+
 #endif

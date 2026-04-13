@@ -934,6 +934,7 @@ class GuiBridge(Node):
                 "Orientation": curb_info.Orientation,
                 "Distance": curb_info.Distance,
                 "Height": curb_info.Height,
+                "NumSegmentIDs": 4,
             }
             self.ue.call_function("UpdateCurbInfo", curbInfoDict)
 
@@ -969,6 +970,7 @@ class GuiBridge(Node):
                         "Z": 1.0,
                     },
                 },
+                "NumSegmentIDs": 3,
             }
             self.ue.call_function("UpdateCupInfo", cupInfoDict)
 
@@ -1014,8 +1016,8 @@ class GuiBridge(Node):
                         "Y": 1.0,
                         "Z": 1.0,
                     },
-                    # "NumSegmentIDs": 2,
                 },
+                "NumSegmentIDs": 2,
             }
             self.ue.call_function("UpdateButtonInfo", buttonInfoDict)
 

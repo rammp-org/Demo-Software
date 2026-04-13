@@ -521,6 +521,7 @@ class GuiBridge(Node):
             msg.segmentation_mask,
             self.wrist_camera_namespace,
             channel=self.mask_channel,
+            num_seg_ids=3.0,
         )  # for now just send the segmentation mask of the cup, can also send cup pose to UE if needed
 
     def door_button_info_callback(self, msg: ButtonInfo):
@@ -529,10 +530,16 @@ class GuiBridge(Node):
             msg.segmentation_mask,
             self.wrist_camera_namespace,
             channel=self.mask_channel,
+            num_seg_ids=2.0,
         )
 
     def curb_mask_callback(self, msg: Image):
-        self.send_mask(msg, self.nav_camera_namespace_1, channel=self.mask_channel + 1)
+        self.send_mask(
+            msg,
+            self.nav_camera_namespace_1,
+            channel=self.mask_channel + 1,
+            num_seg_ids=4.0,
+        )
 
     def curb_info_callback(self, msg: CurbInfo):
         self.update_curb_info(msg)
@@ -711,7 +718,9 @@ class GuiBridge(Node):
                 except Exception as e:
                     self.get_logger().warn(f"Failed to send {source} depth image: {e}")
 
-    def send_mask(self, mask: Image, source: str, channel: int = 200):
+    def send_mask(
+        self, mask: Image, source: str, channel: int = 200, num_seg_ids: float = 4.0
+    ):
         if self.stream_sender.is_connected():
             if mask is not None:
                 try:
@@ -725,6 +734,9 @@ class GuiBridge(Node):
                         "group": source,
                         "role": "mask",
                         "stream_id": f"{source}/mask",
+                    }
+                    meta["MaterialScalarParameters"] = {
+                        "NumSegmentIDs": num_seg_ids,
                     }
                     self.stream_sender.send_image(
                         channel=channel,

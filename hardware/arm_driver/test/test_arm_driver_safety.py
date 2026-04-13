@@ -25,14 +25,27 @@ def ros_context():
 
 
 def _make_node():
-    """Create ArmDriverNode with KinovaArm fully mocked.
+    """Create ArmDriverNode with KinovaArm and xacro/CollisionChecker mocked.
 
     Returns (node, mock_arm_instance, ArmState).
     """
-    with patch("arm_driver.arm_driver.KinovaArm") as MockArm:
+    with (
+        patch("arm_driver.arm_driver.KinovaArm") as MockArm,
+        patch("arm_driver.arm_driver.subprocess.run") as mock_run,
+        patch("arm_driver.arm_driver.CollisionChecker") as MockChecker,
+    ):
         mock_arm = MagicMock()
         mock_arm.actuator_count = 7
         MockArm.return_value = mock_arm
+
+        # Simulate xacro producing a URDF string
+        mock_run.return_value = MagicMock(stdout="<robot/>")
+
+        # CollisionChecker construction succeeds but check() returns False by default
+        mock_checker = MagicMock()
+        mock_checker.check.return_value = False
+        MockChecker.return_value = mock_checker
+
         from arm_driver.arm_driver import ArmDriverNode, ArmState
 
         node = ArmDriverNode()

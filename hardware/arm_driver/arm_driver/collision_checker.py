@@ -7,7 +7,7 @@ force — i.e., a collision.
 Usage::
 
     checker = CollisionChecker(
-        urdf_path="/path/to/gen3.urdf",
+        urdf_string=urdf_xml,
         thresholds={"DEFAULT": 100.0, "OPEN_DOOR": 500.0},
     )
 
@@ -31,16 +31,16 @@ class CollisionChecker:
     current arm state, a collision is reported.
 
     Args:
-        urdf_path: Absolute path to the Gen3 URDF file.
+        urdf_string: URDF XML as a string (e.g. the output of running xacro).
         thresholds: Mapping from ArmState name (e.g. ``"OPEN_DOOR"``) to
             residual threshold in Nm.  Any state not explicitly listed falls
             back to ``thresholds["DEFAULT"]``.
     """
 
-    def __init__(self, urdf_path: str, thresholds: dict[str, float]) -> None:
+    def __init__(self, urdf_string: str, thresholds: dict[str, float]) -> None:
         if "DEFAULT" not in thresholds:
             raise ValueError("thresholds dict must contain a 'DEFAULT' key")
-        self._model = pin.buildModelFromUrdf(urdf_path)
+        self._model = pin.buildModelFromXML(urdf_string)
         self._model_data = self._model.createData()
         self._thresholds = thresholds
 
@@ -58,7 +58,7 @@ class CollisionChecker:
         """Return True if a collision is detected.
 
         Args:
-            q: Joint positions (7,) in radians.
+            q: Joint positions (7,) in radians — arm joints only, no gripper.
             dq: Joint velocities (7,) in rad/s.
             tau: Measured joint torques (7,) in Nm.
             state_name: Current ArmState name, used to look up the threshold.

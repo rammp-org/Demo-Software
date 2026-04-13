@@ -27,12 +27,12 @@ def _make_checker(thresholds=None):
     with patch("arm_driver.collision_checker.pin") as mock_pin:
         mock_model = MagicMock()
         mock_model.nv = 7
-        mock_pin.buildModelFromUrdf.return_value = mock_model
+        mock_pin.buildModelFromXML.return_value = mock_model
         mock_model.createData.return_value = MagicMock()
 
         from arm_driver.collision_checker import CollisionChecker
 
-        checker = CollisionChecker("/fake/path.urdf", thresholds)
+        checker = CollisionChecker("<robot/>", thresholds)
         # Store the data mock so tests can set .tau on it
         checker._model_data.tau = np.zeros(7)
         return checker
@@ -108,7 +108,7 @@ class TestThresholds:
             from arm_driver.collision_checker import CollisionChecker
 
             with pytest.raises(ValueError, match="DEFAULT"):
-                CollisionChecker("/fake.urdf", {"OPEN_DOOR": 500.0})
+                CollisionChecker("<robot/>", {"OPEN_DOOR": 500.0})
 
 
 # ---------------------------------------------------------------------------

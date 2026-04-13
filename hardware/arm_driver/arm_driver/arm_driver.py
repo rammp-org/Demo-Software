@@ -22,6 +22,11 @@ from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger
 
+import os
+import subprocess
+
+from ament_index_python.packages import get_package_share_directory
+
 from arm_driver.arm_interface import KinovaArm, SpeedPreset
 from arm_driver.collision_checker import CollisionChecker
 
@@ -111,8 +116,7 @@ class ArmDriverNode(rclpy.node.Node):
         self._action_group = ReentrantCallbackGroup()
         self._service_group = ReentrantCallbackGroup()
 
-        # Collision checker parameters — set urdf_path in your launch file
-        self.declare_parameter("collision_checker.urdf_path", "")
+        # Collision checker threshold parameters (Nm)
         self.declare_parameter("collision_checker.threshold_default", 100.0)
         self.declare_parameter("collision_checker.threshold_open_door", 500.0)
 
@@ -258,29 +262,33 @@ class ArmDriverNode(rclpy.node.Node):
             self._error_reason = f"Arm connection failed: {e}"
             self._transition_to(ArmState.ERROR)
 
-        urdf_path = self.get_parameter("collision_checker.urdf_path").value
-        if urdf_path:
-            try:
-                thresholds = {
-                    "DEFAULT": self.get_parameter(
-                        "collision_checker.threshold_default"
-                    ).value,
-                    "OPEN_DOOR": self.get_parameter(
-                        "collision_checker.threshold_open_door"
-                    ).value,
-                }
-                self._collision_checker = CollisionChecker(urdf_path, thresholds)
-                self.get_logger().info(
-                    f"CollisionChecker initialised (URDF: {urdf_path})"
-                )
-            except Exception as e:
-                self.get_logger().error(
-                    f"Failed to initialise CollisionChecker: {e} — collision "
-                    "detection disabled"
-                )
-        else:
-            self.get_logger().warn(
-                "collision_checker.urdf_path not set — collision detection disabled"
+        try:
+            xacro_file = os.path.join(
+                get_package_share_directory("kortex_description"),
+                "robots",
+                "gen3.xacro",
+            )
+            result = subprocess.run(
+                ["xacro", xacro_file, "dof:=7", "gripper:=robotiq_2f_85"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            thresholds = {
+                "DEFAULT": self.get_parameter(
+                    "collision_checker.threshold_default"
+                ).value,
+                "OPEN_DOOR": self.get_parameter(
+                    "collision_checker.threshold_open_door"
+                ).value,
+            }
+            self._collision_checker = CollisionChecker(result.stdout, thresholds)
+            self.get_logger().info(
+                "CollisionChecker initialised from kortex_description"
+            )
+        except Exception as e:
+            self.get_logger().error(
+                f"Failed to initialise CollisionChecker: {e} — collision detection disabled"
             )
 
     # -------------------------------------------------------------------------

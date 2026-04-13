@@ -726,9 +726,9 @@ class GuiBridge(Node):
                         "role": "mask",
                         "stream_id": f"{source}/mask",
                     }
-                    self.stream_sender.send_depth(
+                    self.stream_sender.send_image(
                         channel=channel,
-                        depth_bytes=mask.data.tobytes(),
+                        image_bytes=mask.data.tobytes(),
                         width=width,
                         height=height,
                         metadata=meta,
@@ -996,7 +996,7 @@ class GuiBridge(Node):
             buttonInfoDict = {
                 "BoundingBox": float_bounding_box,  # Use the converted list of floats
                 "Confidence": button_info.confidence,
-                "CanPress": button_info.is_pressable,
+                "CanPress?": button_info.is_pressable,
                 "Pose": {
                     "Translation": {
                         "X": button_info.pose_xyzrpy[0],
@@ -1014,6 +1014,7 @@ class GuiBridge(Node):
                         "Y": 1.0,
                         "Z": 1.0,
                     },
+                    # "NumSegmentIDs": 2,
                 },
             }
             self.ue.call_function("UpdateButtonInfo", buttonInfoDict)

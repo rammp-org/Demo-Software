@@ -51,6 +51,9 @@ def _make_node():
         from arm_driver.arm_driver import ArmDriverNode, ArmState
 
         node = ArmDriverNode()
+        # Trigger the connection path while patches are active so self._arm is
+        # set to mock_arm before the context managers expire.
+        node._try_connect_arm()
         return node, mock_arm, ArmState
 
 

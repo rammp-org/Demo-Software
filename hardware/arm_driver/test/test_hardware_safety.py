@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Hardware-in-the-loop safety tests for arm_driver.
 
-Verifies that the three safety layers work correctly on the real arm:
+Verifies that the four safety layers work correctly on the real arm:
 
   1. E-stop   — publishing to /estop halts active motion and sets ERROR state
   2. Twist watchdog  — arm stops within TWIST_TIMEOUT_S after publisher goes silent
@@ -12,7 +12,8 @@ Prerequisites
 -------------
 - ROS 2 environment sourced
 - arm_driver node running, arm connected and homed
-- collision_checker.urdf_path parameter set (for tests 3 & 4)
+- collision detection enabled (driver uses kortex_description/gen3.xacro; check startup
+  log for "CollisionChecker initialised" to confirm it is active for tests 3 & 4)
 
 Usage
 -----
@@ -351,9 +352,9 @@ class SafetyTestNode(Node):
           - Driver state never becomes ERROR during NORMAL_MOTION_STREAM_S
             seconds of continuous twist motion.
 
-        Note: If collision_checker.urdf_path is not set, collision detection
-        is disabled and this test vacuously passes. Check the startup log for
-        "CollisionChecker initialised" to confirm it was active.
+        Note: Collision detection is only active if the driver successfully
+        initialised the CollisionChecker from kortex_description/xacro. Check
+        the startup log for "CollisionChecker initialised" to confirm it was active.
         ════════════════════════════════════════════════════════════════════════
         """
         print("\n── TEST 3: No false positive collisions ─────────────────────")

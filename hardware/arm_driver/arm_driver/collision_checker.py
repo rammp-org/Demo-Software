@@ -51,9 +51,11 @@ class CollisionChecker:
         self._model = pin.buildModelFromXML(urdf_string)
         self._model_data = self._model.createData()
         self._thresholds = thresholds
-        # Full neutral configuration used as the base when building q vectors.
-        # Gripper joints stay at their neutral position during arm collision checks.
-        self._q_neutral = pin.neutral(self._model)
+        # Preallocated buffers reused every check() call to avoid 100 Hz allocations.
+        # _q_full is seeded from neutral so gripper joints stay at neutral position.
+        self._q_full = pin.neutral(self._model)
+        self._dq_full = np.zeros(self._model.nv)
+        self._ddq_full = np.zeros(self._model.nv)
 
     # ------------------------------------------------------------------
     # Public API
@@ -77,13 +79,11 @@ class CollisionChecker:
         Returns:
             True if ``max(|tau_arm - tau_model_arm|) > threshold``.
         """
-        q_full = self._build_q_full(q)
-
-        dq_full = np.zeros(self._model.nv)
-        dq_full[: self._ARM_NV] = dq
+        np.copyto(self._q_full[: self._ARM_NQ], self._to_q_pin(q))
+        np.copyto(self._dq_full[: self._ARM_NV], dq)
 
         pin.rnea(
-            self._model, self._model_data, q_full, dq_full, np.zeros(self._model.nv)
+            self._model, self._model_data, self._q_full, self._dq_full, self._ddq_full
         )
         tau_model_arm = self._model_data.tau[: self._ARM_NV].copy()
 
@@ -94,16 +94,6 @@ class CollisionChecker:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-
-    def _build_q_full(self, q: np.ndarray) -> np.ndarray:
-        """Build the full nq configuration vector for RNEA.
-
-        Arm joints occupy the first _ARM_NQ entries; gripper joints are left
-        at their neutral positions.
-        """
-        q_full = self._q_neutral.copy()
-        q_full[: self._ARM_NQ] = self._to_q_pin(q)
-        return q_full
 
     @staticmethod
     def _to_q_pin(q: np.ndarray) -> np.ndarray:

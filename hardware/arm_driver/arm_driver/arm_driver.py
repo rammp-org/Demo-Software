@@ -316,6 +316,11 @@ class ArmDriverNode(rclpy.node.Node):
             self.get_logger().info(
                 "CollisionChecker initialised from kortex_description"
             )
+        except subprocess.CalledProcessError as e:
+            self.get_logger().error(
+                f"Failed to initialise CollisionChecker — xacro failed.\n"
+                f"stderr: {e.stderr.strip()}"
+            )
         except Exception as e:
             self.get_logger().error(
                 f"Failed to initialise CollisionChecker: {e} — collision detection disabled"
@@ -442,11 +447,6 @@ class ArmDriverNode(rclpy.node.Node):
         """
         if msg.data:
             self.get_logger().warn("E-stop received.")
-            if self._arm:
-                try:
-                    self._arm.stop()
-                except Exception as e:
-                    self.get_logger().warn(f"stop() failed during e-stop ({e!r})")
             self._error_reason = "E-stop triggered"
             self._transition_to(ArmState.ERROR)
 

@@ -27,8 +27,11 @@ def _make_checker(thresholds=None):
     with patch("arm_driver.collision_checker.pin") as mock_pin:
         mock_model = MagicMock()
         mock_model.nv = 7
+        mock_model.nq = 21  # full model: 11 arm + 10 gripper
         mock_pin.buildModelFromXML.return_value = mock_model
         mock_model.createData.return_value = MagicMock()
+        # neutral() must return a real array so _q_full supports np.copyto
+        mock_pin.neutral.return_value = np.zeros(21)
 
         from arm_driver.collision_checker import CollisionChecker
 

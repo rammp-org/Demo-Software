@@ -182,6 +182,14 @@ class SystemControl(rclpy.node.Node):
         )
 
     def system_monitor_callback(self):
+        if self._is_arm_error is None:
+            return
+        # try to clear arm error
+        if self._is_arm_error:
+            # try to clear error until it is cleared, it will trigger ready() when error is cleared successfully
+            self.clear_arm_error()
+            return  # return early
+
         if self._all_node_ready and self._gui_connected:
             self.ready()
 
@@ -342,6 +350,12 @@ class SystemControl(rclpy.node.Node):
             False
         )  # disable cup stabilizer if it is on when arm is paused to avoid potential interference with pausing arm
         self.set_arm_mode_idle()  # set arm mode to idle when paused to stop any ongoing arm action
+        if self._is_arm_error:
+            if self.clear_arm_error():
+                self.get_logger().info("Arm error cleared successfully.")
+            else:
+                self.get_logger().warn("Failed to clear arm error.")
+                self.ArmErrorClearFailed()
 
     def on_exit_Arm_paused(self):
         self.base_drive_enable(True)  # re-enable drive when exiting paused state
@@ -650,6 +664,7 @@ class SystemControl(rclpy.node.Node):
         self.system_state_publisher.publish(msg)
 
     def init_subscribers(self):
+        self._is_arm_error = None  # default to None to indicate not received arm status yet, will update to True/False after receiving arm status
         self.arm_status_subscriber = self.create_subscription(
             DiagnosticStatus,
             "/arm/status",
@@ -724,6 +739,11 @@ class SystemControl(rclpy.node.Node):
             self._srv_user_inputs_callback,
             callback_group=self._service_cb_group,
         )
+        self.clear_arm_error_client = self.create_client(
+            Trigger,
+            "/arm/clear_error",
+            callback_group=self._service_cb_group,
+        )
 
     def init_actions_clients(self):
         self.arm_preset_client = ArmPresetActionClient(self)
@@ -736,6 +756,18 @@ class SystemControl(rclpy.node.Node):
         self.curb_traverse_client = ChairCurbTraverseActionClient(self)
 
     # ----------Helper functions to call services and actions for state transitions----------------
+    def clear_arm_error(self) -> bool:
+        future = self.clear_arm_error_client.call_async(Trigger.Request())
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
+        if not future.done():
+            return False
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
     def set_arm_mode_idle(self):
         return self.set_arm_mode(ArmMode.IDLE)
 
@@ -881,6 +913,11 @@ class SystemControl(rclpy.node.Node):
         if self._arm_status != msg.message:
             self.get_logger().info(f" arm status: {self._arm_status} --> {msg.message}")
             self._arm_status = msg.message
+            is_arm_error = msg.level == DiagnosticStatus.ERROR
+            if self._is_arm_error is None and is_arm_error and not self._is_arm_error:
+                self.get_logger().error("Arm error detected!")
+                self.ArmError()
+            self._is_arm_error = is_arm_error
 
     def Gui_connection_callback(self, msg: Bool):
         # Placeholder for processing GUI connection status, will replace with actual logic to handle GUI connection status later
@@ -1001,11 +1038,6 @@ class SystemControl(rclpy.node.Node):
         if all_nodes_ready:
             self.get_logger().info("All nodes are ready!")
             self._all_node_ready = True
-            self.ready()  # trigger transition to Chair state when all nodes are ready
-            # TODO: need check UI connection as well
-            # wait 2 senconds to start mock testing here
-            # self._test_timer.reset()  # reset and start the timer to run mock tasks
-
         else:
             self.get_logger().warn("Some nodes are missing!")
             self.eStop()  # trigger transition to error state when nodes are missing
@@ -1041,6 +1073,29 @@ class SystemControl(rclpy.node.Node):
     def is_arm_retracted(self):
         return self.current_arm_state == "Arm_retracted" or self.current_arm_state == ""
 
+    def is_arm_action_running(self):
+        # check if arm is currently performing an action
+
+        self.arm_preset_client = ArmPresetActionClient(self)
+        self.pickup_and_order_client = PickUpAndOrderActionClient(self)
+        self.home_cup_client = HomeCupActionClient(self)
+        self.grab_cup_from_table_client = GrabCupFromTableActionClient(self)
+        self.put_cup_back_to_holder_client = PutCupBackToHolderActionClient(self)
+        self.bring_cup_to_mouth_client = BringCupToMouthActionClient(self)
+        self.open_door_client = OpenDoorActionClient(self)
+        self.curb_traverse_client = ChairCurbTraverseActionClient(self)
+        if (
+            self.arm_preset_client.is_action_running()
+            or self.pickup_and_order_client.is_action_running()
+            or self.home_cup_client.is_action_running()
+            or self.grab_cup_from_table_client.is_action_running()
+            or self.put_cup_back_to_holder_client.is_action_running()
+            or self.bring_cup_to_mouth_client.is_action_running()
+            or self.open_door_client.is_action_running()
+        ):
+            return True
+        return False
+
     # ----------End of state machine conditions----------------
     # ----------state machine callbacks----------------
     def on_enter_Chair(self):
@@ -1055,6 +1110,7 @@ class SystemControl(rclpy.node.Node):
             False
         )  # disable self-leveling when entering error state
         self.set_arm_mode_idle()  # set arm mode to idle when entering error state to stop any ongoing arm action
+        self.current_arm_state = ""  # reset current arm state when entering error state
 
     def on_enter_Arm(self):
         self.get_logger().info("Entering Arm state")
@@ -1428,6 +1484,20 @@ class SystemControl(rclpy.node.Node):
             # global transitions
             {"trigger": "eStop", "source": "*", "dest": "Error"},
             {"trigger": "UIDisconnected", "source": "*", "dest": "Error"},
+            {
+                "trigger": "ArmError",
+                "source": "Arm",
+                "dest": "Arm_canceling",
+                "conditions": "is_arm_action_running",
+            },  # if arm error happens during performing an action, try to cancel the action first; if arm is idle when error happens, directly go to error state
+            {"trigger": "ArmError", "source": "Arm", "dest": "Arm_paused"},
+            {
+                "trigger": "ArmErrorClearFailed",
+                "source": "Arm_paused",
+                "dest": "Error",
+            },  # if arm error is not cleared successfully, treat as system error and require reset
+            {"trigger": "ArmError", "source": "Chair", "dest": "Error"},
+            {"trigger": "ArmError", "source": "Nav", "dest": "Error"},
             {"trigger": "ready", "source": "init", "dest": "Chair"},
             {"trigger": "reset", "source": "Error", "dest": "init"},
             # main state transitions

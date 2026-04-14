@@ -184,8 +184,8 @@ class MEBotControlNode(Node):
         self.updater = diagnostic_updater.Updater(self)
         self.updater.setHardwareID("MEBot")
         self.updater.add("LUCI status", self.check_luci_node)
-        self.updater.add("Teensy status", self.check_teensy_connection)
-        self.updater.add("Teensy status", self.check_teensy_state)
+        self.updater.add("Teensy connection", self.check_teensy_connection)
+        self.updater.add("Teensy state", self.check_teensy_state)
 
         # Data transfer rates
         # Rate to read data from serial

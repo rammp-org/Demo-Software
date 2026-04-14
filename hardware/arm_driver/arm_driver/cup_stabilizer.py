@@ -23,7 +23,8 @@ class CupStabilizer:
     """
 
     def __init__(self, hz: float, kp: float, kd: float):
-        self._hz = hz
+        # hz is accepted for API symmetry with arm_driver parameters but not stored;
+        # the caller (arm_driver) owns the timer rate.
         self._kp = kp
         self._kd = kd
         self._gyro_offset: np.ndarray | None = None
@@ -68,7 +69,10 @@ class CupStabilizer:
         tool_y = rot.as_matrix()[:, 1]
 
         error = tool_y - up
+        # small-angle approximation: ||tool_y - up|| ≈ 2·sin(θ/2) ≈ θ for small θ
+        # error[0]/[1] (X/Y components in base frame) map to omega_y/omega_x respectively
+        # due to the cross-product geometry: a Y-axis tilt is corrected by an X rotation.
         omega_x = self._kp * error[1] + self._kd * gyro_rads[0]
-        omega_y = -(self._kp * error[0] + self._kd * gyro_rads[1])
+        omega_y = -self._kp * error[0] - self._kd * gyro_rads[1]
 
         return [0.0, 0.0, 0.0], [float(omega_x), float(omega_y), 0.0]

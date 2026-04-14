@@ -113,4 +113,30 @@ class TestCupStabilizerControl:
         result = cs.feed(imu)
         assert result is not None
         _, angular = result
-        assert angular == [0.0, 0.0, 0.0]
+        np.testing.assert_array_equal(angular, [0.0, 0.0, 0.0])
+
+    def test_nonzero_gyro_contributes_to_angular_command(self):
+        """Gyro rate must affect output with correct sign independent of orientation error."""
+        from arm_driver.cup_stabilizer import CupStabilizer
+
+        cs = CupStabilizer(hz=40.0, kp=8.0, kd=1.0)
+        cs.calibrate([np.zeros(3)])
+
+        # Zero-error pose (tool_y = up), non-zero gyro rate in x only
+        # With zero orientation error, only the kd term contributes
+        # omega_x = kp*0 + kd*gyro_rads[0]  → positive gyro_x → positive omega_x
+        # omega_y = -kp*0 - kd*gyro_rads[1] → zero gyro_y → zero omega_y
+        gyro_x_dps = 10.0  # 10 deg/s around x
+        imu = _make_imu(
+            accel=(0.0, -9.81, 0.0),  # gravity -Y → up = +Y
+            gyro=(gyro_x_dps, 0.0, 0.0),  # spinning around x only
+            euler_deg=(0.0, 0.0, 0.0),  # identity → tool_y = [0,1,0] = up
+        )
+        _, angular = cs.feed(imu)
+
+        expected_omega_x = 1.0 * np.deg2rad(gyro_x_dps)  # kd=1.0, gyro_rads[0]
+        assert (
+            abs(angular[0] - expected_omega_x) < 1e-6
+        ), f"omega_x expected {expected_omega_x:.6f}, got {angular[0]:.6f}"
+        assert abs(angular[1]) < 1e-6  # no y-gyro → no y contribution
+        assert abs(angular[2]) < 1e-6

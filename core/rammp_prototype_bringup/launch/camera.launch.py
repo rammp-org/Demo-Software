@@ -169,10 +169,10 @@ def generate_launch_description():
                     name="wrist_depth_republish",
                     arguments=["raw", "compressed"],
                     remappings=[
-                        ("in", "/camera/wrist/depth/image_rect_raw"),
+                        ("in", "/camera/wrist/aligned_depth_to_color/image_raw"),
                         (
                             "out/compressed",
-                            "/camera/wrist/depth/image_rect_raw/compressed_png",
+                            "/camera/wrist/aligned_depth_to_color/image_raw/compressed_png",
                         ),
                     ],
                     parameters=[{"out.format": "png", "out.png_level": 6}],

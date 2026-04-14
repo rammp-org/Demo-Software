@@ -25,7 +25,7 @@
       ],
       "targets": [
         370.0,
-        20.0,
+        30.0,
         191.0,
         175.0,
         130.0,
@@ -38,13 +38,13 @@
       "duration_ms": 1000,
       "label": "Drive forward a little",
       "motor_durations": [
+        6000,
         null,
         null,
         null,
         null,
         null,
-        null,
-        null,
+        3000,
         null
       ],
       "relative": [
@@ -59,7 +59,7 @@
       ],
       "targets": [
         368.0,
-        21.0,
+        30.0,
         190.0,
         173.0,
         173.0,
@@ -74,8 +74,8 @@
       "motor_durations": [
         null,
         3000,
-        null,
-        null,
+        2000,
+        2000,
         null,
         null,
         null,
@@ -93,7 +93,7 @@
       ],
       "targets": [
         369.0,
-        517.0,
+        485.0,
         69.0,
         69.0,
         112.0,
@@ -108,8 +108,8 @@
       "motor_durations": [
         null,
         null,
-        null,
-        null,
+        2000,
+        2000,
         null,
         null,
         null,
@@ -142,8 +142,8 @@
       "motor_durations": [
         null,
         null,
-        null,
-        null,
+        2000,
+        2000,
         null,
         null,
         null,
@@ -160,12 +160,12 @@
         true
       ],
       "targets": [
-        378.0,
-        483.0,
-        20.0,
-        21.0,
-        12624.0,
-        12578.0,
+        357.7,
+        485.0,
+        19.0,
+        18.0,
+        12600.0,
+        12581.0,
         0.0,
         0.0
       ]
@@ -195,7 +195,7 @@
       ],
       "targets": [
         380.0,
-        479.0,
+        485.0,
         20.0,
         21.0,
         155.0,
@@ -210,8 +210,8 @@
       "motor_durations": [
         null,
         null,
-        null,
-        null,
+        2000,
+        2000,
         null,
         null,
         null,
@@ -229,9 +229,9 @@
       ],
       "targets": [
         380.0,
-        483.0,
+        485.0,
         364.0,
-        399.0,
+        300.0,
         155.0,
         79.0,
         0.0,
@@ -263,9 +263,9 @@
       ],
       "targets": [
         380.0,
-        484.0,
+        485.0,
         368.0,
-        403.0,
+        300.0,
         12598.0,
         12600.0,
         0.0,
@@ -277,7 +277,7 @@
       "label": "Driving forward while raising RC",
       "motor_durations": [
         null,
-        null,
+        5000,
         null,
         null,
         null,
@@ -297,12 +297,12 @@
       ],
       "targets": [
         13.0,
-        486.0,
+        485.0,
         368.0,
-        398.0,
+        300.0,
         12598.0,
         12600.0,
-        4000.0,
+        8000.0,
         0.0
       ]
     },
@@ -312,8 +312,8 @@
       "motor_durations": [
         null,
         null,
-        null,
-        null,
+        2000,
+        2000,
         null,
         null,
         null,
@@ -331,9 +331,9 @@
       ],
       "targets": [
         746.0,
-        466.0,
-        293.0,
-        292.0,
+        485.0,
+        368.0,
+        300.0,
         12620.0,
         12580.0,
         0.0,
@@ -342,7 +342,41 @@
     },
     {
       "duration_ms": 1000,
-      "label": "Move carriages forward while driving",
+      "label": "Raise ML and MR",
+      "motor_durations": [
+        null,
+        null,
+        2000,
+        2000,
+        null,
+        null,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        300.0,
+        200.0,
+        80.0,
+        65.0,
+        12620.0,
+        12580.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "label": "Move carriages forward",
       "motor_durations": [
         null,
         null,
@@ -364,13 +398,13 @@
         true
       ],
       "targets": [
-        853.0,
-        502.0,
-        368.0,
-        397.0,
+        300.0,
+        200.0,
+        80.0,
+        65.0,
         136.0,
         96.0,
-        8000.0,
+        0.0,
         0.0
       ]
     },
@@ -378,10 +412,10 @@
       "duration_ms": 1000,
       "label": "Go back to self leveling mode",
       "motor_durations": [
-        null,
-        null,
-        null,
-        null,
+        3000,
+        2000,
+        1000,
+        1000,
         null,
         null,
         null,
@@ -409,5 +443,5 @@
       ]
     }
   ],
-  "name": "curb_descending_inchworm"
+  "name": "curb_descending_final"
 }

@@ -622,12 +622,12 @@ class MEBotControlNode(Node):
         if goal.request.direction == 1:
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/dry_run_seq.json"
+                + "/config/curb_climbing_final.json"
             )
         else:
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/dry_run_seq_2.json"
+                + "/config/curb_descending_final.json"
             )
 
         keyframes = _load_keyframes_from_json(json_path)

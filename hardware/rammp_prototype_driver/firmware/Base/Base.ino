@@ -137,16 +137,16 @@ const unsigned long LEVEL_BLEND_MS = 2000;
 // Fields:  pos_kp  pos_ki  pos_kd  pos_kff  pos_lpf  pos_ramp
 //          vel_kp  vel_ki  vel_kd  vel_kff  vel_lpf  vel_ramp
 static const LevelingPIDGains LEVEL_ML_GAINS = {
-    1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, // pos loop
-    0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f   // vel loop
+    10.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, // pos loop
+    10.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f  // vel loop
 };
 static const LevelingPIDGains LEVEL_MR_GAINS = {
-    1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, // pos loop
-    0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f   // vel loop
+    10.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, // pos loop
+    10.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f  // vel loop
 };
 static const LevelingPIDGains LEVEL_RC_GAINS = {
-    1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, // pos loop
-    0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f   // vel loop
+    10.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, // pos loop
+    10.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f  // vel loop
 };
 
 // True while self-leveling gains are loaded on ML/MR/RC.

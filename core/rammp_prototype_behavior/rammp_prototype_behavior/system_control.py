@@ -673,6 +673,15 @@ class SystemControl(rclpy.node.Node):
         for trigger in available_triggers:
             if trigger in StateTriggerToUserInputs:
                 userinputs_list.append(StateTriggerToUserInputs[trigger])
+        # check `chair/main` trigger's condition to determine whether to show `UserInputs.Request.CHAIR_CONTROL_MAIN` user input in Arm State
+        if UserInputs.Request.CHAIR_CONTROL_MAIN in userinputs_list:
+            parent_state = self.state.split("_")[
+                0
+            ]  # get parent state, e.g. Arm from Arm_Door_raisingArm
+            if parent_state == "Arm":
+                if not self.is_arm_state_good_for_driving():
+                    # remove "chair/main" from the list
+                    userinputs_list.remove(UserInputs.Request.CHAIR_CONTROL_MAIN)
         return userinputs_list
 
     def publish_system_state(self):

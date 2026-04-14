@@ -623,18 +623,17 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = f"Not in ERROR state (current state: {self._state.name})"
             return response
 
-        if self._arm:
-            try:
-                self._arm.clear_faults()
-            except TimeoutError as e:
-                response.success = False
-                response.message = f"Kortex fault could not be cleared: {e}"
-                return response
-            except Exception as e:
-                # Non-fault errors (e.g. comms blip) — log but don't block recovery
-                self.get_logger().warn(
-                    f"clear_faults() raised unexpected error ({e!r})"
-                )
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected — reconnect before clearing error"
+            return response
+
+        try:
+            self._arm.clear_faults()
+        except Exception as e:
+            response.success = False
+            response.message = f"Kortex fault could not be cleared: {e}"
+            return response
 
         self._error_reason = ""
         self._kortex_arm_state = ""

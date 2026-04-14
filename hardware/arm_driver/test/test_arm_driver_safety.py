@@ -414,6 +414,33 @@ class TestHardwareFault:
         finally:
             node.destroy_node()
 
+    def test_clear_error_fails_if_clear_faults_raises_generic_exception(self):
+        """A disconnected arm raises a non-Timeout exception; must not transition to IDLE."""
+        node, mock_arm, ArmState = _make_node_in_error()
+        try:
+            mock_arm.clear_faults.side_effect = ConnectionError("gRPC channel closed")
+            req = Trigger.Request()
+            resp = Trigger.Response()
+            resp = node._on_clear_error(req, resp)
+            assert not resp.success
+            assert node._state == ArmState.ERROR  # must not have transitioned
+        finally:
+            node.destroy_node()
+
+    def test_clear_error_fails_when_arm_not_connected(self):
+        """clear_error must be rejected when self._arm is None (arm never connected)."""
+        node, mock_arm, ArmState = _make_node_in_error()
+        try:
+            node._arm = None
+            req = Trigger.Request()
+            resp = Trigger.Response()
+            resp = node._on_clear_error(req, resp)
+            assert not resp.success
+            assert "not connected" in resp.message.lower()
+            assert node._state == ArmState.ERROR  # must not have transitioned
+        finally:
+            node.destroy_node()
+
     def test_status_includes_kortex_keyvalues(self):
         node, mock_arm, ArmState = _make_node_in_error()
         try:

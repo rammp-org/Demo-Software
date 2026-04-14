@@ -56,7 +56,7 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 IMU_Class IMU = IMU_Class(bno);
 EncoderContainer EContr;
 Timer timer;
-CommandParser parser(60000);
+CommandParser parser(2000);
 
 // Limit switch states (global for telemetry)
 bool ml_fwd_limit = false;

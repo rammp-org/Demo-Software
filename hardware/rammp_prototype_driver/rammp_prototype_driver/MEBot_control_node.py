@@ -389,6 +389,8 @@ class MEBotControlNode(Node):
     def send_serial_heartbeat(self):
         if not self.estop:
             self.write_serial_data("c\n")
+        else:
+            self.write_serial_data("z\n")
 
     # update variables to be published
     def update_data(self, data):

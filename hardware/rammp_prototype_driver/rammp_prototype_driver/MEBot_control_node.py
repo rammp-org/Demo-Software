@@ -648,6 +648,7 @@ class MEBotControlNode(Node):
                 goal.canceled()
                 result.success = False
                 self.send_remove_luci()
+                self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 return result
             time.sleep(0.01)
 
@@ -656,6 +657,7 @@ class MEBotControlNode(Node):
                 goal.canceled()
                 result.success = False
                 self.send_remove_luci()
+                self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 return result
 
             feedback_msg.progress = (
@@ -675,6 +677,7 @@ class MEBotControlNode(Node):
         self.seq_mode = 0
 
         self.send_remove_luci()
+        self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
         return result
 
     def drive_enable_callback(self, request, response):

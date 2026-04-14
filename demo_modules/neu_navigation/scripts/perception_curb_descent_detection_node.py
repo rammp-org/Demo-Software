@@ -24,13 +24,13 @@ from rfdetr import RFDETRSegSmall
 import supervision as sv
 
 
-class PerceptionCurbDetectionNode(Node):
+class PerceptionCurbDescentDetectionNode(Node):
     def __init__(self):
-        super().__init__("perception_curb_detection_node")
+        super().__init__("perception_curb_descent_detection_node")
         from ament_index_python.packages import get_package_share_directory
 
         # Parameters
-        self.declare_parameter("model_name", "segmentation_ascent.pth")
+        self.declare_parameter("model_name", "segmentation_descent.pth")
         self.declare_parameter("confidence_threshold", 0.5)
         self.declare_parameter("input_image_topic", "/camera/nav1/color/image_rotated")
         self.declare_parameter("input_depth_topic", "/camera/nav1/depth/image_rotated")
@@ -38,15 +38,21 @@ class PerceptionCurbDetectionNode(Node):
             "input_info_topic", "/camera/nav1/color/camera_info_rotated"
         )
         self.declare_parameter("output_marker_topic", "/perception/curb_visual")
-        self.declare_parameter("curb_info_topic", "/nav/curb/info")
+        self.declare_parameter("curb_info_topic", "/nav/curb_descent/info")
         self.declare_parameter("segmentation_mask_topic", "/perception/curb_mask")
         self.declare_parameter("mask_image_topic", "/perception/curb_mask_image")
-        self.declare_parameter("curb_class_id", 0)
+
+        # specific class mapping based on curb_road_point_extractor
+        self.declare_parameter("curb_class_id", 0)  # curb class from model
+        self.declare_parameter("road_class_id", 1)  # road class from model
+
         self.declare_parameter("rotation_degrees", 90)
         self.declare_parameter("target_frame", "base_link")
         self.declare_parameter("ransac_threshold", 0.1)
         self.declare_parameter("ransac_iterations", 100)
         self.declare_parameter("detection_rate_hz", 30.0)
+        self.declare_parameter("edge_band_width", 0.5)
+        self.declare_parameter("min_points", 10)
 
         model_name = self.get_parameter("model_name").get_parameter_value().string_value
         self.conf_threshold = (
@@ -77,8 +83,11 @@ class PerceptionCurbDetectionNode(Node):
         mask_image_topic = (
             self.get_parameter("mask_image_topic").get_parameter_value().string_value
         )
-        self.curb_id = (
+        self.curb_class_id = (
             self.get_parameter("curb_class_id").get_parameter_value().integer_value
+        )
+        self.road_class_id = (
+            self.get_parameter("road_class_id").get_parameter_value().integer_value
         )
         self.rotation = (
             self.get_parameter("rotation_degrees").get_parameter_value().integer_value
@@ -91,6 +100,12 @@ class PerceptionCurbDetectionNode(Node):
         )
         self.ransac_iters = (
             self.get_parameter("ransac_iterations").get_parameter_value().integer_value
+        )
+        self.edge_band_width = (
+            self.get_parameter("edge_band_width").get_parameter_value().double_value
+        )
+        self.min_points = (
+            self.get_parameter("min_points").get_parameter_value().integer_value
         )
         detection_rate_hz = (
             self.get_parameter("detection_rate_hz").get_parameter_value().double_value
@@ -116,7 +131,7 @@ class PerceptionCurbDetectionNode(Node):
         self._inference_thread = None
         self._stop_event = threading.Event()
 
-        self.class_names = {0: "curb", 1: "road"}
+        self.class_names = {self.curb_class_id: "curb", self.road_class_id: "road"}
         self.mask_annotator = sv.MaskAnnotator()
         self.label_annotator = sv.LabelAnnotator()
 
@@ -133,7 +148,7 @@ class PerceptionCurbDetectionNode(Node):
         # Service Server (SetBool: True = enable streaming, False = disable and free GPU)
         self.srv = self.create_service(
             SetBool,
-            "nav/curb/detect",
+            "nav/curb_descent/detect",
             self.set_detection_callback,
             callback_group=self.cb_group,
         )
@@ -154,13 +169,13 @@ class PerceptionCurbDetectionNode(Node):
         )
         self.ts.registerCallback(self.sync_callback)
 
-        self.get_logger().info("Perception Curb Detection Node initialized.")
+        self.get_logger().info("Perception Curb Descent Node initialized.")
 
-    def publish_marker(self, centroid, a, b, height, stamp, frame_id):
+    def publish_marker(self, centroid, length, height, angle, stamp, frame_id):
         marker = Marker()
         marker.header.frame_id = frame_id
         marker.header.stamp = stamp
-        marker.ns = "curb_plane"
+        marker.ns = "curb_descent_edge"
         marker.id = 0
         marker.type = Marker.CUBE
         marker.action = Marker.ADD
@@ -169,13 +184,12 @@ class PerceptionCurbDetectionNode(Node):
         marker.pose.position.y = float(centroid[1])
         marker.pose.position.z = float(centroid[2])
 
-        angle = float(np.arctan2(-a, b))
         marker.pose.orientation.z = float(np.sin(angle / 2.0))
         marker.pose.orientation.w = float(np.cos(angle / 2.0))
 
-        marker.scale.x = 2.0
+        marker.scale.x = float(max(length, 0.1))
         marker.scale.y = 0.05
-        marker.scale.z = float(height)
+        marker.scale.z = float(max(abs(height), 0.02))
 
         marker.color.r = 0.0
         marker.color.g = 1.0
@@ -193,7 +207,7 @@ class PerceptionCurbDetectionNode(Node):
         if request.data:
             if self._inference_thread is not None and self._inference_thread.is_alive():
                 response.success = True
-                response.message = "Curb detection already enabled."
+                response.message = "Curb descent detection already enabled."
                 return response
 
             model_path = self.model_path
@@ -215,7 +229,7 @@ class PerceptionCurbDetectionNode(Node):
             )
             self._inference_thread.start()
             response.success = True
-            response.message = "Curb detection enabled."
+            response.message = "Curb descent detection enabled."
         else:
             self._stop_event.set()
             if self._inference_thread is not None:
@@ -225,9 +239,9 @@ class PerceptionCurbDetectionNode(Node):
                 del self.model
                 self.model = None
             torch.cuda.empty_cache()
-            self.get_logger().info("Curb detection disabled, GPU memory freed.")
+            self.get_logger().info("Curb descent detection disabled, GPU memory freed.")
             response.success = True
-            response.message = "Curb detection disabled."
+            response.message = "Curb descent detection disabled."
 
         return response
 
@@ -254,14 +268,71 @@ class PerceptionCurbDetectionNode(Node):
                         curb_info.message = "Detection successful."
                     else:
                         curb_info.success = False
-                        curb_info.message = "No curb detected."
+                        curb_info.message = "No drop detected."
                     self.curb_info_pub.publish(curb_info)
                 except Exception as e:
+                    import traceback
+
+                    traceback.print_exc()
                     self.get_logger().error(f"Detection error: {e}")
 
             sleep_time = self._target_period - (time.monotonic() - loop_start)
             if sleep_time > 0:
                 time.sleep(sleep_time)
+
+    def _fit_line_xy(self, points: np.ndarray):
+        """
+        Fit ax + by + d = 0 to the XY projection of points.
+        Returns (a, b, d, best_inliers, centroid) or Non
+        """
+        x = points[:, 0]
+        y = points[:, 1]
+        n = len(x)
+
+        idx1 = np.random.randint(0, n, self.ransac_iters * 2)
+        idx2 = np.random.randint(0, n, self.ransac_iters * 2)
+        same = idx1 == idx2
+        idx2[same] = (idx2[same] + 1) % n
+
+        vx = x[idx2] - x[idx1]
+        vy = y[idx2] - y[idx1]
+        mag = np.hypot(vx, vy)
+        valid = (
+            mag > 0.05
+        )  # Enforce points must be at least 5cm apart to create a stable slope
+        if not np.any(valid):
+            return None
+
+        vx, vy = vx[valid], vy[valid]
+        px, py = x[idx1[valid]], y[idx1[valid]]
+        mag = mag[valid]
+
+        a_all = -vy / mag
+        b_all = vx / mag
+        d_all = -(a_all * px + b_all * py)
+
+        best_idx = -1
+        best_inliers = np.empty(0, dtype=int)
+
+        # All distances
+        all_dists = np.abs(a_all[:, None] * x + b_all[:, None] * y + d_all[:, None])
+        inlier_counts = np.sum(all_dists < self.ransac_thresh, axis=1)
+        best_idx = int(np.argmax(inlier_counts))
+        best_inliers = np.where(all_dists[best_idx] < self.ransac_thresh)[0]
+
+        if len(best_inliers) < 5:
+            return None
+
+        inp = points[best_inliers]
+        centroid = np.mean(inp, axis=0)
+        A = np.column_stack((inp[:, 0] - centroid[0], inp[:, 1] - centroid[1]))
+        _, _, vh = np.linalg.svd(A, full_matrices=False)
+        normal = vh[1, :]
+        a_fit = float(normal[0])
+        b_fit = float(normal[1])
+        d_fit = -(a_fit * centroid[0] + b_fit * centroid[1])
+
+        return a_fit, b_fit, d_fit, best_inliers, centroid
 
     def process_integrated(self, model, img_msg, depth_msg, info_msg):
         try:
@@ -272,22 +343,27 @@ class PerceptionCurbDetectionNode(Node):
             detections = model.predict(pil_image, threshold=self.conf_threshold)
 
             if len(detections) == 0 or detections.mask is None:
-                return
+                return None
 
-            # Combine all masks for the target class
-            mask_indices = np.where(detections.class_id == self.curb_id)[0]
-            if len(mask_indices) == 0:
-                return
+            # Get masks
+            curb_idx = np.where(detections.class_id == self.curb_class_id)[0]
+            road_idx = np.where(detections.class_id == self.road_class_id)[0]
 
-            combined_mask = np.any(detections.mask[mask_indices], axis=0)
+            if len(curb_idx) == 0 or len(road_idx) == 0:
+                return None
+
+            curb_mask = np.any(detections.mask[curb_idx], axis=0)
+            road_mask = np.any(detections.mask[road_idx], axis=0)
 
             if self.mask_pub.get_subscription_count() > 0:
-                # Publish segmentation mask (mono8) and annotated mask image
+                # Just build a combination to publish for viewing
+                combined_mask = np.zeros_like(curb_mask, dtype=np.uint8)
+                combined_mask[curb_mask] = 100
+                combined_mask[road_mask] = 200
+
                 self.mask_pub.publish(
                     self.bridge.cv2_to_imgmsg(
-                        combined_mask.astype(np.uint8) * 255,
-                        encoding="mono8",
-                        header=img_msg.header,
+                        combined_mask, encoding="mono8", header=img_msg.header
                     )
                 )
 
@@ -310,11 +386,11 @@ class PerceptionCurbDetectionNode(Node):
                     )
                 )
 
-            # 2. 3D Projection
+            # 2. 3D Projection for curb and road
             depth_img = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="16UC1")
 
             # Check if depth rotation is needed manually by comparing matrix bounds
-            if combined_mask.shape != depth_img.shape:
+            if curb_mask.shape != depth_img.shape:
                 if self.rotation == 90:
                     depth_proc = cv2.rotate(depth_img, cv2.ROTATE_90_CLOCKWISE)
                 elif self.rotation == -90 or self.rotation == 270:
@@ -326,59 +402,28 @@ class PerceptionCurbDetectionNode(Node):
             else:
                 depth_proc = depth_img
 
-            if combined_mask.shape != depth_proc.shape:
-                combined_mask = (
-                    cv2.resize(
-                        combined_mask.astype(np.uint8),
-                        (depth_proc.shape[1], depth_proc.shape[0]),
-                        interpolation=cv2.INTER_NEAREST,
-                    )
-                    > 0
+            if curb_mask.shape != depth_proc.shape:
+                curb_mask_u8 = cv2.resize(
+                    curb_mask.astype(np.uint8),
+                    (depth_proc.shape[1], depth_proc.shape[0]),
+                    interpolation=cv2.INTER_NEAREST,
                 )
-
-            v_rot, u_rot = np.where(combined_mask)
-            if len(v_rot) < 10:
-                return
-
-            # Downsample for speed
-            step = max(1, len(v_rot) // 500)
-            v_rot, u_rot = v_rot[::step], u_rot[::step]
-
-            depths = depth_proc[v_rot, u_rot].astype(np.float32) / 1000.0
-            valid = depths > 0.1
-            v_rot, u_rot, depths = v_rot[valid], u_rot[valid], depths[valid]
-
-            if len(depths) < 10:
-                return
-
-            # Do not un-rotate pixels, because info_topic provides rotated camera intrinsics
-            u_orig, v_orig = u_rot, v_rot
-
-            # Project to camera 3D
-            fx, fy = info_msg.k[0], info_msg.k[4]
-            cx, cy = info_msg.k[2], info_msg.k[5]
-
-            x_cam_rot = (u_orig - cx) * depths / fx
-            y_cam_rot = (v_orig - cy) * depths / fy
-            z_cam = depths
-
-            # The computed points are in the rotated optical frame.
-            # TF transforms from the unrotated optical frame (info_msg.header.frame_id).
-            # We unrotate the 3D coordinates so TF aligns them correctly to base_link.
-            if self.rotation == 90:
-                x_cam = y_cam_rot
-                y_cam = -x_cam_rot
-            elif self.rotation == -90 or self.rotation == 270:
-                x_cam = -y_cam_rot
-                y_cam = x_cam_rot
-            elif self.rotation == 180:
-                x_cam = -x_cam_rot
-                y_cam = -y_cam_rot
+                road_mask_u8 = cv2.resize(
+                    road_mask.astype(np.uint8),
+                    (depth_proc.shape[1], depth_proc.shape[0]),
+                    interpolation=cv2.INTER_NEAREST,
+                )
             else:
-                x_cam = x_cam_rot
-                y_cam = y_cam_rot
+                curb_mask_u8 = curb_mask.astype(np.uint8)
+                road_mask_u8 = road_mask.astype(np.uint8)
 
-            # Transform to base_link (non-blocking — skip frame if TF not ready)
+            # Use 2D morph dilation to intersect the masks. This reveals the true edge pixels where Curb and Road touch cleanly regardless of viewing angle.
+            kernel = np.ones((11, 11), np.uint8)
+            road_dilated = cv2.dilate(road_mask_u8, kernel, iterations=1)
+
+            curb_edge_mask = (curb_mask_u8 > 0) & (road_dilated > 0)
+
+            # Transform matrix fetch before projection
             try:
                 source_frame = info_msg.header.frame_id
                 trans = self.tf_buffer.lookup_transform(
@@ -387,7 +432,6 @@ class PerceptionCurbDetectionNode(Node):
                     img_msg.header.stamp,
                     rclpy.duration.Duration(seconds=0.0),
                 )
-
                 q = trans.transform.rotation
                 t = trans.transform.translation
                 x_q, y_q, z_q, w_q = q.x, q.y, q.z, q.w
@@ -410,87 +454,133 @@ class PerceptionCurbDetectionNode(Node):
                         ],
                     ]
                 )
-
                 mat = np.eye(4)
                 mat[:3, :3] = rot_mat
                 mat[0, 3] = t.x
                 mat[1, 3] = t.y
                 mat[2, 3] = t.z
+                out_header_frame = self.target_frame
+            except Exception as e:
+                self.get_logger().warn(f"TF Failed: {e}", throttle_duration_sec=2.0)
+                return None
+
+            fx, fy = info_msg.k[0], info_msg.k[4]
+            cx, cy = info_msg.k[2], info_msg.k[5]
+
+            def extract_and_project(mask_array):
+                v_rot, u_rot = np.where(mask_array)
+                if len(v_rot) < self.min_points:
+                    return None
+
+                # Downsample
+                step = max(1, len(v_rot) // 500)
+                v_rot, u_rot = v_rot[::step], u_rot[::step]
+
+                depths = depth_proc[v_rot, u_rot].astype(np.float32) / 1000.0
+                valid = (depths > 0.1) & (depths < 10.0)
+                v_rot, u_rot, depths = v_rot[valid], u_rot[valid], depths[valid]
+
+                if len(depths) < self.min_points:
+                    return None
+
+                # Do not un-rotate pixels, because info_topic provides rotated camera intrinsics
+                u_orig, v_orig = u_rot, v_rot
+
+                x_cam_rot = (u_orig - cx) * depths / fx
+                y_cam_rot = (v_orig - cy) * depths / fy
+                z_cam = depths
+
+                # The computed points are in the rotated optical frame.
+                # TF transforms from the unrotated optical frame (info_msg.header.frame_id).
+                # We unrotate the 3D coordinates so TF aligns them correctly to base_link.
+                if self.rotation == 90:
+                    x_cam = y_cam_rot
+                    y_cam = -x_cam_rot
+                elif self.rotation == -90 or self.rotation == 270:
+                    x_cam = -y_cam_rot
+                    y_cam = x_cam_rot
+                elif self.rotation == 180:
+                    x_cam = -x_cam_rot
+                    y_cam = -y_cam_rot
+                else:
+                    x_cam = x_cam_rot
+                    y_cam = y_cam_rot
 
                 points_cam = np.stack(
                     [x_cam, y_cam, z_cam, np.ones_like(x_cam)], axis=1
                 )
-                points = (points_cam @ mat.T)[:, :3].astype(np.float32)
-                out_header_frame = self.target_frame
-            except Exception as e:
-                self.get_logger().warn(
-                    f"Could not transform points to {self.target_frame}: {e}"
-                )
-                points = np.stack([x_cam, y_cam, z_cam], axis=1).astype(np.float32)
-                out_header_frame = info_msg.header.frame_id
+                points_3d = (points_cam @ mat.T)[:, :3].astype(np.float32)
+                return points_3d
 
-            # 3. Curb Fitting (vectorized RANSAC)
-            if len(points) < 10:
-                return
+            curb_edge = extract_and_project(curb_edge_mask)
 
-            x_pts = points[:, 0]
-            y_pts = points[:, 1]
-            z_pts = points[:, 2]
-            n_points = len(x_pts)
+            if curb_edge is None:
+                return None
 
-            idx1 = np.random.randint(0, n_points, self.ransac_iters)
-            idx2 = np.random.randint(0, n_points, self.ransac_iters)
-            collide = idx1 == idx2
-            idx2[collide] = (idx2[collide] + 1) % n_points
+            # User Request: Align to the beginning of the curb (curb cut start)
+            # Fit line on the curb outer edge instead of the road inner edge
+            result = self._fit_line_xy(curb_edge)
+            if result is None:
+                return None
 
-            vx = x_pts[idx2] - x_pts[idx1]
-            vy = y_pts[idx2] - y_pts[idx1]
-            mag = np.sqrt(vx**2 + vy**2)
-            valid_lines = mag > 1e-6
-            if not np.any(valid_lines):
-                return
+            a, b, d, inlier_idx, centroid = result
+            curb_inliers = curb_edge[inlier_idx]
 
-            vx, vy, mag = vx[valid_lines], vy[valid_lines], mag[valid_lines]
-            p1x, p1y = x_pts[idx1[valid_lines]], y_pts[idx1[valid_lines]]
-            a = -vy / mag
-            b = vx / mag
-            d = -(a * p1x + b * p1y)
+            # Compute height based on z-drop
+            curb_z = float(np.mean(curb_inliers[:, 2]))
 
-            # All distances in one broadcast: shape (n_lines, n_points)
-            all_dists = np.abs(a[:, None] * x_pts + b[:, None] * y_pts + d[:, None])
-            inlier_counts = np.sum(all_dists < self.ransac_thresh, axis=1)
-            best_idx = int(np.argmax(inlier_counts))
-            best_inliers = np.where(all_dists[best_idx] < self.ransac_thresh)[0]
+            # Fetch total road point cloud to extract flat ground samples
+            road_pts = extract_and_project(road_mask_u8)
+            if road_pts is not None:
+                # Calculate perpendicular distance of all road points to our fitted curb plane
+                road_dists = np.abs(a * road_pts[:, 0] + b * road_pts[:, 1] + d)
 
-            if len(best_inliers) < 5:
-                return
+                # Filter road points to a flat band safely past the cliff drop artifact (15cm to 75cm away)
+                road_band = road_pts[(road_dists > 0.15) & (road_dists < 0.75)]
+                if len(road_band) >= 5:
+                    road_z = float(np.mean(road_band[:, 2]))
+                else:
+                    road_z = float(np.mean(road_pts[:, 2]))
+            else:
+                road_z = curb_z - 0.15  # hardware fallback
 
-            inlier_points = points[best_inliers]
-            centroid = np.mean(inlier_points, axis=0)
-            A = np.column_stack(
-                (inlier_points[:, 0] - centroid[0], inlier_points[:, 1] - centroid[1])
-            )
-            _, _, vh = np.linalg.svd(A, full_matrices=False)
-            a_fit, b_fit = vh[1, :]
-            d_fit = -(a_fit * centroid[0] + b_fit * centroid[1])
+            height = curb_z - road_z  # positive -> road is below curb
 
-            plane_angle = np.arctan2(-a_fit, b_fit)
-            height = np.max(z_pts[best_inliers]) - np.min(z_pts[best_inliers])
-            distance = np.abs(d_fit)
+            # Metrics
+            distance = float(abs(d))
+            angle = float(np.arctan2(-a, b))
+
+            dx, dy = np.cos(angle), np.sin(angle)
+            rel = curb_inliers[:, :2] - centroid[:2]
+            proj = rel[:, 0] * dx + rel[:, 1] * dy
+            length = float(np.max(proj) - np.min(proj))
+
+            # Move centroid down to midway between curb and road for visualization
+            centroid_vis = centroid.copy()
+            centroid_vis[2] = curb_z - (height / 2.0)
 
             self.publish_marker(
-                centroid, a_fit, b_fit, height, img_msg.header.stamp, out_header_frame
+                centroid_vis,
+                length,
+                height,
+                angle,
+                img_msg.header.stamp,
+                out_header_frame,
             )
-            return float(distance), float(height), float(plane_angle)
+
+            return float(distance), float(height), float(angle)
 
         except Exception as e:
+            import traceback
+
+            traceback.print_exc()
             self.get_logger().error(f"Error in process_integrated: {e}")
             return None
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = PerceptionCurbDetectionNode()
+    node = PerceptionCurbDescentDetectionNode()
 
     executor = MultiThreadedExecutor()
     executor.add_node(node)

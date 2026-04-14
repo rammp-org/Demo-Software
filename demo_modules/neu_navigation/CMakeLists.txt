@@ -37,6 +37,7 @@ install(DIRECTORY
 # Install Python executables
 install(PROGRAMS
   scripts/perception_curb_detection_node.py
+  scripts/perception_curb_descent_detection_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

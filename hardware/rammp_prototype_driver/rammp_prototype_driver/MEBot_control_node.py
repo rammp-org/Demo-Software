@@ -303,8 +303,6 @@ class MEBotControlNode(Node):
         self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
         self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
 
-        self.luci_heartbeat_timer.cancel()
-
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
 
@@ -672,9 +670,9 @@ class MEBotControlNode(Node):
 
     def drive_enable_callback(self, request, response):
         if request.data:
-            self.send_set_luci()
-        else:
             self.send_remove_luci()
+        else:
+            self.send_set_luci()
 
         response.success = True  # just acknowledges request recieved and sent
         return response

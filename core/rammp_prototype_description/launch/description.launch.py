@@ -34,6 +34,52 @@ def generate_launch_description():
                 parameters=[{"robot_description": robot_description}],
                 remappings=[("joint_states", "/arm/joint_states")],
             ),
+            # ── Nav1 camera (Orbbec Gemini 336L, front) ──────────────────────
+            # Measured offset and orientation of the nav1 camera from base_link.
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="static_tf_nav1",
+                arguments=[
+                    "--frame-id",
+                    "base_link",
+                    "--child-frame-id",
+                    "nav1_link",
+                    "--x",
+                    "0.036343",
+                    "--y",
+                    "0.262443",
+                    "--z",
+                    "0.513616",
+                    "--roll",
+                    "1.5708",
+                    "--pitch",
+                    "0.5",
+                ],
+            ),
+            # ── Nav2 camera (Orbbec Gemini 336L, shoulder) ───────────────────
+            # Measured offset and orientation of the nav2 camera from base_link.
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="static_tf_nav2",
+                arguments=[
+                    "--frame-id",
+                    "base_link",
+                    "--child-frame-id",
+                    "nav2_link",
+                    "--x",
+                    "0.036343",
+                    "--y",
+                    "-0.262443",
+                    "--z",
+                    "0.463616",
+                    "--roll",
+                    "-0.1",
+                    "--pitch",
+                    "0.91",
+                ],
+            ),
             # Static transform from the arm end-effector to the wrist camera mount.
             # Translation (x=0.01, y=0.0615, z=0.03) is the measured offset in metres
             # from end_effector_link to the camera optical centre on the physical mount.

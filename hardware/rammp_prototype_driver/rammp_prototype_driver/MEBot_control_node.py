@@ -196,13 +196,15 @@ class MEBotControlNode(Node):
         self.state_publish_rate = 1 / 100.0
         # Diagnostic publish rate
         self.diagnostic_publish_rate = 1 / 1.0
+        # heartbeat timer
+        self.heartbeat_rate = 0.5
 
         # timer for serial data reading
         self.serial_timer = self.create_timer(self.serial_rate, self.read_serial_data)
 
         # heartbeat to send serial message from jetson ->teensy to prevent teensy from timing out
-        self.serial_timer = self.create_timer(
-            self.serial_rate, self.send_serial_heartbeat
+        self.heartbeat_timer = self.create_timer(
+            self.heartbeat_rate, self.send_serial_heartbeat
         )
 
         self.estop = False

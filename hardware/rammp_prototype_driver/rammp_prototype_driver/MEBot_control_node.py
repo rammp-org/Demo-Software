@@ -7,6 +7,7 @@ import json
 from ament_index_python.packages import get_package_share_directory
 import rclpy
 import serial
+import threading
 from rammp_prototype_interfaces.action import CurbTraverse
 from rammp_prototype_interfaces.action import Calibration
 from rammp_prototype_interfaces.msg import SeatCommand
@@ -175,6 +176,8 @@ class MEBotControlNode(Node):
             )
         except serial.SerialException:
             self.ser = None
+
+        self.lock = threading.Lock()
 
         # diagnostics updater init
         self.updater = diagnostic_updater.Updater(self)
@@ -356,9 +359,11 @@ class MEBotControlNode(Node):
         if self.ser is None:
             return
         if isinstance(data, bytes):
-            self.ser.write(data)
+            with self.lock:
+                self.ser.write(data)
         else:
-            self.ser.write(data.encode("utf-8"))
+            with self.lock:
+                self.ser.write(data.encode("utf-8"))
 
     def send_sequence(self, keyframes: list[Keyframe], auto_run: bool = True):
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(True))
@@ -382,7 +387,7 @@ class MEBotControlNode(Node):
 
     def send_serial_heartbeat(self):
         if not self.estop:
-            self.ser.write("c\n")
+            self.ser.write_serial_data("c\n")
 
     # update variables to be published
     def update_data(self, data):

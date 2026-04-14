@@ -6,7 +6,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             Node(
-                package="gamepad_driver",
+                package="peripheral_driver",
                 executable="gamepad_node",
                 name="gamepad_node",
                 output="screen",

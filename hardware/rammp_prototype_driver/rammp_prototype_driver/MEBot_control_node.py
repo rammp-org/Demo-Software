@@ -11,7 +11,7 @@ from diagnostic_msgs.msg import DiagnosticStatus
 from luci_messages.msg import LuciJoystick
 from rammp_prototype_interfaces.action import Calibration, CurbTraverse
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState, SeatCommand
-from rclpy.action import ActionServer
+from rclpy.action import ActionServer, CancelResponse
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
@@ -264,7 +264,11 @@ class MEBotControlNode(Node):
     def _init_actions(self):
         # actions
         self.curb_traverse_action = ActionServer(
-            self, CurbTraverse, "curb_traverse", self.curb_traverse_action_callback
+            self,
+            CurbTraverse,
+            "curb_traverse",
+            self.curb_traverse_action_callback,
+            cancel_callback=lambda _: CancelResponse.ACCEPT,
         )
 
         self.calibrate_action = ActionServer(
@@ -640,6 +644,11 @@ class MEBotControlNode(Node):
         self.send_sequence(keyframes, auto_run=True)
 
         while self.seq_mode == 0:
+            if goal.is_cancel_requested:
+                goal.canceled()
+                result.success = False
+                self.send_remove_luci()
+                return result
             time.sleep(0.01)
 
         while self.current_seq != self.seq_length and self.seq_mode != 0:

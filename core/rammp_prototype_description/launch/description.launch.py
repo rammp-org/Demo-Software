@@ -19,6 +19,16 @@ def generate_launch_description():
         value_type=str,
     )
 
+    base_urdf_file = os.path.join(
+        get_package_share_directory("rammp_prototype_description"),
+        "urdf",
+        "rammp_prototype_base.urdf",
+    )
+    base_robot_description = ParameterValue(
+        Command(["cat ", base_urdf_file]),
+        value_type=str,
+    )
+
     camera_frame_arg = DeclareLaunchArgument(
         "camera_frame",
         default_value="wrist_wrist_camera_link",
@@ -33,6 +43,30 @@ def generate_launch_description():
                 executable="robot_state_publisher",
                 parameters=[{"robot_description": robot_description}],
                 remappings=[("joint_states", "/arm/joint_states")],
+            ),
+            Node(
+                package="robot_state_publisher",
+                executable="robot_state_publisher",
+                name="base_state_publisher",
+                parameters=[{"robot_description": base_robot_description}],
+                remappings=[("joint_states", "/base/joint_states")],
+            ),
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="static_tf_base_to_arm",
+                arguments=[
+                    "--frame-id",
+                    "mebot",
+                    "--child-frame-id",
+                    "base_link",
+                    "--x",
+                    "-0.033657",
+                    "--y",
+                    "-0.262443",
+                    "--z",
+                    "0.416116",
+                ],
             ),
             # ── Nav1 camera (Orbbec Gemini 336L, front) ──────────────────────
             # Measured offset and orientation of the nav1 camera from mebot.

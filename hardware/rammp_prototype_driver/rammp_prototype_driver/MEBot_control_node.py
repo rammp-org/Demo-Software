@@ -586,6 +586,7 @@ class MEBotControlNode(Node):
         elif self.state == SystemState.CALIBRATING:
             stat.add("state_status", "Calibrating")
             stat.summary(DiagnosticStatus.OK, "Teensy is calibrating")
+        return stat
 
     def manual_seat_control_callback(self, msg: SeatCommand):
         self.get_logger().info("Seat command callback has been entered")

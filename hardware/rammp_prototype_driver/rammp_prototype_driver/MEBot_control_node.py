@@ -12,6 +12,7 @@ from rammp_prototype_interfaces.action import CurbTraverse
 from rammp_prototype_interfaces.action import Calibration
 from rammp_prototype_interfaces.msg import SeatCommand
 from luci_messages.msg import LuciJoystick
+import enum
 
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
 from rclpy.action import ActionServer
@@ -147,14 +148,14 @@ class SerialField(IntEnum):
     FB_PWM = 66
 
 
-class SystemState:
-    INIT = (0,)
-    IDLE = (1,)
-    TUNER_MODE = (2,)
-    ESTOP = (3,)
-    SELF_LEVELING = (4,)
-    CONFIGURATION = (5,)
-    AUTO_CURB_CLIMBING = (6,)
+class SystemState(enum.IntEnum):
+    INIT = 0
+    IDLE = 1
+    TUNER_MODE = 2
+    ESTOP = 3
+    SELF_LEVELING = 4
+    CONFIGURATION = 5
+    AUTO_CURB_CLIMBING = 6
     CALIBRATING = 7
 
 

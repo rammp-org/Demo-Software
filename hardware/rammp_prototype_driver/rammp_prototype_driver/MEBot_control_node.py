@@ -75,7 +75,7 @@ SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_LEFT: [0.0, 0.0, -30.0, 30.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 30.0, -30.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.RESET: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.RESET: [233.0, 25.0, 212.0, 192.0, 101.0, 95.0, 0.0, 0.0],
 }
 
 
@@ -244,6 +244,8 @@ class MEBotControlNode(Node):
         self._init_subscribers()
         self._init_publishers()
 
+        self.send_remove_luci()
+
     def _init_services(self):
         # services
         self.drive_enable_service = self.create_service(
@@ -302,6 +304,8 @@ class MEBotControlNode(Node):
         self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
         self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
+
+        self.luci_heartbeat_timer.cancel()
 
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
@@ -406,7 +410,7 @@ class MEBotControlNode(Node):
         # State
         self.state = int(data[SerialField.STATE])
 
-        self.fb_pwm = int(100.0 * float(SerialField.FB_PWM))
+        self.fb_pwm = int(100.0 * float(data[SerialField.FB_PWM]))
 
     def publish_joint_states(self):
         msg = JointState()
@@ -557,12 +561,16 @@ class MEBotControlNode(Node):
         request = Empty.Request()
         future = self.set_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
+
+        self.luci_heartbeat_timer.reset()
         return future
 
     def send_remove_luci(self):
         request = Empty.Request()
         future = self.remove_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
+
+        self.luci_heartbeat_timer.cancel()
         return future
 
     def luci_req_done(self, future):
@@ -642,6 +650,7 @@ class MEBotControlNode(Node):
             if goal.is_cancel_requested:
                 goal.canceled()
                 result.success = False
+                self.send_remove_luci()
                 return result
 
             feedback_msg.progress = (

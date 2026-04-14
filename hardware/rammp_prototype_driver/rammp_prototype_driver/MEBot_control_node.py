@@ -1,27 +1,24 @@
+import json
 import math
 import time
 from enum import IntEnum
-from std_srvs.srv import Empty
-from rclpy.executors import MultiThreadedExecutor
-import json
-from ament_index_python.packages import get_package_share_directory
+
+import diagnostic_updater
 import rclpy
 import serial
-from rammp_prototype_interfaces.action import CurbTraverse
-from rammp_prototype_interfaces.action import Calibration
-from rammp_prototype_interfaces.msg import SeatCommand
+from ament_index_python.packages import get_package_share_directory
+from diagnostic_msgs.msg import DiagnosticStatus
 from luci_messages.msg import LuciJoystick
-
-from rammp_prototype_interfaces.msg import RAMMPPrototypeState
+from rammp_prototype_interfaces.action import Calibration, CurbTraverse
+from rammp_prototype_interfaces.msg import RAMMPPrototypeState, SeatCommand
 from rclpy.action import ActionServer
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool
-from std_srvs.srv import SetBool
-import diagnostic_updater
-from diagnostic_msgs.msg import DiagnosticStatus
+from std_srvs.srv import Empty, SetBool
 
-from .keyframe import Keyframe, NUM_MOTORS
+from .keyframe import NUM_MOTORS, Keyframe
 from .protocol import ProtocolEncoder
 
 # LUCI STUFF
@@ -148,7 +145,7 @@ class SerialField(IntEnum):
 
 class MEBotControlNode(Node):
     def __init__(self):
-        super().__init__("MEBot_control_node")
+        super().__init__("/base_control_node")
 
         # serial init
         self.declare_parameter("serial_port", "/dev/ttyACM0")
@@ -304,6 +301,7 @@ class MEBotControlNode(Node):
         self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
         self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
+        self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
 
         self.luci_heartbeat_timer.cancel()
 

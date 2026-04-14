@@ -34,7 +34,7 @@
 #define DRIVE_DEADZONE_TICKS 300.0f
 
 #define CAL_NUM_MOTORS 6
-#define CAL_MIN_DRIVE_MS 3000
+#define CAL_MIN_DRIVE_MS 6000
 #define CAL_VEL_THRESHOLD 2.0f
 // TODO: Make DEBUG_MODE runtime-configurable via serial command
 

@@ -558,6 +558,7 @@ class MEBotControlNode(Node):
             self.write_serial_data("K0\n")
 
     def send_set_luci(self):
+        self.get_logger().info("Setting luci")
         request = Empty.Request()
         future = self.set_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
@@ -566,6 +567,7 @@ class MEBotControlNode(Node):
         return future
 
     def send_remove_luci(self):
+        self.get_logger().info("Removing luci")
         request = Empty.Request()
         future = self.remove_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
@@ -630,12 +632,12 @@ class MEBotControlNode(Node):
         if goal.request.direction == 1:
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/dry_run_seq.json"
+                + "/config/curb_ascending.json"
             )
         else:
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/dry_run_seq_2.json"
+                + "/config/curb_descending.json"
             )
 
         keyframes = _load_keyframes_from_json(json_path)
@@ -649,15 +651,21 @@ class MEBotControlNode(Node):
                 result.success = False
                 self.send_remove_luci()
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+                self.write_serial_data("z\n")
+                self.write_serial_data("c\n")
                 return result
             time.sleep(0.01)
 
         while self.current_seq != self.seq_length and self.seq_mode != 0:
+            self.get_logger().info(f"Current sequence: {self.current_seq}")
+
             if goal.is_cancel_requested:
                 goal.canceled()
                 result.success = False
                 self.send_remove_luci()
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+                self.write_serial_data("z\n")
+                self.write_serial_data("c\n")
                 return result
 
             feedback_msg.progress = (

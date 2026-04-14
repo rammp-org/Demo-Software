@@ -1517,6 +1517,7 @@ class SystemControl(rclpy.node.Node):
             # chair sub state transitions
             {"trigger": "enableSL", "source": "Nav_SLOff", "dest": "Nav_SLOn"},
             {"trigger": "disableSL", "source": "Nav_SLOn", "dest": "Nav_SLOff"},
+            {"trigger": "cancel", "source": "Nav_SLOn", "dest": "Nav_SLOff"},
             {
                 "trigger": "seatControl",
                 "source": "Chair",

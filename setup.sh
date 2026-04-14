@@ -95,28 +95,6 @@ else
     echo "then re-run setup.sh to install udev rules."
 fi
 
-echo "=== Installing CycloneDDS configuration ==="
-# CycloneDDS must be bound to the correct ethernet interface on Jetson.
-# Without this, it may bind to WiFi or loopback and break DDS discovery
-# between nodes. CYCLONEDDS_URI tells the runtime where to find this config.
-CYCLONE_CONFIG_DIR="/etc/cyclonedds"
-CYCLONE_CONFIG_PATH="${CYCLONE_CONFIG_DIR}/cyclonedds.xml"
-
-$SUDO mkdir -p "${CYCLONE_CONFIG_DIR}"
-$SUDO tee "${CYCLONE_CONFIG_PATH}" > /dev/null << 'EOF'
-<?xml version="1.0" encoding="UTF-8" ?>
-<CycloneDDS>
-  <Domain>
-    <General>
-      <Interfaces>
-        <NetworkInterface name="enP8p1s0" priority="default" multicast="true"/>
-      </Interfaces>
-    </General>
-  </Domain>
-</CycloneDDS>
-EOF
-echo "CycloneDDS config written to ${CYCLONE_CONFIG_PATH}"
-
 echo "=== Configuring Jetson max performance mode ==="
 bash "${REPO_ROOT}/scripts/jetson_max_performance.sh" "$@"
 

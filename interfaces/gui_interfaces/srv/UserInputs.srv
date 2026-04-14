@@ -26,6 +26,10 @@ string CHAIR_CURB_CANCEL="chair/curb/cancel"
 # arm control / entry points
 string ARM_CONTROL_MAIN="arm/main"
 
+# arm gripper
+string ARM_GRIPPER_OPEN="arm/gripper/open"
+string ARM_GRIPPER_CLOSE="arm/gripper/close"
+
 # arm modes / tasks
 string ARM_RETRACT="arm/retract"
 string ARM_HOME="arm/home"

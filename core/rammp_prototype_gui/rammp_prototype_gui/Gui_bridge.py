@@ -521,6 +521,7 @@ class GuiBridge(Node):
             msg.segmentation_mask,
             self.wrist_camera_namespace,
             channel=self.mask_channel,
+            num_seg_ids=3.0,
         )  # for now just send the segmentation mask of the cup, can also send cup pose to UE if needed
 
     def door_button_info_callback(self, msg: ButtonInfo):
@@ -529,10 +530,16 @@ class GuiBridge(Node):
             msg.segmentation_mask,
             self.wrist_camera_namespace,
             channel=self.mask_channel,
+            num_seg_ids=2.0,
         )
 
     def curb_mask_callback(self, msg: Image):
-        self.send_mask(msg, self.nav_camera_namespace_1, channel=self.mask_channel + 1)
+        self.send_mask(
+            msg,
+            self.nav_camera_namespace_1,
+            channel=self.mask_channel + 1,
+            num_seg_ids=4.0,
+        )
 
     def curb_info_callback(self, msg: CurbInfo):
         self.update_curb_info(msg)
@@ -711,7 +718,9 @@ class GuiBridge(Node):
                 except Exception as e:
                     self.get_logger().warn(f"Failed to send {source} depth image: {e}")
 
-    def send_mask(self, mask: Image, source: str, channel: int = 200):
+    def send_mask(
+        self, mask: Image, source: str, channel: int = 200, num_seg_ids: float = 4.0
+    ):
         if self.stream_sender.is_connected():
             if mask is not None:
                 try:
@@ -726,12 +735,17 @@ class GuiBridge(Node):
                         "role": "mask",
                         "stream_id": f"{source}/mask",
                     }
-                    self.stream_sender.send_depth(
+                    material_params = {
+                        "NumSegmentIDs": num_seg_ids,
+                        "MaskScale": 255.0,
+                    }
+                    self.stream_sender.send_mask(
                         channel=channel,
-                        depth_bytes=mask.data.tobytes(),
+                        mask_bytes=mask.data.tobytes(),
                         width=width,
                         height=height,
                         metadata=meta,
+                        material_params=material_params,
                     )
                 except Exception as e:
                     self.get_logger().warn(f"Failed to send {source} mask image: {e}")
@@ -934,6 +948,7 @@ class GuiBridge(Node):
                 "Orientation": curb_info.Orientation,
                 "Distance": curb_info.Distance,
                 "Height": curb_info.Height,
+                "NumSegmentIDs": 4,
             }
             self.ue.call_function("UpdateCurbInfo", curbInfoDict)
 
@@ -969,6 +984,7 @@ class GuiBridge(Node):
                         "Z": 1.0,
                     },
                 },
+                "NumSegmentIDs": 3,
             }
             self.ue.call_function("UpdateCupInfo", cupInfoDict)
 
@@ -996,7 +1012,7 @@ class GuiBridge(Node):
             buttonInfoDict = {
                 "BoundingBox": float_bounding_box,  # Use the converted list of floats
                 "Confidence": button_info.confidence,
-                "CanPress": button_info.is_pressable,
+                "CanPress?": button_info.is_pressable,
                 "Pose": {
                     "Translation": {
                         "X": button_info.pose_xyzrpy[0],
@@ -1015,6 +1031,7 @@ class GuiBridge(Node):
                         "Z": 1.0,
                     },
                 },
+                "NumSegmentIDs": 2,
             }
             self.ue.call_function("UpdateButtonInfo", buttonInfoDict)
 

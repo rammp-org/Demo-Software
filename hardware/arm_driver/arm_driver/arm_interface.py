@@ -137,6 +137,14 @@ class KinovaArm:
         with open(self.lock_file, "w") as f:
             f.write(str(os.getpid()))
 
+        try:
+            self._connect()
+        except Exception:
+            os.remove(self.lock_file)
+            raise
+
+    def _connect(self):
+        """Establish TCP/UDP connections and fully initialise the arm. Called by __init__."""
         # General Kortex setup
         self.tcp_connection = DeviceConnection.createTcpConnection()
         self.udp_connection = DeviceConnection.createUdpConnection()
@@ -717,6 +725,27 @@ class KinovaArm:
     # Not using this as we haven't tested it
     # def apply_emergency_stop(self):
     #     self.base.ApplyEmergencyStop()
+
+    def get_fault_state(self) -> tuple[str, bool]:
+        """Return the Kortex arm's current active state and whether it is faulted.
+
+        Returns:
+            Tuple of (state_name, is_faulted) where state_name is the
+            ``RoboticsArmState`` enum name (e.g. ``"ARMSTATE_SERVOING_READY"``)
+            and is_faulted is True when the arm is in ``ARMSTATE_IN_FAULT``.
+        """
+        arm_state = self.base.GetArmState(options=self.control_send_options)
+        is_faulted = arm_state.active_state == Base_pb2.ARMSTATE_IN_FAULT
+        # Resolve the human-readable name via the file descriptor — compatible
+        # with all protobuf Python versions (older codegen does not expose
+        # RoboticsArmState as a class with a .Name() classmethod).
+        enum_desc = Base_pb2.DESCRIPTOR.enum_types_by_name.get("RoboticsArmState")
+        if enum_desc:
+            val_desc = enum_desc.values_by_number.get(arm_state.active_state)
+            state_name = val_desc.name if val_desc else str(arm_state.active_state)
+        else:
+            state_name = str(arm_state.active_state)
+        return state_name, is_faulted
 
     def clear_faults(self, timeout=5.0):
         if (

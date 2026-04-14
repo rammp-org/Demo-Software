@@ -25,6 +25,9 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": ["GuiBridge = rammp_prototype_gui.Gui_bridge:main"],
+        "console_scripts": [
+            "GuiBridge = rammp_prototype_gui.Gui_bridge:main",
+            "MockButtonInfoPublisher = rammp_prototype_gui.mock_button_info:main",
+        ],
     },
 )

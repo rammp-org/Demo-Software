@@ -349,7 +349,7 @@ class SystemControl(rclpy.node.Node):
     # ---------End of Arm Pause state transition function calls--------------------------
 
     # ---------arm manual control state transition function calls------------------------
-    def on_enter_Arm_manual(self):
+    def on_enter_Arm_manual_stopped(self):
         self.get_logger().info(
             "Arm is in manual control mode, waiting for manual commands."
         )
@@ -361,6 +361,10 @@ class SystemControl(rclpy.node.Node):
         self._mock_delay(
             5.0, self.exitManualControl
         )  # should enter Arm_retracted state after manual control for testing, will replace with actual logic to determine when to exit manual control later
+
+    def on_enter_Arm_manual_homing(self):
+        self.get_logger().info("Moving arm to home position.")
+        self.arm_preset_client.set_preset(ArmPreset.HOME)
 
     def on_exit_Arm_manual(self):
         self.get_logger().info("Exiting manual control mode, setting arm back to idle.")
@@ -534,7 +538,8 @@ class SystemControl(rclpy.node.Node):
 
     # --------------------door open state transition function calls------------------------
     def on_enter_Arm_Door_raisingArm(self):
-        self.get_logger().info("Raising arm to home to open door.")
+        self.get_logger().info("Raising arm to home to open door and close gripper.")
+        self.close_gripper()  # close gripper
         self.arm_preset_client.set_preset(ArmPreset.HOME)
 
     def on_enter_Arm_Door_detecting(self):
@@ -575,6 +580,10 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().info("Retracting arm to prepare for next action.")
         self.arm_preset_client.set_preset(ArmPreset.RETRACT)
 
+    def on_enter_Arm_manual_retracting(self):
+        self.get_logger().info("Retracting arm in manual control mode.")
+        self.arm_preset_client.set_preset(ArmPreset.RETRACT)
+
     def on_enter_Arm_homing(self):
         self.get_logger().info("Moving arm to home position.")
         self.arm_preset_client.set_preset(ArmPreset.HOME)
@@ -590,6 +599,14 @@ class SystemControl(rclpy.node.Node):
             self._seat_control_request
         )  # send manual seat control command to base
         self._seat_control_request = None  # reset seat control request after processing
+
+    def after_open_gripper(self):
+        self.get_logger().info("Request to open gripper.")
+        self.open_gripper()
+
+    def after_close_gripper(self):
+        self.get_logger().info("Request to close gripper.")
+        self.close_gripper()
 
     def on_enter_Arm_canceling(self):
         self.get_logger().info("Preparing to cancel current action.")
@@ -882,6 +899,8 @@ class SystemControl(rclpy.node.Node):
             self._gui_connected = False
 
     def arm_joints_callback(self, msg: JointState):
+        if len(msg.position) < 8:
+            return  # ensure the message has enough joint positions to check gripper state, avoid potential index error
         if self._gripper_opened and msg.position[7] < 0.8:
             self._gripper_opened = False
         elif not self._gripper_opened and msg.position[7] > 0.9:
@@ -964,6 +983,10 @@ class SystemControl(rclpy.node.Node):
                 self.confirm()  # placeholder for confirm action, will replace with actual logic to handle confirm action later
             case UserInputs.Request.CANCEL:
                 self.cancel()  # placeholder for cancel action, will replace with actual logic to handle cancel action later
+            case UserInputs.Request.ARM_GRIPPER_OPEN:
+                self.openGripper()
+            case UserInputs.Request.ARM_GRIPPER_CLOSE:
+                self.closeGripper()
             case _:
                 response.success = False
                 response.message = "Unknown command"
@@ -1052,7 +1075,11 @@ class SystemControl(rclpy.node.Node):
                     "homing",
                     "retracting",
                     "retracted",
-                    "manual",
+                    {
+                        "name": "manual",
+                        "initial": "stopped",
+                        "children": ["stopped", "homing", "retracting"],
+                    },
                     {
                         "name": "Door",
                         "initial": "raisingArm",
@@ -1109,13 +1136,23 @@ class SystemControl(rclpy.node.Node):
             # arm sub state transitions
             {
                 "trigger": "retract",
-                "source": ["Arm_paused", "Arm_home", "Arm_manual"],
+                "source": ["Arm_paused", "Arm_home"],
                 "dest": "Arm_retracting",
             },
             {
                 "trigger": "retracted",
                 "source": "Arm_retracting",
                 "dest": "Arm_retracted",
+            },
+            {
+                "trigger": "retract",
+                "source": "Arm_manual_stopped",
+                "dest": "Arm_manual_retracting",
+            },
+            {
+                "trigger": "retracted",
+                "source": "Arm_manual_retracting",
+                "dest": "Arm_manual_stopped",
             },
             {
                 "trigger": "reqArmActionCancel",
@@ -1194,8 +1231,18 @@ class SystemControl(rclpy.node.Node):
             },  # request action, but fail to start action, pause arm to maintain current state and allow for retry or other recovery actions
             {
                 "trigger": "reqHome",
-                "source": ["Arm_retracted", "Arm_paused", "Arm_manual"],
+                "source": ["Arm_retracted", "Arm_paused"],
                 "dest": "Arm_homing",
+            },
+            {
+                "trigger": "reqHome",
+                "source": "Arm_manual_stopped",
+                "dest": "Arm_manual_homing",
+            },
+            {
+                "trigger": "homed",
+                "source": "Arm_manual_homing",
+                "dest": "Arm_manual_stopped",
             },
             {
                 "trigger": "homed",
@@ -1357,9 +1404,26 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_manual",
             },
             {
-                "trigger": "exitManualControl",
-                "source": "Arm_manual",
+                "trigger": "reqManualControl",  # same request will also exit manual control if already in manual control
+                "source": "Arm_manual_stopped",
                 "dest": "Arm_paused",
+            },
+            {
+                "trigger": "exitManualControl",
+                "source": "Arm_manual_stopped",
+                "dest": "Arm_paused",
+            },
+            {
+                "trigger": "openGripper",
+                "source": "Arm_manual_stopped",
+                "dest": "Arm_manual_stopped",
+                "after": "after_open_gripper",
+            },
+            {
+                "trigger": "closeGripper",
+                "source": "Arm_manual_stopped",
+                "dest": "Arm_manual_stopped",
+                "after": "after_close_gripper",
             },
             # global transitions
             {"trigger": "eStop", "source": "*", "dest": "Error"},

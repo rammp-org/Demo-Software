@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "pid_tuner"
+version = "1.0.0"
+description = "PID Tuner for MEBot/RAMMP Teensy 4.1 System"
+requires-python = ">=3.8"
+dependencies = [
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+gui = [
+    "PyQt6>=6.4.0",
+    "pyqtgraph>=0.13.0",
+    "numpy>=1.24.0",
+    "PyOpenGL>=3.1.0",
+    "roslibpy>=1.7.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["pid_tuner*"]
+
+[tool.setuptools]
+package-dir = {"pid_tuner" = "."}

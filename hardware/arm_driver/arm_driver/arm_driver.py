@@ -1,11 +1,14 @@
 import concurrent.futures
 import enum
+import os
+import subprocess
 import time
 
 import numpy as np
 import rclpy
 import rclpy.action
 import rclpy.node
+from ament_index_python.packages import get_package_share_directory
 from arm_interfaces.action import ExecuteTrajectory, ReachPreset
 from arm_interfaces.srv import (
     CheckReachability,
@@ -13,7 +16,7 @@ from arm_interfaces.srv import (
     SetMode,
     SetSpeedPreset,
 )
-from diagnostic_msgs.msg import DiagnosticStatus
+from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
 from geometry_msgs.msg import PoseStamped, Twist, TwistStamped, Vector3Stamped
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -23,8 +26,11 @@ from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger
 
 from arm_driver.arm_interface import KinovaArm, SpeedPreset
+from arm_driver.collision_checker import CollisionChecker
 
 FEEDBACK_RATE = 0.1  # seconds between feedback publishes during action execution
+COMMS_TIMEOUT_S = 0.5  # seconds without arm feedback before transitioning to ERROR
+TWIST_TIMEOUT_S = 0.5  # seconds since last twist command before stopping the arm
 
 
 # Build enum matching service definition
@@ -71,6 +77,11 @@ COMMAND_MODE = {
     ArmState.ERROR: CommandMode.NONE,
 }
 
+# States that accept continuous twist commands (arm runs last command until next arrives)
+_TWIST_STATES = frozenset(
+    state for state, mode in COMMAND_MODE.items() if mode == CommandMode.TWIST
+)
+
 # Derived: command mode expected from each source (each source must map to a single mode)
 _SOURCE_MODE = {
     source: COMMAND_MODE[state]
@@ -94,18 +105,33 @@ class ArmDriverNode(rclpy.node.Node):
         self._state = ArmState.IDLE
         self._error_reason: str = ""
         self._arm: KinovaArm | None = None
+        self._collision_checker = None  # set in _init_arm after CollisionChecker lands
+        self._last_feedback_time: float = time.monotonic()
+        self._last_twist_time: float | None = None
+
+        # Last known arm state from Kortex, for fault handling
+        self._kortex_arm_state: str = ""
+
         # ReentrantCallbackGroup allows action/service callbacks to run concurrently
         # with the rest of the node (timers, subscribers) on the MultiThreadedExecutor,
         # so that blocking service/action handlers don't starve the joint_states timer.
         self._action_group = ReentrantCallbackGroup()
         self._service_group = ReentrantCallbackGroup()
 
+        # Collision checker threshold parameters (Nm)
+        self.declare_parameter("collision_checker.threshold_default", 30.0)
+        self.declare_parameter("collision_checker.threshold_open_door", 50.0)
+
         self._init_publishers()
         self._init_subscribers()
         self._init_services()
         self._init_actions()
         self._init_timers()
-        self._init_arm()
+
+        # Arm connection is attempted on a 2 Hz timer so the node starts cleanly
+        # even when the arm is powered on after the node.  The timer cancels itself
+        # once connection succeeds.
+        self._connect_timer = self.create_timer(0.5, self._try_connect_arm)
 
     # -------------------------------------------------------------------------
     # Initialization
@@ -202,6 +228,12 @@ class ArmDriverNode(rclpy.node.Node):
             self._on_check_reachability,
             callback_group=self._service_group,
         )
+        self._clear_error_srv = self.create_service(
+            Trigger,
+            "/arm/clear_error",
+            self._on_clear_error,
+            callback_group=self._service_group,
+        )
 
     def _init_actions(self):
         """Create all ROS action servers."""
@@ -229,17 +261,70 @@ class ArmDriverNode(rclpy.node.Node):
     def _init_timers(self):
         """Create periodic timers for state publishing."""
         self.create_timer(0.01, self._publish_joint_states)  # 100 Hz
+        self.create_timer(0.1, self._check_twist_timeout)  # 10 Hz twist watchdog
+        self.create_timer(1.0, self._check_hardware_fault)  # 1 Hz Kortex fault poll
         self.create_timer(1.0, self._publish_status)  # 1 Hz
 
-    def _init_arm(self):
-        """Connect to the Kinova arm. Transitions to ERROR on failure."""
+    def _try_connect_arm(self):
+        """Attempt to connect to the Kinova arm at 2 Hz until successful.
+
+        On success, initialises the CollisionChecker and cancels this timer.
+        While disconnected, _publish_status surfaces an ERROR-level diagnostic
+        so the outside world can observe the waiting state.
+        """
         try:
             self._arm = KinovaArm()
             self.get_logger().info("Arm connected successfully.")
         except Exception as e:
-            self.get_logger().error(f"Failed to connect to arm: {e}")
-            self._error_reason = f"Arm connection failed: {e}"
-            self._transition_to(ArmState.ERROR)
+            self.get_logger().warn(
+                f"Arm not available, retrying: {e}",
+                throttle_duration_sec=5.0,
+            )
+            return
+
+        self._connect_timer.cancel()
+        self._init_collision_checker()
+
+    def _init_collision_checker(self):
+        """Initialise the CollisionChecker from the kortex_description URDF.
+
+        Called once, immediately after arm connection succeeds.  Collision
+        detection is disabled (self._collision_checker remains None) if this
+        fails, but the node continues operating.
+        """
+        try:
+            xacro_file = os.path.join(
+                get_package_share_directory("kortex_description"),
+                "robots",
+                "gen3.xacro",
+            )
+            result = subprocess.run(
+                ["xacro", xacro_file, "dof:=7", "gripper:=robotiq_2f_85"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            thresholds = {
+                "DEFAULT": self.get_parameter(
+                    "collision_checker.threshold_default"
+                ).value,
+                "OPEN_DOOR": self.get_parameter(
+                    "collision_checker.threshold_open_door"
+                ).value,
+            }
+            self._collision_checker = CollisionChecker(result.stdout, thresholds)
+            self.get_logger().info(
+                "CollisionChecker initialised from kortex_description"
+            )
+        except subprocess.CalledProcessError as e:
+            self.get_logger().error(
+                f"Failed to initialise CollisionChecker — xacro failed.\n"
+                f"stderr: {e.stderr.strip()}"
+            )
+        except Exception as e:
+            self.get_logger().error(
+                f"Failed to initialise CollisionChecker: {e} — collision detection disabled"
+            )
 
     # -------------------------------------------------------------------------
     # State machine
@@ -292,6 +377,7 @@ class ArmDriverNode(rclpy.node.Node):
         Args:
             msg: Desired end-effector linear and angular velocity.
         """
+        self._last_twist_time = time.monotonic()
         if self._arm:
             try:
                 self._arm.send_twist(
@@ -361,7 +447,6 @@ class ArmDriverNode(rclpy.node.Node):
         """
         if msg.data:
             self.get_logger().warn("E-stop received.")
-            # STUB: self._arm.stop()
             self._error_reason = "E-stop triggered"
             self._transition_to(ArmState.ERROR)
 
@@ -520,6 +605,43 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = str(e)
         return response
 
+    def _on_clear_error(self, request, response):
+        """Handle a /arm/clear_error service request.
+
+        Transitions the node from ERROR back to IDLE, allowing normal operation
+        to resume.  Rejected if the node is not currently in ERROR state.
+
+        Args:
+            request: Empty Trigger request.
+            response: Trigger response with ``success`` (bool) and ``message`` (str).
+
+        Returns:
+            The populated service response.
+        """
+        if self._state != ArmState.ERROR:
+            response.success = False
+            response.message = f"Not in ERROR state (current state: {self._state.name})"
+            return response
+
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected — reconnect before clearing error"
+            return response
+
+        try:
+            self._arm.clear_faults()
+        except Exception as e:
+            response.success = False
+            response.message = f"Kortex fault could not be cleared: {e}"
+            return response
+
+        self._error_reason = ""
+        self._kortex_arm_state = ""
+        self._transition_to(ArmState.IDLE)
+        response.success = True
+        response.message = "Error cleared — arm is IDLE"
+        return response
+
     def _on_check_reachability(self, request, response):
         """Handle a /arm/check_reachability service request.
 
@@ -648,6 +770,15 @@ class ArmDriverNode(rclpy.node.Node):
         Returns:
             ReachPreset result with success flag and optional message.
         """
+        if self._state == ArmState.ERROR:
+            result = ReachPreset.Result()
+            result.success = False
+            result.message = (
+                f"Cannot execute preset while in ERROR state: {self._error_reason}"
+            )
+            goal_handle.abort()
+            return result
+
         dispatch = {
             ReachPreset.Goal.PRESET_HOME: self._arm.home,
             ReachPreset.Goal.PRESET_RETRACT: self._arm.retract,
@@ -679,6 +810,15 @@ class ArmDriverNode(rclpy.node.Node):
         Returns:
             ExecuteTrajectory result with success flag and optional message.
         """
+        if self._state == ArmState.ERROR:
+            result = ExecuteTrajectory.Result()
+            result.success = False
+            result.message = (
+                f"Cannot execute trajectory while in ERROR state: {self._error_reason}"
+            )
+            goal_handle.abort()
+            return result
+
         if AUTHORIZED_SOURCE.get(self._state) != source:
             result = ExecuteTrajectory.Result()
             result.success = False
@@ -759,12 +899,35 @@ class ArmDriverNode(rclpy.node.Node):
         if self._arm:
             try:
                 state = self._arm.get_state()
+                self._last_feedback_time = time.monotonic()
             except (TimeoutError, concurrent.futures.TimeoutError):
                 self.get_logger().warn(
                     "RefreshFeedback timed out — skipping publish cycle",
                     throttle_duration_sec=1.0,
                 )
+                if (
+                    self._state != ArmState.ERROR
+                    and time.monotonic() - self._last_feedback_time > COMMS_TIMEOUT_S
+                ):
+                    self.get_logger().error(
+                        f"Arm communication lost — no feedback for {COMMS_TIMEOUT_S}s"
+                    )
+                    self._error_reason = "Arm communication timeout"
+                    self._transition_to(ArmState.ERROR)
                 return
+
+            if self._collision_checker is not None and self._state != ArmState.ERROR:
+                if self._collision_checker.check(
+                    state["position"],
+                    state["velocity"],
+                    state["effort"],
+                    self._state.name,
+                ):
+                    self.get_logger().error("Collision detected — stopping arm.")
+                    self._error_reason = "Collision detected"
+                    self._transition_to(ArmState.ERROR)
+                    return
+
             joint_msg.name = [
                 f"joint_{i + 1}" for i in range(self._arm.actuator_count)
             ] + ["robotiq_85_left_knuckle_joint"]
@@ -799,6 +962,53 @@ class ArmDriverNode(rclpy.node.Node):
         self._ee_pos_pub.publish(pos_msg)
         self._ee_force_pub.publish(force_msg)
 
+    def _check_twist_timeout(self):
+        """Stop the arm if no twist command has arrived recently while in a twist state.
+
+        Prevents runaway motion when a twist publisher dies mid-stream. Does not
+        transition to ERROR — the publisher may recover and send new commands.
+        """
+        if self._state not in _TWIST_STATES:
+            return
+        if self._last_twist_time is None:
+            return
+        if time.monotonic() - self._last_twist_time > TWIST_TIMEOUT_S:
+            self.get_logger().warn(
+                "Twist command timeout — stopping arm to prevent runaway motion.",
+                throttle_duration_sec=1.0,
+            )
+            if self._arm:
+                try:
+                    self._arm.stop()
+                except Exception as e:
+                    self.get_logger().warn(
+                        f"stop() failed in twist watchdog ({e!r})",
+                        throttle_duration_sec=1.0,
+                    )
+            self._last_twist_time = None  # reset so we only stop once per stale window
+
+    def _check_hardware_fault(self):
+        """Poll the Kortex base for hardware fault state at 1 Hz.
+
+        Transitions to ERROR if the arm enters ARMSTATE_IN_FAULT so that
+        software state stays consistent with hardware reality.  Skipped when
+        already in ERROR to avoid redundant TCP calls.
+        """
+        if not self._arm or self._state == ArmState.ERROR:
+            return
+        try:
+            state_name, is_faulted = self._arm.get_fault_state()
+            self._kortex_arm_state = state_name
+            if is_faulted:
+                self.get_logger().error(f"Kortex hardware fault detected: {state_name}")
+                self._error_reason = f"Kortex hardware fault: {state_name}"
+                self._transition_to(ArmState.ERROR)
+        except Exception as e:
+            self.get_logger().warn(
+                f"get_fault_state() failed ({e!r})",
+                throttle_duration_sec=5.0,
+            )
+
     def _publish_status(self):
         """Publish the node's diagnostic status at 1 Hz."""
         msg = DiagnosticStatus()
@@ -806,9 +1016,22 @@ class ArmDriverNode(rclpy.node.Node):
         msg.message = self._state.name
         msg.level = (
             DiagnosticStatus.ERROR
-            if self._state == ArmState.ERROR
+            if (self._state == ArmState.ERROR or self._arm is None)
             else DiagnosticStatus.OK
         )
+        kv_connected = KeyValue()
+        kv_connected.key = "arm_connected"
+        kv_connected.value = str(self._arm is not None).lower()
+        msg.values.append(kv_connected)
+        kv_hw = KeyValue()
+        kv_hw.key = "kortex_arm_state"
+        kv_hw.value = self._kortex_arm_state
+        msg.values.append(kv_hw)
+        if self._error_reason:
+            kv_err = KeyValue()
+            kv_err.key = "error_reason"
+            kv_err.value = self._error_reason
+            msg.values.append(kv_err)
         self._status_pub.publish(msg)
 
 

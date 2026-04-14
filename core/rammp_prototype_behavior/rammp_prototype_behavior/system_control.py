@@ -655,11 +655,11 @@ class SystemControl(rclpy.node.Node):
         # publishers
         self.base_manual_seat_control_publisher = self.create_publisher(
             SeatCommand, "/base/manual_seat_control", 10
-        )  # message type is placeholder
+        )
         self._seat_control_request = None  # to store seat control command for testing, will replace with actual logic to handle different seat control commands later
         self.system_state_publisher = self.create_publisher(
             SystemState, "/system/state", 10
-        )  # message type is placeholder
+        )
         self.system_state_publisher_timer = self.create_timer(
             0.1, self.publish_system_state, callback_group=self._cb_group
         )
@@ -685,7 +685,6 @@ class SystemControl(rclpy.node.Node):
         return userinputs_list
 
     def publish_system_state(self):
-        # Placeholder for publishing system state, will replace with actual system state message later
         msg = SystemState()
         msg.state = self.state
         msg.supported_user_inputs = self.get_available_user_inputs()

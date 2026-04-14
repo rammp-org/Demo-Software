@@ -267,7 +267,7 @@ class GuiBridge(Node):
         )
 
     def init_subscriber(self):
-        # make subscriber for system state, message should be string
+        # make subscriber for system state, message should be SystemState
         self.system_state_subscriber = self.create_subscription(
             SystemState,
             "/system/state",

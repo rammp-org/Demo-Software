@@ -12,25 +12,23 @@ The behavior tree sets the arm to OPEN_DOOR mode before calling this action.
 """
 
 import time
+
 import numpy as np
-
 import rclpy
-from rclpy.node import Node
-from rclpy.action import ActionServer, ActionClient, CancelResponse
-from rclpy.callback_groups import ReentrantCallbackGroup
-from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped, TwistStamped
-from diagnostic_msgs.msg import DiagnosticStatus
-from scipy.spatial.transform import Rotation
-
+from arm_interfaces.action import ReachPreset
 from cmu_door_opener_interfaces.action import DoorOpen
 from cmu_door_opener_interfaces.msg import ButtonInfo
-from arm_interfaces.action import ReachPreset
-
+from diagnostic_msgs.msg import DiagnosticStatus
+from geometry_msgs.msg import PoseStamped, Twist, TwistStamped, Vector3Stamped
+from rclpy.action import ActionClient, ActionServer, CancelResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.node import Node
+from scipy.spatial.transform import Rotation
 
 # Button push parameters
 APPROACH_OFFSET = 0.2  # meters — stop this far in front of the button first
 PUSH_STEP = 0.01  # meters — incremental push distance per step (1cm)
-PUSH_MAX = 0.15  # meters — max total push distance past approach point
+PUSH_MAX = 0.30  # meters — max total push distance past approach point
 FORCE_THRESHOLD = 30.0  # Newtons — contact detection threshold
 PUSH_TIMEOUT = 10.0  # seconds — max time for each phase
 FORCE_CHECK_RATE = 0.02  # seconds between force checks

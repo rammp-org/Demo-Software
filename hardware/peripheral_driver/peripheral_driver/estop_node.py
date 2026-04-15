@@ -29,12 +29,8 @@ class EstopNode(Node):
         self.get_logger().info(f"Estop: {self.estop_pressed}")
 
     def on_press(self, key):
-        try:
-            if key.char == "q":
-                self.estop_pressed = not self.estop_pressed
-                self.publish_estop()
-        except AttributeError:
-            pass
+        self.estop_pressed = not self.estop_pressed
+        self.publish_estop()
 
 
 def main(args=None):

@@ -26,11 +26,11 @@ class EstopNode(Node):
         msg = Bool()
         msg.data = self.estop_pressed
         self.estop_publisher.publish(msg)
-        self.get_logger().info(f"Estop: {self.estop_pressed}")
 
     def on_press(self, key):
-        self.estop_pressed = not self.estop_pressed
-        self.publish_estop()
+        if key == keyboard.Key.enter:
+            self.estop_pressed = not self.estop_pressed
+            self.publish_estop()
 
 
 def main(args=None):

@@ -2,7 +2,7 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool
-import keyboard
+from pynput import keyboard
 from rclpy.qos import QoSProfile, DurabilityPolicy
 
 
@@ -15,18 +15,26 @@ class EstopNode(Node):
         self.estop_publisher = self.create_publisher(Bool, "estop", qos_profile)
         self.estop_pressed = False
 
-        # upon init publish estop
+        # publish initial state
+        self.publish_estop()
+
+        # start keyboard listener (non-blocking)
+        self.listener = keyboard.Listener(on_press=self.on_press)
+        self.listener.start()
+
+    def publish_estop(self):
         msg = Bool()
         msg.data = self.estop_pressed
         self.estop_publisher.publish(msg)
+        self.get_logger().info(f"Estop: {self.estop_pressed}")
 
-        keyboard.add_hotkey("q", self._on_press)
-
-    def _on_press(self):
-        self.estop_pressed = not self.estop_pressed
-        msg = Bool()
-        msg.data = self.estop_pressed
-        self.estop_publisher.publish(msg)
+    def on_press(self, key):
+        try:
+            if key.char == "q":
+                self.estop_pressed = not self.estop_pressed
+                self.publish_estop()
+        except AttributeError:
+            pass
 
 
 def main(args=None):

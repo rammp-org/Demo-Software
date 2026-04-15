@@ -1,28 +1,27 @@
-import posix_ipc
-import mmap
-import rclpy
-import time
 import enum
+import mmap
 import threading
-
+import time
 from dataclasses import dataclass
-import numpy as np
 
-from rclpy.node import Node
-from std_msgs.msg import Float32
-from std_msgs.msg import Bool
-from .unreal_remote_websocket import UnrealRemoteWebsocket
-from .streaming.sender import StreamSender
-from gui_interfaces.srv import UserInputs
+import numpy as np
+import posix_ipc
+import rclpy
+from cmu_door_opener_interfaces.msg import ButtonInfo
+from cornell_feeding_interfaces.msg import CupInfo
 from gui_interfaces.msg import SystemState
-from sensor_msgs.msg import CameraInfo, JointState, Image
-from rclpy.callback_groups import ReentrantCallbackGroup
+from gui_interfaces.srv import UserInputs
 
 # from realsense2_camera_msgs.msg import Extrinsics
 from neu_navigation_interfaces.msg import CurbInfo
-from cmu_door_opener_interfaces.msg import ButtonInfo
-from cornell_feeding_interfaces.msg import CupInfo
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.node import Node
 from scipy.spatial.transform import Rotation as R
+from sensor_msgs.msg import CameraInfo, Image, JointState
+from std_msgs.msg import Bool, Float32
+
+from .streaming.sender import StreamSender
+from .unreal_remote_websocket import UnrealRemoteWebsocket
 
 
 @dataclass
@@ -931,7 +930,7 @@ class GuiBridge(Node):
     def update_curb_info(self, curb_info: CurbInfo):
         if self.ue.is_connected():
             curbInfoDict = {
-                "Success": curb_info.Success,
+                "Success": curb_info.success,
                 # "Pose": {
                 #     "Translation": {
                 #         "X": curb_info.Pose.Translation.X,
@@ -950,9 +949,9 @@ class GuiBridge(Node):
                 #         "Z": curb_info.Pose.Scale3D.Z,
                 #     },
                 # },
-                "Orientation": curb_info.Orientation,
-                "Distance": curb_info.Distance,
-                "Height": curb_info.Height,
+                "Orientation": curb_info.orientation,
+                "Distance": curb_info.distance,
+                "Height": curb_info.height,
                 "NumSegmentIDs": 4,
             }
             self.ue.call_function("UpdateCurbInfo", curbInfoDict)

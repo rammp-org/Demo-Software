@@ -15,8 +15,10 @@ from gui_interfaces.srv import UserInputs
 # from realsense2_camera_msgs.msg import Extrinsics
 from neu_navigation_interfaces.msg import CurbInfo
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+import tf2_ros
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import CameraInfo, Image, JointState
 from std_msgs.msg import Bool, Float32
@@ -129,6 +131,35 @@ def rotation_matrix_to_euler_zyx(R):
     return np.degrees(roll), np.degrees(pitch), np.degrees(yaw)  # degrees
 
 
+def _tf_to_ue_extrinsics(transform_stamped) -> "Extrinsics":
+    """Convert a geometry_msgs TransformStamped to a UE-compatible Extrinsics.
+
+    Position is converted from meters to centimeters.
+    Rotation is converted from quaternion to Euler angles (roll, pitch, yaw) in degrees.
+    Uses direct conversion — no axis flips applied.
+
+    # ROS→UE coordinate adjustment (verify empirically on real robot):
+    # If UE Y-axis is flipped from ROS, negate y_cm below.
+    # If UE pitch convention differs, negate pitch_deg below.
+    """
+    t = transform_stamped.transform.translation
+    r = transform_stamped.transform.rotation
+
+    x_cm = t.x * 100.0
+    y_cm = t.y * 100.0
+    z_cm = t.z * 100.0
+
+    # scipy Rotation: from_quat expects [x, y, z, w]
+    rot = R.from_quat([r.x, r.y, r.z, r.w])
+    roll_deg, pitch_deg, yaw_deg = rot.as_euler("xyz", degrees=True)
+
+    return Extrinsics(
+        location=Vector(x_cm, y_cm, z_cm),
+        rotation=Vector(roll_deg, pitch_deg, yaw_deg),
+        scale=Vector(1.0, 1.0, 1.0),
+    )
+
+
 class GuiBridge(Node):
     instance = None
 
@@ -182,6 +213,29 @@ class GuiBridge(Node):
             .get_parameter_value()
             .string_value
         )
+        # TF frame names for camera extrinsics lookup
+        self.declare_parameter("tf_base_frame", "mebot")
+        self.tf_base_frame = (
+            self.get_parameter("tf_base_frame").get_parameter_value().string_value
+        )
+        self.declare_parameter("wrist_camera_tf_frame", "wrist_wrist_camera_link")
+        self.wrist_camera_tf_frame = (
+            self.get_parameter("wrist_camera_tf_frame")
+            .get_parameter_value()
+            .string_value
+        )
+        self.declare_parameter("nav_camera_1_tf_frame", "nav1_link")
+        self.nav_camera_1_tf_frame = (
+            self.get_parameter("nav_camera_1_tf_frame")
+            .get_parameter_value()
+            .string_value
+        )
+        self.declare_parameter("nav_camera_2_tf_frame", "nav2_link")
+        self.nav_camera_2_tf_frame = (
+            self.get_parameter("nav_camera_2_tf_frame")
+            .get_parameter_value()
+            .string_value
+        )
         self.declare_parameter("image_channel", 0)
         self.image_channel = (
             self.get_parameter("image_channel").get_parameter_value().integer_value
@@ -227,6 +281,11 @@ class GuiBridge(Node):
         self.init_publisher()
         self.init_subscriber()
         self.init_service()
+
+        # TF2 infrastructure for live camera extrinsics
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self._last_extrinsics: dict[str, "Extrinsics"] = {}
 
         # self.test_ue_counter = 0
         # self.test_ue_timer = self.create_timer(1.0, self.test_ue)

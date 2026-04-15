@@ -28,6 +28,26 @@ def generate_launch_description():
                 description="Namespace for the wrist camera topics",
             ),
             DeclareLaunchArgument(
+                "tf_base_frame",
+                default_value="mebot",
+                description="Base TF frame for camera extrinsics lookup",
+            ),
+            DeclareLaunchArgument(
+                "wrist_camera_tf_frame",
+                default_value="wrist_wrist_camera_link",
+                description="TF frame for wrist camera",
+            ),
+            DeclareLaunchArgument(
+                "nav_camera_1_tf_frame",
+                default_value="nav1_link",
+                description="TF frame for nav camera 1",
+            ),
+            DeclareLaunchArgument(
+                "nav_camera_2_tf_frame",
+                default_value="nav2_link",
+                description="TF frame for nav camera 2",
+            ),
+            DeclareLaunchArgument(
                 "nav_camera_namespace_1",
                 default_value="/camera/nav1",
                 description="Namespace for the first navigation camera topics",
@@ -72,6 +92,16 @@ def generate_launch_description():
                         "ue_preset": LaunchConfiguration("ue_preset"),
                         "wrist_camera_namespace": LaunchConfiguration(
                             "wrist_camera_namespace"
+                        ),
+                        "tf_base_frame": LaunchConfiguration("tf_base_frame"),
+                        "wrist_camera_tf_frame": LaunchConfiguration(
+                            "wrist_camera_tf_frame"
+                        ),
+                        "nav_camera_1_tf_frame": LaunchConfiguration(
+                            "nav_camera_1_tf_frame"
+                        ),
+                        "nav_camera_2_tf_frame": LaunchConfiguration(
+                            "nav_camera_2_tf_frame"
                         ),
                         "nav_camera_namespace_1": LaunchConfiguration(
                             "nav_camera_namespace_1"

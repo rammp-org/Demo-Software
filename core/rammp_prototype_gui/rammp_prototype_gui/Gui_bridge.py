@@ -852,21 +852,21 @@ class GuiBridge(Node):
                 self._system_state = "TestState"
             if self.test_ue_counter == 5:
                 self._system_state = None
-                print("Testing sending curb info to UE...")
-                curbInfo = CurbInfo(
-                    Distance=0.5,
-                    Height=0.2,
-                    Pose=Transform(
-                        Translation=Vector(X=1.0, Y=2.0, Z=3.0),
-                        Rotation=Quaternion(X=0.0, Y=0.0, Z=0.0, W=1.0),
-                        Scale3D=Vector(X=1.0, Y=1.0, Z=1.0),
-                    ),
-                    Success=True,
-                    Message="Curb info updated successfully",
-                )
-                # print("CurbInfo to send:", asdict(curbInfo))
+                # print("Testing sending curb info to UE...")
+                # curbInfo = CurbInfo(
+                #     Distance=0.5,
+                #     Height=0.2,
+                #     Pose=Transform(
+                #         Translation=Vector(X=1.0, Y=2.0, Z=3.0),
+                #         Rotation=Quaternion(X=0.0, Y=0.0, Z=0.0, W=1.0),
+                #         Scale3D=Vector(X=1.0, Y=1.0, Z=1.0),
+                #     ),
+                #     Success=True,
+                #     Message="Curb info updated successfully",
+                # )
+                # # print("CurbInfo to send:", asdict(curbInfo))
 
-                self.update_curb_info(curbInfo)
+                # self.update_curb_info(curbInfo)
         else:
             self.test_ue_counter = 0
 
@@ -949,9 +949,11 @@ class GuiBridge(Node):
                 #         "Z": curb_info.Pose.Scale3D.Z,
                 #     },
                 # },
-                "Orientation": curb_info.orientation,
-                "Distance": curb_info.distance,
-                "Height": curb_info.height,
+                "Orientation": curb_info.orientation
+                * 180.0
+                / 3.14159,  # convert to degree
+                "Distance": curb_info.distance * 100.0,  # convert meter to cm
+                "Height": curb_info.height * 100.0,  # convert meter to cm
                 "NumSegmentIDs": 4,
             }
             self.ue.call_function("UpdateCurbInfo", curbInfoDict)

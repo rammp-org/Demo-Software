@@ -96,15 +96,21 @@ else
 fi
 
 echo "=== Adding user to input group for keyboard access for estop node ==="
-if ! groups "$USER" | grep -q '\binput\b'; then
-    $SUDO usermod -aG input "$USER"
-    echo "User $USER added to input group."
-    echo "WARNING: Log out and back in (or reboot) for this to take effect."
-else
-    echo "User $USER is already in input group. Skipping."
+
+# Resolve the real user even when run under sudo
+REAL_USER="${SUDO_USER:-${USER:-$(logname 2>/dev/null || whoami)}}"
+
+if [ -z "$REAL_USER" ]; then
+    echo "ERROR: Could not determine the current user. Please run as a normal user or set SUDO_USER."
+    exit 1
 fi
 
-echo "=== Configuring Jetson max performance mode ==="
-bash "${REPO_ROOT}/scripts/jetson_max_performance.sh" "$@"
+if ! groups "$REAL_USER" | grep -q '\binput\b'; then
+    $SUDO usermod -aG input "$REAL_USER"
+    echo "User $REAL_USER added to input group."
+    echo "WARNING: Log out and back in (or reboot) for this to take effect."
+else
+    echo "User $REAL_USER is already in input group. Skipping."
+fi
 
 echo "=== Setup complete ==="

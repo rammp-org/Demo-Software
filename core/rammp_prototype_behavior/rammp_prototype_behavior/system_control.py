@@ -1,7 +1,7 @@
 import asyncio
 import enum
 import threading
-from std_msgs.msg import String, Float32
+from std_msgs.msg import Float32
 
 import rclpy
 import rclpy.action
@@ -26,6 +26,7 @@ from .action_client.chair_curb_traverse_action_client import (
     ChairCurbTraverseActionClient,
 )
 from gui_interfaces.srv import UserInputs
+from gui_interfaces.msg import SystemState
 from transitions.extensions import HierarchicalMachine as Machine
 from .node_name_monitor import NodeNameMonitor
 from ament_index_python.packages import get_package_share_directory
@@ -44,6 +45,27 @@ UserInputsToSeatCommand: dict[str, int] = {
     UserInputs.Request.CHAIR_SEAT_LTILT_LEFT: SeatCommand.LATERAL_LEFT,
     UserInputs.Request.CHAIR_SEAT_LTILT_RIGHT: SeatCommand.LATERAL_RIGHT,
     UserInputs.Request.CHAIR_SEAT_HOME: SeatCommand.RESET,
+}
+
+StateTriggerToUserInputs: dict[str, str] = {
+    "reqChair": UserInputs.Request.CHAIR_CONTROL_MAIN,
+    "enableSL": UserInputs.Request.CHAIR_SELFLEVELING_ON,
+    "disableSL": UserInputs.Request.CHAIR_SELFLEVELING_OFF,
+    "seatControl": UserInputs.Request.CHAIR_SEAT_HOME,
+    "reqNav": UserInputs.Request.CHAIR_CURB_NAVIGATION,
+    "reqAscend": UserInputs.Request.CHAIR_CURB_ASCEND,
+    "reqDescend": UserInputs.Request.CHAIR_CURB_DESCEND,
+    "reqArm": UserInputs.Request.ARM_CONTROL_MAIN,
+    "retract": UserInputs.Request.ARM_RETRACT,
+    "reqHome": UserInputs.Request.ARM_HOME,
+    "reqOpenDoor": UserInputs.Request.ARM_OPEN_DOOR,
+    "reqOrderDrink": UserInputs.Request.ARM_ORDER_DRINK,
+    "detectDrink": UserInputs.Request.ARM_ORDER_DRINK_RECEIVE,
+    "reqStabilizeCup": UserInputs.Request.ARM_CUP_STABLE_ON,
+    "reqDrink": UserInputs.Request.ARM_DRINKING_START,
+    "reset": UserInputs.Request.RESET,
+    "confirm": UserInputs.Request.CONFIRM,
+    "cancel": UserInputs.Request.CANCEL,
 }
 
 
@@ -151,6 +173,8 @@ class SystemControl(rclpy.node.Node):
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
+
+        self.old_state = None
 
         self.is_mocking = False
         if self.is_mocking:
@@ -645,11 +669,11 @@ class SystemControl(rclpy.node.Node):
         # publishers
         self.base_manual_seat_control_publisher = self.create_publisher(
             SeatCommand, "/base/manual_seat_control", 10
-        )  # message type is placeholder
+        )
         self._seat_control_request = None  # to store seat control command for testing, will replace with actual logic to handle different seat control commands later
         self.system_state_publisher = self.create_publisher(
-            String, "/system/state", 10
-        )  # message type is placeholder
+            SystemState, "/system/state", 10
+        )
         self.system_state_publisher_timer = self.create_timer(
             0.1, self.publish_system_state, callback_group=self._cb_group
         )
@@ -657,11 +681,33 @@ class SystemControl(rclpy.node.Node):
             Float32, "/nav/curb_traverse_progress", 10
         )  # message type is placeholder, will replace with actual message type later
 
+    def get_available_user_inputs(self):
+        available_triggers = self.machine.get_triggers(self.state)
+        userinputs_list = []
+        for trigger in available_triggers:
+            if trigger in StateTriggerToUserInputs:
+                userinputs_list.append(StateTriggerToUserInputs[trigger])
+        # check `chair/main` trigger's condition to determine whether to show `UserInputs.Request.CHAIR_CONTROL_MAIN` user input in Arm State
+        if UserInputs.Request.CHAIR_CONTROL_MAIN in userinputs_list:
+            parent_state = self.state.split("_")[
+                0
+            ]  # get parent state, e.g. Arm from Arm_Door_raisingArm
+            if parent_state == "Arm":
+                if not self.is_arm_state_good_for_driving():
+                    # remove "chair/main" from the list
+                    userinputs_list.remove(UserInputs.Request.CHAIR_CONTROL_MAIN)
+        return userinputs_list
+
     def publish_system_state(self):
-        # Placeholder for publishing system state, will replace with actual system state message later
-        msg = String()
-        msg.data = self.state
+        msg = SystemState()
+        msg.state = self.state
+        msg.supported_user_inputs = self.get_available_user_inputs()
         self.system_state_publisher.publish(msg)
+        if self.state != self.old_state:
+            self.get_logger().info(
+                f"Current state: {msg.state}, available user inputs: {msg.supported_user_inputs}"
+            )
+        self.old_state = self.state
 
     def init_subscribers(self):
         self._is_arm_error = None  # default to None to indicate not received arm status yet, will update to True/False after receiving arm status
@@ -1540,6 +1586,7 @@ class SystemControl(rclpy.node.Node):
             # chair sub state transitions
             {"trigger": "enableSL", "source": "Nav_SLOff", "dest": "Nav_SLOn"},
             {"trigger": "disableSL", "source": "Nav_SLOn", "dest": "Nav_SLOff"},
+            {"trigger": "cancel", "source": "Nav_SLOn", "dest": "Nav_SLOff"},
             {
                 "trigger": "seatControl",
                 "source": "Chair",

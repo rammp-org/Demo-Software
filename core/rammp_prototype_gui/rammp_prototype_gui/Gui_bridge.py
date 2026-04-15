@@ -9,11 +9,12 @@ from dataclasses import dataclass
 import numpy as np
 
 from rclpy.node import Node
-from std_msgs.msg import Float32, String
+from std_msgs.msg import Float32
 from std_msgs.msg import Bool
 from .unreal_remote_websocket import UnrealRemoteWebsocket
 from .streaming.sender import StreamSender
 from gui_interfaces.srv import UserInputs
+from gui_interfaces.msg import SystemState
 from sensor_msgs.msg import CameraInfo, JointState, Image
 from rclpy.callback_groups import ReentrantCallbackGroup
 
@@ -266,9 +267,9 @@ class GuiBridge(Node):
         )
 
     def init_subscriber(self):
-        # make subscriber for system state, message should be string
+        # make subscriber for system state, message should be SystemState
         self.system_state_subscriber = self.create_subscription(
-            String,
+            SystemState,
             "/system/state",
             self.system_state_callback,
             10,
@@ -916,7 +917,11 @@ class GuiBridge(Node):
     def send_system_state_to_ue(self):
         if self.ue.is_connected() and self._system_state is not None:
             self.ue.call_function(
-                "UpdateSystemState", {"SystemState": str(self._system_state)}
+                "UpdateSystemState", {"SystemState": str(self._system_state.state)}
+            )
+            self.ue.call_function(
+                "UpdateAllowedCommands",
+                {"CommandList": self._system_state.supported_user_inputs},
             )
 
     def send_curb_traverse_progress_to_ue(self, progress: float):
@@ -1046,11 +1051,16 @@ class GuiBridge(Node):
         self.connection_publisher.publish(msg)
 
     def system_state_callback(self, msg):
-        if self._system_state is None or self._system_state != msg.data:
-            self.get_logger().debug("Received new system state: " + msg.data)
-            self._system_state = msg.data
+        if self._system_state is None or self._system_state.state != msg.state:
+            self.get_logger().info(
+                "Received new system state: "
+                + (msg.state)
+                + ", supported user input: "
+                + str(msg.supported_user_inputs)
+            )
+            self._system_state = msg
             self.send_system_state_to_ue()
-        self._system_state = msg.data
+        self._system_state = msg
 
     def write_data_to_shm(self, index, data):
         if self.use_shared_memory:

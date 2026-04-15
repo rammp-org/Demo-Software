@@ -7,10 +7,12 @@ import json
 from ament_index_python.packages import get_package_share_directory
 import rclpy
 import serial
+import threading
 from rammp_prototype_interfaces.action import CurbTraverse
 from rammp_prototype_interfaces.action import Calibration
 from rammp_prototype_interfaces.msg import SeatCommand
 from luci_messages.msg import LuciJoystick
+import enum
 
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
 from rclpy.action import ActionServer
@@ -146,6 +148,17 @@ class SerialField(IntEnum):
     FB_PWM = 66
 
 
+class SystemState(enum.IntEnum):
+    INIT = 0
+    IDLE = 1
+    TUNER_MODE = 2
+    ESTOP = 3
+    SELF_LEVELING = 4
+    CONFIGURATION = 5
+    AUTO_CURB_CLIMBING = 6
+    CALIBRATING = 7
+
+
 class MEBotControlNode(Node):
     def __init__(self):
         super().__init__("MEBot_control_node")
@@ -165,11 +178,14 @@ class MEBotControlNode(Node):
         except serial.SerialException:
             self.ser = None
 
+        self.lock = threading.Lock()
+
         # diagnostics updater init
         self.updater = diagnostic_updater.Updater(self)
         self.updater.setHardwareID("MEBot")
         self.updater.add("LUCI status", self.check_luci_node)
-        self.updater.add("Teensy status", self.check_teensy_connection)
+        self.updater.add("Teensy connection", self.check_teensy_connection)
+        self.updater.add("Teensy state", self.check_teensy_state)
 
         # Data transfer rates
         # Rate to read data from serial
@@ -180,9 +196,18 @@ class MEBotControlNode(Node):
         self.state_publish_rate = 1 / 100.0
         # Diagnostic publish rate
         self.diagnostic_publish_rate = 1 / 1.0
+        # heartbeat timer
+        self.heartbeat_rate = 0.5
 
         # timer for serial data reading
         self.serial_timer = self.create_timer(self.serial_rate, self.read_serial_data)
+
+        # heartbeat to send serial message from jetson ->teensy to prevent teensy from timing out
+        self.heartbeat_timer = self.create_timer(
+            self.heartbeat_rate, self.send_serial_heartbeat
+        )
+
+        self.estop = False
 
         # Fields to store sequence player data
         self.current_seq = 0
@@ -337,9 +362,11 @@ class MEBotControlNode(Node):
         if self.ser is None:
             return
         if isinstance(data, bytes):
-            self.ser.write(data)
+            with self.lock:
+                self.ser.write(data)
         else:
-            self.ser.write(data.encode("utf-8"))
+            with self.lock:
+                self.ser.write(data.encode("utf-8"))
 
     def send_sequence(self, keyframes: list[Keyframe], auto_run: bool = True):
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(True))
@@ -360,6 +387,12 @@ class MEBotControlNode(Node):
         if auto_run:
             self.write_serial_data(ProtocolEncoder.seq_auto_run(True))
         self.write_serial_data(ProtocolEncoder.seq_step_forward())
+
+    def send_serial_heartbeat(self):
+        if not self.estop:
+            self.write_serial_data("c\n")
+        else:
+            self.write_serial_data("z\n")
 
     # update variables to be published
     def update_data(self, data):
@@ -528,6 +561,33 @@ class MEBotControlNode(Node):
             stat.summary(DiagnosticStatus.ERROR, "Teensy is disconnected")
         return stat
 
+    def check_teensy_state(self, stat):
+        if self.state == SystemState.ESTOP:
+            stat.add("state_status", "ESTOP state")
+            stat.summary(DiagnosticStatus.ERROR, "Teensy in estop state")
+        elif self.state == SystemState.INIT:
+            stat.add("state_status", "Initialization state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in initialization state")
+        elif self.state == SystemState.IDLE:
+            stat.add("state_status", "Idle state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in idle state")
+        elif self.state == SystemState.TUNER_MODE:
+            stat.add("state_status", "Tuner mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in tuner mode")
+        elif self.state == SystemState.SELF_LEVELING:
+            stat.add("state_status", "Self-leveling mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in self-leveling mode")
+        elif self.state == SystemState.CONFIGURATION:
+            stat.add("state_status", "Configuration mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in configuration mode")
+        elif self.state == SystemState.AUTO_CURB_CLIMBING:
+            stat.add("state_status", "Auto curb climbing mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in auto curb climbing mode")
+        elif self.state == SystemState.CALIBRATING:
+            stat.add("state_status", "Calibrating")
+            stat.summary(DiagnosticStatus.OK, "Teensy is calibrating")
+        return stat
+
     def manual_seat_control_callback(self, msg: SeatCommand):
         self.get_logger().info("Seat command callback has been entered")
         deltas = SEAT_DELTAS.get(msg.command)
@@ -546,6 +606,7 @@ class MEBotControlNode(Node):
         )
 
     def estop_callback(self, msg):
+        self.estop = msg.data
         if msg.data:
             self.send_remove_luci()  # may be redundent, ensure user has manual control
             self.write_serial_data(

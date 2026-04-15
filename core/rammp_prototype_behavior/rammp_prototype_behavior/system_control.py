@@ -318,7 +318,7 @@ class SystemControl(rclpy.node.Node):
     # -----------------------curb navigation transtion functions-----------------------------
     def on_enter_Nav_descendDetecting(self):
         self.get_logger().info("Detecting curb to prepare for descend.")
-        self.enable_curb_detection(
+        self.enable_curb_descent_detection(
             True
         )  # enable curb detection to detect curb for navigation
         self.get_logger().debug("Mock detecting curb for 5 seconds.")
@@ -327,13 +327,13 @@ class SystemControl(rclpy.node.Node):
         )  # should enter Nav_traverse state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
 
     def on_exit_Nav_descendDetecting(self):
-        self.enable_curb_detection(
+        self.enable_curb_descent_detection(
             False
         )  # ensure curb detection is disabled when exiting detecting curb state
 
     def on_enter_Nav_ascendDetecting(self):
         self.get_logger().info("Detecting curb to prepare for ascend.")
-        self.enable_curb_detection(
+        self.enable_curb_ascend_detection(
             True
         )  # enable curb detection to detect curb for navigation
         self.get_logger().debug("Mock detecting curb for 5 seconds.")
@@ -342,7 +342,7 @@ class SystemControl(rclpy.node.Node):
         )  # should enter Nav_ascending state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
 
     def on_exit_Nav_ascendDetecting(self):
-        self.enable_curb_detection(
+        self.enable_curb_ascend_detection(
             False
         )  # ensure curb detection is disabled when exiting detecting curb state
 
@@ -647,7 +647,8 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Nav_canceling(self):
         self.get_logger().info("Navigation canceling requested.")
         self.curb_traverse_client.cancel()
-        self.enable_curb_detection(False)
+        self.enable_curb_descent_detection(False)
+        self.enable_curb_ascend_detection(False)
 
     # --------------------end of Door Open State Transition Functions------------------------
 
@@ -754,6 +755,13 @@ class SystemControl(rclpy.node.Node):
             "/nav/curb/detect",
             callback_group=self._service_cb_group,
         )
+
+        self.curb_descend_detection_client = self.create_client(
+            SetBool,
+            "/nav/curb_descent/detect",
+            callback_group=self._service_cb_group,
+        )
+
         self.base_drive_enable_client = self.create_client(
             SetBool,
             "/base/drive_enable",
@@ -868,10 +876,24 @@ class SystemControl(rclpy.node.Node):
         else:
             return False
 
-    def enable_curb_detection(self, enable: bool) -> bool:
+    def enable_curb_ascend_detection(self, enable: bool) -> bool:
         req = SetBool.Request()
         req.data = enable
         future = self.curb_detection_client.call_async(req)
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
+        if not future.done():
+            return False
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
+    def enable_curb_descent_detection(self, enable: bool) -> bool:
+        req = SetBool.Request()
+        req.data = enable
+        future = self.curb_descend_detection_client.call_async(req)
         event = threading.Event()
         future.add_done_callback(lambda _: event.set())
         event.wait(timeout=5.0)

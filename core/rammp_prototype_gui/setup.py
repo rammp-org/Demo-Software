@@ -29,6 +29,7 @@ setup(
             "GuiBridge = rammp_prototype_gui.Gui_bridge:main",
             "MockButtonInfoPublisher = rammp_prototype_gui.mock_button_info:main",
             "MockCurbMarkerPublisher = rammp_prototype_gui.mock_curb_marker:main",
+            "TrimTUI = rammp_prototype_gui.trim_tui:main",
         ],
     },
 )

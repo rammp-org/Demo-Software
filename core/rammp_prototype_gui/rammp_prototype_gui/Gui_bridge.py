@@ -236,6 +236,16 @@ class GuiBridge(Node):
             .get_parameter_value()
             .string_value
         )
+
+        self._trim_prefixes = {
+            self.wrist_camera_tf_frame: "wrist",
+            self.nav_camera_1_tf_frame: "nav1",
+            self.nav_camera_2_tf_frame: "nav2",
+        }
+        for cam in ["wrist", "nav1", "nav2"]:
+            for axis in ["x", "y", "z", "roll", "pitch", "yaw"]:
+                self.declare_parameter(f"{cam}_trim_{axis}", 0.0)
+
         self.declare_parameter("image_channel", 0)
         self.image_channel = (
             self.get_parameter("image_channel").get_parameter_value().integer_value
@@ -668,19 +678,12 @@ class GuiBridge(Node):
             )
             extrinsics = _tf_to_ue_extrinsics(tf)
             self._last_extrinsics[camera_tf_frame] = extrinsics
-            self.get_logger().debug(
-                f"TF2 [{camera_tf_frame}]: "
-                f"pos=({extrinsics.location.X:.1f}, {extrinsics.location.Y:.1f}, {extrinsics.location.Z:.1f})cm "
-                f"rot=({extrinsics.rotation.X:.1f}, {extrinsics.rotation.Y:.1f}, {extrinsics.rotation.Z:.1f})deg",
-                throttle_duration_sec=1.0,
-            )
-            return extrinsics
         except Exception:
             self.get_logger().warn(
                 f"TF2 lookup failed for {camera_tf_frame}, using last known extrinsics",
                 throttle_duration_sec=5.0,
             )
-            return self._last_extrinsics.get(
+            extrinsics = self._last_extrinsics.get(
                 camera_tf_frame,
                 Extrinsics(
                     location=Vector(0, 0, 0),
@@ -688,6 +691,36 @@ class GuiBridge(Node):
                     scale=Vector(1, 1, 1),
                 ),
             )
+
+        prefix = self._trim_prefixes.get(camera_tf_frame)
+        if prefix:
+            extrinsics = Extrinsics(
+                location=Vector(
+                    extrinsics.location.X
+                    + self.get_parameter(f"{prefix}_trim_x").value,
+                    extrinsics.location.Y
+                    + self.get_parameter(f"{prefix}_trim_y").value,
+                    extrinsics.location.Z
+                    + self.get_parameter(f"{prefix}_trim_z").value,
+                ),
+                rotation=Vector(
+                    extrinsics.rotation.X
+                    + self.get_parameter(f"{prefix}_trim_roll").value,
+                    extrinsics.rotation.Y
+                    + self.get_parameter(f"{prefix}_trim_pitch").value,
+                    extrinsics.rotation.Z
+                    + self.get_parameter(f"{prefix}_trim_yaw").value,
+                ),
+                scale=Vector(1.0, 1.0, 1.0),
+            )
+
+        self.get_logger().debug(
+            f"TF2 [{camera_tf_frame}]: "
+            f"pos=({extrinsics.location.X:.1f}, {extrinsics.location.Y:.1f}, {extrinsics.location.Z:.1f})cm "
+            f"rot=({extrinsics.rotation.X:.1f}, {extrinsics.rotation.Y:.1f}, {extrinsics.rotation.Z:.1f})deg",
+            throttle_duration_sec=1.0,
+        )
+        return extrinsics
 
     def send_image(
         self,

@@ -15,6 +15,7 @@ from gui_interfaces.srv import UserInputs
 # from realsense2_camera_msgs.msg import Extrinsics
 from neu_navigation_interfaces.msg import CurbInfo
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import CameraInfo, Image, JointState
@@ -1097,10 +1098,16 @@ class GuiBridge(Node):
 
 def main():
     rclpy.init()
+    executor = MultiThreadedExecutor()
     node = GuiBridge()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    executor.add_node(node)
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

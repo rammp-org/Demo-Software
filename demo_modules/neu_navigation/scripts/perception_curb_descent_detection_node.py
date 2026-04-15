@@ -38,9 +38,7 @@ class PerceptionCurbDescentDetectionNode(Node):
             "input_info_topic", "/camera/nav1/color/camera_info_rotated"
         )
         self.declare_parameter("output_marker_topic", "/perception/curb_visual")
-        self.declare_parameter(
-            "curb_info_topic", "/nav/curb/info"
-        )  # use the same topic as curb detection for simplicity, since they won't be used at the same time and they use same message type
+        self.declare_parameter("curb_info_topic", "/nav/curb_descent/info")
         self.declare_parameter("segmentation_mask_topic", "/perception/curb_mask")
         self.declare_parameter("mask_image_topic", "/perception/curb_mask_image")
 

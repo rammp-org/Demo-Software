@@ -25,6 +25,9 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": ["gamepad_node = peripheral_driver.gamepad_node:main","estop_node = peripheral_driver.estop_node:main"],
+        "console_scripts": [
+            "gamepad_node = peripheral_driver.gamepad_node:main",
+            "estop_node = peripheral_driver.estop_node:main",
+        ],
     },
 )

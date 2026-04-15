@@ -34,7 +34,7 @@ from arm_interfaces.srv import SetMode, SetSpeedPreset
 from std_srvs.srv import Trigger, SetBool
 from std_msgs.msg import Bool
 from sensor_msgs.msg import JointState
-from diagnostic_msgs.msg import DiagnosticStatus
+from diagnostic_msgs.msg import DiagnosticStatus, DiagnosticArray
 from rammp_prototype_interfaces.msg import SeatCommand
 
 UserInputsToSeatCommand: dict[str, int] = {
@@ -187,6 +187,11 @@ class SystemControl(rclpy.node.Node):
         self._arm_status = ""
         self._cb_group = ReentrantCallbackGroup()
         self._all_node_ready = False
+        self._teensy_calibrated = False
+        self._LUCI_connected = False
+        self._teensy_connected = False
+        self._base_error = False
+
         self.node_monitor = NodeNameMonitor(self, json_path, self.node_monitor_callback)
 
         self.current_arm_state = ""
@@ -206,7 +211,9 @@ class SystemControl(rclpy.node.Node):
         )
 
     def system_monitor_callback(self):
-        if self._is_arm_error is None:
+        if (
+            self._is_arm_error is None
+        ):  # not receive arm satus yet, wait for it to be initialized
             return
         # try to clear arm error
         if self._is_arm_error:
@@ -214,7 +221,13 @@ class SystemControl(rclpy.node.Node):
             self.clear_arm_error()
             return  # return early
 
-        if self._all_node_ready and self._gui_connected:
+        if (
+            self._all_node_ready
+            and self._gui_connected
+            and self._LUCI_connected
+            and self._teensy_connected
+            and self._teensy_calibrated
+        ):
             self.ready()
 
     def mock_task(self):
@@ -379,7 +392,10 @@ class SystemControl(rclpy.node.Node):
                 self.get_logger().info("Arm error cleared successfully.")
             else:
                 self.get_logger().warn("Failed to clear arm error.")
-                self.ArmErrorClearFailed()
+                self.SystemError()
+        if self._base_error:
+            self.get_logger().warn("Base error, transitioning to system error state.")
+            self.SystemError()
 
     def on_exit_Arm_paused(self):
         self.base_drive_enable(True)  # re-enable drive when exiting paused state
@@ -735,6 +751,15 @@ class SystemControl(rclpy.node.Node):
             callback_group=self._cb_group,
         )
 
+        # subscribe to diagnostic status of other nodes to determine if all hardware are ready.
+        self.diagnostics_subscriber = self.create_subscription(
+            DiagnosticArray,
+            "/diagnostics",
+            self.diagnostics_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+
     def init_services(self):
         self._service_cb_group = ReentrantCallbackGroup()
         self.set_mode_client = self.create_client(
@@ -954,6 +979,44 @@ class SystemControl(rclpy.node.Node):
     # ----------End of Helper functions to call services and actions for state transitions----------------
 
     # ----------publisher / service callback functions to process messages and update internal state----------------
+
+    def diagnostics_callback(self, msg: DiagnosticArray):
+        base_error = False
+        for status in msg.status:
+            if status.name == "LUCI status":
+                if status.level == DiagnosticStatus.ERROR and self._LUCI_connected:
+                    self.get_logger().error("LUCI status error detected!")
+                    base_error = True
+                else:
+                    if not self._LUCI_connected:
+                        self._LUCI_connected = True
+                        self.get_logger().info("LUCI connection established!")
+                break
+            if status.name == "Teensy connection":
+                if status.level == DiagnosticStatus.ERROR and self._teensy_connected:
+                    self.get_logger().error("Teensy connection error detected!")
+                    base_error = True
+                else:
+                    if not self._teensy_connected:
+                        self._teensy_connected = True
+                        self.get_logger().info("Teensy connection established!")
+                break
+            if status.name == "Teensy state":
+                if status.level == DiagnosticStatus.ERROR:
+                    self.get_logger().error("Teensy state error detected!")
+                    base_error = True
+                else:
+                    if (
+                        status.message == "Teensy in idle state"
+                        and not self._teensy_calibrated
+                    ):
+                        self._teensy_calibrated = True
+                        self.get_logger().info("Teensy calibration completed!")
+                break
+        if base_error:
+            self._base_error = True
+            self.BaseError()
+
     def arm_status_callback(self, msg: DiagnosticStatus):
         # Placeholder for processing arm status messages
         if self._arm_status != msg.message:
@@ -1144,6 +1207,25 @@ class SystemControl(rclpy.node.Node):
 
     # ----------End of state machine conditions----------------
     # ----------state machine callbacks----------------
+    def on_enter_init(self):
+        self._all_node_ready = (
+            False  # reset all node ready status when entering init state
+        )
+        self._LUCI_connected = (
+            False  # reset LUCI connection status when entering init state
+        )
+        self._teensy_connected = (
+            False  # reset Teensy connection status when entering init state
+        )
+        self._teensy_calibrated = (
+            False  # reset Teensy calibration status when entering init state
+        )
+        self._arm_status = ""  # reset arm status when entering init state
+        self._gui_connected = (
+            False  # reset GUI connection status when entering init state
+        )
+        self._base_error = False  # reset base error status when entering init state
+
     def on_enter_Chair(self):
         # for testing
         self.get_logger().info("Entering Chair state")
@@ -1536,14 +1618,27 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_canceling",
                 "conditions": "is_arm_action_running",
             },  # if arm error happens during performing an action, try to cancel the action first; if arm is idle when error happens, directly go to error state
+            {
+                "trigger": "BaseError",
+                "source": "Arm",
+                "dest": "Arm_canceling",
+                "conditions": "is_arm_action_running",
+            },  # if base error when arm action running, cancel arm action first.
+            {
+                "trigger": "BaseError",
+                "source": "Arm",
+                "dest": "Arm_paused",
+            },  # go to paused state so all the detection will stop.
             {"trigger": "ArmError", "source": "Arm", "dest": "Arm_paused"},
             {
-                "trigger": "ArmErrorClearFailed",
+                "trigger": "SystemError",
                 "source": "Arm_paused",
                 "dest": "Error",
-            },  # if arm error is not cleared successfully, treat as system error and require reset
+            },  # if arm error is not cleared successfully, treat as system error and require reset; if trigger by base error, it is system error.
             {"trigger": "ArmError", "source": "Chair", "dest": "Error"},
             {"trigger": "ArmError", "source": "Nav", "dest": "Error"},
+            {"trigger": "BaseError", "source": "Chair", "dest": "Error"},
+            {"trigger": "BaseError", "source": "Nav", "dest": "Error"},
             {"trigger": "ready", "source": "init", "dest": "Chair"},
             {"trigger": "reset", "source": "Error", "dest": "init"},
             # main state transitions

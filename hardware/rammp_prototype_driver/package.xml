@@ -11,6 +11,8 @@
     <depend>std_msgs</depend>
     <depend>sensor_msgs</depend>
     <depend>std_srvs</depend>
+    <depend>diagnostic_msgs</depend>
+    <depend>diagnostic_updater</depend>
     <!-- python3-serial (pyserial) — managed via requirements.txt + pip, not rosdep -->
     <!-- Custom messages -->
     <depend>rammp_prototype_interfaces</depend>

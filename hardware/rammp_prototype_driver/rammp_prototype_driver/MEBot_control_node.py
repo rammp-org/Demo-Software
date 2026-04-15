@@ -1,27 +1,26 @@
+import json
 import math
 import time
 from enum import IntEnum
-from std_srvs.srv import Empty
-from rclpy.executors import MultiThreadedExecutor
-import json
-from ament_index_python.packages import get_package_share_directory
+
+import diagnostic_updater
 import rclpy
 import serial
-from rammp_prototype_interfaces.action import CurbTraverse
-from rammp_prototype_interfaces.action import Calibration
-from rammp_prototype_interfaces.msg import SeatCommand
+import threading
+from ament_index_python.packages import get_package_share_directory
+from diagnostic_msgs.msg import DiagnosticStatus
 from luci_messages.msg import LuciJoystick
+from rammp_prototype_interfaces.action import Calibration, CurbTraverse
 
-from rammp_prototype_interfaces.msg import RAMMPPrototypeState
-from rclpy.action import ActionServer
+from rammp_prototype_interfaces.msg import RAMMPPrototypeState, SeatCommand
+from rclpy.action import ActionServer, CancelResponse
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool
-from std_srvs.srv import SetBool
-import diagnostic_updater
-from diagnostic_msgs.msg import DiagnosticStatus
+from std_srvs.srv import Empty, SetBool
 
-from .keyframe import Keyframe, NUM_MOTORS
+from .keyframe import NUM_MOTORS, Keyframe
 from .protocol import ProtocolEncoder
 
 # LUCI STUFF
@@ -75,7 +74,7 @@ SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_LEFT: [0.0, 0.0, -30.0, 30.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 30.0, -30.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.RESET: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    SeatCommand.RESET: [233.0, 25.0, 212.0, 192.0, 101.0, 95.0, 0.0, 0.0],
 }
 
 
@@ -146,9 +145,20 @@ class SerialField(IntEnum):
     FB_PWM = 66
 
 
+class SystemState(IntEnum):
+    INIT = 0
+    IDLE = 1
+    TUNER_MODE = 2
+    ESTOP = 3
+    SELF_LEVELING = 4
+    CONFIGURATION = 5
+    AUTO_CURB_CLIMBING = 6
+    CALIBRATING = 7
+
+
 class MEBotControlNode(Node):
     def __init__(self):
-        super().__init__("MEBot_control_node")
+        super().__init__("base_control_node")
 
         # serial init
         self.declare_parameter("serial_port", "/dev/ttyACM0")
@@ -165,11 +175,14 @@ class MEBotControlNode(Node):
         except serial.SerialException:
             self.ser = None
 
+        self.lock = threading.Lock()
+
         # diagnostics updater init
         self.updater = diagnostic_updater.Updater(self)
         self.updater.setHardwareID("MEBot")
         self.updater.add("LUCI status", self.check_luci_node)
-        self.updater.add("Teensy status", self.check_teensy_connection)
+        self.updater.add("Teensy connection", self.check_teensy_connection)
+        self.updater.add("Teensy state", self.check_teensy_state)
 
         # Data transfer rates
         # Rate to read data from serial
@@ -180,9 +193,18 @@ class MEBotControlNode(Node):
         self.state_publish_rate = 1 / 100.0
         # Diagnostic publish rate
         self.diagnostic_publish_rate = 1 / 1.0
+        # heartbeat timer
+        self.heartbeat_rate = 0.5
 
         # timer for serial data reading
         self.serial_timer = self.create_timer(self.serial_rate, self.read_serial_data)
+
+        # heartbeat to send serial message from jetson ->teensy to prevent teensy from timing out
+        self.heartbeat_timer = self.create_timer(
+            self.heartbeat_rate, self.send_serial_heartbeat
+        )
+
+        self.estop = False
 
         # Fields to store sequence player data
         self.current_seq = 0
@@ -244,6 +266,8 @@ class MEBotControlNode(Node):
         self._init_subscribers()
         self._init_publishers()
 
+        self.send_remove_luci()
+
     def _init_services(self):
         # services
         self.drive_enable_service = self.create_service(
@@ -265,7 +289,11 @@ class MEBotControlNode(Node):
     def _init_actions(self):
         # actions
         self.curb_traverse_action = ActionServer(
-            self, CurbTraverse, "curb_traverse", self.curb_traverse_action_callback
+            self,
+            CurbTraverse,
+            "curb_traverse",
+            self.curb_traverse_action_callback,
+            cancel_callback=lambda _: CancelResponse.ACCEPT,
         )
 
         self.calibrate_action = ActionServer(
@@ -302,6 +330,7 @@ class MEBotControlNode(Node):
         self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
         self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
+        self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
 
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
@@ -337,9 +366,11 @@ class MEBotControlNode(Node):
         if self.ser is None:
             return
         if isinstance(data, bytes):
-            self.ser.write(data)
+            with self.lock:
+                self.ser.write(data)
         else:
-            self.ser.write(data.encode("utf-8"))
+            with self.lock:
+                self.ser.write(data.encode("utf-8"))
 
     def send_sequence(self, keyframes: list[Keyframe], auto_run: bool = True):
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(True))
@@ -360,6 +391,12 @@ class MEBotControlNode(Node):
         if auto_run:
             self.write_serial_data(ProtocolEncoder.seq_auto_run(True))
         self.write_serial_data(ProtocolEncoder.seq_step_forward())
+
+    def send_serial_heartbeat(self):
+        if not self.estop:
+            self.write_serial_data("c\n")
+        else:
+            self.write_serial_data("z\n")
 
     # update variables to be published
     def update_data(self, data):
@@ -406,7 +443,7 @@ class MEBotControlNode(Node):
         # State
         self.state = int(data[SerialField.STATE])
 
-        self.fb_pwm = int(100.0 * float(SerialField.FB_PWM))
+        self.fb_pwm = int(100.0 * float(data[SerialField.FB_PWM]))
 
     def publish_joint_states(self):
         msg = JointState()
@@ -528,6 +565,33 @@ class MEBotControlNode(Node):
             stat.summary(DiagnosticStatus.ERROR, "Teensy is disconnected")
         return stat
 
+    def check_teensy_state(self, stat):
+        if self.state == SystemState.ESTOP:
+            stat.add("state_status", "ESTOP state")
+            stat.summary(DiagnosticStatus.ERROR, "Teensy in estop state")
+        elif self.state == SystemState.INIT:
+            stat.add("state_status", "Initialization state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in initialization state")
+        elif self.state == SystemState.IDLE:
+            stat.add("state_status", "Idle state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in idle state")
+        elif self.state == SystemState.TUNER_MODE:
+            stat.add("state_status", "Tuner mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in tuner mode")
+        elif self.state == SystemState.SELF_LEVELING:
+            stat.add("state_status", "Self-leveling mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in self-leveling mode")
+        elif self.state == SystemState.CONFIGURATION:
+            stat.add("state_status", "Configuration mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in configuration mode")
+        elif self.state == SystemState.AUTO_CURB_CLIMBING:
+            stat.add("state_status", "Auto curb climbing mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in auto curb climbing mode")
+        elif self.state == SystemState.CALIBRATING:
+            stat.add("state_status", "Calibrating")
+            stat.summary(DiagnosticStatus.OK, "Teensy is calibrating")
+        return stat
+
     def manual_seat_control_callback(self, msg: SeatCommand):
         self.get_logger().info("Seat command callback has been entered")
         deltas = SEAT_DELTAS.get(msg.command)
@@ -546,6 +610,7 @@ class MEBotControlNode(Node):
         )
 
     def estop_callback(self, msg):
+        self.estop = msg.data
         if msg.data:
             self.send_remove_luci()  # may be redundent, ensure user has manual control
             self.write_serial_data(
@@ -554,15 +619,21 @@ class MEBotControlNode(Node):
             self.write_serial_data("K0\n")
 
     def send_set_luci(self):
+        self.get_logger().info("Setting luci")
         request = Empty.Request()
         future = self.set_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
+
+        self.luci_heartbeat_timer.reset()
         return future
 
     def send_remove_luci(self):
+        self.get_logger().info("Removing luci")
         request = Empty.Request()
         future = self.remove_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
+
+        self.luci_heartbeat_timer.cancel()
         return future
 
     def luci_req_done(self, future):
@@ -622,12 +693,12 @@ class MEBotControlNode(Node):
         if goal.request.direction == 1:
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/dry_run_seq.json"
+                + "/config/curb_ascending.json"
             )
         else:
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/dry_run_seq_2.json"
+                + "/config/curb_descending.json"
             )
 
         keyframes = _load_keyframes_from_json(json_path)
@@ -636,12 +707,26 @@ class MEBotControlNode(Node):
         self.send_sequence(keyframes, auto_run=True)
 
         while self.seq_mode == 0:
-            time.sleep(0.01)
-
-        while self.current_seq != self.seq_length and self.seq_mode != 0:
             if goal.is_cancel_requested:
                 goal.canceled()
                 result.success = False
+                self.send_remove_luci()
+                self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+                self.write_serial_data("z\n")
+                self.write_serial_data("c\n")
+                return result
+            time.sleep(0.01)
+
+        while self.current_seq != self.seq_length and self.seq_mode != 0:
+            self.get_logger().info(f"Current sequence: {self.current_seq}")
+
+            if goal.is_cancel_requested:
+                goal.canceled()
+                result.success = False
+                self.send_remove_luci()
+                self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+                self.write_serial_data("z\n")
+                self.write_serial_data("c\n")
                 return result
 
             feedback_msg.progress = (
@@ -661,13 +746,14 @@ class MEBotControlNode(Node):
         self.seq_mode = 0
 
         self.send_remove_luci()
+        self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
         return result
 
     def drive_enable_callback(self, request, response):
         if request.data:
-            self.send_set_luci()
-        else:
             self.send_remove_luci()
+        else:
+            self.send_set_luci()
 
         response.success = True  # just acknowledges request recieved and sent
         return response

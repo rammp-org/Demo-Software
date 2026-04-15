@@ -34,7 +34,7 @@
 #define DRIVE_DEADZONE_TICKS 300.0f
 
 #define CAL_NUM_MOTORS 6
-#define CAL_MIN_DRIVE_MS 3000
+#define CAL_MIN_DRIVE_MS 6000
 #define CAL_VEL_THRESHOLD 2.0f
 // TODO: Make DEBUG_MODE runtime-configurable via serial command
 
@@ -56,7 +56,7 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 IMU_Class IMU = IMU_Class(bno);
 EncoderContainer EContr;
 Timer timer;
-CommandParser parser(60000);
+CommandParser parser(2000);
 
 // Limit switch states (global for telemetry)
 bool ml_fwd_limit = false;

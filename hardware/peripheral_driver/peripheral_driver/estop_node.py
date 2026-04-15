@@ -28,9 +28,13 @@ class EstopNode(Node):
         self.estop_publisher.publish(msg)
 
     def on_press(self, key):
-        if key == keyboard.Key.enter:
-            self.estop_pressed = not self.estop_pressed
-            self.publish_estop()
+        try:
+            if key.char == "e":
+                self.estop_pressed = not self.estop_pressed
+                self.publish_estop()
+        except AttributeError:
+            # Special keys (no .char), ignore
+            pass
 
 
 def main(args=None):

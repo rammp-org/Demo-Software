@@ -19,5 +19,11 @@ def generate_launch_description():
                 # Configure autorepeat
                 parameters=[{"autorepeat_rate": 40.0}],
             ),
+            Node(
+                package="peripheral_driver",
+                executable="estop_node",
+                name="estop_node",
+                output="screen",
+            ),
         ]
     )

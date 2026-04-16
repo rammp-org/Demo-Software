@@ -1,9 +1,9 @@
 # Cup Stabilizer
 
 > **Summary**
-> Cup stabilization is now embedded directly inside `ArmDriverNode` (in `hardware/arm_driver`) rather than running as a standalone ROS node. This change was made to eliminate the round-trip latency of publishing `/arm/atdev/twist` over ROS — closed-loop control at 40 Hz requires IMU data and arm commands to be on the same call stack.
+> Cup stabilization is embedded directly inside `ArmDriverNode` (in `hardware/arm_driver`) rather than running as a standalone ROS node. This eliminates the round-trip latency of publishing `/arm/atdev/twist` over ROS — closed-loop control at 40 Hz requires IMU data and arm commands to be on the same call stack.
 >
-> When the arm enters `CUP_STABILIZE` mode, a 40 Hz internal timer reads IMU data directly from the Kinova API (`BaseCyclicClient.RefreshFeedback()`) and sends base-frame twist commands that align the tool Y-axis with gravity using a PD controller. No external topics are involved in the control loop.
+> When the arm enters `CUP_STABILIZE` mode, a 40 Hz internal timer reads cached IMU data (populated at 100 Hz by the existing `_publish_joint_states` timer from `BaseCyclicClient.RefreshFeedback()`) and sends base-frame twist commands that align the tool Y-axis with gravity using a PD controller. No external topics are involved in the control loop.
 
 ______________________________________________________________________
 
@@ -21,12 +21,20 @@ ______________________________________________________________________
 
 ```
 ArmDriverNode
+  ├─ _publish_joint_states (100 Hz)
+  │    └─ KinovaArm.get_state()["imu"]  →  self._latest_imu_data  (cache)
+  │
   └─ CUP_STABILIZE mode
-       ├─ Kinova API: BaseCyclicClient.RefreshFeedback()  (accel, gyro, EE pose)
-       └─ Kinova API: BaseClient.SendTwistCommand()       (base-frame twist)
+       ├─ _cup_stabilize_tick (40 Hz)
+       │    ├─ reads self._latest_imu_data
+       │    ├─ CupStabilizer.feed()          (pure PD algorithm)
+       │    └─ KinovaArm.send_twist_base_frame()
+       │
+       └─ gyro calibration (background thread, runs once at arm connect)
+            └─ samples self._latest_imu_data["gyro"] for 5 s
 ```
 
-No ROS messages are exchanged during the control loop. All I/O goes through the Kinova kortex API via `KinovaArm.get_imu_data()` and `KinovaArm.send_twist_base_frame()`.
+No ROS messages are exchanged during the control loop. All hardware I/O goes through the Kinova kortex API via `KinovaArm.get_state()` and `KinovaArm.send_twist_base_frame()`.
 
 ______________________________________________________________________
 
@@ -40,32 +48,37 @@ Cup stabilization is triggered through the standard `SetMode` service on the arm
 
 To deactivate, call `SetMode` with any other valid mode (e.g. `MODE_IDLE`).
 
-The `kortex_cup_stabilizer.py` script in this package (`atdev_coffee_stabilizer/`) remains as a **standalone diagnostic tool** for tuning and benchmarking the controller outside of the full ROS stack. It is not used at runtime.
-
 ______________________________________________________________________
 
 ## Startup Sequence
 
-When transitioning into `CUP_STABILIZE`:
+**At arm connect** (once, before any mode is set):
 
-1. The active twist stream (`_twist_timer`) is stopped and its cache is cleared.
-1. A background thread runs a **3-second gyro calibration** (`CUP_STABILIZE_CALIBRATION_S = 3.0 s`) — keep the arm still during this window.
-1. After calibration, the **40 Hz PD control timer** (`_cup_stabilize_timer`) is activated.
+1. A background daemon thread runs a **5-second gyro calibration** — keep the arm still during this window.
+1. Calibration reads `self._latest_imu_data["gyro"]` at 20 Hz (the 100 Hz `_publish_joint_states` cache ensures freshness).
+1. On completion, `CupStabilizer.calibrate()` stores the mean gyro bias offset. The offset persists for the lifetime of the node.
 
-When transitioning out of `CUP_STABILIZE`, the control timer is cancelled and the gyro offset is cleared immediately.
+**When entering `CUP_STABILIZE`:**
+
+1. The **40 Hz PD control timer** (`_cup_stabilize_timer`) is activated.
+1. If calibration has not yet completed, ticks are no-ops until it does.
+
+**When leaving `CUP_STABILIZE`:**
+
+1. The control timer is cancelled. The gyro offset is **not** cleared — recalibration only happens on the next arm connect.
 
 ______________________________________________________________________
 
 ## PD Controller
 
-The controller aligns the **tool Y-axis** with the gravity vector (anti-gravity direction derived from the raw accelerometer).
+The controller aligns the **tool Y-axis** with the gravity vector (anti-gravity direction derived from the raw accelerometer). Raw (unfiltered) accelerometer data is intentional — it acts as a proxy for cup vibration, which the derivative term can damp.
 
-| Parameter              | Value | Constant                      |
-| ---------------------- | ----- | ----------------------------- |
-| Control rate           | 40 Hz | `CUP_STABILIZE_HZ`            |
-| Proportional gain (Kp) | 8.0   | `CUP_STABILIZE_KP`            |
-| Derivative gain (Kd)   | 1.0   | `CUP_STABILIZE_KD`            |
-| Calibration duration   | 3.0 s | `CUP_STABILIZE_CALIBRATION_S` |
+| Parameter              | Value | ROS param                      |
+| ---------------------- | ----- | ------------------------------ |
+| Control rate           | 40 Hz | `cup_stabilizer.hz`            |
+| Proportional gain (Kp) | 8.0   | `cup_stabilizer.kp`            |
+| Derivative gain (Kd)   | 1.0   | `cup_stabilizer.kd`            |
+| Calibration duration   | 5.0 s | `cup_stabilizer.calibration_s` |
 
 Control law (base frame):
 
@@ -75,7 +88,7 @@ tool_y   = R(ee_euler_deg)[:, 1]     # tool Y-axis in base frame
 error    = tool_y - up
 
 omega_x  =  Kp * error[1] + Kd * gyro_x_rads
-omega_y  = -(Kp * error[0] + Kd * gyro_y_rads)
+omega_y  = -Kp * error[0] - Kd * gyro_y_rads
 ```
 
 `omega_z` is always zero — roll about the tool axis is not controlled.
@@ -84,10 +97,10 @@ ______________________________________________________________________
 
 ## Relevant Source Files
 
-| File                                                                                    | Purpose                                                                      |
-| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `hardware/arm_driver/arm_driver/arm_driver.py`                                          | `ArmDriverNode` — state machine, calibration thread, `_cup_stabilize_tick()` |
-| `hardware/arm_driver/arm_driver/arm_interface.py`                                       | `KinovaArm.get_imu_data()`, `KinovaArm.send_twist_base_frame()`              |
-| `demo_modules/atdev_coffee_stabilizer/atdev_coffee_stabilizer/kortex_cup_stabilizer.py` | Standalone diagnostic / tuning script (not used at runtime)                  |
-| `demo_modules/atdev_coffee_stabilizer/atdev_coffee_stabilizer/evaluate_latency.py`      | Latency benchmarking tool                                                    |
-| `demo_modules/atdev_coffee_stabilizer/atdev_coffee_stabilizer/kortex_sine_sweep.py`     | Frequency-response characterization tool                                     |
+| File                                                 | Purpose                                                                      |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `hardware/arm_driver/arm_driver/cup_stabilizer.py`   | `CupStabilizer` — pure PD algorithm class, no ROS/Kortex dependencies        |
+| `hardware/arm_driver/arm_driver/arm_driver.py`       | `ArmDriverNode` — state machine, calibration thread, `_cup_stabilize_tick()` |
+| `hardware/arm_driver/arm_driver/arm_interface.py`    | `KinovaArm.get_state()["imu"]`, `KinovaArm.send_twist_base_frame()`          |
+| `hardware/arm_driver/test/test_cup_stabilizer.py`    | Unit tests for `CupStabilizer` (no hardware required)                        |
+| `hardware/arm_driver/test/test_arm_driver_safety.py` | Integration tests for cup stabilizer state machine (`TestCupStabilizeState`) |

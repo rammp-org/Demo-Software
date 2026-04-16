@@ -29,6 +29,11 @@ class CupStabilizer:
         self._kd = kd
         self._gyro_offset: np.ndarray | None = None
 
+    @property
+    def gyro_offset(self) -> np.ndarray | None:
+        """The calibrated gyro bias offset, or None if not yet calibrated."""
+        return self._gyro_offset
+
     def calibrate(self, gyro_samples: list[np.ndarray]) -> None:
         """Compute gyro bias from collected samples.
 

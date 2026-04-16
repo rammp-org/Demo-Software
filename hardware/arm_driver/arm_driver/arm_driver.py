@@ -2,6 +2,7 @@ import concurrent.futures
 import enum
 import os
 import subprocess
+import threading
 import time
 
 import numpy as np
@@ -21,12 +22,13 @@ from geometry_msgs.msg import PoseStamped, Twist, TwistStamped, Vector3Stamped
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
-from sensor_msgs.msg import Imu, JointState
+from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger
 
 from arm_driver.arm_interface import KinovaArm, SpeedPreset
 from arm_driver.collision_checker import CollisionChecker
+from arm_driver.cup_stabilizer import CupStabilizer
 
 FEEDBACK_RATE = 0.1  # seconds between feedback publishes during action execution
 COMMS_TIMEOUT_S = 0.5  # seconds without arm feedback before transitioning to ERROR
@@ -111,6 +113,7 @@ class ArmDriverNode(rclpy.node.Node):
 
         # Last known arm state from Kortex, for fault handling
         self._kortex_arm_state: str = ""
+        self._cup_stabilizer: CupStabilizer | None = None
 
         # ReentrantCallbackGroup allows action/service callbacks to run concurrently
         # with the rest of the node (timers, subscribers) on the MultiThreadedExecutor,
@@ -121,6 +124,20 @@ class ArmDriverNode(rclpy.node.Node):
         # Collision checker threshold parameters (Nm)
         self.declare_parameter("collision_checker.threshold_default", 30.0)
         self.declare_parameter("collision_checker.threshold_open_door", 50.0)
+
+        # Cup stabilizer parameters
+        self.declare_parameter("cup_stabilizer.hz", 40.0)
+        self.declare_parameter("cup_stabilizer.kp", 8.0)
+        self.declare_parameter("cup_stabilizer.kd", 1.0)
+        self.declare_parameter("cup_stabilizer.calibration_s", 5.0)
+
+        self._cup_stabilizer = CupStabilizer(
+            hz=self.get_parameter("cup_stabilizer.hz").value,
+            kp=self.get_parameter("cup_stabilizer.kp").value,
+            kd=self.get_parameter("cup_stabilizer.kd").value,
+        )
+        self._cup_stabilizer_cal_stop = threading.Event()
+        self._latest_imu_data: dict | None = None
 
         self._init_publishers()
         self._init_subscribers()
@@ -142,7 +159,6 @@ class ArmDriverNode(rclpy.node.Node):
         self._joint_state_pub = self.create_publisher(
             JointState, "/arm/joint_states", 10
         )
-        self._imu_pub = self.create_publisher(Imu, "/arm/imu", 10)
         self._status_pub = self.create_publisher(DiagnosticStatus, "/arm/status", 10)
         self._ee_force_pub = self.create_publisher(Vector3Stamped, "/arm/ee/force", 10)
         self._ee_pos_pub = self.create_publisher(PoseStamped, "/arm/ee/pose", 10)
@@ -265,6 +281,12 @@ class ArmDriverNode(rclpy.node.Node):
         self.create_timer(1.0, self._check_hardware_fault)  # 1 Hz Kortex fault poll
         self.create_timer(1.0, self._publish_status)  # 1 Hz
 
+        cup_hz = self.get_parameter("cup_stabilizer.hz").value
+        self._cup_stabilize_timer = self.create_timer(
+            1.0 / cup_hz, self._cup_stabilize_tick
+        )
+        self._cup_stabilize_timer.cancel()
+
     def _try_connect_arm(self):
         """Attempt to connect to the Kinova arm at 2 Hz until successful.
 
@@ -283,6 +305,7 @@ class ArmDriverNode(rclpy.node.Node):
             return
 
         self._connect_timer.cancel()
+        self._start_cup_stabilizer_calibration()
         self._init_collision_checker()
 
     def _init_collision_checker(self):
@@ -326,6 +349,88 @@ class ArmDriverNode(rclpy.node.Node):
                 f"Failed to initialise CollisionChecker: {e} — collision detection disabled"
             )
 
+    def _start_cup_stabilizer_calibration(self):
+        """Calibrate gyro bias in a background thread immediately after arm connection.
+
+        Collects raw gyro samples for ``cup_stabilizer.calibration_s`` seconds
+        while the arm is stationary, then hands them to CupStabilizer.calibrate().
+        Runs in a daemon thread so it does not block the ROS executor.
+        """
+        calibration_s = self.get_parameter("cup_stabilizer.calibration_s").value
+        self._cup_stabilizer_cal_stop.clear()
+        threading.Thread(
+            target=self._run_cup_stabilizer_calibration,
+            args=(calibration_s,),
+            daemon=True,
+        ).start()
+
+    def _run_cup_stabilizer_calibration(self, calibration_s: float) -> None:
+        """Collect gyro samples and calibrate. Runs in a background thread."""
+        try:
+            self.get_logger().info(
+                f"Cup stabilizer: calibrating gyro for {calibration_s}s — keep arm still"
+            )
+        except Exception:
+            return
+
+        samples: list = []
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < calibration_s:
+            if self._cup_stabilizer_cal_stop.is_set() or self._arm is None:
+                return
+            imu = self._latest_imu_data
+            if imu is not None:
+                samples.append(imu["gyro"])
+            time.sleep(0.05)  # 20 Hz - every sample is fresh from 100Hz cache
+
+        if not samples:
+            try:
+                self.get_logger().error(
+                    "Cup stabilizer calibration: no samples collected"
+                )
+            except Exception:
+                pass
+            return
+
+        self._cup_stabilizer.calibrate(samples)
+        try:
+            self.get_logger().info(
+                f"Cup stabilizer: gyro calibrated from {len(samples)} samples "
+                f"(offset: {self._cup_stabilizer.gyro_offset})"
+            )
+        except Exception:
+            pass
+
+    def _cup_stabilize_tick(self) -> None:
+        """Compute twist command from cached IMU data and send it. Runs at cup_stabilizer.hz."""
+        if not self._arm:
+            return
+
+        imu = self._latest_imu_data
+        if imu is None:
+            return
+
+        result = self._cup_stabilizer.feed(imu)
+        if result is None:
+            return  # still calibrating
+
+        linear_xyz, angular_xyz = result
+        try:
+            self._arm.send_twist_base_frame(linear_xyz, angular_xyz)
+            self._last_twist_time = time.monotonic()  # only update on success
+        except Exception as e:
+            self.get_logger().warn(
+                f"Cup stabilizer: send_twist_base_frame failed ({e})",
+                throttle_duration_sec=1.0,
+            )
+            try:
+                self._arm.stop()
+            except Exception as stop_exc:
+                self.get_logger().warn(
+                    f"Cup stabilizer: stop() also failed ({stop_exc})",
+                    throttle_duration_sec=1.0,
+                )
+
     # -------------------------------------------------------------------------
     # State machine
     # -------------------------------------------------------------------------
@@ -347,7 +452,14 @@ class ArmDriverNode(rclpy.node.Node):
                     throttle_duration_sec=1.0,
                 )
 
+        old_state = self._state
         self._state = new_state
+
+        if old_state == ArmState.CUP_STABILIZE:
+            self._cup_stabilize_timer.cancel()
+
+        if new_state == ArmState.CUP_STABILIZE:
+            self._cup_stabilize_timer.reset()
 
     # -------------------------------------------------------------------------
     # Command routing
@@ -783,7 +895,7 @@ class ArmDriverNode(rclpy.node.Node):
             ReachPreset.Goal.PRESET_HOME: self._arm.home,
             ReachPreset.Goal.PRESET_RETRACT: self._arm.retract,
             ReachPreset.Goal.PRESET_ZERO: self._arm.zero,
-            ReachPreset.Goal.PRESET_CUP_STABILIZE: self._arm.cup_stabilize,
+            ReachPreset.Goal.PRESET_CUP_STABILIZE: self._arm.move_to_stabilize_pose,
         }
 
         arm_fn = dispatch.get(goal_handle.request.preset)
@@ -900,6 +1012,7 @@ class ArmDriverNode(rclpy.node.Node):
             try:
                 state = self._arm.get_state()
                 self._last_feedback_time = time.monotonic()
+                self._latest_imu_data = state["imu"]
             except (TimeoutError, concurrent.futures.TimeoutError):
                 self.get_logger().warn(
                     "RefreshFeedback timed out — skipping publish cycle",

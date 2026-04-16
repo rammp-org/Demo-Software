@@ -54,6 +54,8 @@ def _make_node():
         # Trigger the connection path while patches are active so self._arm is
         # set to mock_arm before the context managers expire.
         node._try_connect_arm()
+        # Stop the background calibration thread so tests don't have stray threads.
+        node._cup_stabilizer_cal_stop.set()
         return node, mock_arm, ArmState
 
 
@@ -67,6 +69,11 @@ def _good_state():
         "ee_vel": np.zeros(6),
         "ee_force": np.zeros(3),
         "gripper_pos": 0.0,
+        "imu": {
+            "accel": np.array([0.0, -9.81, 0.0]),
+            "gyro": np.zeros(3),
+            "ee_euler_deg": [0.0, 0.0, 0.0],
+        },
     }
 
 
@@ -455,5 +462,92 @@ class TestHardwareFault:
             keys = {kv.key: kv.value for kv in msg.values}
             assert keys.get("kortex_arm_state") == "ARMSTATE_IN_FAULT"
             assert "ARMSTATE_IN_FAULT" in keys.get("error_reason", "")
+        finally:
+            node.destroy_node()
+
+
+# ---------------------------------------------------------------------------
+# Cup stabilizer integration
+# ---------------------------------------------------------------------------
+
+
+class TestCupStabilizeState:
+    def test_transition_to_cup_stabilize_starts_timer(self):
+        """_cup_stabilize_timer must be running after entering CUP_STABILIZE."""
+        node, mock_arm, ArmState = _make_node()
+        try:
+            node._transition_to(ArmState.CUP_STABILIZE)
+            assert not node._cup_stabilize_timer.is_canceled()
+        finally:
+            node.destroy_node()
+
+    def test_transition_away_from_cup_stabilize_cancels_timer(self):
+        """Leaving CUP_STABILIZE must cancel the timer."""
+        node, mock_arm, ArmState = _make_node()
+        try:
+            node._transition_to(ArmState.CUP_STABILIZE)
+            node._transition_to(ArmState.IDLE)
+            assert node._cup_stabilize_timer.is_canceled()
+        finally:
+            node.destroy_node()
+
+    def test_cup_stabilize_tick_sends_twist_when_calibrated(self):
+        """Tick must read IMU, call feed(), and send the result to the arm."""
+        node, mock_arm, ArmState = _make_node()
+        try:
+            node._latest_imu_data = {
+                "accel": np.array([0.0, -9.81, 0.0]),
+                "gyro": np.zeros(3),
+                "ee_euler_deg": [0.0, 0.0, 0.0],
+            }
+            node._cup_stabilizer.calibrate([np.zeros(3)])
+            node._state = ArmState.CUP_STABILIZE
+            node._cup_stabilize_tick()
+            mock_arm.send_twist_base_frame.assert_called_once()
+        finally:
+            node.destroy_node()
+
+    def test_cup_stabilize_tick_updates_last_twist_time(self):
+        """Twist watchdog must not fire while cup stabilizer is active."""
+        node, mock_arm, ArmState = _make_node()
+        try:
+            node._latest_imu_data = {
+                "accel": np.array([0.0, -9.81, 0.0]),
+                "gyro": np.zeros(3),
+                "ee_euler_deg": [0.0, 0.0, 0.0],
+            }
+            node._cup_stabilizer.calibrate([np.zeros(3)])
+            node._state = ArmState.CUP_STABILIZE
+            before = time.monotonic()
+            node._cup_stabilize_tick()
+            assert node._last_twist_time is not None
+            assert node._last_twist_time >= before
+        finally:
+            node.destroy_node()
+
+    def test_cup_stabilize_tick_does_nothing_when_uncalibrated(self):
+        """If calibration hasn't run yet, the tick must not send any command."""
+        node, mock_arm, ArmState = _make_node()
+        try:
+            node._latest_imu_data = {
+                "accel": np.array([0.0, -9.81, 0.0]),
+                "gyro": np.zeros(3),
+                "ee_euler_deg": [0.0, 0.0, 0.0],
+            }
+            assert (
+                node._cup_stabilizer._gyro_offset is None
+            ), "Precondition: stabilizer must not be calibrated for this test"
+            node._state = ArmState.CUP_STABILIZE
+            node._cup_stabilize_tick()
+            mock_arm.send_twist_base_frame.assert_not_called()
+        finally:
+            node.destroy_node()
+
+    def test_cup_stabilize_tick_does_nothing_without_arm(self):
+        node, mock_arm, ArmState = _make_node()
+        try:
+            node._arm = None
+            node._cup_stabilize_tick()
+            mock_arm.send_twist_base_frame.assert_not_called()
         finally:
             node.destroy_node()

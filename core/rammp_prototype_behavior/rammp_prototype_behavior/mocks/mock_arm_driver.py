@@ -471,6 +471,7 @@ class ArmDriverNode(rclpy.node.Node):
             response.success = False
             response.message = "Arm not connected"
             return response
+        self.get_logger().info("Received open gripper request.")
 
         if self._state in (ArmState.IDLE, ArmState.ERROR):
             response.success = False
@@ -503,11 +504,16 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = "Arm not connected"
             return response
 
+        self.get_logger().info("Received close gripper request.")
         if self._state in (ArmState.IDLE, ArmState.ERROR):
             response.success = False
             response.message = (
                 f"Gripper commands not allowed in state {self._state.name}"
             )
+            self.get_logger().info(
+                f"Gripper commands not allowed in state {self._state.name}."
+            )
+
             return response
 
         try:
@@ -536,7 +542,7 @@ class ArmDriverNode(rclpy.node.Node):
         Returns:
             The populated action result.
         """
-        self._transition_to(ArmState.PRESET_IN_MOTION)
+        # self._transition_to(ArmState.PRESET_IN_MOTION)
         result = ReachPreset.Result()
 
         try:
@@ -563,7 +569,7 @@ class ArmDriverNode(rclpy.node.Node):
                 result.message = "Action aborted: e-stop triggered during execution"
                 return result
 
-            self._transition_to(ArmState.IDLE)
+            # self._transition_to(ArmState.IDLE)
             goal_handle.succeed()
             result.success = True
         except Exception as e:

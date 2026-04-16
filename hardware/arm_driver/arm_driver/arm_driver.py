@@ -367,16 +367,21 @@ class ArmDriverNode(rclpy.node.Node):
     def _run_cup_stabilizer_calibration(self, calibration_s: float) -> None:
         """Collect gyro samples and calibrate. Runs in a background thread."""
         try:
-            self.get_logger().info(
-                f"Cup stabilizer: calibrating gyro for {calibration_s}s — keep arm still"
-            )
-        except Exception:
+            if rclpy.ok():
+                self.get_logger().info(
+                    f"Cup stabilizer: calibrating gyro for {calibration_s}s — keep arm still"
+                )
+        except (AttributeError, rclpy.handle.InvalidHandle):
             return
 
         samples: list = []
         t0 = time.monotonic()
         while time.monotonic() - t0 < calibration_s:
-            if self._cup_stabilizer_cal_stop.is_set() or self._arm is None:
+            if (
+                not rclpy.ok()
+                or self._cup_stabilizer_cal_stop.is_set()
+                or self._arm is None
+            ):
                 return
             imu = self._latest_imu_data
             if imu is not None:
@@ -385,20 +390,22 @@ class ArmDriverNode(rclpy.node.Node):
 
         if not samples:
             try:
-                self.get_logger().error(
-                    "Cup stabilizer calibration: no samples collected"
-                )
-            except Exception:
+                if rclpy.ok():
+                    self.get_logger().error(
+                        "Cup stabilizer calibration: no samples collected"
+                    )
+            except (AttributeError, rclpy.handle.InvalidHandle):
                 pass
             return
 
         self._cup_stabilizer.calibrate(samples)
         try:
-            self.get_logger().info(
-                f"Cup stabilizer: gyro calibrated from {len(samples)} samples "
-                f"(offset: {self._cup_stabilizer.gyro_offset})"
-            )
-        except Exception:
+            if rclpy.ok():
+                self.get_logger().info(
+                    f"Cup stabilizer: gyro calibrated from {len(samples)} samples "
+                    f"(offset: {self._cup_stabilizer.gyro_offset})"
+                )
+        except (AttributeError, rclpy.handle.InvalidHandle):
             pass
 
     def _cup_stabilize_tick(self) -> None:

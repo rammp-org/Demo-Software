@@ -113,6 +113,11 @@ class SafetyTestNode(Node):
         self._spin_thread = threading.Thread(target=self._executor.spin, daemon=True)
         self._spin_thread.start()
 
+    def stop(self):
+        """Shut down the executor and wait for the spin thread to finish."""
+        self._executor.shutdown()
+        self._spin_thread.join(timeout=1.0)
+
     # ── callbacks ─────────────────────────────────────────────────────────────
 
     def _on_joints(self, msg: JointState):
@@ -577,6 +582,7 @@ def main():
         print("\n[Ctrl-C] Sending e-stop and exiting...")
         node.estop()
         time.sleep(0.3)
+        node.stop()
         node.destroy_node()
         rclpy.shutdown()
         sys.exit(1)
@@ -587,6 +593,7 @@ def main():
 
     # Return to retract on exit
     node.home()
+    node.stop()
     node.destroy_node()
     rclpy.shutdown()
     sys.exit(0 if passed else 1)

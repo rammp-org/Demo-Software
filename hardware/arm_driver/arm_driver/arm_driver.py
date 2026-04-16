@@ -2,7 +2,6 @@ import concurrent.futures
 import enum
 import os
 import subprocess
-import threading
 import time
 
 import numpy as np
@@ -10,7 +9,7 @@ import rclpy
 import rclpy.action
 import rclpy.node
 from ament_index_python.packages import get_package_share_directory
-from arm_interfaces.action import ExecuteTrajectory, ReachPreset
+from arm_interfaces.action import Calibrate, ExecuteTrajectory, ReachPreset
 from arm_interfaces.srv import (
     CheckReachability,
     GetSpeedPreset,
@@ -33,6 +32,7 @@ from arm_driver.cup_stabilizer import CupStabilizer
 FEEDBACK_RATE = 0.1  # seconds between feedback publishes during action execution
 COMMS_TIMEOUT_S = 0.5  # seconds without arm feedback before transitioning to ERROR
 TWIST_TIMEOUT_S = 0.5  # seconds since last twist command before stopping the arm
+CALIBRATION_MIN_SAMPLES = 80
 
 
 # Build enum matching service definition
@@ -136,7 +136,6 @@ class ArmDriverNode(rclpy.node.Node):
             kp=self.get_parameter("cup_stabilizer.kp").value,
             kd=self.get_parameter("cup_stabilizer.kd").value,
         )
-        self._cup_stabilizer_cal_stop = threading.Event()
         self._latest_imu_data: dict | None = None
 
         self._init_publishers()
@@ -273,6 +272,56 @@ class ArmDriverNode(rclpy.node.Node):
             for source in SOURCES
             if _SOURCE_MODE[source] == CommandMode.POSITION
         ]
+        self._calibrate_action = ActionServer(
+            self,
+            Calibrate,
+            "/arm/calibrate",
+            self._on_calibrate,
+            callback_group=self._action_group,
+        )
+
+    def _on_calibrate(self, goal_handle):
+        """Collect gyro samples and calibrate CupStabilizer. Blocks until done."""
+        result = Calibrate.Result()
+
+        if not self._arm:
+            result.success = False
+            result.message = "Arm not connected"
+            goal_handle.abort()
+            return result
+
+        calibration_s = self.get_parameter("cup_stabilizer.calibration_s").value
+        deadline = time.monotonic() + calibration_s
+        samples: list = []
+
+        self.get_logger().info(
+            f"Calibrating gyro — keep arm still "
+            f"(need {CALIBRATION_MIN_SAMPLES} samples, timeout {calibration_s}s)"
+        )
+
+        while len(samples) < CALIBRATION_MIN_SAMPLES:
+            if time.monotonic() > deadline:
+                result.success = False
+                result.message = (
+                    f"Calibration timed out — "
+                    f"only {len(samples)}/{CALIBRATION_MIN_SAMPLES} samples collected"
+                )
+                goal_handle.abort()
+                return result
+            imu = self._latest_imu_data
+            if imu is not None:
+                samples.append(imu["gyro"].copy())
+            time.sleep(0.05)  # 20 Hz — every sample is fresh from 100 Hz cache
+
+        self._cup_stabilizer.calibrate(samples)
+        self.get_logger().info(
+            f"Gyro calibrated from {len(samples)} samples "
+            f"(offset: {self._cup_stabilizer.gyro_offset})"
+        )
+        result.success = True
+        result.message = f"Calibrated from {len(samples)} samples"
+        goal_handle.succeed()
+        return result
 
     def _init_timers(self):
         """Create periodic timers for state publishing."""
@@ -305,7 +354,6 @@ class ArmDriverNode(rclpy.node.Node):
             return
 
         self._connect_timer.cancel()
-        self._start_cup_stabilizer_calibration()
         self._init_collision_checker()
 
     def _init_collision_checker(self):
@@ -348,65 +396,6 @@ class ArmDriverNode(rclpy.node.Node):
             self.get_logger().error(
                 f"Failed to initialise CollisionChecker: {e} — collision detection disabled"
             )
-
-    def _start_cup_stabilizer_calibration(self):
-        """Calibrate gyro bias in a background thread immediately after arm connection.
-
-        Collects raw gyro samples for ``cup_stabilizer.calibration_s`` seconds
-        while the arm is stationary, then hands them to CupStabilizer.calibrate().
-        Runs in a daemon thread so it does not block the ROS executor.
-        """
-        calibration_s = self.get_parameter("cup_stabilizer.calibration_s").value
-        self._cup_stabilizer_cal_stop.clear()
-        threading.Thread(
-            target=self._run_cup_stabilizer_calibration,
-            args=(calibration_s,),
-            daemon=True,
-        ).start()
-
-    def _run_cup_stabilizer_calibration(self, calibration_s: float) -> None:
-        """Collect gyro samples and calibrate. Runs in a background thread."""
-        try:
-            if rclpy.ok():
-                self.get_logger().info(
-                    f"Cup stabilizer: calibrating gyro for {calibration_s}s — keep arm still"
-                )
-        except (AttributeError, rclpy.handle.InvalidHandle):
-            return
-
-        samples: list = []
-        t0 = time.monotonic()
-        while time.monotonic() - t0 < calibration_s:
-            if (
-                not rclpy.ok()
-                or self._cup_stabilizer_cal_stop.is_set()
-                or self._arm is None
-            ):
-                return
-            imu = self._latest_imu_data
-            if imu is not None:
-                samples.append(imu["gyro"])
-            time.sleep(0.05)  # 20 Hz - every sample is fresh from 100Hz cache
-
-        if not samples:
-            try:
-                if rclpy.ok():
-                    self.get_logger().error(
-                        "Cup stabilizer calibration: no samples collected"
-                    )
-            except (AttributeError, rclpy.handle.InvalidHandle):
-                pass
-            return
-
-        self._cup_stabilizer.calibrate(samples)
-        try:
-            if rclpy.ok():
-                self.get_logger().info(
-                    f"Cup stabilizer: gyro calibrated from {len(samples)} samples "
-                    f"(offset: {self._cup_stabilizer.gyro_offset})"
-                )
-        except (AttributeError, rclpy.handle.InvalidHandle):
-            pass
 
     def _cup_stabilize_tick(self) -> None:
         """Compute twist command from cached IMU data and send it. Runs at cup_stabilizer.hz."""

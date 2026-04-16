@@ -12,25 +12,23 @@ The behavior tree sets the arm to OPEN_DOOR mode before calling this action.
 """
 
 import time
+
 import numpy as np
-
 import rclpy
-from rclpy.node import Node
-from rclpy.action import ActionServer, ActionClient, CancelResponse
-from rclpy.callback_groups import ReentrantCallbackGroup
-from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped, TwistStamped
-from diagnostic_msgs.msg import DiagnosticStatus
-from scipy.spatial.transform import Rotation
-
+from arm_interfaces.action import ReachPreset
 from cmu_door_opener_interfaces.action import DoorOpen
 from cmu_door_opener_interfaces.msg import ButtonInfo
-from arm_interfaces.action import ReachPreset
-
+from diagnostic_msgs.msg import DiagnosticStatus
+from geometry_msgs.msg import PoseStamped, Twist, TwistStamped, Vector3Stamped
+from rclpy.action import ActionClient, ActionServer, CancelResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.node import Node
+from scipy.spatial.transform import Rotation
 
 # Button push parameters
-APPROACH_OFFSET = 0.03  # meters — stop this far in front of the button first
+APPROACH_OFFSET = 0.2  # meters — stop this far in front of the button first
 PUSH_STEP = 0.01  # meters — incremental push distance per step (1cm)
-PUSH_MAX = 0.05  # meters — max total push distance past approach point
+PUSH_MAX = 0.30  # meters — max total push distance past approach point
 FORCE_THRESHOLD = 30.0  # Newtons — contact detection threshold
 PUSH_TIMEOUT = 10.0  # seconds — max time for each phase
 FORCE_CHECK_RATE = 0.02  # seconds between force checks
@@ -43,7 +41,7 @@ FORCE_CHECK_RATE = 0.02  # seconds between force checks
 # All three components matter: ignoring z causes angle-dependent lateral
 # error because the tool z-axis gains lateral components when the button
 # surface is tilted.
-TOOL_OFFSET = np.array([0.033, 0.0, 0.091])  # negative of tool-to-gripper in tool-local
+TOOL_OFFSET = np.array([0.03, 0.0, -0.204])  # negative of tool-to-gripper in tool-local
 
 
 class ButtonPushController(Node):
@@ -179,6 +177,7 @@ class ButtonPushController(Node):
         # But it may takes time for the `self.latest_arm_status` to be updated after the mode is set,
         # so we may receive the goal before we get the arm status update.
         # suggest: remove this check or add a short wait here to allow arm status to update before checking.
+        time.sleep(1)
         if self.latest_arm_status != "OPEN_DOOR":
             result.success = False
             result.message = (
@@ -414,29 +413,29 @@ class ButtonPushController(Node):
             goal_handle.abort()
             return result
 
-        retract_goal = ReachPreset.Goal()
-        retract_goal.preset = ReachPreset.Goal.PRESET_RETRACT
-        self.get_logger().info("[STEP 4] Sending retract goal...")
-        retract_future = self._reach_preset_client.send_goal_async(retract_goal)
+        home_goal = ReachPreset.Goal()
+        home_goal.preset = ReachPreset.Goal.PRESET_HOME
+        self.get_logger().info("[STEP 4] Sending home goal...")
+        home_future = self._reach_preset_client.send_goal_async(home_goal)
 
         # Wait for goal acceptance without rclpy.spin_until_future_complete
         deadline = time.time() + 5.0
-        while not retract_future.done() and time.time() < deadline:
+        while not home_future.done() and time.time() < deadline:
             time.sleep(0.05)
-        retract_handle = retract_future.result()
-        if retract_handle is None or not retract_handle.accepted:
+        home_handle = home_future.result()
+        if home_handle is None or not home_handle.accepted:
             result.success = False
-            result.message = "Retract goal rejected"
+            result.message = "Home goal rejected"
             self.get_logger().error(f"[STEP 4] ABORT: {result.message}")
             goal_handle.abort()
             return result
 
         self.get_logger().info(
-            "[STEP 4] Retract goal accepted — waiting for completion..."
+            "[STEP 4] Home goal accepted — waiting for completion..."
         )
-        result_future = retract_handle.get_result_async()
+        result_future = home_handle.get_result_async()
 
-        # Wait for retract to finish
+        # Wait for home to finish
         deadline = time.time() + 30.0
         while not result_future.done() and time.time() < deadline:
             # handle cancel goal during move
@@ -446,7 +445,7 @@ class ButtonPushController(Node):
                 result.message = "Door open action canceled during move — stopping arm"
                 return result
             time.sleep(0.05)
-        self.get_logger().info("[STEP 4] Retract complete")
+        self.get_logger().info("[STEP 4] Home complete")
 
         # --- Done ---
         goal_handle.succeed()

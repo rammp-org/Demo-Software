@@ -50,6 +50,31 @@ except ModuleNotFoundError:
     pass
 
 
+# ---------------------------------------------------------------------------
+# RAMMP custom arm presets (radians).
+# Move the arm to the desired pose, run scripts/read_arm_joints.py, and paste
+# the output here.  These are registered on the Kortex controller at boot under
+# the names below so they override nothing on Kinova's side.
+# ---------------------------------------------------------------------------
+RAMMP_HOME_JOINTS = [
+    -0.067677,
+    -0.729245,
+    -3.094726,
+    -2.444951,
+    -0.020545,
+    0.166237,
+    1.616856,
+]  # TODO: tune
+RAMMP_RETRACT_JOINTS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # TODO: tune
+RAMMP_CUP_STABILIZE_JOINTS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # TODO: tune
+
+RAMMP_PRESET_NAMES = {
+    "RAMMP_HOME": RAMMP_HOME_JOINTS,
+    "RAMMP_RETRACT": RAMMP_RETRACT_JOINTS,
+    "RAMMP_CUP_STABILIZE": RAMMP_CUP_STABILIZE_JOINTS,
+}
+
+
 class SpeedPreset(enum.IntEnum):
     DEFAULT = -1  # sentinel for hardware defaults (no soft limits applied)
     LOW = 0
@@ -205,6 +230,9 @@ class KinovaArm:
         self.speed_preset = SpeedPreset.MEDIUM
         self.choose_from_speed_presets(self.speed_preset)
 
+        # Register RAMMP custom presets, overwriting any previously stored copy
+        self._register_rammp_presets()
+
         # Action topic notifications
         self.end_or_abort_event = threading.Event()
         self.end_or_abort_event.set()
@@ -258,6 +286,7 @@ class KinovaArm:
         action_type = Base_pb2.RequestedActionType()
         action_type.action_type = Base_pb2.REACH_JOINT_ANGLES
         action_list = self.base.ReadAllActions(action_type, options=opts)
+        print(action_list)
         action_handle = None
         for action in action_list.action_list:
             if action.name == action_name:
@@ -271,8 +300,33 @@ class KinovaArm:
         if blocking:
             self.end_or_abort_event.wait(KinovaArm.ACTION_TIMEOUT_DURATION)
 
+    def _register_rammp_presets(self):
+        """Delete and recreate each RAMMP preset on the Kortex controller at boot."""
+        opts = self.control_send_options
+        action_type = Base_pb2.RequestedActionType()
+        action_type.action_type = Base_pb2.REACH_JOINT_ANGLES
+        action_list = self.base.ReadAllActions(action_type, options=opts)
+
+        existing = {a.name: a.handle for a in action_list.action_list}
+
+        for name, joint_angles_rad in RAMMP_PRESET_NAMES.items():
+            if name in existing:
+                self.base.DeleteAction(existing[name], options=opts)
+                print(f"Deleted existing preset '{name}'")
+
+            action = Base_pb2.Action()
+            action.name = name
+            action.application_data = ""
+            for i, angle_rad in enumerate(joint_angles_rad):
+                joint_angle = action.reach_joint_angles.joint_angles.joint_angles.add()
+                joint_angle.joint_identifier = i
+                joint_angle.value = math.degrees(angle_rad)
+
+            self.base.CreateAction(action, options=opts)
+            print(f"Registered preset '{name}'")
+
     def home(self, blocking=True):
-        self._execute_reference_action("Home", blocking=blocking)
+        self._execute_reference_action("RAMMP_HOME", blocking=blocking)
 
     def retract(self, blocking=True):
         self._execute_reference_action("Retract", blocking=blocking)
@@ -281,7 +335,7 @@ class KinovaArm:
         self._execute_reference_action("Zero", blocking=blocking)
 
     def cup_stabilize(self, blocking=True):
-        self._execute_reference_action("Home", blocking=blocking)
+        self._execute_reference_action("RAMMP_HOME", blocking=blocking)
 
     def send_twist(self, linear_xyz, angular_xyz):
         """Send a Cartesian twist velocity command (SINGLE_LEVEL_SERVOING).

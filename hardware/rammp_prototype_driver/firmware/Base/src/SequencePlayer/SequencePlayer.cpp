@@ -21,6 +21,8 @@ static unsigned long seq_settle_start = 0;
 
 // Auto-run: advance automatically when a keyframe completes.
 static bool seq_auto_run = false;
+static bool seq_guard_triggered[SEQ_NUM_MOTORS];
+static float seq_latch_pos[SEQ_NUM_MOTORS];
 
 // ---------------------------------------------------------------------------
 //  Helpers

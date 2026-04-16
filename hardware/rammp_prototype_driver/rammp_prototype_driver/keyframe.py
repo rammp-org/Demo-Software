@@ -21,6 +21,8 @@ class Keyframe:
         self.duration_ms: int = 1000
         self.relative: List[bool] = [False] * NUM_MOTORS
         self.motor_durations: List[Optional[int]] = [None] * NUM_MOTORS
+        self.guard_threshold: List[float] = [0.0] * NUM_MOTORS
+        self.guard_condition: List[int] = [0] * NUM_MOTORS
 
     def is_active(self, motor_idx: int) -> bool:
         return self.targets[motor_idx] is not None
@@ -34,6 +36,8 @@ class Keyframe:
             "motor_durations": [
                 d if d is not None else None for d in self.motor_durations
             ],
+            "guard_threshold": list(self.guard_threshold),
+            "guard_condition": list(self.guard_condition),
         }
 
     @classmethod
@@ -58,4 +62,13 @@ class Keyframe:
             (max(0, int(float(v))) if v is not None else None)
             for v in raw_motor_durations[:NUM_MOTORS]
         ]
+        raw_guard_threshold = d.get("guard_threshold", [0.0] * NUM_MOTORS)
+        while len(raw_guard_threshold) < NUM_MOTORS:
+            raw_guard_threshold.append(0.0)
+        kf.guard_threshold = [float(v) for v in raw_guard_threshold[:NUM_MOTORS]]
+
+        raw_guard_condition = d.get("guard_condition", [0] * NUM_MOTORS)
+        while len(raw_guard_condition) < NUM_MOTORS:
+            raw_guard_condition.append(0)
+        kf.guard_condition = [int(v) for v in raw_guard_condition[:NUM_MOTORS]]
         return kf

@@ -39,6 +39,14 @@ void Motor::setTargetVelocity(float vel) { target_vel = vel; }
 
 void Motor::setTargetPWM(float pwm) { target_pwm = pwm; }
 
+void Motor::attachStrainGauge(StrainGauge* sg) { _strain_gauge = sg; }
+
+void Motor::updateLoad() {
+  if (_strain_gauge != nullptr) {
+    current_load = _strain_gauge->getValue();
+  }
+}
+
 void Motor::setDirection(int8_t dir) { direction = (dir >= 0) ? 1 : -1; }
 
 void Motor::toggleDirection() { direction = -direction; }

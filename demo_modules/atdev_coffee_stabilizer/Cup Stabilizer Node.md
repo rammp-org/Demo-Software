@@ -24,14 +24,14 @@ ArmDriverNode
   ├─ _publish_joint_states (100 Hz)
   │    └─ KinovaArm.get_state()["imu"]  →  self._latest_imu_data  (cache)
   │
+  ├─ /arm/calibrate  (action, on demand)
+  │    └─ samples _latest_imu_data["gyro"] × 80 min → CupStabilizer.calibrate()
+  │
   └─ CUP_STABILIZE mode
        ├─ _cup_stabilize_tick (40 Hz)
        │    ├─ reads self._latest_imu_data
        │    ├─ CupStabilizer.feed()          (pure PD algorithm)
        │    └─ KinovaArm.send_twist_base_frame()
-       │
-       └─ gyro calibration (background thread, runs once at arm connect)
-            └─ samples self._latest_imu_data["gyro"] for 5 s
 ```
 
 No ROS messages are exchanged during the control loop. All hardware I/O goes through the Kinova kortex API via `KinovaArm.get_state()` and `KinovaArm.send_twist_base_frame()`.
@@ -52,20 +52,26 @@ ______________________________________________________________________
 
 ## Startup Sequence
 
-**At arm connect** (once, before any mode is set):
+**At arm connect:** no calibration is run automatically.
 
-1. A background daemon thread runs a **5-second gyro calibration** — keep the arm still during this window.
-1. Calibration reads `self._latest_imu_data["gyro"]` at 20 Hz (the 100 Hz `_publish_joint_states` cache ensures freshness).
-1. On completion, `CupStabilizer.calibrate()` stores the mean gyro bias offset. The offset persists for the lifetime of the node.
+**To calibrate** (call before entering `CUP_STABILIZE`):
+
+```bash
+ros2 action send_goal /arm/calibrate arm_interfaces/action/Calibrate "{}"
+```
+
+The action blocks for up to `cup_stabilizer.calibration_s` seconds (default 5 s).
+Keep the arm still during this window. The action requires at least 80 gyro samples
+and aborts if the timeout expires first.
 
 **When entering `CUP_STABILIZE`:**
 
 1. The **40 Hz PD control timer** (`_cup_stabilize_timer`) is activated.
-1. If calibration has not yet completed, ticks are no-ops until it does.
+1. If `/arm/calibrate` has not been called, ticks are no-ops until calibration is run.
 
 **When leaving `CUP_STABILIZE`:**
 
-1. The control timer is cancelled. The gyro offset is **not** cleared — recalibration only happens on the next arm connect.
+1. The control timer is cancelled. The gyro offset is **not** cleared — call `/arm/calibrate` again before the next session if needed.
 
 ______________________________________________________________________
 

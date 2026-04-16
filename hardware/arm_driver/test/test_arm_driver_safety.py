@@ -54,8 +54,6 @@ def _make_node():
         # Trigger the connection path while patches are active so self._arm is
         # set to mock_arm before the context managers expire.
         node._try_connect_arm()
-        # Stop the background calibration thread so tests don't have stray threads.
-        node._cup_stabilizer_cal_stop.set()
         return node, mock_arm, ArmState
 
 

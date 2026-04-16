@@ -154,6 +154,7 @@ class SystemState(IntEnum):
     CONFIGURATION = 5
     AUTO_CURB_CLIMBING = 6
     CALIBRATING = 7
+    UNCALIBRATED = 8
 
 
 class MEBotControlNode(Node):
@@ -601,6 +602,12 @@ class MEBotControlNode(Node):
         elif self.state == SystemState.CALIBRATING:
             stat.add("state_status", "Calibrating")
             stat.summary(DiagnosticStatus.OK, "Teensy is calibrating")
+        elif self.state == SystemState.UNCALIBRATED:
+            stat.add("state_status", "Uncalibrated")
+            stat.summary(
+                DiagnosticStatus.WARN,
+                "Teensy is uncalibrated — calibration required before operation",
+            )
         return stat
 
     def manual_seat_control_callback(self, msg: SeatCommand):

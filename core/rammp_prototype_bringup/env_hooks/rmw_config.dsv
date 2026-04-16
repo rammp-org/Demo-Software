@@ -1,1 +1,2 @@
 set-if-unset;RMW_IMPLEMENTATION;rmw_cyclonedds_cpp
+set-if-unset;CYCLONEDDS_URI;share/rammp_prototype_bringup/config/cyclonedds.xml

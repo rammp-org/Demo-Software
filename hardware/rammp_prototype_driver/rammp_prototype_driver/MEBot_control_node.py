@@ -74,7 +74,7 @@ SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_LEFT: [0.0, 0.0, -30.0, 30.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 30.0, -30.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.RESET: [233.0, 25.0, 212.0, 192.0, 101.0, 95.0, 0.0, 0.0],
+    SeatCommand.RESET: [233.0, 25.0, 212.0, 192.0, 101.0, 95.0, 0, 0],
 }
 
 
@@ -760,6 +760,10 @@ class MEBotControlNode(Node):
 
     def self_level_enable_callback(self, request, response):
         if request.data:
+            kf = _build_seat_keyframe(
+                SEAT_DELTAS[SeatCommand.RESET], 1000, SeatCommand.RESET
+            )
+            self.send_sequence([kf], auto_run=False)
             self.write_serial_data("L1:1\n")
         else:
             self.write_serial_data("L1:0\n")

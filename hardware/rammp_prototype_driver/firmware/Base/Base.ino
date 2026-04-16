@@ -539,10 +539,15 @@ void setup() {
     if (conf.encoder_dir != 0 && !isnan(conf.saved_position) &&
         !isinf(conf.saved_position)) {
       EContr.encoder_offset[enc_idx] =
-          EContr.getRawReading(enc_idx) -
-          (signed long)(conf.saved_position / (float)conf.encoder_dir);
+        EContr.getRawReading(enc_idx) -
+           (signed long)(conf.saved_position / (float)conf.encoder_dir);
     }
   }
+
+  rc.attachStrainGauge(&sg_rc);
+  fc.attachStrainGauge(&sg_fc);
+  ml.attachStrainGauge(&sg_ml);
+  mr.attachStrainGauge(&sg_mr);
 
   // Drive wheel motor objects keep encoder_dir=1 at all times.
   // The actual direction is tracked in ml_enc_dir/mr_enc_dir globals,
@@ -572,6 +577,10 @@ void loop() {
   sg_fc.update(dt);
   sg_ml.update(dt);
   sg_mr.update(dt);
+  rc.updateLoad();
+  fc.updateLoad();
+  ml.updateLoad();
+  mr.updateLoad();
 
   rc.updateSensorData(EContr.encoderf[3], dt);
   fc.updateSensorData(EContr.encoderf[2], dt);

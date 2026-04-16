@@ -3,7 +3,7 @@ from enum import IntEnum
 import time
 
 import rclpy
-from rammp_prototype_interfaces.action import CurbTraverse
+from rammp_prototype_interfaces.action import CurbTraverse, Calibration
 from rammp_prototype_interfaces.msg import SeatCommand
 
 # custom msgs/srvs
@@ -15,6 +15,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool
 from std_srvs.srv import SetBool
+import diagnostic_updater
+from diagnostic_msgs.msg import DiagnosticStatus
 
 
 class SerialField(IntEnum):
@@ -55,6 +57,17 @@ class SerialField(IntEnum):
     SPEED_MR = 19
 
 
+class SystemState(IntEnum):
+    INIT = 0
+    IDLE = 1
+    TUNER_MODE = 2
+    ESTOP = 3
+    SELF_LEVELING = 4
+    CONFIGURATION = 5
+    AUTO_CURB_CLIMBING = 6
+    CALIBRATING = 7
+
+
 class BaseControlNode(Node):
     def __init__(self):
         super().__init__("base_control_node")
@@ -69,6 +82,21 @@ class BaseControlNode(Node):
         #     baudrate=115200,
         #     timeout=1,
         # )
+        self.mock_luci_node_active = False  # mock variable to simulate whether the Luci node is active for diagnostics
+        self.mock_teensy_connected = False  # mock variable to simulate whether the Teensy is connected for diagnostics
+        self.mock_teensy_state = (
+            SystemState.INIT
+        )  # mock variable to simulate the Teensy state for diagnostics
+        self.luci_node_mock_count = 0  # counter to simulate Luci node becoming active after some time for diagnostics
+        self.teensy_connect_mock_count = (
+            0  # counter to simulate Teensy connecting after some time for diagnostics
+        )
+        # diagnostics updater init
+        self.updater = diagnostic_updater.Updater(self)
+        self.updater.setHardwareID("MEBot")
+        self.updater.add("LUCI status", self.check_luci_node)
+        self.updater.add("Teensy connection", self.check_teensy_connection)
+        self.updater.add("Teensy state", self.check_teensy_state)
 
         # Data transfer rates
         # Rate to read data from serial
@@ -131,6 +159,70 @@ class BaseControlNode(Node):
         self._init_subscribers()
         self._init_publishers()
 
+    def check_luci_node(self, stat):
+        if (
+            self.luci_node_mock_count == 5
+        ):  # simulate Luci node becoming active after some time
+            self.mock_luci_node_active = True
+            self.get_logger().info("Luci node is now active for testing.")
+            self.luci_node_mock_count += 1
+        else:
+            if self.luci_node_mock_count < 6:
+                self.luci_node_mock_count += 1
+        if not self.mock_luci_node_active:
+            stat.add("node_status", "dead")
+            stat.summary(DiagnosticStatus.ERROR, "Luci node not active")
+        else:
+            stat.add("node_status", "active")
+            stat.summary(DiagnosticStatus.OK, "Luci node running")
+
+        return stat
+
+    def check_teensy_connection(self, stat):
+        if (
+            self.teensy_connect_mock_count == 5
+        ):  # simulate Teensy connecting after some time
+            self.mock_teensy_connected = True
+            self.get_logger().info("Teensy is now connected for testing.")
+            self.teensy_connect_mock_count += 1
+        else:
+            if self.teensy_connect_mock_count < 6:
+                self.teensy_connect_mock_count += 1
+        if not self.mock_teensy_connected:
+            stat.add("connection_status", "disconnected")
+            stat.summary(DiagnosticStatus.ERROR, "Teensy not connected")
+        else:
+            stat.add("connection_status", "connected")
+            stat.summary(DiagnosticStatus.OK, "Teensy connected")
+        return stat
+
+    def check_teensy_state(self, stat):
+        if self.mock_teensy_state == SystemState.ESTOP:
+            stat.add("state_status", "ESTOP state")
+            stat.summary(DiagnosticStatus.ERROR, "Teensy in estop state")
+        elif self.mock_teensy_state == SystemState.INIT:
+            stat.add("state_status", "Initialization state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in initialization state")
+        elif self.mock_teensy_state == SystemState.IDLE:
+            stat.add("state_status", "Idle state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in idle state")
+        elif self.mock_teensy_state == SystemState.TUNER_MODE:
+            stat.add("state_status", "Tuner mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in tuner mode")
+        elif self.mock_teensy_state == SystemState.SELF_LEVELING:
+            stat.add("state_status", "Self-leveling mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in self-leveling mode")
+        elif self.mock_teensy_state == SystemState.CONFIGURATION:
+            stat.add("state_status", "Configuration mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in configuration mode")
+        elif self.mock_teensy_state == SystemState.AUTO_CURB_CLIMBING:
+            stat.add("state_status", "Auto curb climbing mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in auto curb climbing mode")
+        elif self.mock_teensy_state == SystemState.CALIBRATING:
+            stat.add("state_status", "Calibrating")
+            stat.summary(DiagnosticStatus.OK, "Teensy is calibrating")
+        return stat
+
     def _init_services(self):
         # services
         self.drive_enable_service = self.create_service(
@@ -151,6 +243,16 @@ class BaseControlNode(Node):
             CurbTraverse,
             "/base/curb_traverse",
             self._execute_callback,
+            goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback,
+            callback_group=self._action_cb_group,
+        )
+
+        self.calibrate_action = ActionServer(
+            self,
+            Calibration,
+            "/base/calibrate",
+            self.calibrate_motors_callback,
             goal_callback=self._goal_callback,
             cancel_callback=self._cancel_callback,
             callback_group=self._action_cb_group,
@@ -373,6 +475,36 @@ class BaseControlNode(Node):
             self._action_counter -= 1
             time.sleep(0.1)  # sleep 0.1s
         return True
+
+    def calibrate_motors_callback(self, goal_handle):
+        self.mock_teensy_state = (
+            SystemState.CALIBRATING
+        )  # set Teensy state to calibrating for diagnostics
+        self._action_running = True
+        self.get_logger().info("Calibrating motors...")
+        self._action_counter = 20  # 1s action time.
+        feedback = Calibration.Feedback()
+        result = Calibration.Result()
+        while self._action_counter > 0:
+            self.get_logger().info("action counter left: " + str(self._action_counter))
+            Calibration.joints_calibrated = 20 - self._action_counter
+            goal_handle.publish_feedback(feedback)
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.success = False
+                self._action_running = False
+                self.mock_teensy_state = SystemState.INIT  # reset Teensy state to Init
+                return result
+            self._action_counter -= 1
+            time.sleep(0.1)  # sleep 0.1s
+        result.success = True
+        goal_handle.succeed()
+        self._action_running = False
+        self.get_logger().info("Motor calibration finished.")
+        self.mock_teensy_state = (
+            SystemState.IDLE
+        )  # set Teensy state back to idle after calibration
+        return result
 
     def _execute_callback(self, goal_handle):
         self._action_running = True

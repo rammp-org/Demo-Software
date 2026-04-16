@@ -25,6 +25,7 @@ from .action_client.chair_curb_traverse_action_client import (
     CurbTraverseDirection,
     ChairCurbTraverseActionClient,
 )
+from .action_client.chair_calibrate_action_client import ChairCalibrateActionClient
 from gui_interfaces.srv import UserInputs
 from gui_interfaces.msg import SystemState
 from transitions.extensions import HierarchicalMachine as Machine
@@ -228,7 +229,14 @@ class SystemControl(rclpy.node.Node):
             and self._teensy_connected
             and self._teensy_calibrated
         ):
+            if self.old_state == "init":
+                self.get_logger().info("All systems are ready. System is ready to use.")
             self.ready()
+        else:
+            if self.old_state == "init":
+                self.get_logger().info(
+                    f"all node ready: {self._all_node_ready}, gui connected: {self._gui_connected}, LUCI connected: {self._LUCI_connected}, Teensy connected: {self._teensy_connected}, Teensy calibrated: {self._teensy_calibrated}"
+                )
 
     def mock_task(self):
         self._mock_state.run_next_mock_task()
@@ -822,11 +830,16 @@ class SystemControl(rclpy.node.Node):
         self.home_cup_client = HomeCupActionClient(self)
         self.grab_cup_from_table_client = GrabCupFromTableActionClient(self)
         self.put_cup_back_to_holder_client = PutCupBackToHolderActionClient(self)
+        self.chair_calibrate_client = ChairCalibrateActionClient(self)
         self.bring_cup_to_mouth_client = BringCupToMouthActionClient(self)
         self.open_door_client = OpenDoorActionClient(self)
         self.curb_traverse_client = ChairCurbTraverseActionClient(self)
 
     # ----------Helper functions to call services and actions for state transitions----------------
+    def start_chair_calibration(self):
+        self.get_logger().info("Starting chair calibration.")
+        self.chair_calibrate_client.send_goal()
+
     def clear_arm_error(self) -> bool:
         future = self.clear_arm_error_client.call_async(Trigger.Request())
         event = threading.Event()
@@ -983,25 +996,29 @@ class SystemControl(rclpy.node.Node):
     def diagnostics_callback(self, msg: DiagnosticArray):
         base_error = False
         for status in msg.status:
-            if status.name == "LUCI status":
-                if status.level == DiagnosticStatus.ERROR and self._LUCI_connected:
-                    self.get_logger().error("LUCI status error detected!")
+            if status.name == "base_control_node: LUCI status":
+                if status.level == DiagnosticStatus.ERROR:
+                    if self._LUCI_connected:
+                        self.get_logger().error("LUCI status error detected!")
+                    self._LUCI_connected = False
                     base_error = True
                 else:
                     if not self._LUCI_connected:
-                        self._LUCI_connected = True
                         self.get_logger().info("LUCI connection established!")
-                break
-            if status.name == "Teensy connection":
-                if status.level == DiagnosticStatus.ERROR and self._teensy_connected:
-                    self.get_logger().error("Teensy connection error detected!")
+                    self._LUCI_connected = True
+
+            if status.name == "base_control_node: Teensy connection":
+                if status.level == DiagnosticStatus.ERROR:
+                    if self._teensy_connected:
+                        self.get_logger().error("Teensy connection error detected!")
+                    self._teensy_connected = False
                     base_error = True
                 else:
                     if not self._teensy_connected:
-                        self._teensy_connected = True
                         self.get_logger().info("Teensy connection established!")
-                break
-            if status.name == "Teensy state":
+                    self._teensy_connected = True
+
+            if status.name == "base_control_node: Teensy state":
                 if status.level == DiagnosticStatus.ERROR:
                     self.get_logger().error("Teensy state error detected!")
                     base_error = True
@@ -1012,7 +1029,13 @@ class SystemControl(rclpy.node.Node):
                     ):
                         self._teensy_calibrated = True
                         self.get_logger().info("Teensy calibration completed!")
-                break
+                    else:
+                        if not self._teensy_calibrated:
+                            self.get_logger().warn(
+                                "Teensy not calibrated yet, current state: "
+                                + status.message
+                            )
+
         if base_error:
             self._base_error = True
             self.BaseError()
@@ -1208,9 +1231,6 @@ class SystemControl(rclpy.node.Node):
     # ----------End of state machine conditions----------------
     # ----------state machine callbacks----------------
     def on_enter_init(self):
-        self._all_node_ready = (
-            False  # reset all node ready status when entering init state
-        )
         self._LUCI_connected = (
             False  # reset LUCI connection status when entering init state
         )
@@ -1225,6 +1245,12 @@ class SystemControl(rclpy.node.Node):
             False  # reset GUI connection status when entering init state
         )
         self._base_error = False  # reset base error status when entering init state
+
+    def on_enter_calibrating(self):
+        self.get_logger().info(
+            "Entering calibrating state, starting chair calibration."
+        )
+        self.start_chair_calibration()  # start chair calibration when entering calibrating state
 
     def on_enter_Chair(self):
         # for testing
@@ -1249,6 +1275,7 @@ class SystemControl(rclpy.node.Node):
     def init_state_machine(self):
         states = [
             "init",
+            "calibrating",
             "Chair",
             {
                 "name": "Arm",
@@ -1756,6 +1783,21 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Nav_paused",
             },
             {"trigger": "reset", "source": "Nav_paused", "dest": "Nav_SLOff"},
+            {
+                "trigger": "reset",
+                "source": "init",
+                "dest": "calibrating",
+            },
+            {
+                "trigger": "calibrationComplete",
+                "source": "calibrating",
+                "dest": "init",
+            },
+            {
+                "trigger": "calibrationFailed",
+                "source": "calibrating",
+                "dest": "init",
+            },
         ]
 
         self.machine = Machine(

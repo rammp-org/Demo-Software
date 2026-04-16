@@ -897,13 +897,13 @@ class GuiBridge(Node):
             arr[arm_joint_index_offset + 4] = -arr[arm_joint_index_offset + 4]
             arr[arm_joint_index_offset + 5] = -arr[arm_joint_index_offset + 5]
             arr[arm_joint_index_offset + 6] = -arr[arm_joint_index_offset + 6]
-            # the 8th joint is the gripper, we can set it to 0 for now
+            # the 8th joint is the gripper, 1 is close and 0 is open
             # set gripper joint angle to 0 or 45 for close and open
             arr[arm_gripper_joint_left_index] = (
-                0.0 if self.arm_joints.position[7] < 0.01 else -45.0
+                0.0 if self.arm_joints.position[7] > 0.9 else -45.0
             )
             arr[arm_gripper_joint_right_index] = (
-                0.0 if self.arm_joints.position[7] < 0.01 else 45.0
+                0.0 if self.arm_joints.position[7] > 0.9 else 45.0
             )
         if self.base_joints is not None and len(self.base_joints.position) >= 8:
             arr[chair_fc_joint_index] = self.base_joints.position[0] * 180.0 / 3.14159

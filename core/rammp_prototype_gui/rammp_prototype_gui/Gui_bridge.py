@@ -15,6 +15,7 @@ from gui_interfaces.srv import UserInputs
 # from realsense2_camera_msgs.msg import Extrinsics
 from neu_navigation_interfaces.msg import CurbInfo
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import CameraInfo, Image, JointState
@@ -196,6 +197,7 @@ class GuiBridge(Node):
         )
         print(f"Mask channel: {self.mask_channel}")
 
+        self.stream_lock = threading.Lock()
         self.ue = UnrealRemoteWebsocket(
             host=self.host,
             preset=self.ue_preset,
@@ -655,13 +657,14 @@ class GuiBridge(Node):
                             "yaw": extrinsics.rotation.Z,
                         }
                         meta["transform_space"] = "relative"
-                    self.stream_sender.send_image(
-                        channel=channel,
-                        image_bytes=image.data.tobytes(),
-                        width=width,
-                        height=height,
-                        metadata=meta,
-                    )
+                    with self.stream_lock:
+                        self.stream_sender.send_image(
+                            channel=channel,
+                            image_bytes=image.data.tobytes(),
+                            width=width,
+                            height=height,
+                            metadata=meta,
+                        )
                 except Exception as e:
                     self.get_logger().warn(f"Failed to send {source} image: {e}")
 
@@ -708,13 +711,14 @@ class GuiBridge(Node):
                             "yaw": extrinsics.rotation.Z,
                         }
                         meta["transform_space"] = "relative"
-                    self.stream_sender.send_depth_uint16(
-                        channel=channel,
-                        depth_bytes=depth.data.tobytes(),
-                        width=width,
-                        height=height,
-                        metadata=meta,
-                    )
+                    with self.stream_lock:
+                        self.stream_sender.send_depth_uint16(
+                            channel=channel,
+                            depth_bytes=depth.data.tobytes(),
+                            width=width,
+                            height=height,
+                            metadata=meta,
+                        )
                 except Exception as e:
                     self.get_logger().warn(f"Failed to send {source} depth image: {e}")
 
@@ -739,14 +743,15 @@ class GuiBridge(Node):
                         "NumSegmentIDs": num_seg_ids,
                         "MaskScale": 255.0,
                     }
-                    self.stream_sender.send_mask(
-                        channel=channel,
-                        mask_bytes=mask.data.tobytes(),
-                        width=width,
-                        height=height,
-                        metadata=meta,
-                        material_params=material_params,
-                    )
+                    with self.stream_lock:
+                        self.stream_sender.send_mask(
+                            channel=channel,
+                            mask_bytes=mask.data.tobytes(),
+                            width=width,
+                            height=height,
+                            metadata=meta,
+                            material_params=material_params,
+                        )
                 except Exception as e:
                     self.get_logger().warn(f"Failed to send {source} mask image: {e}")
 
@@ -1097,10 +1102,14 @@ class GuiBridge(Node):
 
 def main():
     rclpy.init()
+    executor = MultiThreadedExecutor()
     node = GuiBridge()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    executor.add_node(node)
+    try:
+        executor.spin()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

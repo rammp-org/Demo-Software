@@ -618,7 +618,7 @@ class TestCalibrateAction:
                 [
                     rclpy.parameter.Parameter(
                         "cup_stabilizer.calibration_s",
-                        rclpy.Parameter.Type.DOUBLE,
+                        rclpy.parameter.Parameter.Type.DOUBLE,
                         0.05,
                     )
                 ]

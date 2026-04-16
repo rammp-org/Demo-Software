@@ -970,8 +970,10 @@ class SystemControl(rclpy.node.Node):
         if len(msg.position) < 8:
             return  # ensure the message has enough joint positions to check gripper state, avoid potential index error
         if self._gripper_opened and msg.position[7] < 0.8:
+            self.get_logger().info("Gripper state changed: opened --> closed")
             self._gripper_opened = False
         elif not self._gripper_opened and msg.position[7] > 0.9:
+            self.get_logger().info("Gripper state changed: closed --> opened")
             self._gripper_opened = True
         # other state will be openning or closing.
 
@@ -1315,7 +1317,6 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "homed",
                 "source": [
-                    "Arm_homing",
                     "Arm_OrderDrink_releasingCup",
                 ],
                 "dest": "Arm_home",
@@ -1325,6 +1326,12 @@ class SystemControl(rclpy.node.Node):
                 "source": "Arm_homing",
                 "dest": "Arm_homeWithDrink",
                 "conditions": "is_gripper_opened",
+            },
+            {
+                "trigger": "homed",
+                "source": "Arm_homing",
+                "dest": "Arm_home",
+                "unless": "is_gripper_opened",
             },
             # open door
             {

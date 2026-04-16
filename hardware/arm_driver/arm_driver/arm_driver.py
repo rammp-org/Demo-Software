@@ -805,7 +805,7 @@ class ArmDriverNode(rclpy.node.Node):
         Returns:
             The populated action result.
         """
-        self._transition_to(ArmState.PRESET_IN_MOTION)
+        # self._transition_to(ArmState.PRESET_IN_MOTION)
 
         try:
             arm_fn(blocking=False)
@@ -853,7 +853,7 @@ class ArmDriverNode(rclpy.node.Node):
                 result.message = "Action aborted: e-stop triggered during execution"
                 return result
 
-            self._transition_to(ArmState.IDLE)
+            # self._transition_to(ArmState.IDLE)
             goal_handle.succeed()
             result = ReachPreset.Result()
             result.success = True

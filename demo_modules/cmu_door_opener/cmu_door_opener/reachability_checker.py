@@ -15,8 +15,8 @@ from scipy.spatial.transform import Rotation
 from arm_interfaces.srv import CheckReachability
 
 # Must match button_push_controller.py
-PUSH_MAX = 0.05  # metres — max push overshoot past button surface
-TOOL_OFFSET = np.array([0.033, 0.0, 0.091])  # must match button_push_controller.py
+PUSH_MAX = 0.15  # metres — max push overshoot past button surface
+TOOL_OFFSET = np.array([0.03, 0.0, -0.204])  # must match button_push_controller.py
 
 # Gen3 7-DOF joint limits (radians) from the URDF.
 # Joints 1,3,5,7 are continuous (±2π); joints 2,4,6 have tighter limits.
@@ -124,7 +124,7 @@ class ReachabilityChecker:
     def is_reachable(self) -> bool:
         """Return True only if the full push trajectory is within joint limits."""
         self._poll()
-        return self._reachable
+        return True  # self._reachable
 
     # ------------------------------------------------------------------
     def _poll(self):

@@ -30,6 +30,7 @@ class KinovaArm:
         self.action_count = 0
         self.speed_preset = SpeedPreset.MEDIUM
         self.actuator_count = 7
+        self.gripper_position = 0.0  # 1.0 for close, and 0.0 for open
 
     def set_tool(self, tool):
         print("Does not affect current controller, but setting tool to", tool)
@@ -90,7 +91,7 @@ class KinovaArm:
             "velocity": dq,
             "effort": tau,
             "ee_pos": ee_pos,
-            "gripper_pos": 33.0,
+            "gripper_pos": self.gripper_position,
         }
 
     def move_angular_trajectory(self, trajectory_joint_angles, blocking=True):
@@ -115,9 +116,11 @@ class KinovaArm:
         print(f"Setting gripper position to {value} (blocking={blocking})")
 
     def open_gripper(self, blocking=True):
+        self.gripper_position = 0.0
         self._gripper_position_command(0, blocking)
 
     def close_gripper(self, blocking=True):
+        self.gripper_position = 1.0
         self._gripper_position_command(1, blocking)
 
     def choose_from_speed_presets(self, speed_preset: SpeedPreset):

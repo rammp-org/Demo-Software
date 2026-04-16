@@ -345,28 +345,28 @@ class GuiBridge(Node):
             CameraInfo,
             f"{self.wrist_camera_namespace}/color/camera_info",
             self.wrist_camera_image_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.wrist_camera_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.wrist_camera_namespace}/depth/camera_info",
             self.wrist_camera_depth_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.wrist_camera_image_sub = self.create_subscription(
             Image,
             f"{self.wrist_camera_namespace}/color/image_raw",
             self.wrist_camera_image_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.wrist_camera_depth_sub = self.create_subscription(
             Image,
             f"{self.wrist_camera_namespace}/depth/image_rect_raw",
             self.wrist_camera_depth_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         # self.wrist_camera_extrinsics_sub = self.create_subscription(
@@ -382,28 +382,28 @@ class GuiBridge(Node):
             CameraInfo,
             f"{self.nav_camera_namespace_1}/color/camera_info_rotated",
             self.nav_camera_1_image_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_1_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.nav_camera_namespace_1}/depth/camera_info_rotated",
             self.nav_camera_1_depth_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_1_image_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_1}/color/image_rotated",
             self.nav_camera_1_image_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_1_depth_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_1}/depth/image_rotated",
             self.nav_camera_1_depth_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         # self.nav_camera_1_extrinsics_sub = self.create_subscription(
@@ -419,28 +419,28 @@ class GuiBridge(Node):
             CameraInfo,
             f"{self.nav_camera_namespace_2}/color/camera_info",
             self.nav_camera_2_image_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_2_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.nav_camera_namespace_2}/depth/camera_info",
             self.nav_camera_2_depth_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_2_image_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_2}/color/image_raw",
             self.nav_camera_2_image_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_2_depth_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_2}/depth/image_raw",
             self.nav_camera_2_depth_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         # self.nav_camera_2_extrinsics_sub = self.create_subscription(
@@ -455,28 +455,28 @@ class GuiBridge(Node):
             CameraInfo,
             f"{self.rear_camera_namespace}/color/camera_info",
             self.rear_camera_image_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.rear_camera_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.rear_camera_namespace}/depth/camera_info",
             self.rear_camera_depth_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.rear_camera_image_sub = self.create_subscription(
             Image,
             f"{self.rear_camera_namespace}/color/image_raw",
             self.rear_camera_image_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.rear_camera_depth_sub = self.create_subscription(
             Image,
             f"{self.rear_camera_namespace}/depth/image_raw",
             self.rear_camera_depth_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         # self.rear_camera_extrinsics_sub = self.create_subscription(
@@ -492,7 +492,7 @@ class GuiBridge(Node):
             CurbInfo,
             "/nav/curb/info",
             self.curb_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         # curb mask
@@ -500,7 +500,7 @@ class GuiBridge(Node):
             Image,
             "/perception/curb_mask",
             self.curb_mask_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
 
@@ -509,7 +509,7 @@ class GuiBridge(Node):
             ButtonInfo,
             "/arm/door/button_info",
             self.door_button_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
 
@@ -894,6 +894,7 @@ class GuiBridge(Node):
                     self.arm_joints.position[i] * 180.0 / 3.14159
                 )  # Convert radians to degrees
             arr[arm_joint_index_offset + 0] = -arr[arm_joint_index_offset + 0]
+            arr[arm_joint_index_offset + 2] = -arr[arm_joint_index_offset + 2]
             arr[arm_joint_index_offset + 4] = -arr[arm_joint_index_offset + 4]
             arr[arm_joint_index_offset + 5] = -arr[arm_joint_index_offset + 5]
             arr[arm_joint_index_offset + 6] = -arr[arm_joint_index_offset + 6]

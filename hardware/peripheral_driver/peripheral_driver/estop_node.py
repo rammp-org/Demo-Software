@@ -12,7 +12,7 @@ class EstopNode(Node):
 
         qos_profile = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
-        self.estop_publisher = self.create_publisher(Bool, "estop", qos_profile)
+        self.estop_publisher = self.create_publisher(Bool, "/base/estop", qos_profile)
         self.estop_pressed = False
 
         # publish initial state

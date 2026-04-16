@@ -965,8 +965,16 @@ class GuiBridge(Node):
 
     def update_cup_info(self, cup_info: CupInfo):
         if self.ue.is_connected():
-            width = cup_info.segmentation_mask.width
-            height = cup_info.segmentation_mask.height
+            width = (
+                cup_info.segmentation_mask.width
+                if cup_info.segmentation_mask.width > 0
+                else 640
+            )
+            height = (
+                cup_info.segmentation_mask.height
+                if cup_info.segmentation_mask.height > 0
+                else 480
+            )
             float_bounding_box = [
                 float(x) for x in cup_info.bounding_box
             ]  # Convert BoundingBox to list of floats
@@ -1001,8 +1009,16 @@ class GuiBridge(Node):
 
     def update_button_info(self, button_info: ButtonInfo):
         if self.ue.is_connected():
-            width = button_info.segmentation_mask.width
-            height = button_info.segmentation_mask.height
+            width = (
+                button_info.segmentation_mask.width
+                if button_info.segmentation_mask.width > 0
+                else 640
+            )
+            height = (
+                button_info.segmentation_mask.height
+                if button_info.segmentation_mask.height > 0
+                else 480
+            )
             float_bounding_box = [
                 float(x) for x in button_info.bounding_box
             ]  # Convert BoundingBox to list of floats

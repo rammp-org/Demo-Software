@@ -410,6 +410,8 @@ class ArmDriverNode(rclpy.node.Node):
 
     def _cup_stabilize_tick(self) -> None:
         """Compute twist command from cached IMU data and send it. Runs at cup_stabilizer.hz."""
+        if self._state != ArmState.CUP_STABILIZE:
+            return
         if not self._arm:
             return
 

@@ -312,7 +312,7 @@ class KinovaArm:
         command.twist.angular_y = math.degrees(angular_xyz[1])
         command.twist.angular_z = math.degrees(angular_xyz[2])
         with self._lock:
-            self.base.SendTwistCommand(command)
+            self.base.SendTwistCommand(command, options=self.control_send_options)
 
     def send_twist(self, linear_xyz, angular_xyz):
         """Send a Cartesian twist velocity command (SINGLE_LEVEL_SERVOING).

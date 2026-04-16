@@ -546,7 +546,24 @@ class TestCupStabilizeState:
     def test_cup_stabilize_tick_does_nothing_without_arm(self):
         node, mock_arm, ArmState = _make_node()
         try:
+            node._state = ArmState.CUP_STABILIZE
             node._arm = None
+            node._cup_stabilize_tick()
+            mock_arm.send_twist_base_frame.assert_not_called()
+        finally:
+            node.destroy_node()
+
+    def test_cup_stabilize_tick_does_nothing_in_wrong_state(self):
+        """Tick must be a no-op when the state machine is not in CUP_STABILIZE."""
+        node, mock_arm, ArmState = _make_node()
+        try:
+            node._latest_imu_data = {
+                "accel": np.array([0.0, -9.81, 0.0]),
+                "gyro": np.zeros(3),
+                "ee_euler_deg": [0.0, 0.0, 0.0],
+            }
+            node._cup_stabilizer.calibrate([np.zeros(3)])
+            node._state = ArmState.MANUAL  # not CUP_STABILIZE
             node._cup_stabilize_tick()
             mock_arm.send_twist_base_frame.assert_not_called()
         finally:

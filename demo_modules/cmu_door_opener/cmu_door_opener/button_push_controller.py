@@ -413,29 +413,29 @@ class ButtonPushController(Node):
             goal_handle.abort()
             return result
 
-        retract_goal = ReachPreset.Goal()
-        retract_goal.preset = ReachPreset.Goal.PRESET_HOME
-        self.get_logger().info("[STEP 4] Sending retract goal...")
-        retract_future = self._reach_preset_client.send_goal_async(retract_goal)
+        home_goal = ReachPreset.Goal()
+        home_goal.preset = ReachPreset.Goal.PRESET_HOME
+        self.get_logger().info("[STEP 4] Sending home goal...")
+        home_future = self._reach_preset_client.send_goal_async(home_goal)
 
         # Wait for goal acceptance without rclpy.spin_until_future_complete
         deadline = time.time() + 5.0
-        while not retract_future.done() and time.time() < deadline:
+        while not home_future.done() and time.time() < deadline:
             time.sleep(0.05)
-        retract_handle = retract_future.result()
-        if retract_handle is None or not retract_handle.accepted:
+        home_handle = home_future.result()
+        if home_handle is None or not home_handle.accepted:
             result.success = False
-            result.message = "Retract goal rejected"
+            result.message = "Home goal rejected"
             self.get_logger().error(f"[STEP 4] ABORT: {result.message}")
             goal_handle.abort()
             return result
 
         self.get_logger().info(
-            "[STEP 4] Retract goal accepted — waiting for completion..."
+            "[STEP 4] Home goal accepted — waiting for completion..."
         )
-        result_future = retract_handle.get_result_async()
+        result_future = home_handle.get_result_async()
 
-        # Wait for retract to finish
+        # Wait for home to finish
         deadline = time.time() + 30.0
         while not result_future.done() and time.time() < deadline:
             # handle cancel goal during move
@@ -445,7 +445,7 @@ class ButtonPushController(Node):
                 result.message = "Door open action canceled during move — stopping arm"
                 return result
             time.sleep(0.05)
-        self.get_logger().info("[STEP 4] Retract complete")
+        self.get_logger().info("[STEP 4] Home complete")
 
         # --- Done ---
         goal_handle.succeed()

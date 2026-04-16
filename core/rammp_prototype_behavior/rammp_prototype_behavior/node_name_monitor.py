@@ -12,6 +12,7 @@ class NodeNameMonitor:
             1.0, self.NodesReady, callback_group=cb_group
         )
         self.nodes_was_missing = True  # to track the previous state of node readiness and only call the callback when there is a change in state
+        self.warning_counter = 0  # send warning every 5 seconds if nodes are missing
 
     def NodesReady(self):
         names_and_ns = self.ros_node.get_node_names_and_namespaces()
@@ -34,7 +35,11 @@ class NodeNameMonitor:
         )  # make actual_nodes set instead of list to get O(n) time
 
         missing = [node for node in expected_nodes if node not in actual_nodes]
-
+        if missing:
+            self.warning_counter += 1
+            if self.warning_counter % 5 == 0:  # send warning every 5 seconds
+                self.ros_node.get_logger().warn(f"Missing nodes: {missing}.")
+                self.warning_counter = 0  # reset counter after sending warning
         if missing and not self.nodes_was_missing:
             self.callback(False)
         elif not missing and self.nodes_was_missing:

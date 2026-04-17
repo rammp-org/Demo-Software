@@ -59,7 +59,7 @@ def generate_launch_description():
                     "--frame-id",
                     "mebot",
                     "--child-frame-id",
-                    "base_link",
+                    "map",
                     "--x",
                     "-0.033657",
                     "--y",
@@ -142,6 +142,16 @@ def generate_launch_description():
                     "end_effector_link",
                     "--child-frame-id",
                     LaunchConfiguration("camera_frame"),
+                ],
+            ),
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                arguments=[
+                    "--frame-id",
+                    "map",
+                    "--child-frame-id",
+                    "world",
                 ],
             ),
         ]

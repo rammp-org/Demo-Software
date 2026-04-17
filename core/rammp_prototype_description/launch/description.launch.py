@@ -31,7 +31,7 @@ def generate_launch_description():
 
     camera_frame_arg = DeclareLaunchArgument(
         "camera_frame",
-        default_value="wrist_color_frame",
+        default_value="wrist_wrist_camera_link",
         description="Child frame ID for the wrist camera static transform",
     )
 

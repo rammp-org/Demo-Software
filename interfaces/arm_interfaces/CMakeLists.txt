@@ -31,6 +31,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/CheckReachability.srv"
   "action/ReachPreset.action"
   "action/ExecuteTrajectory.action"
+  "action/Calibrate.action"
   DEPENDENCIES builtin_interfaces sensor_msgs trajectory_msgs geometry_msgs
 )
 

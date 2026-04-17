@@ -893,7 +893,7 @@ class ArmDriverNode(rclpy.node.Node):
             ReachPreset.Goal.PRESET_HOME: self._arm.home,
             ReachPreset.Goal.PRESET_RETRACT: self._arm.retract,
             ReachPreset.Goal.PRESET_ZERO: self._arm.zero,
-            ReachPreset.Goal.PRESET_CUP_STABILIZE: self._arm.move_to_stabilize_pose,
+            ReachPreset.Goal.PRESET_CUP_STABILIZE: self._arm.cup_stabilize,
         }
 
         arm_fn = dispatch.get(goal_handle.request.preset)

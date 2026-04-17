@@ -947,10 +947,19 @@ class GuiBridge(Node):
             self.ue.call_function("UpdateCurbTraversalProgress", {"Progress": progress})
 
     def update_curb_info(self, curb_info: CurbInfo, marker: Marker = None):
-        if self.ue.is_connected() and marker is not None:
+        if self.ue.is_connected():
+            success = curb_info.success if marker is not None else False
             curbInfoDict = {
-                "Success": curb_info.success,
-                "Pose": {
+                "Success": success,
+                "Orientation": curb_info.orientation
+                * 180.0
+                / 3.14159,  # convert to degree
+                "Distance": curb_info.distance * 100.0,  # convert meter to cm
+                "Height": curb_info.height * 100.0,  # convert meter to cm
+                "NumSegmentIDs": 4,
+            }
+            if marker is not None:
+                curbInfoDict["Pose"] = {
                     "Translation": {
                         "X": marker.pose.position.x * 100.0,  # convert meter to cm
                         "Y": -marker.pose.position.y
@@ -968,14 +977,7 @@ class GuiBridge(Node):
                         "Y": marker.scale.x,
                         "Z": marker.scale.z,
                     },
-                },
-                "Orientation": curb_info.orientation
-                * 180.0
-                / 3.14159,  # convert to degree
-                "Distance": curb_info.distance * 100.0,  # convert meter to cm
-                "Height": curb_info.height * 100.0,  # convert meter to cm
-                "NumSegmentIDs": 4,
-            }
+                }
             self.ue.call_function("UpdateCurbInfo", curbInfoDict)
 
     def update_cup_info(self, cup_info: CupInfo):

@@ -144,13 +144,17 @@ def _tf_to_ue_extrinsics(transform_stamped) -> "Extrinsics":
     t = transform_stamped.transform.translation
     r = transform_stamped.transform.rotation
 
+
+    rot = R.from_quat([r.x, r.y, r.z, r.w])
+    roll_deg, pitch_deg, yaw_deg = rotation_matrix_to_euler_zyx(rot.as_matrix())
+
     x_cm = t.x * 100.0
     y_cm = -t.y * 100.0
     z_cm = t.z * 100.0
 
-    # scipy Rotation: from_quat expects [x, y, z, w]
-    rot = R.from_quat([r.x, r.y, r.z, r.w])
-    roll_deg, pitch_deg, yaw_deg = rot.as_euler("xyz", degrees=True)
+    # Mirror rotation to match Y-axis flip
+    pitch_deg = -pitch_deg
+    yaw_deg = -yaw_deg
 
     return Extrinsics(
         location=Vector(x_cm, y_cm, z_cm),
@@ -287,14 +291,18 @@ class GuiBridge(Node):
             self.mapfile = mmap.mmap(self.shm.fd, self.shm_size)
             self.shm.close_fd()
 
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(
+            self.tf_buffer, self, spin_thread=True
+        )
+        self._last_extrinsics: dict[str, "Extrinsics"] = {}
+
+
         self.init_publisher()
         self.init_subscriber()
         self.init_service()
 
-        # TF2 infrastructure for live camera extrinsics
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
-        self._last_extrinsics: dict[str, "Extrinsics"] = {}
+
 
         # self.test_ue_counter = 0
         # self.test_ue_timer = self.create_timer(1.0, self.test_ue)
@@ -673,15 +681,12 @@ class GuiBridge(Node):
                 self.tf_base_frame,
                 camera_tf_frame,
                 rclpy.time.Time(),
-                timeout=Duration(seconds=0.0),
+                timeout=Duration(seconds=1.0),
             )
             extrinsics = _tf_to_ue_extrinsics(tf)
             self._last_extrinsics[camera_tf_frame] = extrinsics
-        except Exception:
-            self.get_logger().warn(
-                f"TF2 lookup failed for {camera_tf_frame}, using last known extrinsics",
-                throttle_duration_sec=5.0,
-            )
+        except Exception as e:
+            self.get_logger().warn(f"TF2 lookup failed for {self.tf_base_frame} → {camera_tf_frame}: {e}", throttle_duration_sec=5.0)
             extrinsics = self._last_extrinsics.get(
                 camera_tf_frame,
                 Extrinsics(

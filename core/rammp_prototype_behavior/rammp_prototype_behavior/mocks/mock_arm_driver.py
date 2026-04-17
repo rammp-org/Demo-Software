@@ -4,7 +4,7 @@ import time
 import rclpy
 import rclpy.action
 import rclpy.node
-from arm_interfaces.action import ExecuteTrajectory, ReachPreset
+from arm_interfaces.action import ExecuteTrajectory, ReachPreset, Calibrate
 from arm_interfaces.srv import GetSpeedPreset, SetMode, SetSpeedPreset
 from diagnostic_msgs.msg import DiagnosticStatus
 from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped
@@ -216,6 +216,42 @@ class ArmDriverNode(rclpy.node.Node):
             for source in SOURCES
             if _SOURCE_MODE[source] == CommandMode.POSITION
         ]
+        self._calibrate_action = ActionServer(
+            self,
+            Calibrate,
+            "/arm/calibrate",
+            self._on_calibrate,
+            cancel_callback=self._cancel_callback,
+            goal_callback=self._goal_callback,
+            callback_group=self._action_group,
+        )
+
+    def _on_calibrate(self, goal_handle):
+        result = Calibrate.Result()
+
+        if not self._arm:
+            result.success = False
+            result.message = "Arm not connected"
+            goal_handle.abort()
+            return result
+
+        deadline = time.monotonic() + 3.0  # seconds until calibration times out
+        while time.monotonic() < deadline:
+            if goal_handle.is_cancel_requested:
+                self.get_logger().info("Calibration goal cancelled.")
+                goal_handle.cancel()
+                result.success = False
+                result.message = "Calibration cancelled"
+                return result
+            self.get_logger().info(
+                f"calibration will finished in {deadline - time.monotonic()} seconds"
+            )
+            time.sleep(0.2)
+
+        result.success = True
+        result.message = "Calibrated."
+        goal_handle.succeed()
+        return result
 
     def _goal_callback(self, goal_request):
         # goal_callback receives the Goal request message, not a goal handle.

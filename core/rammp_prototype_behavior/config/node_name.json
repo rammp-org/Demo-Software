@@ -13,9 +13,6 @@
       "name": "/button_push_controller"
     },
     {
-      "name": "/cup_stabilizer_node"
-    },
-    {
       "name": "/base/base_control_node"
     },
     {

@@ -444,10 +444,10 @@ class SystemControl(rclpy.node.Node):
 
     # ---------cup stabilizer state transition function calls------------------------
 
-    def on_enter_Arm_cupStabilize(self):
-        self.get_logger().info("Starting cup stabilization process.")
-        # should enter Arm_cupStabilize_moving state to move arm to cup stabilize position
-        self.set_arm_mode(ArmMode.CUP_STABILIZE)  # set arm mode to cup stabilize
+    # def on_enter_Arm_cupStabilize(self):
+    #     self.get_logger().info("Starting cup stabilization process.")
+    #     # should enter Arm_cupStabilize_moving state to move arm to cup stabilize position
+    #     self.set_arm_mode(ArmMode.CUP_STABILIZE)  # set arm mode to cup stabilize
 
     def on_enter_Arm_cupStabilize_moving(self):
         self.get_logger().info("Moving arm to cup stabilize position.")
@@ -820,11 +820,11 @@ class SystemControl(rclpy.node.Node):
             "/arm/drink/detection/enable",
             callback_group=self._service_cb_group,
         )
-        self.cup_stabilizer_client = self.create_client(
-            SetBool,
-            "/arm/drink/stabilize/enable",
-            callback_group=self._service_cb_group,
-        )
+        # self.cup_stabilizer_client = self.create_client(
+        #     SetBool,
+        #     "/arm/drink/stabilize/enable",
+        #     callback_group=self._service_cb_group,
+        # )
         self.curb_detection_client = self.create_client(
             SetBool,
             "/nav/curb/detect",
@@ -954,18 +954,19 @@ class SystemControl(rclpy.node.Node):
             return False
 
     def enable_cup_stabilizer(self, enable: bool) -> bool:
-        req = SetBool.Request()
-        req.data = enable
-        future = self.cup_stabilizer_client.call_async(req)
-        event = threading.Event()
-        future.add_done_callback(lambda _: event.set())
-        event.wait(timeout=5.0)
-        if not future.done():
-            return False
-        if future.result() is not None:
-            return future.result().success
-        else:
-            return False
+        # req = SetBool.Request()
+        # req.data = enable
+        # future = self.cup_stabilizer_client.call_async(req)
+        # event = threading.Event()
+        # future.add_done_callback(lambda _: event.set())
+        # event.wait(timeout=5.0)
+        # if not future.done():
+        #     return False
+        # if future.result() is not None:
+        #     return future.result().success
+        # else:
+        #     return False
+        self.set_arm_mode(ArmMode.CUP_STABILIZE if enable else ArmMode.IDLE)
 
     def close_gripper(self) -> bool:
         future = self.close_gripper_client.call_async(Trigger.Request())
@@ -1350,7 +1351,7 @@ class SystemControl(rclpy.node.Node):
             "init",
             # "calibrating",
             {
-                "name": "calibration",
+                "name": "calibrating",
                 "initial": "chair",
                 "children": ["chair", "arm", "canceling"],
             },

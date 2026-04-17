@@ -541,8 +541,8 @@ void setup() {
     if (conf.encoder_dir != 0 && !isnan(conf.saved_position) &&
         !isinf(conf.saved_position)) {
       EContr.encoder_offset[enc_idx] =
-        EContr.getRawReading(enc_idx) -
-           (signed long)(conf.saved_position / (float)conf.encoder_dir);
+          EContr.getRawReading(enc_idx) -
+          (signed long)(conf.saved_position / (float)conf.encoder_dir);
     }
   }
 
@@ -689,8 +689,9 @@ void loop() {
     } else {
       current_state = calibrated ? IDLE : UNCALIBRATED;
       if (DEBUG_MODE)
-        Serial.println(calibrated ? "DEBUG: Exiting SELF_LEVELING mode"
-                                  : "DEBUG: Exiting SELF_LEVELING -> UNCALIBRATED");
+        Serial.println(calibrated
+                           ? "DEBUG: Exiting SELF_LEVELING mode"
+                           : "DEBUG: Exiting SELF_LEVELING -> UNCALIBRATED");
     }
   } else if (cmd.type == CMD_LEVEL_PITCH) {
     target_pitch = cmd.value;

@@ -3,101 +3,524 @@
     {
       "duration_ms": 1000,
       "label": "Start in Self Leveling",
-      "motor_durations": [null, null, null, null, null, null, null, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [361.0, 21.0, 204.0, 174.0, 101.0, 99.0, 0.0, 0.0]
+      "motor_durations": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        361.0,
+        21.0,
+        204.0,
+        174.0,
+        101.0,
+        99.0,
+        0.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
       "label": "Raise FC, ML, MR, and RC so FC can reach curb height",
-      "motor_durations": [3000, null, 1000, 1000, null, null, null, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [864.0, 105.0, 430.0, 370.0, 204.0, 122.0, 0.0, 0.0]
+      "motor_durations": [
+        3000,
+        null,
+        1000,
+        1000,
+        null,
+        null,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        864.0,
+        105.0,
+        430.0,
+        370.0,
+        204.0,
+        122.0,
+        0.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
       "label": "Drive to curb",
-      "motor_durations": [4000, null, null, null, null, null, 500, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [861.0, 105.0, 430.0, 370.0, 192.0, 127.0, 3200.0, 0.0]
+      "motor_durations": [
+        4000,
+        null,
+        null,
+        null,
+        null,
+        null,
+        500,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        861.0,
+        105.0,
+        430.0,
+        370.0,
+        192.0,
+        127.0,
+        3200.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
       "label": "Move carriages back and lower RC to get on curb",
-      "motor_durations": [null, null, null, null, 2000, 2000, null, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [860.0, 105.0, 430.0, 370.0, 12661.0, 12615.0, 0.0, 0.0]
+      "motor_durations": [
+        null,
+        null,
+        null,
+        null,
+        2000,
+        2000,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        860.0,
+        105.0,
+        430.0,
+        370.0,
+        12661.0,
+        12615.0,
+        0.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        200.0,
+        200.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "GUARDED: Lift drive wheels off ground (ML/MR clearance)",
-      "motor_durations": [null, null, 2000, 1500, null, null, null, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [860.0, 105.0, 0.0, 0.0, 12644.0, 12617.0, 0.0, 0.0],
-      "guard_threshold": [0.0, 0.0, 200.0, 200.0, 0.0, 0.0, 0.0, 0.0],
-      "guard_condition": [0, 0, 2, 2, 0, 0, 0, 0]
+      "motor_durations": [
+        null,
+        null,
+        2000,
+        1500,
+        null,
+        null,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        860.0,
+        105.0,
+        0.0,
+        0.0,
+        12644.0,
+        12617.0,
+        0.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
       "label": "Move carriages forward part way",
-      "motor_durations": [null, null, 2000, 2000, 2000, 2000, null, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [860.0, 105.0, 0.0, 0.0, 10000.0, 10000.0, 0.0, 0.0]
+      "motor_durations": [
+        null,
+        null,
+        2000,
+        2000,
+        2000,
+        2000,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        860.0,
+        105.0,
+        0.0,
+        0.0,
+        10000.0,
+        10000.0,
+        0.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
       "label": "Move carriages forward while driving",
-      "motor_durations": [5000, null, null, null, 1000, 1000, null, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [860.0, 105.0, 0.0, 0.0, 6000.0, 6000.0, 5000.0, 0.0]
+      "motor_durations": [
+        5000,
+        null,
+        null,
+        null,
+        1000,
+        1000,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        860.0,
+        105.0,
+        0.0,
+        0.0,
+        6000.0,
+        6000.0,
+        5000.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
       "label": "Move carriages back",
-      "motor_durations": [null, null, null, null, 2000, 2000, null, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [860.0, 105.0, 0.0, 0.0, 12622.0, 12620.0, 0.0, 0.0]
+      "motor_durations": [
+        null,
+        null,
+        null,
+        null,
+        2000,
+        2000,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        860.0,
+        105.0,
+        0.0,
+        0.0,
+        12622.0,
+        12620.0,
+        0.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        2,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        200.0,
+        0.0,
+        300.0,
+        300.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "GUARDED: Lower ML/MR to curb contact, RC clearance",
-      "motor_durations": [null, null, 2000, 2000, null, null, null, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [367.0, 105.0, 400.0, 400.0, 12600.0, 12595.0, 0.0, 0.0],
-      "guard_threshold": [200.0, 0.0, 300.0, 300.0, 0.0, 0.0, 0.0, 0.0],
-      "guard_condition": [2, 0, 1, 1, 0, 0, 0, 0]
+      "motor_durations": [
+        null,
+        null,
+        2000,
+        2000,
+        null,
+        null,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        367.0,
+        105.0,
+        400.0,
+        400.0,
+        12600.0,
+        12595.0,
+        0.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
       "label": "Drive forward a little",
-      "motor_durations": [6000, null, null, null, null, null, null, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [363.0, 110.0, 197.0, 175.0, 12600.0, 12595.0, 3500.0, 0.0]
+      "motor_durations": [
+        6000,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        363.0,
+        110.0,
+        197.0,
+        175.0,
+        12600.0,
+        12595.0,
+        3500.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        200.0,
+        200.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "GUARDED: Lift drive wheels for carriage slide (ML/MR clearance)",
-      "motor_durations": [null, null, 2000, 2000, null, null, null, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [300.0, 200.0, 0.0, 0.0, 12606.0, 12610.0, 0.0, 0.0],
-      "guard_threshold": [0.0, 0.0, 200.0, 200.0, 0.0, 0.0, 0.0, 0.0],
-      "guard_condition": [0, 0, 2, 2, 0, 0, 0, 0]
+      "motor_durations": [
+        null,
+        null,
+        2000,
+        2000,
+        null,
+        null,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        300.0,
+        200.0,
+        0.0,
+        0.0,
+        12606.0,
+        12610.0,
+        0.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
       "label": "Move carriages forward",
-      "motor_durations": [null, null, null, null, 3000, 3000, 1000, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [300.0, 200.0, 0.0, 0.0, 101.0, 93.0, 0.0, 0.0]
+      "motor_durations": [
+        null,
+        null,
+        null,
+        null,
+        3000,
+        3000,
+        1000,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        300.0,
+        200.0,
+        0.0,
+        0.0,
+        101.0,
+        93.0,
+        0.0,
+        0.0
+      ]
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        300.0,
+        300.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "GUARDED: Return to self leveling (ML/MR ground contact)",
-      "motor_durations": [null, null, 2000, 2000, null, null, null, null],
-      "relative": [false, false, false, false, false, false, true, true],
-      "targets": [366.0, 21.0, 300.0, 300.0, 101.0, 96.0, 0.0, 0.0],
-      "guard_threshold": [0.0, 0.0, 300.0, 300.0, 0.0, 0.0, 0.0, 0.0],
-      "guard_condition": [0, 0, 1, 1, 0, 0, 0, 0]
+      "motor_durations": [
+        null,
+        null,
+        2000,
+        2000,
+        null,
+        null,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        366.0,
+        21.0,
+        300.0,
+        300.0,
+        101.0,
+        96.0,
+        0.0,
+        0.0
+      ]
     }
   ],
   "name": "curb_climbing_guarded"

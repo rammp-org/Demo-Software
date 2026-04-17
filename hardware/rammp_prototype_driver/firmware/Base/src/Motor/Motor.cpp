@@ -39,7 +39,7 @@ void Motor::setTargetVelocity(float vel) { target_vel = vel; }
 
 void Motor::setTargetPWM(float pwm) { target_pwm = pwm; }
 
-void Motor::attachStrainGauge(StrainGauge* sg) { _strain_gauge = sg; }
+void Motor::attachStrainGauge(StrainGauge *sg) { _strain_gauge = sg; }
 
 void Motor::updateLoad() {
   if (_strain_gauge != nullptr) {

@@ -28,7 +28,7 @@ public:
   // Provide sensory feedback
   void updateSensorData(float current_pos, float dt);
 
-  void attachStrainGauge(StrainGauge* sg);
+  void attachStrainGauge(StrainGauge *sg);
   void updateLoad();
 
   // Compute cascaded control, returns PWM required
@@ -75,7 +75,7 @@ public:
   ControlMode mode;
 
 private:
-  StrainGauge* _strain_gauge = nullptr;
+  StrainGauge *_strain_gauge = nullptr;
 };
 
 #endif

@@ -70,7 +70,8 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     }
   }
 
-  // New guarded format: 48 values (targets, active, relative, durations, guard_thresholds, guard_conditions)
+  // New guarded format: 48 values (targets, active, relative, durations,
+  // guard_thresholds, guard_conditions)
   if (count == SEQ_NUM_MOTORS * 6) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = vals[i];
@@ -281,9 +282,10 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS]) {
       // Ensure every motor's PID is chasing the exact final target.
       for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
         if (kf.active[i]) {
-        float final_dest = seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
-        motors[i]->setTargetPosition(final_dest);
-      }
+          float final_dest =
+              seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
+          motors[i]->setTargetPosition(final_dest);
+        }
       }
       seq_settling = true;
       seq_settle_start = millis();

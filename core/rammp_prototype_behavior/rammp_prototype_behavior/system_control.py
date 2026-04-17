@@ -971,7 +971,7 @@ class SystemControl(rclpy.node.Node):
         #     return future.result().success
         # else:
         #     return False
-        self.set_arm_mode(ArmMode.CUP_STABILIZE if enable else ArmMode.IDLE)
+        return self.set_arm_mode(ArmMode.CUP_STABILIZE if enable else ArmMode.IDLE)
 
     def close_gripper(self) -> bool:
         future = self.close_gripper_client.call_async(Trigger.Request())
@@ -1106,15 +1106,11 @@ class SystemControl(rclpy.node.Node):
         if self._arm_status != msg.message:
             self.get_logger().info(f" arm status: {self._arm_status} --> {msg.message}")
             self._arm_status = msg.message
-            is_arm_error = msg.level == DiagnosticStatus.ERROR
-            if (
-                self._is_arm_error is not None
-                and is_arm_error
-                and not self._is_arm_error
-            ):
-                self.get_logger().error("Arm error detected!")
-                self.ArmError()
-            self._is_arm_error = is_arm_error
+        is_arm_error = msg.level == DiagnosticStatus.ERROR
+        if self._is_arm_error is not None and is_arm_error and not self._is_arm_error:
+            self.get_logger().error("Arm error detected!")
+            self.ArmError()
+        self._is_arm_error = is_arm_error
 
     def Gui_connection_callback(self, msg: Bool):
         # Placeholder for processing GUI connection status, will replace with actual logic to handle GUI connection status later
@@ -1350,6 +1346,9 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().info(
             "Entering ReadyForCalibration state, waiting for calibrations to complete."
         )
+        existing_timeout = getattr(self, "_calibration_wait_timeout", None)
+        if existing_timeout is not None:
+            existing_timeout.cancel()
         # put a timeout for waiting
         self._calibration_wait_timeout = threading.Timer(3.0, self.timeout)
         self._calibration_wait_timeout.start()

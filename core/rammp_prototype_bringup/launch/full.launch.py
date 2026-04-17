@@ -75,7 +75,7 @@ def generate_launch_description():
     # Future modules: flip default_value to "true" when ready to enable
     launch_neu_navigation_arg = DeclareLaunchArgument(
         "launch_neu_navigation",
-        default_value="false",
+        default_value="true",
         description="Launch NEU curb detection node",
     )
     launch_cornell_feeding_arg = DeclareLaunchArgument(
@@ -85,7 +85,7 @@ def generate_launch_description():
     )
     launch_atdev_coffee_stabilizer_arg = DeclareLaunchArgument(
         "launch_atdev_coffee_stabilizer",
-        default_value="false",
+        default_value="true",
         description="Launch ATDev cup stabilizer module",
     )
 
@@ -184,7 +184,16 @@ def generate_launch_description():
     )
 
     # NEU navigation — curb detection (no dedicated launch file; installed as a script)
-    neu_navigation_node = Node(
+    neu_navigation_descent_node = Node(
+        package="neu_navigation",
+        executable="perception_curb_descent_detection_node.py",
+        name="perception_curb_descent_detection_node",
+        output="screen",
+        emulate_tty=True,
+        condition=IfCondition(LaunchConfiguration("launch_neu_navigation")),
+    )
+
+    neu_navigation_ascent_node = Node(
         package="neu_navigation",
         executable="perception_curb_detection_node.py",
         name="perception_curb_detection_node",
@@ -205,17 +214,13 @@ def generate_launch_description():
     #     condition=IfCondition(LaunchConfiguration("launch_cornell_feeding")),
     # )
 
-    # Future: ATDev cup stabilizer
-    # atdev_coffee_stabilizer_launch = IncludeLaunchDescription(
-    #     PythonLaunchDescriptionSource(
-    #         os.path.join(
-    #             get_package_share_directory("atdev_coffee_stabilizer"),
-    #             "launch",
-    #             "atdev_coffee_stabilizer.launch.py",
-    #         )
-    #     ),
-    #     condition=IfCondition(LaunchConfiguration("launch_atdev_coffee_stabilizer")),
-    # )
+    atdev_coffee_stabilizer_node = Node(
+        package="rammp_prototype_behavior",
+        executable="mock_cup_stabilizer",
+        output="screen",
+        emulate_tty=True,
+        condition=IfCondition(LaunchConfiguration("launch_atdev_coffee_stabilizer")),
+    )
 
     return LaunchDescription(
         [
@@ -245,6 +250,8 @@ def generate_launch_description():
             # Demo modules
             cmu_door_opener_launch,
             cameras_launch,
-            neu_navigation_node,
+            neu_navigation_descent_node,
+            neu_navigation_ascent_node,
+            atdev_coffee_stabilizer_node,
         ]
     )

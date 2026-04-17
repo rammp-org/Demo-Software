@@ -11,16 +11,17 @@
 #   --chair-ip IP         override chair IP (default: 10.2.10.3)
 #   --neu-navigation      enable NEU curb detection
 
-set -e
+# TODO: add this back
+# set -e
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 LAPTOP_USER="rammp"
-LAPTOP_IP="192.168.1.13"
+LAPTOP_IP="10.2.10.4"
 
 JETSON_WS="$HOME/ros2_ws"
 LAPTOP_WS="/home/$LAPTOP_USER/ros2_ws"
 
-ROS_SETUP="/opt/ros/humble/setup.bash"
+ROS_SETUP="/opt/ros/humble/setup.zsh"
 SESSION="rammp"
 
 # Default launch arguments (mirrors your launch file defaults)
@@ -71,11 +72,11 @@ trap cleanup SIGINT SIGTERM
 echo "Running preflight checks..."
 
 # Check SSH reachability
-if ! ssh -o ConnectTimeout=4 "$LAPTOP_USER@$LAPTOP_IP" exit 2>/dev/null; then
-    echo "ERROR: Cannot reach laptop at $LAPTOP_IP. Check ethernet connection."
-    exit 1
-fi
-echo "  Laptop reachable."
+# if ! ssh -o ConnectTimeout=4 "$LAPTOP_USER@$LAPTOP_IP" exit 2>/dev/null; then
+#     echo "ERROR: Cannot reach laptop at $LAPTOP_IP. Check ethernet connection."
+#     exit 1
+# fi
+# echo "  Laptop reachable."
 
 # Check serial port (if mebot driver will be launched)
 if [[ ! -e "$SERIAL_PORT" ]]; then
@@ -108,24 +109,27 @@ echo ""
 # Window 1: Jetson — all local nodes via your existing launch file
 tmux new-session -d -s "$SESSION" -n "jetson" \
     "bash -c 'source $ROS_SETUP && \
-              source $JETSON_WS/install/setup.bash && \
-              ros2 launch rammp_prototype_bringup full_system.launch.py $ARGS_STR; \
+            #   source $JETSON_WS/install/setup.zsh && \
+    #           ros2 launch rammp_prototype_bringup full_system.launch.py $ARGS_STR; \
               echo \"[jetson] Launch exited.\"; read'"
 
 # Window 2: Laptop node (SSH)
-tmux new-window -t "$SESSION" -n "laptop" \
-    "bash -c 'ssh $LAPTOP_USER@$LAPTOP_IP \
-        \"source $ROS_SETUP && \
-         source $LAPTOP_WS/install/setup.bash && \
-         ros2 launch your_pkg laptop.launch.py\"; \
-     echo \"[laptop] SSH session ended.\"; read'"
+# tmux new-session -d -s "$SESSION" -n "laptop" \
+# tmux new-window -t "$SESSION" -n "laptop" \
+#     "bash -c 'ssh $LAPTOP_USER@$LAPTOP_IP \
+#         \"source $ROS_SETUP && \
+#          source ~/.zshrc && \
+#          conda activate compute && \
+#          source $LAPTOP_WS/install/setup.zsh && \
+#          ros2 launch drink_actions_test minimal.launch.py\"; \
+#      echo \"[laptop] SSH session ended.\"; read'"
 
 # Window 3: Monitor — handy to have open immediately
-tmux new-window -t "$SESSION" -n "monitor" \
-    "bash -c 'source $ROS_SETUP && \
-              source $JETSON_WS/install/setup.bash && \
-              echo \"Monitor ready. Try: ros2 topic list, ros2 node list\"; \
-              bash'"
+# tmux new-window -t "$SESSION" -n "monitor" \
+#     "bash -c 'source $ROS_SETUP && \
+#               source $JETSON_WS/install/setup.bash && \
+#               echo \"Monitor ready. Try: ros2 topic list, ros2 node list\"; \
+#               bash'"
 
 # Start on the jetson window
 tmux select-window -t "$SESSION:jetson"

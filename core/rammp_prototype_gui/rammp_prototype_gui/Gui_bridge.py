@@ -23,6 +23,7 @@ from std_msgs.msg import Bool, Float32
 
 from .streaming.sender import StreamSender
 from .unreal_remote_websocket import UnrealRemoteWebsocket
+from visualization_msgs.msg import Marker
 
 
 @dataclass
@@ -503,6 +504,15 @@ class GuiBridge(Node):
             0,
             callback_group=self._cb_group,
         )
+        # curb marker
+        self._curb_marker = None
+        self.curb_marker_sub = self.create_subscription(
+            Marker,
+            "/perception/curb_marker",
+            self.curb_marker_callback,
+            0,
+            callback_group=self._cb_group,
+        )
 
         # door button info
         self.door_button_info_sub = self.create_subscription(
@@ -512,6 +522,9 @@ class GuiBridge(Node):
             0,
             callback_group=self._cb_group,
         )
+
+    def curb_marker_callback(self, msg: Marker):
+        self._curb_marker = msg
 
     def curb_traverse_progress_callback(self, msg: Float32):
         self.get_logger().info(f"Curb traverse progress: {msg.data:.2f}%")
@@ -544,7 +557,7 @@ class GuiBridge(Node):
         )
 
     def curb_info_callback(self, msg: CurbInfo):
-        self.update_curb_info(msg)
+        self.update_curb_info(msg, marker=self._curb_marker)
 
     # camera subscription callbacks
     def wrist_camera_image_info_callback(self, msg: CameraInfo):
@@ -933,28 +946,11 @@ class GuiBridge(Node):
         if self.ue.is_connected():
             self.ue.call_function("UpdateCurbTraversalProgress", {"Progress": progress})
 
-    def update_curb_info(self, curb_info: CurbInfo):
+    def update_curb_info(self, curb_info: CurbInfo, marker: Marker = None):
         if self.ue.is_connected():
+            success = curb_info.success if marker is not None else False
             curbInfoDict = {
-                "Success": curb_info.success,
-                # "Pose": {
-                #     "Translation": {
-                #         "X": curb_info.Pose.Translation.X,
-                #         "Y": curb_info.Pose.Translation.Y,
-                #         "Z": curb_info.Pose.Translation.Z,
-                #     },
-                #     "Rotation": {
-                #         "X": curb_info.Pose.Rotation.X,
-                #         "Y": curb_info.Pose.Rotation.Y,
-                #         "Z": curb_info.Pose.Rotation.Z,
-                #         "W": curb_info.Pose.Rotation.W,
-                #     },
-                #     "Scale3D": {
-                #         "X": curb_info.Pose.Scale3D.X,
-                #         "Y": curb_info.Pose.Scale3D.Y,
-                #         "Z": curb_info.Pose.Scale3D.Z,
-                #     },
-                # },
+                "Success": success,
                 "Orientation": curb_info.orientation
                 * 180.0
                 / 3.14159,  # convert to degree
@@ -962,6 +958,26 @@ class GuiBridge(Node):
                 "Height": curb_info.height * 100.0,  # convert meter to cm
                 "NumSegmentIDs": 4,
             }
+            if marker is not None:
+                curbInfoDict["Pose"] = {
+                    "Translation": {
+                        "X": marker.pose.position.x * 100.0,  # convert meter to cm
+                        "Y": -marker.pose.position.y
+                        * 100.0,  # convert meter to cm and change to UE coordinate
+                        "Z": marker.pose.position.z * 100.0,  # convert meter to cm
+                    },
+                    "Rotation": {
+                        "X": marker.pose.orientation.x,
+                        "Y": marker.pose.orientation.y,
+                        "Z": marker.pose.orientation.z,
+                        "W": marker.pose.orientation.w,
+                    },
+                    "Scale3D": {
+                        "X": marker.scale.y,  # flip x and y because of the difference between ROS and UE coordinate system
+                        "Y": marker.scale.x,
+                        "Z": marker.scale.z,
+                    },
+                }
             self.ue.call_function("UpdateCurbInfo", curbInfoDict)
 
     def update_cup_info(self, cup_info: CupInfo):

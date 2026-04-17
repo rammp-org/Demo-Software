@@ -1235,6 +1235,9 @@ class SystemControl(rclpy.node.Node):
     # ----------End of publisher callback functions to process messages and update internal state----------------
 
     # ----------state machine conditions----------------
+    def is_all_node_ready(self):
+        return self._all_node_ready
+
     def is_arm_state_good_for_driving(self):
         # several arm state is good for driving, e.g., retracted, home, homeWithDrink, cub_Stabilizing
         if self.state in [
@@ -1867,6 +1870,7 @@ class SystemControl(rclpy.node.Node):
                 "trigger": "reset",
                 "source": "init",
                 "dest": "calibrating",
+                "conditions": "is_all_node_ready",
             },
             {
                 "trigger": "calibrationComplete",

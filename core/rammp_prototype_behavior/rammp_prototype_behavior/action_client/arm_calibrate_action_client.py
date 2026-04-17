@@ -2,18 +2,18 @@ from __future__ import annotations
 import asyncio
 
 from rclpy.node import Node
-from rammp_prototype_interfaces.action import Calibration
+from arm_interfaces.action import Calibrate
 from .action_client_wrapper import ActionClientWrapper
 
 
-class ChairCalibrateActionClient(ActionClientWrapper):
+class ArmCalibrateActionClient(ActionClientWrapper):
     def __init__(
         self,
         node: Node,
     ):
         super().__init__(
-            "/base/calibrate",
-            Calibration,
+            "/arm/calibrate",
+            Calibrate,
             self.goal_callback,
             self.result_callback,
             self.cancel_callback,
@@ -21,7 +21,7 @@ class ChairCalibrateActionClient(ActionClientWrapper):
             feedback_callback=self.feedback_callback,
         )
 
-    def feedback_callback(self, feedback: Calibration.Feedback):
+    def feedback_callback(self, feedback: Calibrate.Feedback):
         # publisher = getattr(self._node, "_calibrate_progress_publisher", None)
         # if publisher is not None:
         #     progress_msg = Float32()
@@ -44,6 +44,8 @@ class ChairCalibrateActionClient(ActionClientWrapper):
         if success:
             self._node.get_logger().info("Successfully completed Calibration.")
             self._node.calibrationComplete()
+            if hasattr(self._node, "_arm_calibrated"):
+                self._node._arm_calibrated = True
         else:
             self._node.get_logger().warn("Failed to complete Calibration.")
             self._node.calibrationFailed()
@@ -61,7 +63,7 @@ class ChairCalibrateActionClient(ActionClientWrapper):
             self._node.calibrationFailed()
 
     def send_goal(self):
-        goal = Calibration.Goal()
+        goal = Calibrate.Goal()
         asyncio.run_coroutine_threadsafe(super().send_goal(goal), self._node._loop)
 
     def cancel(self):

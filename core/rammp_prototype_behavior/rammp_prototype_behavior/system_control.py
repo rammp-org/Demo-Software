@@ -26,6 +26,7 @@ from .action_client.chair_curb_traverse_action_client import (
     ChairCurbTraverseActionClient,
 )
 from .action_client.chair_calibrate_action_client import ChairCalibrateActionClient
+from .action_client.arm_calibrate_action_client import ArmCalibrateActionClient
 from gui_interfaces.srv import UserInputs
 from gui_interfaces.msg import SystemState
 from transitions.extensions import HierarchicalMachine as Machine
@@ -189,6 +190,7 @@ class SystemControl(rclpy.node.Node):
         self._cb_group = ReentrantCallbackGroup()
         self._all_node_ready = False
         self._teensy_calibrated = False
+        self._arm_calibrated = False
         self._LUCI_connected = False
         self._teensy_connected = False
         self._base_error = False
@@ -864,11 +866,17 @@ class SystemControl(rclpy.node.Node):
         self.grab_cup_from_table_client = GrabCupFromTableActionClient(self)
         self.put_cup_back_to_holder_client = PutCupBackToHolderActionClient(self)
         self.chair_calibrate_client = ChairCalibrateActionClient(self)
+        self.arm_calibrate_client = ArmCalibrateActionClient(self)
         self.bring_cup_to_mouth_client = BringCupToMouthActionClient(self)
         self.open_door_client = OpenDoorActionClient(self)
         self.curb_traverse_client = ChairCurbTraverseActionClient(self)
 
     # ----------Helper functions to call services and actions for state transitions----------------
+    def start_arm_calibration(self):
+        self.get_logger().info("Starting arm calibration.")
+        self._arm_calibrated = False  # reset arm calibrated status before starting calibration, will update to True after receiving arm status indicating arm is calibrated
+        self.arm_calibrate_client.send_goal()
+
     def start_chair_calibration(self):
         self.get_logger().info("Starting chair calibration.")
         self.chair_calibrate_client.send_goal()
@@ -1295,11 +1303,24 @@ class SystemControl(rclpy.node.Node):
         )
         self._base_error = False  # reset base error status when entering init state
 
-    def on_enter_calibrating(self):
+    def on_enter_calibrating_chair(self):
         self.get_logger().info(
-            "Entering calibrating state, starting chair calibration."
+            "Entering calibrating chair state, starting chair calibration."
         )
-        self.start_chair_calibration()  # start chair calibration when entering calibrating state
+        self.start_chair_calibration()  # start chair calibration when entering calibrating chair state
+
+    def on_enter_calibrating_arm(self):
+        self.get_logger().info(
+            "Entering calibrating arm state, starting arm calibration."
+        )
+        self.start_arm_calibration()  # start arm calibration when entering calibrating arm state
+
+    def on_enter_calibrating_canceling(self):
+        self.get_logger().info(
+            "Entering calibrating canceling state, canceling chair and arm calibration."
+        )
+        self.chair_calibrate_client.cancel()  # cancel chair calibration when entering calibrating canceling state
+        self.arm_calibrate_client.cancel()  # cancel arm calibration when entering calibrating canceling state
 
     def on_enter_Chair(self):
         # for testing
@@ -1324,7 +1345,12 @@ class SystemControl(rclpy.node.Node):
     def init_state_machine(self):
         states = [
             "init",
-            "calibrating",
+            # "calibrating",
+            {
+                "name": "calibration",
+                "initial": "chair",
+                "children": ["chair", "arm", "canceling"],
+            },
             "Chair",
             {
                 "name": "Arm",
@@ -1844,13 +1870,23 @@ class SystemControl(rclpy.node.Node):
             },
             {
                 "trigger": "calibrationComplete",
-                "source": "calibrating",
+                "source": "calibrating_chair",
+                "dest": "calibrating_arm",
+            },
+            {
+                "trigger": "calibrationComplete",
+                "source": "calibrating_arm",
                 "dest": "init",
             },
             {
                 "trigger": "calibrationFailed",
                 "source": "calibrating",
                 "dest": "init",
+            },
+            {
+                "trigger": "cancel",
+                "source": "calibrating",
+                "dest": "calibrating_canceling",
             },
         ]
 

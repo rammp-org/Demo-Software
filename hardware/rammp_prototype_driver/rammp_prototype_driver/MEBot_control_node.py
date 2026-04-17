@@ -1,17 +1,16 @@
 import json
 import math
+import threading
 import time
 from enum import IntEnum
 
 import diagnostic_updater
 import rclpy
 import serial
-import threading
 from ament_index_python.packages import get_package_share_directory
 from diagnostic_msgs.msg import DiagnosticStatus
 from luci_messages.msg import LuciJoystick
 from rammp_prototype_interfaces.action import Calibration, CurbTraverse
-
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState, SeatCommand
 from rclpy.action import ActionServer, CancelResponse
 from rclpy.executors import MultiThreadedExecutor
@@ -20,6 +19,7 @@ from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool
 from std_srvs.srv import Empty, SetBool
 
+from .joint_converter import BASE_JOINT_ORDER, JOINT_CONVERSIONS
 from .keyframe import NUM_MOTORS, Keyframe
 from .protocol import ProtocolEncoder, ProtocolParser, SeqGuardTrigData
 
@@ -40,8 +40,6 @@ JOYSTICK_TOPIC = "/luci/remote_joystick"
 JOYSTICK_MSG_TYPE = "/luci_messages/msg/LuciJoystick"
 SET_AUTO_SERVICE = "/luci/set_auto_remote_input"
 REMOVE_AUTO_SERVICE = "/luci/remove_auto_remote_input"
-
-from .joint_converter import BASE_JOINT_ORDER, JOINT_CONVERSIONS
 
 
 def _compute_zone(fb: int, lr: int) -> int:

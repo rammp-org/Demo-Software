@@ -144,7 +144,6 @@ def _tf_to_ue_extrinsics(transform_stamped) -> "Extrinsics":
     t = transform_stamped.transform.translation
     r = transform_stamped.transform.rotation
 
-
     rot = R.from_quat([r.x, r.y, r.z, r.w])
     roll_deg, pitch_deg, yaw_deg = rotation_matrix_to_euler_zyx(rot.as_matrix())
 
@@ -297,12 +296,9 @@ class GuiBridge(Node):
         )
         self._last_extrinsics: dict[str, "Extrinsics"] = {}
 
-
         self.init_publisher()
         self.init_subscriber()
         self.init_service()
-
-
 
         # self.test_ue_counter = 0
         # self.test_ue_timer = self.create_timer(1.0, self.test_ue)
@@ -686,7 +682,10 @@ class GuiBridge(Node):
             extrinsics = _tf_to_ue_extrinsics(tf)
             self._last_extrinsics[camera_tf_frame] = extrinsics
         except Exception as e:
-            self.get_logger().warn(f"TF2 lookup failed for {self.tf_base_frame} → {camera_tf_frame}: {e}", throttle_duration_sec=5.0)
+            self.get_logger().warn(
+                f"TF2 lookup failed for {self.tf_base_frame} → {camera_tf_frame}: {e}",
+                throttle_duration_sec=5.0,
+            )
             extrinsics = self._last_extrinsics.get(
                 camera_tf_frame,
                 Extrinsics(

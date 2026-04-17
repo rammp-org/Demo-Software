@@ -28,6 +28,7 @@ setup(
         "console_scripts": [
             "GuiBridge = rammp_prototype_gui.Gui_bridge:main",
             "MockButtonInfoPublisher = rammp_prototype_gui.mock_button_info:main",
+            "MockCurbMarkerPublisher = rammp_prototype_gui.mock_curb_marker:main",
         ],
     },
 )

@@ -9,10 +9,6 @@ class CurbMarkerPublisher(Node):
     def __init__(self):
         super().__init__("curb_marker_publisher")
 
-        self.declare_parameter("format", "mono8")  # Default test mono8
-        self.test_format = (
-            self.get_parameter("format").get_parameter_value().string_value
-        )
         self.publisher_marker = self.create_publisher(
             Marker, "/perception/curb_marker", 10
         )

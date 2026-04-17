@@ -138,15 +138,14 @@ def _tf_to_ue_extrinsics(transform_stamped) -> "Extrinsics":
     Rotation is converted from quaternion to Euler angles (roll, pitch, yaw) in degrees.
     Uses direct conversion — no axis flips applied.
 
-    # ROS→UE coordinate adjustment (verify empirically on real robot):
-    # If UE Y-axis is flipped from ROS, negate y_cm below.
-    # If UE pitch convention differs, negate pitch_deg below.
+    # ROS→UE coordinate adjustment:
+    # UE Y-axis is flipped from ROS, so negate y_cm.
     """
     t = transform_stamped.transform.translation
     r = transform_stamped.transform.rotation
 
     x_cm = t.x * 100.0
-    y_cm = t.y * 100.0
+    y_cm = -t.y * 100.0
     z_cm = t.z * 100.0
 
     # scipy Rotation: from_quat expects [x, y, z, w]

@@ -218,7 +218,7 @@ class GuiBridge(Node):
         self.tf_base_frame = (
             self.get_parameter("tf_base_frame").get_parameter_value().string_value
         )
-        self.declare_parameter("wrist_camera_tf_frame", "wrist_wrist_camera_link")
+        self.declare_parameter("wrist_camera_tf_frame", "wrist_color_frame")
         self.wrist_camera_tf_frame = (
             self.get_parameter("wrist_camera_tf_frame")
             .get_parameter_value()

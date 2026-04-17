@@ -34,7 +34,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "wrist_camera_tf_frame",
-                default_value="wrist_wrist_camera_link",
+                default_value="wrist_color_frame",
                 description="TF frame for wrist camera",
             ),
             DeclareLaunchArgument(

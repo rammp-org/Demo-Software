@@ -70,7 +70,7 @@ class SystemState(IntEnum):
 
 class BaseControlNode(Node):
     def __init__(self):
-        super().__init__("base_control_node")
+        super().__init__("base_control_node", namespace="base")
 
         # # serial init
         # self.declare_parameter("serial_port", "/dev/ttyACM0")

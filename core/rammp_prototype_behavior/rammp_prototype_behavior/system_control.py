@@ -347,7 +347,7 @@ class SystemControl(rclpy.node.Node):
     # -----------------------curb navigation transtion functions-----------------------------
     def on_enter_Nav_descendDetecting(self):
         self.get_logger().info("Detecting curb to prepare for descend.")
-        self.enable_curb_detection(
+        self.enable_curb_descent_detection(
             True
         )  # enable curb detection to detect curb for navigation
         self.get_logger().debug("Mock detecting curb for 5 seconds.")
@@ -356,13 +356,13 @@ class SystemControl(rclpy.node.Node):
         )  # should enter Nav_traverse state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
 
     def on_exit_Nav_descendDetecting(self):
-        self.enable_curb_detection(
+        self.enable_curb_descent_detection(
             False
         )  # ensure curb detection is disabled when exiting detecting curb state
 
     def on_enter_Nav_ascendDetecting(self):
         self.get_logger().info("Detecting curb to prepare for ascend.")
-        self.enable_curb_detection(
+        self.enable_curb_ascend_detection(
             True
         )  # enable curb detection to detect curb for navigation
         self.get_logger().debug("Mock detecting curb for 5 seconds.")
@@ -371,7 +371,7 @@ class SystemControl(rclpy.node.Node):
         )  # should enter Nav_ascending state after detecting curb for testing, will replace with actual logic to determine when curb is detected later
 
     def on_exit_Nav_ascendDetecting(self):
-        self.enable_curb_detection(
+        self.enable_curb_ascend_detection(
             False
         )  # ensure curb detection is disabled when exiting detecting curb state
 
@@ -390,7 +390,7 @@ class SystemControl(rclpy.node.Node):
     # ---------Arm Pause state transition function calls---------------------------------
     def on_enter_Arm_paused(self):
         self.get_logger().info("Arm is paused. Waiting for resume command.")
-        self.base_drive_enable(False)  # disable drive while arm is paused
+        self.base_drive_enable(True)  # enable drive while arm is paused
         self.enable_cup_stabilizer(
             False
         )  # disable cup stabilizer if it is on when arm is paused to avoid potential interference with pausing arm
@@ -411,13 +411,17 @@ class SystemControl(rclpy.node.Node):
     # ---------End of Arm Pause state transition function calls--------------------------
 
     # ---------arm manual control state transition function calls------------------------
-    def on_enter_Arm_manual_stopped(self):
+    def on_enter_Arm_manual(self):
         self.get_logger().info(
             "Arm is in manual control mode, waiting for manual commands."
         )
         self.base_drive_enable(False)  # disable drive while in manual arm control
         self.set_arm_mode(ArmMode.MANUAL)  # set arm mode to manual for manual control
 
+    def on_enter_Arm_manual_stopped(self):
+        self.get_logger().info(
+            "Arm is in manual control mode, waiting for manual commands."
+        )
         # mock 5s manual control, then disable it TODO: remove mock
         self.get_logger().debug("Mock manual control for 5 seconds.")
         self._mock_delay(
@@ -437,6 +441,12 @@ class SystemControl(rclpy.node.Node):
     # ---------end of arm manual control state transition function calls-----------------
 
     # ---------cup stabilizer state transition function calls------------------------
+
+    def on_enter_Arm_cupStabilize(self):
+        self.get_logger().info("Starting cup stabilization process.")
+        # should enter Arm_cupStabilize_moving state to move arm to cup stabilize position
+        self.set_arm_mode(ArmMode.CUP_STABILIZE)  # set arm mode to cup stabilize
+
     def on_enter_Arm_cupStabilize_moving(self):
         self.get_logger().info("Moving arm to cup stabilize position.")
         self.base_drive_enable(
@@ -451,9 +461,6 @@ class SystemControl(rclpy.node.Node):
 
     def on_enter_Arm_cupStabilize_stabilizing(self):
         self.get_logger().info("Arm is stabilizing cup.")
-        self.set_arm_mode(
-            ArmMode.CUP_STABILIZE
-        )  # set arm mode to cup stabilize when stabilizing cup, will set specific arm preset in the action server later
         self.enable_cup_stabilizer(True)  # enable cup stabilizer to stabilize the cup
 
         self.get_logger().debug("Mock stabilizing cup for 5 seconds.")
@@ -467,7 +474,6 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Arm_cupStabilize_homing(self):
         self.get_logger().info("Homing arm after cup stabilization.")
         self.enable_cup_stabilizer(False)
-        self.set_arm_mode_idle()  # set arm back to idle when exiting stabilizing cup state
 
         self.base_drive_enable(
             False
@@ -481,15 +487,15 @@ class SystemControl(rclpy.node.Node):
             True
         )  # re-enable drive when exiting homing arm after cup stabilization state
 
+    def on_exit_Arm_cupStabilize(self):
+        self.set_arm_mode_idle()  # set arm back to idle when exiting stabilizing cup state
+
     # ---------end of cup stabilizer state transition function calls-----------------
 
     # ---------order drink state transition function calls------------------------
     def on_enter_Arm_OrderDrink_pickUpCup(self):
         self.get_logger().info("Picking up cup from table.")
         self.base_drive_enable(False)  # disable drive while picking up cup
-        self.set_arm_mode(
-            ArmMode.ORDER_DRINK
-        )  # set arm mode to order drink when picking up cup, will set specific arm preset in the action server later
         self.pickup_and_order_client.send_goal()
 
     def on_exit_Arm_OrderDrink_pickUpCup(self):
@@ -497,7 +503,6 @@ class SystemControl(rclpy.node.Node):
 
     def on_enter_Arm_OrderDrink_holdingCup(self):
         self.get_logger().info("Holding cup, preparing to release cup.")
-        self.set_arm_mode(ArmMode.IDLE)
         # mock wait for 5 seconds to simulate holding cup, will replace with actual logic later
         self.get_logger().debug("Mock holding cup for 5 seconds.")
         self._mock_delay(5.0, self.releaseCupConfirm)  # should enter releasingCup state
@@ -510,6 +515,7 @@ class SystemControl(rclpy.node.Node):
 
     def on_exit_Arm_OrderDrink_releasingCup(self):
         self.base_drive_enable(True)  # re-enable drive when exiting releasing cup state
+        self.set_arm_mode_idle()  # set arm mode back to idle after releasing cup
 
     def on_enter_Arm_OrderDrink_detectingDrink(self):
         self.get_logger().info("Detecting drink to confirm if the drink is received.")
@@ -526,9 +532,6 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Arm_OrderDrink_receivingDrink(self):
         self.get_logger().info("Receiving drink.")
         self.base_drive_enable(False)  # disable drive
-        self.set_arm_mode(
-            ArmMode.ORDER_DRINK
-        )  # set arm mode to drinking when receiving drink, will set specific arm preset in the action server later
         self.grab_cup_from_table_client.send_goal()  # reuse grab cup from table action to simulate receiving drink, will replace with actual pickup drink action later
 
     def on_exit_Arm_OrderDrink_receivingDrink(self):
@@ -536,12 +539,24 @@ class SystemControl(rclpy.node.Node):
             True
         )  # re-enable drive when exiting receiving drink state
 
-    def on_enter_Arm_Drink_bringCloser(self):
-        self.get_logger().info("Bringing cup closer to prepare for drinking.")
-        self.base_drive_enable(False)  # disable drive while bringing cup to mouth
+    def on_enter_Arm_OrderDrink(self):
+        self.get_logger().info("Starting order drink process.")
+        self.set_arm_mode(
+            ArmMode.ORDER_DRINK
+        )  # set arm mode to order drink when entering order drink state, will set specific arm preset in the action server later
+
+    def on_exit_Arm_OrderDrink(self):
+        self.set_arm_mode_idle()  # set arm mode back to idle after receiving drink
+
+    def on_enter_Arm_Drink(self):
+        self.get_logger().info("on enter arm drink, put arm to drinking mode.")
         self.set_arm_mode(
             ArmMode.DRINKING
         )  # set arm mode to drinking when bringing cup to mouth, will set specific arm preset in the action server later
+
+    def on_enter_Arm_Drink_bringCloser(self):
+        self.get_logger().info("Bringing cup closer to prepare for drinking.")
+        self.base_drive_enable(False)  # disable drive while bringing cup to mouth
         self.bring_cup_to_mouth_client.send_goal()  # send action goal to bring cup to mouth for drinking
 
     def on_exit_Arm_Drink_bringCloser(self):
@@ -568,15 +583,15 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Arm_Drink_placingCupBack(self):
         self.get_logger().info("Placing cup back to holder.")
         self.base_drive_enable(False)  # disable drive while placing cup back to holder
-        self.set_arm_mode(
-            ArmMode.DRINKING
-        )  # set arm mode to DRINKING when placing cup back to holder, will set specific arm preset in the action server later
         self.put_cup_back_to_holder_client.send_goal()  # send action goal to place cup back to holder, will replace with actual place cup back logic later
 
     def on_exit_Arm_Drink_placingCupBack(self):
         self.base_drive_enable(
             True
         )  # re-enable drive when exiting placing cup back to holder state
+
+    def on_exit_Arm_Drink(self):
+        self.set_arm_mode_idle()  # set arm back to idle when exiting drink state
 
     def on_enter_Nav_SLOff(self):
         self.get_logger().info("Self-leveling is turned off.")
@@ -599,6 +614,12 @@ class SystemControl(rclpy.node.Node):
     # --------------------end of order drink state transition function calls --------------------------
 
     # --------------------door open state transition function calls------------------------
+    def on_enter_Arm_Door(self):
+        self.get_logger().info("Starting open door process.")
+        self.set_arm_mode(
+            ArmMode.OPEN_DOOR
+        )  # set arm mode to open door when entering open door state, will set specific arm preset in the action server later
+
     def on_enter_Arm_Door_raisingArm(self):
         self.get_logger().info("Raising arm to home to open door and close gripper.")
         self.close_gripper()  # close gripper
@@ -606,6 +627,8 @@ class SystemControl(rclpy.node.Node):
 
     def on_enter_Arm_Door_detecting(self):
         self.get_logger().info("Detecting door button.")
+        if self._gripper_opened:
+            self.close_gripper()  # close gripper again to ensure gripper is closed for door detection
         if not self.enable_door_detection(True):
             self.get_logger().warn("Failed to enable door detection.")
             self.ArmActionFailed()
@@ -624,11 +647,13 @@ class SystemControl(rclpy.node.Node):
         self.get_logger().info("Sending open door action goal.")
         # disable door detection to avoid interference during door opening
         self.base_drive_enable(False)  # disable drive while opening door
-        self.set_arm_mode(ArmMode.OPEN_DOOR)
         self.open_door_client.send_goal()
 
     def on_exit_Arm_Door_opening(self):
         self.base_drive_enable(True)  # re-enable drive when exiting door opening state
+
+    def on_exit_Arm_Door(self):
+        self.set_arm_mode_idle()  # set arm back to idle when exiting door state
 
     def on_enter_Arm_retracted(self):
         self.get_logger().debug("Arm is retracted, ready for next command.")
@@ -685,7 +710,8 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Nav_canceling(self):
         self.get_logger().info("Navigation canceling requested.")
         self.curb_traverse_client.cancel()
-        self.enable_curb_detection(False)
+        self.enable_curb_descent_detection(False)
+        self.enable_curb_ascend_detection(False)
 
     # --------------------end of Door Open State Transition Functions------------------------
 
@@ -802,6 +828,13 @@ class SystemControl(rclpy.node.Node):
             "/nav/curb/detect",
             callback_group=self._service_cb_group,
         )
+
+        self.curb_descend_detection_client = self.create_client(
+            SetBool,
+            "/nav/curb_descent/detect",
+            callback_group=self._service_cb_group,
+        )
+
         self.base_drive_enable_client = self.create_client(
             SetBool,
             "/base/drive_enable",
@@ -938,10 +971,24 @@ class SystemControl(rclpy.node.Node):
         else:
             return False
 
-    def enable_curb_detection(self, enable: bool) -> bool:
+    def enable_curb_ascend_detection(self, enable: bool) -> bool:
         req = SetBool.Request()
         req.data = enable
         future = self.curb_detection_client.call_async(req)
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
+        if not future.done():
+            return False
+        if future.result() is not None:
+            return future.result().success
+        else:
+            return False
+
+    def enable_curb_descent_detection(self, enable: bool) -> bool:
+        req = SetBool.Request()
+        req.data = enable
+        future = self.curb_descend_detection_client.call_async(req)
         event = threading.Event()
         future.add_done_callback(lambda _: event.set())
         event.wait(timeout=5.0)
@@ -1070,9 +1117,11 @@ class SystemControl(rclpy.node.Node):
     def arm_joints_callback(self, msg: JointState):
         if len(msg.position) < 8:
             return  # ensure the message has enough joint positions to check gripper state, avoid potential index error
-        if self._gripper_opened and msg.position[7] < 0.8:
+        if self._gripper_opened and msg.position[7] > 0.9:
+            self.get_logger().info("Gripper state changed: opened --> closed")
             self._gripper_opened = False
-        elif not self._gripper_opened and msg.position[7] > 0.9:
+        elif not self._gripper_opened and msg.position[7] < 0.8:
+            self.get_logger().info("Gripper state changed: closed --> opened")
             self._gripper_opened = True
         # other state will be openning or closing.
 
@@ -1458,7 +1507,6 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "homed",
                 "source": [
-                    "Arm_homing",
                     "Arm_OrderDrink_releasingCup",
                 ],
                 "dest": "Arm_home",
@@ -1468,6 +1516,12 @@ class SystemControl(rclpy.node.Node):
                 "source": "Arm_homing",
                 "dest": "Arm_homeWithDrink",
                 "conditions": "is_gripper_opened",
+            },
+            {
+                "trigger": "homed",
+                "source": "Arm_homing",
+                "dest": "Arm_home",
+                "unless": "is_gripper_opened",
             },
             # open door
             {
@@ -1493,7 +1547,7 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "doorOpenFinished",
                 "source": "Arm_Door_opening",
-                "dest": "Arm_retracted",
+                "dest": "Arm_home",  # after opening door, go back to home position, ready for next command
             },
             # order drink
             {

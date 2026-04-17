@@ -1,28 +1,28 @@
-import posix_ipc
-import mmap
-import rclpy
-import time
 import enum
+import mmap
 import threading
-
+import time
 from dataclasses import dataclass
-import numpy as np
 
-from rclpy.node import Node
-from std_msgs.msg import Float32
-from std_msgs.msg import Bool
-from .unreal_remote_websocket import UnrealRemoteWebsocket
-from .streaming.sender import StreamSender
-from gui_interfaces.srv import UserInputs
+import numpy as np
+import posix_ipc
+import rclpy
+from cmu_door_opener_interfaces.msg import ButtonInfo
+from cornell_feeding_interfaces.msg import CupInfo
 from gui_interfaces.msg import SystemState
-from sensor_msgs.msg import CameraInfo, JointState, Image
-from rclpy.callback_groups import ReentrantCallbackGroup
+from gui_interfaces.srv import UserInputs
 
 # from realsense2_camera_msgs.msg import Extrinsics
 from neu_navigation_interfaces.msg import CurbInfo
-from cmu_door_opener_interfaces.msg import ButtonInfo
-from cornell_feeding_interfaces.msg import CupInfo
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
 from scipy.spatial.transform import Rotation as R
+from sensor_msgs.msg import CameraInfo, Image, JointState
+from std_msgs.msg import Bool, Float32
+
+from .streaming.sender import StreamSender
+from .unreal_remote_websocket import UnrealRemoteWebsocket
 
 
 @dataclass
@@ -197,6 +197,7 @@ class GuiBridge(Node):
         )
         print(f"Mask channel: {self.mask_channel}")
 
+        self.stream_lock = threading.Lock()
         self.ue = UnrealRemoteWebsocket(
             host=self.host,
             preset=self.ue_preset,
@@ -344,28 +345,28 @@ class GuiBridge(Node):
             CameraInfo,
             f"{self.wrist_camera_namespace}/color/camera_info",
             self.wrist_camera_image_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.wrist_camera_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.wrist_camera_namespace}/depth/camera_info",
             self.wrist_camera_depth_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.wrist_camera_image_sub = self.create_subscription(
             Image,
             f"{self.wrist_camera_namespace}/color/image_raw",
             self.wrist_camera_image_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.wrist_camera_depth_sub = self.create_subscription(
             Image,
             f"{self.wrist_camera_namespace}/depth/image_rect_raw",
             self.wrist_camera_depth_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         # self.wrist_camera_extrinsics_sub = self.create_subscription(
@@ -381,28 +382,28 @@ class GuiBridge(Node):
             CameraInfo,
             f"{self.nav_camera_namespace_1}/color/camera_info_rotated",
             self.nav_camera_1_image_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_1_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.nav_camera_namespace_1}/depth/camera_info_rotated",
             self.nav_camera_1_depth_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_1_image_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_1}/color/image_rotated",
             self.nav_camera_1_image_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_1_depth_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_1}/depth/image_rotated",
             self.nav_camera_1_depth_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         # self.nav_camera_1_extrinsics_sub = self.create_subscription(
@@ -418,28 +419,28 @@ class GuiBridge(Node):
             CameraInfo,
             f"{self.nav_camera_namespace_2}/color/camera_info",
             self.nav_camera_2_image_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_2_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.nav_camera_namespace_2}/depth/camera_info",
             self.nav_camera_2_depth_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_2_image_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_2}/color/image_raw",
             self.nav_camera_2_image_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.nav_camera_2_depth_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_2}/depth/image_raw",
             self.nav_camera_2_depth_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         # self.nav_camera_2_extrinsics_sub = self.create_subscription(
@@ -454,28 +455,28 @@ class GuiBridge(Node):
             CameraInfo,
             f"{self.rear_camera_namespace}/color/camera_info",
             self.rear_camera_image_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.rear_camera_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.rear_camera_namespace}/depth/camera_info",
             self.rear_camera_depth_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.rear_camera_image_sub = self.create_subscription(
             Image,
             f"{self.rear_camera_namespace}/color/image_raw",
             self.rear_camera_image_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         self.rear_camera_depth_sub = self.create_subscription(
             Image,
             f"{self.rear_camera_namespace}/depth/image_raw",
             self.rear_camera_depth_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         # self.rear_camera_extrinsics_sub = self.create_subscription(
@@ -491,7 +492,7 @@ class GuiBridge(Node):
             CurbInfo,
             "/nav/curb/info",
             self.curb_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
         # curb mask
@@ -499,7 +500,7 @@ class GuiBridge(Node):
             Image,
             "/perception/curb_mask",
             self.curb_mask_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
 
@@ -508,7 +509,7 @@ class GuiBridge(Node):
             ButtonInfo,
             "/arm/door/button_info",
             self.door_button_info_callback,
-            10,
+            0,
             callback_group=self._cb_group,
         )
 
@@ -656,13 +657,14 @@ class GuiBridge(Node):
                             "yaw": extrinsics.rotation.Z,
                         }
                         meta["transform_space"] = "relative"
-                    self.stream_sender.send_image(
-                        channel=channel,
-                        image_bytes=image.data.tobytes(),
-                        width=width,
-                        height=height,
-                        metadata=meta,
-                    )
+                    with self.stream_lock:
+                        self.stream_sender.send_image(
+                            channel=channel,
+                            image_bytes=image.data.tobytes(),
+                            width=width,
+                            height=height,
+                            metadata=meta,
+                        )
                 except Exception as e:
                     self.get_logger().warn(f"Failed to send {source} image: {e}")
 
@@ -709,13 +711,14 @@ class GuiBridge(Node):
                             "yaw": extrinsics.rotation.Z,
                         }
                         meta["transform_space"] = "relative"
-                    self.stream_sender.send_depth_uint16(
-                        channel=channel,
-                        depth_bytes=depth.data.tobytes(),
-                        width=width,
-                        height=height,
-                        metadata=meta,
-                    )
+                    with self.stream_lock:
+                        self.stream_sender.send_depth_uint16(
+                            channel=channel,
+                            depth_bytes=depth.data.tobytes(),
+                            width=width,
+                            height=height,
+                            metadata=meta,
+                        )
                 except Exception as e:
                     self.get_logger().warn(f"Failed to send {source} depth image: {e}")
 
@@ -740,14 +743,15 @@ class GuiBridge(Node):
                         "NumSegmentIDs": num_seg_ids,
                         "MaskScale": 255.0,
                     }
-                    self.stream_sender.send_mask(
-                        channel=channel,
-                        mask_bytes=mask.data.tobytes(),
-                        width=width,
-                        height=height,
-                        metadata=meta,
-                        material_params=material_params,
-                    )
+                    with self.stream_lock:
+                        self.stream_sender.send_mask(
+                            channel=channel,
+                            mask_bytes=mask.data.tobytes(),
+                            width=width,
+                            height=height,
+                            metadata=meta,
+                            material_params=material_params,
+                        )
                 except Exception as e:
                     self.get_logger().warn(f"Failed to send {source} mask image: {e}")
 
@@ -853,21 +857,21 @@ class GuiBridge(Node):
                 self._system_state = "TestState"
             if self.test_ue_counter == 5:
                 self._system_state = None
-                print("Testing sending curb info to UE...")
-                curbInfo = CurbInfo(
-                    Distance=0.5,
-                    Height=0.2,
-                    Pose=Transform(
-                        Translation=Vector(X=1.0, Y=2.0, Z=3.0),
-                        Rotation=Quaternion(X=0.0, Y=0.0, Z=0.0, W=1.0),
-                        Scale3D=Vector(X=1.0, Y=1.0, Z=1.0),
-                    ),
-                    Success=True,
-                    Message="Curb info updated successfully",
-                )
-                # print("CurbInfo to send:", asdict(curbInfo))
+                # print("Testing sending curb info to UE...")
+                # curbInfo = CurbInfo(
+                #     Distance=0.5,
+                #     Height=0.2,
+                #     Pose=Transform(
+                #         Translation=Vector(X=1.0, Y=2.0, Z=3.0),
+                #         Rotation=Quaternion(X=0.0, Y=0.0, Z=0.0, W=1.0),
+                #         Scale3D=Vector(X=1.0, Y=1.0, Z=1.0),
+                #     ),
+                #     Success=True,
+                #     Message="Curb info updated successfully",
+                # )
+                # # print("CurbInfo to send:", asdict(curbInfo))
 
-                self.update_curb_info(curbInfo)
+                # self.update_curb_info(curbInfo)
         else:
             self.test_ue_counter = 0
 
@@ -890,16 +894,17 @@ class GuiBridge(Node):
                     self.arm_joints.position[i] * 180.0 / 3.14159
                 )  # Convert radians to degrees
             arr[arm_joint_index_offset + 0] = -arr[arm_joint_index_offset + 0]
+            arr[arm_joint_index_offset + 2] = -arr[arm_joint_index_offset + 2]
             arr[arm_joint_index_offset + 4] = -arr[arm_joint_index_offset + 4]
             arr[arm_joint_index_offset + 5] = -arr[arm_joint_index_offset + 5]
             arr[arm_joint_index_offset + 6] = -arr[arm_joint_index_offset + 6]
-            # the 8th joint is the gripper, we can set it to 0 for now
+            # the 8th joint is the gripper, 1 is close and 0 is open
             # set gripper joint angle to 0 or 45 for close and open
             arr[arm_gripper_joint_left_index] = (
-                0.0 if self.arm_joints.position[7] < 0.01 else -45.0
+                0.0 if self.arm_joints.position[7] > 0.9 else -45.0
             )
             arr[arm_gripper_joint_right_index] = (
-                0.0 if self.arm_joints.position[7] < 0.01 else 45.0
+                0.0 if self.arm_joints.position[7] > 0.9 else 45.0
             )
         if self.base_joints is not None and len(self.base_joints.position) >= 8:
             arr[chair_fc_joint_index] = self.base_joints.position[0] * 180.0 / 3.14159
@@ -931,7 +936,7 @@ class GuiBridge(Node):
     def update_curb_info(self, curb_info: CurbInfo):
         if self.ue.is_connected():
             curbInfoDict = {
-                "Success": curb_info.Success,
+                "Success": curb_info.success,
                 # "Pose": {
                 #     "Translation": {
                 #         "X": curb_info.Pose.Translation.X,
@@ -950,17 +955,27 @@ class GuiBridge(Node):
                 #         "Z": curb_info.Pose.Scale3D.Z,
                 #     },
                 # },
-                "Orientation": curb_info.Orientation,
-                "Distance": curb_info.Distance,
-                "Height": curb_info.Height,
+                "Orientation": curb_info.orientation
+                * 180.0
+                / 3.14159,  # convert to degree
+                "Distance": curb_info.distance * 100.0,  # convert meter to cm
+                "Height": curb_info.height * 100.0,  # convert meter to cm
                 "NumSegmentIDs": 4,
             }
             self.ue.call_function("UpdateCurbInfo", curbInfoDict)
 
     def update_cup_info(self, cup_info: CupInfo):
         if self.ue.is_connected():
-            width = cup_info.segmentation_mask.width
-            height = cup_info.segmentation_mask.height
+            width = (
+                cup_info.segmentation_mask.width
+                if cup_info.segmentation_mask.width > 0
+                else 640
+            )
+            height = (
+                cup_info.segmentation_mask.height
+                if cup_info.segmentation_mask.height > 0
+                else 480
+            )
             float_bounding_box = [
                 float(x) for x in cup_info.bounding_box
             ]  # Convert BoundingBox to list of floats
@@ -995,8 +1010,16 @@ class GuiBridge(Node):
 
     def update_button_info(self, button_info: ButtonInfo):
         if self.ue.is_connected():
-            width = button_info.segmentation_mask.width
-            height = button_info.segmentation_mask.height
+            width = (
+                button_info.segmentation_mask.width
+                if button_info.segmentation_mask.width > 0
+                else 640
+            )
+            height = (
+                button_info.segmentation_mask.height
+                if button_info.segmentation_mask.height > 0
+                else 480
+            )
             float_bounding_box = [
                 float(x) for x in button_info.bounding_box
             ]  # Convert BoundingBox to list of floats
@@ -1096,10 +1119,14 @@ class GuiBridge(Node):
 
 def main():
     rclpy.init()
+    executor = MultiThreadedExecutor()
     node = GuiBridge()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    executor.add_node(node)
+    try:
+        executor.spin()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

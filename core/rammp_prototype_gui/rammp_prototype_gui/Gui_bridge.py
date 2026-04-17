@@ -204,7 +204,7 @@ class GuiBridge(Node):
             preset=self.ue_preset,
             user_input_callback=self.user_input_callback,
         )
-        self.stream_sender = StreamSender(host=self.host, port=30030)
+        self.stream_sender = StreamSender(host=self.host, port=30030, queue_size=10)
         self.stream_check_timer = self.create_timer(1.0, self.check_streamer_connection)
         self.update_ue_timer = self.create_timer(0.1, self.ue_update)
 

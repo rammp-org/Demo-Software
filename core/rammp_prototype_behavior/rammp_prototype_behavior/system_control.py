@@ -1343,6 +1343,14 @@ class SystemControl(rclpy.node.Node):
     def on_enter_Arm(self):
         self.get_logger().info("Entering Arm state")
 
+    def on_enter_ReadyForCalibration(self):
+        self.get_logger().info(
+            "Entering ReadyForCalibration state, waiting for calibrations to complete."
+        )
+        # put a timeout for waiting
+        self._calibration_wait_timeout = threading.Timer(3.0, self.timeout)
+        self._calibration_wait_timeout.start()
+
     # ----------End of state machine callbacks----------------
 
     # ----------state machine setup----------------
@@ -1356,6 +1364,7 @@ class SystemControl(rclpy.node.Node):
                 "children": ["chair", "arm", "canceling"],
             },
             "Chair",
+            "ReadyForCalibration",  # waiting for calibration to complete, will transition to next state automatically after receiving calibration status from arm and base
             {
                 "name": "Arm",
                 "initial": "retracted",
@@ -1892,6 +1901,21 @@ class SystemControl(rclpy.node.Node):
                 "trigger": "cancel",
                 "source": "calibrating",
                 "dest": "calibrating_canceling",
+            },
+            {
+                "trigger": "reset",
+                "source": "Chair",
+                "dest": "ReadyForCalibration",
+            },
+            {
+                "trigger": "reset",
+                "source": "ReadyForCalibration",
+                "dest": "calibrating",
+            },
+            {
+                "trigger": "timeout",
+                "source": "ReadyForCalibration",
+                "dest": "init",
             },
         ]
 

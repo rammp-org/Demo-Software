@@ -239,7 +239,7 @@ class ArmDriverNode(rclpy.node.Node):
         while time.monotonic() < deadline:
             if goal_handle.is_cancel_requested:
                 self.get_logger().info("Calibration goal cancelled.")
-                goal_handle.cancel()
+                goal_handle.canceled()
                 result.success = False
                 result.message = "Calibration cancelled"
                 return result

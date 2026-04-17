@@ -62,6 +62,7 @@ class ChairCalibrateActionClient(ActionClientWrapper):
 
     def send_goal(self):
         goal = Calibration.Goal()
+        goal.enable = True
         asyncio.run_coroutine_threadsafe(super().send_goal(goal), self._node._loop)
 
     def cancel(self):

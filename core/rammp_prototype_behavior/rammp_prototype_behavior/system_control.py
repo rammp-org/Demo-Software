@@ -6,7 +6,7 @@ from std_msgs.msg import Float32
 import rclpy
 import rclpy.action
 import rclpy.node
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
 import os
@@ -188,6 +188,9 @@ class SystemControl(rclpy.node.Node):
 
         self._arm_status = ""
         self._cb_group = ReentrantCallbackGroup()
+        self._mock_cb_group = MutuallyExclusiveCallbackGroup()
+        self._pub_cb_group = MutuallyExclusiveCallbackGroup()
+        self._system_monitor_cb_group = MutuallyExclusiveCallbackGroup()
         self._all_node_ready = False
         self._teensy_calibrated = False
         self._arm_calibrated = False
@@ -205,18 +208,20 @@ class SystemControl(rclpy.node.Node):
         self.init_services()
         self.init_actions_clients()
         self._test_timer = self.create_timer(
-            1.0, self.mock_task, callback_group=self._cb_group
+            1.0, self.mock_task, callback_group=self._mock_cb_group
         )
         self._test_timer.cancel()  # cancel the timer and reset when system is ready
 
         self._system_monitor_timer = self.create_timer(
-            1.0, self.system_monitor_callback, callback_group=self._cb_group
+            1.0,
+            self.system_monitor_callback,
+            callback_group=self._system_monitor_cb_group,
         )
 
     def system_monitor_callback(self):
         if (
             self._is_arm_error is None
-        ):  # not receive arm satus yet, wait for it to be initialized
+        ):  # not receive arm status yet, wait for it to be initialized
             return
         # try to clear arm error
         if self._is_arm_error:
@@ -727,7 +732,7 @@ class SystemControl(rclpy.node.Node):
             SystemState, "/system/state", 10
         )
         self.system_state_publisher_timer = self.create_timer(
-            0.1, self.publish_system_state, callback_group=self._cb_group
+            0.1, self.publish_system_state, callback_group=self._pub_cb_group
         )
         self._curb_traverse_progress_publisher = self.create_publisher(
             Float32, "/nav/curb_traverse_progress", 10
@@ -1102,7 +1107,11 @@ class SystemControl(rclpy.node.Node):
             self.get_logger().info(f" arm status: {self._arm_status} --> {msg.message}")
             self._arm_status = msg.message
             is_arm_error = msg.level == DiagnosticStatus.ERROR
-            if self._is_arm_error is None and is_arm_error and not self._is_arm_error:
+            if (
+                self._is_arm_error is not None
+                and is_arm_error
+                and not self._is_arm_error
+            ):
                 self.get_logger().error("Arm error detected!")
                 self.ArmError()
             self._is_arm_error = is_arm_error
@@ -1268,26 +1277,20 @@ class SystemControl(rclpy.node.Node):
 
     def is_arm_action_running(self):
         # check if arm is currently performing an action
-
-        self.arm_preset_client = ArmPresetActionClient(self)
-        self.pickup_and_order_client = PickUpAndOrderActionClient(self)
-        self.home_cup_client = HomeCupActionClient(self)
-        self.grab_cup_from_table_client = GrabCupFromTableActionClient(self)
-        self.put_cup_back_to_holder_client = PutCupBackToHolderActionClient(self)
-        self.bring_cup_to_mouth_client = BringCupToMouthActionClient(self)
-        self.open_door_client = OpenDoorActionClient(self)
-        self.curb_traverse_client = ChairCurbTraverseActionClient(self)
-        if (
-            self.arm_preset_client.is_action_running()
-            or self.pickup_and_order_client.is_action_running()
-            or self.home_cup_client.is_action_running()
-            or self.grab_cup_from_table_client.is_action_running()
-            or self.put_cup_back_to_holder_client.is_action_running()
-            or self.bring_cup_to_mouth_client.is_action_running()
-            or self.open_door_client.is_action_running()
-        ):
-            return True
-        return False
+        action_clients = (
+            getattr(self, "arm_preset_client", None),
+            getattr(self, "pickup_and_order_client", None),
+            getattr(self, "home_cup_client", None),
+            getattr(self, "grab_cup_from_table_client", None),
+            getattr(self, "put_cup_back_to_holder_client", None),
+            getattr(self, "bring_cup_to_mouth_client", None),
+            getattr(self, "open_door_client", None),
+            getattr(self, "curb_traverse_client", None),
+        )
+        return any(
+            client is not None and client.is_action_running()
+            for client in action_clients
+        )
 
     # ----------End of state machine conditions----------------
     # ----------state machine callbacks----------------

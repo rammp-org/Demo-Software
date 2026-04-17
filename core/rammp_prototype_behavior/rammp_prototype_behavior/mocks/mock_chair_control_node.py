@@ -487,7 +487,7 @@ class BaseControlNode(Node):
         result = Calibration.Result()
         while self._action_counter > 0:
             self.get_logger().info("action counter left: " + str(self._action_counter))
-            Calibration.joints_calibrated = 20 - self._action_counter
+            feedback.joints_calibrated = 20 - self._action_counter
             goal_handle.publish_feedback(feedback)
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()

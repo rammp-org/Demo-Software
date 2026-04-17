@@ -901,10 +901,12 @@ class GuiBridge(Node):
         chair_mr_carriage_index = 4  # index for chair movement carriage joint
         chair_ml_wheel_index = 2  # index for chair movement wheel joint
         chair_mr_wheel_index = 9  # index for chair movement wheel joint
-        if self.arm_joints is not None and len(self.arm_joints.position) >= 8:
+        arm_joints = self.arm_joints
+        base_joints = self.base_joints
+        if arm_joints is not None and len(arm_joints.position) >= 8:
             for i in range(7):  # Only take the first 7 joints for the arm joint
                 arr[arm_joint_index_offset + i] = (
-                    self.arm_joints.position[i] * 180.0 / 3.14159
+                    arm_joints.position[i] * 180.0 / 3.14159
                 )  # Convert radians to degrees
             arr[arm_joint_index_offset + 0] = -arr[arm_joint_index_offset + 0]
             arr[arm_joint_index_offset + 2] = -arr[arm_joint_index_offset + 2]
@@ -914,22 +916,22 @@ class GuiBridge(Node):
             # the 8th joint is the gripper, 1 is close and 0 is open
             # set gripper joint angle to 0 or 45 for close and open
             arr[arm_gripper_joint_left_index] = (
-                0.0 if self.arm_joints.position[7] > 0.9 else -45.0
+                0.0 if arm_joints.position[7] > 0.9 else -45.0
             )
             arr[arm_gripper_joint_right_index] = (
-                0.0 if self.arm_joints.position[7] > 0.9 else 45.0
+                0.0 if arm_joints.position[7] > 0.9 else 45.0
             )
-        if self.base_joints is not None and len(self.base_joints.position) >= 8:
-            arr[chair_fc_joint_index] = self.base_joints.position[0] * 180.0 / 3.14159
-            arr[chair_rc_joint_index] = self.base_joints.position[1] * 180.0 / 3.14159
-            arr[chair_mr_joint_index] = self.base_joints.position[2] * 180.0 / 3.14159
-            arr[chair_ml_joint_index] = self.base_joints.position[3] * 180.0 / 3.14159
-            arr[chair_ml_carriage_index] = self.base_joints.position[4] * 100.0  # to cm
-            arr[chair_mr_carriage_index] = self.base_joints.position[5] * 100.0  # to cm
-            arr[chair_ml_wheel_index] = self.base_joints.position[6] * 180.0 / 3.14159
-            arr[chair_mr_wheel_index] = self.base_joints.position[7] * 180.0 / 3.14159
+        if base_joints is not None and len(base_joints.position) >= 8:
+            arr[chair_fc_joint_index] = base_joints.position[0] * 180.0 / 3.14159
+            arr[chair_rc_joint_index] = base_joints.position[1] * 180.0 / 3.14159
+            arr[chair_mr_joint_index] = base_joints.position[2] * 180.0 / 3.14159
+            arr[chair_ml_joint_index] = base_joints.position[3] * 180.0 / 3.14159
+            arr[chair_ml_carriage_index] = base_joints.position[4] * 100.0  # to cm
+            arr[chair_mr_carriage_index] = base_joints.position[5] * 100.0  # to cm
+            arr[chair_ml_wheel_index] = base_joints.position[6] * 180.0 / 3.14159
+            arr[chair_mr_wheel_index] = base_joints.position[7] * 180.0 / 3.14159
 
-        if self.base_joints is not None or self.arm_joints is not None:
+        if base_joints is not None or arm_joints is not None:
             self.ue.call_function("setJoints", {"Values": arr})
 
     def send_system_state_to_ue(self):

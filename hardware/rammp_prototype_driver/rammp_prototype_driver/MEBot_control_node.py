@@ -257,6 +257,11 @@ class MEBotControlNode(Node):
         self.cal_joints_done = 0
         self.cal_complete = False
 
+        # One-shot timer: check calibration state 10s after startup
+        self._startup_cal_timer = self.create_timer(
+            10.0, self._startup_calibration_check
+        )
+
         # drive wheel velocities
         self.fb_pwm = 0
         self.test_pwm = 0
@@ -693,6 +698,17 @@ class MEBotControlNode(Node):
         result.success = True
         result.message = f"Calibrated {self.cal_joints_done}/6 joints"
         return result
+
+    def _startup_calibration_check(self):
+        """Called once, 10 s after startup. Sends calibrate if uncalibrated."""
+        self._startup_cal_timer.cancel()
+        if self.state == SystemState.UNCALIBRATED:
+            self.get_logger().info(
+                "Startup calibration check: state is UNCALIBRATED, sending calibrate command"
+            )
+            self.cal_joints_done = 0
+            self.cal_complete = False
+            self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
 
     def _send_joystick(self):
         msg = LuciJoystick()

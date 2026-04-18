@@ -49,7 +49,7 @@ class PerceptionCurbDescentDetectionNode(Node):
         self.declare_parameter("road_class_id", 1)  # road class from model
 
         self.declare_parameter("rotation_degrees", 90)
-        self.declare_parameter("target_frame", "base_link")
+        self.declare_parameter("target_frame", "mebot")
         self.declare_parameter("ransac_threshold", 0.1)
         self.declare_parameter("ransac_iterations", 100)
         self.declare_parameter("detection_rate_hz", 30.0)
@@ -494,7 +494,7 @@ class PerceptionCurbDescentDetectionNode(Node):
 
                 # The computed points are in the rotated optical frame.
                 # TF transforms from the unrotated optical frame (info_msg.header.frame_id).
-                # We unrotate the 3D coordinates so TF aligns them correctly to base_link.
+                # We unrotate the 3D coordinates so TF aligns them correctly to mebot.
                 if self.rotation == 90:
                     x_cam = y_cam_rot
                     y_cam = -x_cam_rot

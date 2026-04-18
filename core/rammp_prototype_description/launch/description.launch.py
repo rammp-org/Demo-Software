@@ -35,14 +35,14 @@ def generate_launch_description():
                 remappings=[("joint_states", "/arm/joint_states")],
             ),
             # ── Nav1 camera (Orbbec Gemini 336L, front) ──────────────────────
-            # Measured offset and orientation of the nav1 camera from base_link.
+            # Measured offset and orientation of the nav1 camera from mebot.
             Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",
                 name="static_tf_nav1",
                 arguments=[
                     "--frame-id",
-                    "base_link",
+                    "mebot",
                     "--child-frame-id",
                     "nav1_link",
                     "--x",
@@ -58,14 +58,14 @@ def generate_launch_description():
                 ],
             ),
             # ── Nav2 camera (Orbbec Gemini 336L, shoulder) ───────────────────
-            # Measured offset and orientation of the nav2 camera from base_link.
+            # Measured offset and orientation of the nav2 camera from mebot.
             Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",
                 name="static_tf_nav2",
                 arguments=[
                     "--frame-id",
-                    "base_link",
+                    "mebot",
                     "--child-frame-id",
                     "nav2_link",
                     "--x",

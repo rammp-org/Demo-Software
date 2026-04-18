@@ -74,7 +74,7 @@ SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_LEFT: [0.0, 0.0, -30.0, 30.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 30.0, -30.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.RESET: [233.0, 25.0, 212.0, 192.0, 101.0, 95.0, 0.0, 0.0],
+    SeatCommand.RESET: [300.0, 25.0, 132.0, 112.0, 100.0, 100.0, 0.0, 0.0],
 }
 
 

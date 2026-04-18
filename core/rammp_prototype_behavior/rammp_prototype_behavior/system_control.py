@@ -524,6 +524,10 @@ class SystemControl(rclpy.node.Node):
         self.base_drive_enable(True)  # re-enable drive when exiting releasing cup state
         self.set_arm_mode_idle()  # set arm mode back to idle after releasing cup
 
+    def on_enter_Arm_OrderDrink_raisingArm(self):
+        self.get_logger().info("Raising arm to prepare for drink detection.")
+        self.arm_preset_client.set_preset(ArmPreset.HOME)
+
     def on_enter_Arm_OrderDrink_detectingDrink(self):
         self.get_logger().info("Detecting drink to confirm if the drink is received.")
         self.enable_cup_detection(True)  # enable cup detection
@@ -1397,6 +1401,7 @@ class SystemControl(rclpy.node.Node):
                             "pickUpCup",
                             "holdingCup",
                             "releasingCup",
+                            "raisingArm",
                             "detectingDrink",
                             "receivingDrink",
                         ],
@@ -1497,6 +1502,7 @@ class SystemControl(rclpy.node.Node):
                     "Arm_OrderDrink_pickUpCup",
                     "Arm_OrderDrink_releasingCup",
                     "Arm_OrderDrink_receivingDrink",
+                    "Arm_OrderDrink_raisingArm",
                     "Arm_Door_raisingArm",
                     "Arm_Door_opening",
                     "Arm_cupStabilize_moving",
@@ -1618,6 +1624,16 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "detectDrink",
                 "source": "Arm_home",
+                "dest": "Arm_OrderDrink_detectingDrink",
+            },
+            {
+                "trigger": "detectDrink",
+                "source": "Arm_retracted",
+                "dest": "Arm_OrderDrink_raisingArm",
+            },
+            {
+                "trigger": "homed",
+                "source": "Arm_OrderDrink_raisingArm",
                 "dest": "Arm_OrderDrink_detectingDrink",
             },
             {

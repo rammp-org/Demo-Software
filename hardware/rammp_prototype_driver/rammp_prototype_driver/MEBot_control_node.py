@@ -702,13 +702,12 @@ class MEBotControlNode(Node):
     def _startup_calibration_check(self):
         """Called once, 10 s after startup. Sends calibrate if uncalibrated."""
         self._startup_cal_timer.cancel()
-        if self.state == SystemState.UNCALIBRATED:
-            self.get_logger().info(
-                "Startup calibration check: state is UNCALIBRATED, sending calibrate command"
-            )
-            self.cal_joints_done = 0
-            self.cal_complete = False
-            self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
+        self.get_logger().info(
+            "Startup calibration check: state is UNCALIBRATED, sending calibrate command"
+        )
+        self.cal_joints_done = 0
+        self.cal_complete = False
+        self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
 
     def _send_joystick(self):
         msg = LuciJoystick()
@@ -730,11 +729,16 @@ class MEBotControlNode(Node):
                 + "/config/curb_ascending.json"
             )
         else:
+            # call the calibration function before going down curb
+            self.cal_joints_done = 0
+            self.cal_complete = False
+            self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
                 + "/config/curb_descending.json"
             )
-
+            # delay while calibration runs
+            time.sleep(6)
         keyframes = _load_keyframes_from_json(json_path)
         self.get_logger().info(f"Loaded {len(keyframes)} keyframes from {json_path}")
 

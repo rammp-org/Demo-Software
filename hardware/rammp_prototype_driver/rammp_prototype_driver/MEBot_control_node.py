@@ -74,7 +74,7 @@ SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.TILT_BACK: [0.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_LEFT: [0.0, 0.0, -30.0, 30.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LATERAL_RIGHT: [0.0, 0.0, 30.0, -30.0, 0.0, 0.0, 0.0, 0.0],
-    SeatCommand.RESET: [233.0, 25.0, 212.0, 192.0, 101.0, 95.0, 0.0, 0.0],
+    SeatCommand.RESET: [300.0, 25.0, 132.0, 112.0, 100.0, 100.0, 0.0, 0.0],
 }
 
 
@@ -256,6 +256,11 @@ class MEBotControlNode(Node):
 
         self.cal_joints_done = 0
         self.cal_complete = False
+
+        # One-shot timer: check calibration state 10s after startup
+        self._startup_cal_timer = self.create_timer(
+            10.0, self._startup_calibration_check
+        )
 
         # drive wheel velocities
         self.fb_pwm = 0
@@ -693,6 +698,17 @@ class MEBotControlNode(Node):
         result.success = True
         result.message = f"Calibrated {self.cal_joints_done}/6 joints"
         return result
+
+    def _startup_calibration_check(self):
+        """Called once, 10 s after startup. Sends calibrate if uncalibrated."""
+        self._startup_cal_timer.cancel()
+        if self.state == SystemState.UNCALIBRATED:
+            self.get_logger().info(
+                "Startup calibration check: state is UNCALIBRATED, sending calibrate command"
+            )
+            self.cal_joints_done = 0
+            self.cal_complete = False
+            self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
 
     def _send_joystick(self):
         msg = LuciJoystick()

@@ -24,7 +24,7 @@ static const float SEQ_COMPLETION_DEADZONE[SEQ_NUM_MOTORS] = {
 // Safety timeout (ms) for position-based completion.  If motors cannot reach
 // their targets within this window the keyframe is force-completed and a
 // SEQ_TIMEOUT message is sent so the GUI can alert the operator.
-#define SEQ_COMPLETION_TIMEOUT_MS 10000
+#define SEQ_COMPLETION_TIMEOUT_MS 5000
 
 enum GuardCondition {
   GUARD_NONE = 0,

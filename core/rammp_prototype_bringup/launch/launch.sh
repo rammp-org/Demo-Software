@@ -31,7 +31,6 @@ UE_HOST="127.0.0.1"
 LAUNCH_CAMERAS="true"
 LAUNCH_ARM="true"
 LAUNCH_LUCI="true"
-LAUNCH_NEU="false"
 # ───────────────────────────────────────────────────────────────────────────────
 
 # ── Parse CLI flags ────────────────────────────────────────────────────────────
@@ -40,7 +39,6 @@ while [[ $# -gt 0 ]]; do
         --no-cameras)       LAUNCH_CAMERAS="false" ;;
         --no-arm)           LAUNCH_ARM="false" ;;
         --no-luci)          LAUNCH_LUCI="false" ;;
-        --neu-navigation)   LAUNCH_NEU="true" ;;
         --serial-port)      SERIAL_PORT="$2"; shift ;;
         --chair-ip)         CHAIR_IP="$2"; shift ;;
         --ue-host)          UE_HOST="$2"; shift ;;
@@ -98,7 +96,6 @@ JETSON_ARGS=(
     "launch_cameras:=$LAUNCH_CAMERAS"
     "launch_arm_driver:=$LAUNCH_ARM"
     "launch_luci:=$LAUNCH_LUCI"
-    "launch_neu_navigation:=$LAUNCH_NEU"
 )
 ARGS_STR="${JETSON_ARGS[*]}"
 
@@ -110,15 +107,13 @@ echo " UE host: $UE_HOST"
 echo " Laptop: $LAPTOP_USER@$LAPTOP_IP"
 echo ""
 
-# Window 1: Jetson — all local nodes via your existing launch file
-tmux new-session -d -s "$SESSION" -n "jetson" \
-    "zsh -c 'source $ROS_SETUP && \
-            source $JETSON_WS/install/setup.zsh && \
-            ros2 launch rammp_prototype_bringup full_system.launch.py $ARGS_STR; \
-            echo \"[jetson] Launch exited.\"; read'"
+# Window 1: GUI — must start first
+tmux new-session -d -s "$SESSION" -n "gui" \
+    "bash -c 'cd $HOME && export DISPLAY=:1 && ./launch_ui.sh; echo \"[gui] exited.\"; read'"
+
+sleep 2   # give the GUI a moment before launching nodes
 
 # Window 2: Laptop node (SSH)
-# tmux new-session -d -s "$SESSION" -n "laptop" \
 tmux new-window -t "$SESSION" -n "laptop" \
     "bash -c 'ssh $LAPTOP_USER@$LAPTOP_IP \
         \"source $ROS_SETUP && \
@@ -128,12 +123,22 @@ tmux new-window -t "$SESSION" -n "laptop" \
         ros2 launch drink_actions_test minimal.launch.py\"; \
     echo \"[laptop] SSH session ended.\"; read'"
 
-# Window 3: Monitor — handy to have open immediately
-# tmux new-window -t "$SESSION" -n "monitor" \
-#     "bash -c 'source $ROS_SETUP && \
-#               source $JETSON_WS/install/setup.bash && \
-#               echo \"Monitor ready. Try: ros2 topic list, ros2 node list\"; \
-#               bash'"
+# Window 3: Jetson nodes
+tmux new-window -t "$SESSION" -n "jetson" \
+    "zsh -c 'source $ROS_SETUP && \
+            source $JETSON_WS/install/setup.zsh && \
+            ros2 launch rammp_prototype_bringup full.launch.py $ARGS_STR | grep '\''system'\''; \
+            echo \"[jetson] Launch exited.\"; read'"
+
+# Window 4: Calibration — waits for arm to be ready
+tmux new-window -t "$SESSION" -n "calibration" \
+    "zsh -c 'source $ROS_SETUP && \
+              source $JETSON_WS/install/setup.zsh && \
+              echo \"Waiting for arm to be ready...\" && \
+              until ros2 node list | grep -q \"/arm_driver_node\"; do sleep 3; done && \
+              echo \"Arm ready. Running calibration...\" && \
+              ros2 action send_goal /arm/calibrate arm_interfaces/action/Calibrate \"{}\" && \
+              echo \"[calibration] done.\"; read'"
 
 # Start on the jetson window
 tmux select-window -t "$SESSION:jetson"

@@ -21,6 +21,8 @@ static unsigned long seq_settle_start = 0;
 
 // Auto-run: advance automatically when a keyframe completes.
 static bool seq_auto_run = false;
+static bool seq_guard_triggered[SEQ_NUM_MOTORS];
+static float seq_latch_pos[SEQ_NUM_MOTORS];
 
 // ---------------------------------------------------------------------------
 //  Helpers
@@ -35,8 +37,10 @@ static inline float finalTarget(const Keyframe &kf, int i) {
 
 // Begin interpolation toward the current keyframe.
 static void beginInterp(Motor *motors[SEQ_NUM_MOTORS]) {
-  for (int i = 0; i < SEQ_NUM_MOTORS; i++)
+  for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
     seq_start_pos[i] = motors[i]->current_pos;
+    seq_guard_triggered[i] = false;
+  }
   seq_interp_start = millis();
   seq_interpolating = true;
   seq_settling = false;
@@ -52,8 +56,8 @@ static void beginInterp(Motor *motors[SEQ_NUM_MOTORS]) {
 //  Payload parser (supports new 32-value and legacy 17-value formats)
 // ---------------------------------------------------------------------------
 bool parseKeyframePayload(const String &payload, Keyframe &kf) {
-  // Maximum possible values: 8*4 = 32
-  const int MAX_VALS = SEQ_NUM_MOTORS * 4;
+  // Maximum possible values: 8*6 = 48
+  const int MAX_VALS = SEQ_NUM_MOTORS * 6;
   float vals[MAX_VALS];
   int count = 0;
   int start = 0;
@@ -66,6 +70,20 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     }
   }
 
+  // New guarded format: 48 values (targets, active, relative, durations,
+  // guard_thresholds, guard_conditions)
+  if (count == SEQ_NUM_MOTORS * 6) {
+    for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+      kf.targets[i] = vals[i];
+      kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
+      kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
+      kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
+      kf.guard_threshold[i] = vals[SEQ_NUM_MOTORS * 4 + i];
+      kf.guard_condition[i] = (uint8_t)vals[SEQ_NUM_MOTORS * 5 + i];
+    }
+    return true;
+  }
+
   // New format: 32 values  (targets, active, relative, durations)
   if (count == SEQ_NUM_MOTORS * 4) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
@@ -73,6 +91,8 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
       kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
+      kf.guard_threshold[i] = 0.0f;
+      kf.guard_condition[i] = GUARD_NONE;
     }
     return true;
   }
@@ -85,6 +105,8 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = false;
       kf.duration_ms[i] = global_dur;
+      kf.guard_threshold[i] = 0.0f;
+      kf.guard_condition[i] = GUARD_NONE;
     }
     return true;
   }
@@ -199,18 +221,39 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS]) {
       if (!kf.active[i])
         continue;
 
-      float t_i = (kf.duration_ms[i] == 0)
-                      ? 1.0f
-                      : min(1.0f, (float)elapsed / (float)kf.duration_ms[i]);
-      if (t_i < 1.0f) {
-        all_lerps_done = false;
-        blocking_motor = i;
-        blocking_dur = kf.duration_ms[i];
+      if (kf.guard_condition[i] != GUARD_NONE && !seq_guard_triggered[i]) {
+        bool condition_met = false;
+        float current_load = motors[i]->current_load;
+        if (kf.guard_condition[i] == GUARD_GREATER_THAN) {
+          condition_met = (current_load >= kf.guard_threshold[i]);
+        } else if (kf.guard_condition[i] == GUARD_LESS_THAN) {
+          condition_met = (current_load <= kf.guard_threshold[i]);
+        }
+        if (condition_met) {
+          seq_guard_triggered[i] = true;
+          seq_latch_pos[i] = motors[i]->current_pos;
+          Serial.print("SEQ_GUARD_TRIG,m");
+          Serial.print(i);
+          Serial.print(",load=");
+          Serial.println(current_load);
+        }
       }
 
-      float dest = finalTarget(kf, i);
-      float pos = seq_start_pos[i] + t_i * (dest - seq_start_pos[i]);
-      motors[i]->setTargetPosition(pos);
+      if (seq_guard_triggered[i]) {
+        motors[i]->setTargetPosition(seq_latch_pos[i]);
+      } else {
+        float t_i = (kf.duration_ms[i] == 0)
+                        ? 1.0f
+                        : min(1.0f, (float)elapsed / (float)kf.duration_ms[i]);
+        if (t_i < 1.0f) {
+          all_lerps_done = false;
+          blocking_motor = i;
+          blocking_dur = kf.duration_ms[i];
+        }
+        float dest = finalTarget(kf, i);
+        float pos = seq_start_pos[i] + t_i * (dest - seq_start_pos[i]);
+        motors[i]->setTargetPosition(pos);
+      }
     }
 
     if (elapsed % 500 < 20 && !all_lerps_done) {
@@ -238,8 +281,11 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS]) {
     if (all_lerps_done) {
       // Ensure every motor's PID is chasing the exact final target.
       for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-        if (kf.active[i])
-          motors[i]->setTargetPosition(finalTarget(kf, i));
+        if (kf.active[i]) {
+          float final_dest =
+              seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
+          motors[i]->setTargetPosition(final_dest);
+        }
       }
       seq_settling = true;
       seq_settle_start = millis();
@@ -261,7 +307,7 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS]) {
     if (!kf.active[i])
       continue;
 
-    float dest = finalTarget(kf, i);
+    float dest = seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
     motors[i]->setTargetPosition(dest);
     float err = fabs(motors[i]->current_pos - dest);
 

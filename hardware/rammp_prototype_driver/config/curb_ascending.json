@@ -2,6 +2,26 @@
   "keyframes": [
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "Start in Self Leveling",
       "motor_durations": [
         null,
@@ -37,16 +57,6 @@
     {
       "duration_ms": 1000,
       "label": "Raise FC, ML, MR, and RC so FC can reach curb height",
-      "motor_durations": [
-        3000,
-        null,
-        1000,
-        1000,
-        null,
-        null,
-        null,
-        null
-      ],
       "relative": [
         false,
         false,
@@ -60,8 +70,8 @@
       "targets": [
         864.0,
         105.0,
-        430.0,
-        370.0,
+        410.0,
+        350.0,
         204.0,
         122.0,
         0.0,
@@ -70,6 +80,84 @@
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "label": "Raise FC, ML, MR, and RC so FC can reach curb height",
+      "motor_durations": [
+        3000,
+        null,
+        1000,
+        1000,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "label": "Drive to curb",
+      "relative": [
+        false,
+        false,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        864.0,
+        105.0,
+        410.0,
+        350.0,
+        204.0,
+        122.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "Drive to curb",
       "motor_durations": [
         4000,
@@ -80,30 +168,110 @@
         null,
         500,
         null
-      ],
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "label": "Lower FC to curb",
       "relative": [
         false,
         false,
-        false,
-        false,
+        true,
+        true,
+        true,
+        true,
         false,
         false,
         true,
         true
       ],
       "targets": [
-        861.0,
-        105.0,
-        430.0,
-        370.0,
+        861.4,
+        400.0,
+        0.0,
+        0.0,
         192.0,
         127.0,
-        3200.0,
+        0.0,
         0.0
       ]
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        200.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "label": "Lower FC to curb",
+      "motor_durations": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "relative": [
+        false,
+        false,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        861.4,
+        400.0,
+        0.0,
+        0.0,
+        192.0,
+        127.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "Move carriages back and lower RC to get on curb",
       "motor_durations": [
         null,
@@ -117,7 +285,31 @@
       ],
       "relative": [
         false,
+        true,
         false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        860.0,
+        0.0,
+        410.0,
+        350.0,
+        12661.0,
+        12615.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "label": "Lift drive wheels off ground",
+      "relative": [
+        false,
+        true,
         false,
         false,
         false,
@@ -128,8 +320,8 @@
       "targets": [
         860.0,
         105.0,
-        430.0,
-        370.0,
+        0.0,
+        0.0,
         12661.0,
         12615.0,
         0.0,
@@ -138,17 +330,43 @@
     },
     {
       "duration_ms": 1000,
-      "label": "Raise MR and ML",
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "label": "Lift drive wheels off ground",
       "motor_durations": [
         null,
         null,
-        2000,
         1500,
+        1000,
+        1000,
         null,
         null,
-        null,
+        1000,
+        1000,
         null
-      ],
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "label": "Move carriages forward part way",
       "relative": [
         false,
         false,
@@ -164,14 +382,34 @@
         105.0,
         0.0,
         0.0,
-        12644.0,
-        12617.0,
+        12661.0,
+        12615.0,
         0.0,
         0.0
       ]
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "Move carriages forward part way",
       "motor_durations": [
         null,
@@ -182,7 +420,11 @@
         2000,
         null,
         null
-      ],
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "label": "Move carriages forward while driving",
       "relative": [
         false,
         false,
@@ -206,6 +448,26 @@
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "Move carriages forward while driving",
       "motor_durations": [
         5000,
@@ -216,30 +478,131 @@
         1000,
         null,
         null
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "guard_threshold": [
+        0.0,
+        0.0,
+        350.0,
+        350.0,
+        0.0,
+        0.0,
+        0.0,
+        3000.0,
+        3000.0,
+        2000.0,
+        0.0
+      ],
+      "label": "Move ML and MR down to ground",
+      "motor_durations": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
       ],
       "relative": [
+        true,
+        true,
         false,
         false,
-        false,
-        false,
-        false,
-        false,
+        true,
+        true,
         true,
         true
       ],
       "targets": [
-        860.0,
-        105.0,
         0.0,
         0.0,
-        6000.0,
-        6000.0,
-        5000.0,
+        450.0,
+        380.0,
+        0.0,
+        0.0,
+        0.0,
         0.0
       ]
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        350.0,
+        350.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "label": "Move ML and MR down to ground",
+      "motor_durations": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "relative": [
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true
+      ],
+      "targets": [
+        0.0,
+        0.0,
+        450.0,
+        380.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "Move carriages back",
       "motor_durations": [
         null,
@@ -252,36 +615,56 @@
         null
       ],
       "relative": [
-        false,
-        false,
-        false,
-        false,
+        true,
+        true,
+        true,
+        true,
         false,
         false,
         true,
         true
       ],
       "targets": [
-        860.0,
-        105.0,
         0.0,
         0.0,
-        12622.0,
-        12620.0,
+        0.0,
+        0.0,
+        12600.0,
+        12600.0,
         0.0,
         0.0
       ]
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "Raise ML, MR, and RC",
       "motor_durations": [
         null,
         null,
-        1000,
-        1000,
-        null,
-        null,
+        2000,
+        2000,
+        2000,
+        2000,
         null,
         null
       ],
@@ -290,8 +673,10 @@
         false,
         false,
         false,
-        false,
-        false,
+        true,
+        true,
+        true,
+        true,
         true,
         true
       ],
@@ -300,14 +685,34 @@
         105.0,
         199.0,
         175.0,
-        12600.0,
-        12595.0,
+        0.0,
+        0.0,
         0.0,
         0.0
       ]
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "Drive forward a little",
       "motor_durations": [
         6000,
@@ -320,34 +725,80 @@
         null
       ],
       "relative": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
         true,
         true
       ],
       "targets": [
-        363.0,
-        110.0,
-        197.0,
-        175.0,
-        12600.0,
-        12595.0,
-        3500.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        10000.0,
         0.0
       ]
     },
     {
       "duration_ms": 1000,
-      "label": "Lower RC and FC and lift main wheels",
+      "label": "Move everything down",
+      "relative": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "targets": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        10000.0,
+        0.0
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "label": "Move everything down",
       "motor_durations": [
         null,
         null,
-        2000,
-        2000,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -358,50 +809,96 @@
         false,
         false,
         false,
-        false,
-        false,
+        true,
+        true,
         true,
         true
       ],
       "targets": [
-        300.0,
-        200.0,
         0.0,
         0.0,
-        12606.0,
-        12610.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
         0.0,
         0.0
       ]
     },
     {
       "duration_ms": 1000,
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
       "label": "Move carriages forward",
       "motor_durations": [
         null,
         null,
         null,
         null,
-        3000,
-        3000,
+        1000,
+        1000,
+        1000,
+        1000,
         1000,
         null
       ],
       "relative": [
-        false,
-        false,
-        false,
-        false,
+        true,
+        true,
+        true,
+        true,
         false,
         false,
         true,
         true
       ],
       "targets": [
-        300.0,
-        200.0,
         0.0,
         0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "duration_ms": 1000,
+      "label": "Return to self leveling",
+      "relative": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true
+      ],
+      "targets": [
+        361.0,
+        21.0,
+        204.0,
+        174.0,
         101.0,
         93.0,
         0.0,
@@ -410,12 +907,34 @@
     },
     {
       "duration_ms": 1000,
-      "label": "Return to self leveling mode",
+      "guard_condition": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "guard_threshold": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "label": "Return to self leveling",
       "motor_durations": [
         null,
         null,
-        2000,
-        2000,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -432,16 +951,16 @@
         true
       ],
       "targets": [
-        366.0,
+        361.0,
         21.0,
-        201.0,
+        204.0,
         174.0,
         101.0,
-        96.0,
+        93.0,
         0.0,
         0.0
       ]
     }
   ],
-  "name": "curb_climbing_final"
+  "name": "curb_ascending"
 }

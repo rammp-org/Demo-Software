@@ -155,6 +155,12 @@ class SeqStatusData:
     state: int
 
 
+@dataclass
+class SeqGuardTrigData:
+    motor_index: int
+    load_value: float
+
+
 class ProtocolParser:
     """Parse incoming serial data from Teensy."""
 
@@ -163,6 +169,7 @@ class ProtocolParser:
     CONFIG_PATTERN = re.compile(r"^CONFIG,(\d+),(.+)$")
     SEQ_STATUS_PATTERN = re.compile(r"^SEQ_STATUS,(\d+),(\d+),(\d+)$")
     SEQ_ACK_PATTERN = re.compile(r"^SEQ_ACK,(\d+)$")
+    SEQ_GUARD_TRIG_PATTERN = re.compile(r"^SEQ_GUARD_TRIG,m(\d+),load=(.+)$")
 
     NUM_JOINTS = 8
 
@@ -237,6 +244,17 @@ class ProtocolParser:
         if seq_ack_match:
             try:
                 return SeqAckData(step_idx=int(seq_ack_match.group(1)))
+            except (ValueError, IndexError):
+                pass
+            return None
+
+        seq_guard_trig_match = cls.SEQ_GUARD_TRIG_PATTERN.match(line)
+        if seq_guard_trig_match:
+            try:
+                return SeqGuardTrigData(
+                    motor_index=int(seq_guard_trig_match.group(1)),
+                    load_value=float(seq_guard_trig_match.group(2)),
+                )
             except (ValueError, IndexError):
                 pass
             return None
@@ -565,6 +583,8 @@ class ProtocolEncoder:
         active: list,
         duration_ms,
         relative: Optional[List[bool]] = None,
+        guard_threshold: Optional[List[float]] = None,
+        guard_condition: Optional[List[int]] = None,
     ) -> bytes:
         """
         Upload one keyframe.  Sends the new 32-value format:
@@ -583,6 +603,19 @@ class ProtocolEncoder:
             d_str = ",".join(str(int(duration_ms)) for _ in range(8))
         else:
             d_str = ",".join(str(int(d)) for d in duration_ms)
+
+        _gt = guard_threshold if guard_threshold is not None else [0.0] * 8
+        _gc = guard_condition if guard_condition is not None else [0] * 8
+        has_guard = any(c != 0 for c in _gc)
+
+        if has_guard:
+            gt_str = ",".join(f"{v:.4f}" for v in _gt)
+            gc_str = ",".join(str(int(v)) for v in _gc)
+            return (
+                f"J{index}:{t_str},{a_str},{r_str},{d_str},{gt_str},{gc_str}\n".encode(
+                    "ascii"
+                )
+            )
 
         return f"J{index}:{t_str},{a_str},{r_str},{d_str}\n".encode("ascii")
 

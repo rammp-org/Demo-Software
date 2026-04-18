@@ -26,11 +26,19 @@ static const float SEQ_COMPLETION_DEADZONE[SEQ_NUM_MOTORS] = {
 // SEQ_TIMEOUT message is sent so the GUI can alert the operator.
 #define SEQ_COMPLETION_TIMEOUT_MS 10000
 
+enum GuardCondition {
+  GUARD_NONE = 0,
+  GUARD_GREATER_THAN = 1,
+  GUARD_LESS_THAN = 2
+};
+
 struct Keyframe {
   float targets[SEQ_NUM_MOTORS];
   bool active[SEQ_NUM_MOTORS];
   bool relative[SEQ_NUM_MOTORS]; // true  = target is offset from start pos
   uint32_t duration_ms[SEQ_NUM_MOTORS]; // per-motor interpolation durations
+  float guard_threshold[SEQ_NUM_MOTORS];
+  uint8_t guard_condition[SEQ_NUM_MOTORS];
 };
 
 // Parse CSV payload into a Keyframe.

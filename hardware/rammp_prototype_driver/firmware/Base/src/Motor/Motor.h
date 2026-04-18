@@ -2,6 +2,7 @@
 #define MOTOR_H
 
 #include "../PIDController/PIDController.h"
+#include "../StrainGauge/StrainGauge.h"
 #include <Arduino.h>
 
 class Motor {
@@ -27,6 +28,9 @@ public:
   // Provide sensory feedback
   void updateSensorData(float current_pos, float dt);
 
+  void attachStrainGauge(StrainGauge *sg);
+  void updateLoad();
+
   // Compute cascaded control, returns PWM required
   float update(float dt);
 
@@ -43,6 +47,7 @@ public:
   float target_vel;
   float target_pwm;
   float scaled_target_pwm;
+  float current_load = 0.0f;
   float lpf_input_alpha = 0.5f;
 
   void setInputLpfAlpha(float alpha);
@@ -68,6 +73,9 @@ public:
   PIDController pos_pid;
   PIDController vel_pid;
   ControlMode mode;
+
+private:
+  StrainGauge *_strain_gauge = nullptr;
 };
 
 #endif

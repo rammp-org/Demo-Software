@@ -21,7 +21,7 @@ from std_msgs.msg import Bool
 from std_srvs.srv import Empty, SetBool
 
 from .keyframe import NUM_MOTORS, Keyframe
-from .protocol import ProtocolEncoder
+from .protocol import ProtocolEncoder, ProtocolParser, SeqGuardTrigData
 
 # LUCI STUFF
 JS_FRONT = 0
@@ -154,6 +154,7 @@ class SystemState(IntEnum):
     CONFIGURATION = 5
     AUTO_CURB_CLIMBING = 6
     CALIBRATING = 7
+    UNCALIBRATED = 8
 
 
 class MEBotControlNode(Node):
@@ -357,6 +358,11 @@ class MEBotControlNode(Node):
                     self.current_seq = int(split_data[1])
                     self.seq_length = int(split_data[2])
                     self.seq_mode = int(split_data[3].strip())
+                parsed = ProtocolParser.parse_line(raw_data)
+                if isinstance(parsed, SeqGuardTrigData):
+                    self.get_logger().info(
+                        f"Guard triggered: motor {parsed.motor_index}, load={parsed.load_value:.1f}"
+                    )
                 if raw_data.startswith("CAL: Homed"):
                     self.cal_joints_done += 1
                 elif raw_data == "CAL_DONE":
@@ -385,7 +391,13 @@ class MEBotControlNode(Node):
             ]
             self.write_serial_data(
                 ProtocolEncoder.send_keyframe(
-                    idx, targets, active, durations, kf.relative
+                    idx,
+                    targets,
+                    active,
+                    durations,
+                    kf.relative,
+                    guard_threshold=kf.guard_threshold,
+                    guard_condition=kf.guard_condition,
                 )
             )
         if auto_run:
@@ -590,6 +602,12 @@ class MEBotControlNode(Node):
         elif self.state == SystemState.CALIBRATING:
             stat.add("state_status", "Calibrating")
             stat.summary(DiagnosticStatus.OK, "Teensy is calibrating")
+        elif self.state == SystemState.UNCALIBRATED:
+            stat.add("state_status", "Uncalibrated")
+            stat.summary(
+                DiagnosticStatus.WARN,
+                "Teensy is uncalibrated — calibration required before operation",
+            )
         return stat
 
     def manual_seat_control_callback(self, msg: SeatCommand):

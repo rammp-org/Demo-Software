@@ -190,6 +190,12 @@ class ArmDriverNode(rclpy.node.Node):
             self._on_close_gripper,
             callback_group=self._service_group,
         )
+        self._clear_error_srv = self.create_service(
+            Trigger,
+            "/arm/clear_error",
+            self._on_clear_error,
+            callback_group=self._service_group,
+        )
 
     def _init_actions(self):
         """Create all ROS action servers."""
@@ -225,6 +231,43 @@ class ArmDriverNode(rclpy.node.Node):
             goal_callback=self._goal_callback,
             callback_group=self._action_group,
         )
+
+    def _on_clear_error(self, request, response):
+        """Handle a /arm/clear_error service request.
+
+        Transitions the node from ERROR back to IDLE, allowing normal operation
+        to resume.  Rejected if the node is not currently in ERROR state.
+
+        Args:
+            request: Empty Trigger request.
+            response: Trigger response with ``success`` (bool) and ``message`` (str).
+
+        Returns:
+            The populated service response.
+        """
+        if self._state != ArmState.ERROR:
+            response.success = False
+            response.message = f"Not in ERROR state (current state: {self._state.name})"
+            return response
+
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected — reconnect before clearing error"
+            return response
+
+        try:
+            self._arm.clear_faults()
+        except Exception as e:
+            response.success = False
+            response.message = f"Kortex fault could not be cleared: {e}"
+            return response
+
+        self._error_reason = ""
+        self._kortex_arm_state = ""
+        self._transition_to(ArmState.IDLE)
+        response.success = True
+        response.message = "Error cleared — arm is IDLE"
+        return response
 
     def _on_calibrate(self, goal_handle):
         result = Calibrate.Result()
@@ -585,6 +628,13 @@ class ArmDriverNode(rclpy.node.Node):
             arm_fn(blocking=False)
             feedback = ReachPreset.Feedback()
             while not self._arm.ready():
+                if goal_handle.is_cancel_requested:
+                    self.get_logger().info("Action goal cancelled.")
+                    goal_handle.canceled()
+                    result.success = False
+                    result.message = "Action cancelled"
+                    return result
+
                 if self._state == ArmState.ERROR:
                     goal_handle.abort()
                     result.success = False

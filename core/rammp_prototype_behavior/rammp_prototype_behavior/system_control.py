@@ -894,6 +894,7 @@ class SystemControl(rclpy.node.Node):
         if not future.done():
             return False
         if future.result() is not None:
+            self.get_logger().info(future.result().message)
             return future.result().success
         else:
             return False
@@ -1100,6 +1101,8 @@ class SystemControl(rclpy.node.Node):
         if base_error:
             self._base_error = True
             self.BaseError()
+        else:
+            self._base_error = False
 
     def arm_status_callback(self, msg: DiagnosticStatus):
         # Placeholder for processing arm status messages
@@ -1109,6 +1112,7 @@ class SystemControl(rclpy.node.Node):
         is_arm_error = msg.level == DiagnosticStatus.ERROR
         if self._is_arm_error is not None and is_arm_error and not self._is_arm_error:
             self.get_logger().error("Arm error detected!")
+            self._is_arm_error = True
             self.ArmError()
         self._is_arm_error = is_arm_error
 
@@ -1750,8 +1754,14 @@ class SystemControl(rclpy.node.Node):
                 "trigger": "BaseError",
                 "source": "Arm",
                 "dest": "Arm_paused",
+                "unless": "is_arm_action_running",
             },  # go to paused state so all the detection will stop.
-            {"trigger": "ArmError", "source": "Arm", "dest": "Arm_paused"},
+            {
+                "trigger": "ArmError",
+                "source": "Arm",
+                "dest": "Arm_paused",
+                "unless": "is_arm_action_running",
+            },
             {
                 "trigger": "SystemError",
                 "source": "Arm_paused",

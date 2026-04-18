@@ -18,7 +18,7 @@ from arm_interfaces.srv import (
 )
 from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
 from geometry_msgs.msg import PoseStamped, Twist, TwistStamped, Vector3Stamped
-from rclpy.action import ActionServer
+from rclpy.action import ActionServer, CancelResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from sensor_msgs.msg import JointState
@@ -258,6 +258,7 @@ class ArmDriverNode(rclpy.node.Node):
             "/arm/reach_preset",
             self._on_reach_preset,
             callback_group=self._action_group,
+            cancel_callback=self._cancel_callback,
         )
         self._execute_trajectory_actions = [
             ActionServer(
@@ -279,6 +280,10 @@ class ArmDriverNode(rclpy.node.Node):
             self._on_calibrate,
             callback_group=self._action_group,
         )
+
+    def _cancel_callback(self, goal_handle):
+        self.get_logger().info("Received an action cancel request.")
+        return CancelResponse.ACCEPT
 
     def _on_calibrate(self, goal_handle):
         """Collect gyro samples and calibrate CupStabilizer. Blocks until done."""
@@ -828,6 +833,12 @@ class ArmDriverNode(rclpy.node.Node):
                     result = ReachPreset.Result()
                     result.success = False
                     result.message = self._error_reason
+                    return result
+                if goal_handle.is_cancel_requested:
+                    self.get_logger().info("Action goal cancelled.")
+                    goal_handle.canceled()
+                    result.success = False
+                    result.message = "Action cancelled"
                     return result
                 try:
                     state = self._arm.get_state()

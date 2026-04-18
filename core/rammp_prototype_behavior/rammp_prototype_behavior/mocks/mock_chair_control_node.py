@@ -13,7 +13,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Int32
 from std_srvs.srv import SetBool
 import diagnostic_updater
 from diagnostic_msgs.msg import DiagnosticStatus
@@ -158,6 +158,42 @@ class BaseControlNode(Node):
         self._init_actions()
         self._init_subscribers()
         self._init_publishers()
+        self._init_mock_subscribers()
+
+    def _init_mock_subscribers(self):
+        self._mock_system_state_subscriber = self.create_subscription(
+            Int32,
+            "/mock/chair/system_state",
+            self._mock_system_state_callback,
+            10,
+        )
+        self._mock_teensy_connection_subscriber = self.create_subscription(
+            Bool,
+            "/mock/chair/teensy_connection",
+            self._mock_teensy_connection_callback,
+            10,
+        )
+        self._mock_luci_active_subscriber = self.create_subscription(
+            Bool,
+            "/mock/chair/luci_active",
+            self._mock_luci_active_callback,
+            10,
+        )
+
+    def _mock_system_state_callback(self, msg: Int32):
+        if msg.data in SystemState._value2member_map_:
+            self.get_logger().info(
+                f"Mock system state updated to {SystemState(msg.data).name}"
+            )
+            self.mock_teensy_state = msg.data
+
+    def _mock_teensy_connection_callback(self, msg: Bool):
+        self.get_logger().info(f"Mock Teensy connection updated to {msg.data}")
+        self.mock_teensy_connected = msg.data
+
+    def _mock_luci_active_callback(self, msg: Bool):
+        self.get_logger().info(f"Mock Luci active status updated to {msg.data}")
+        self.mock_luci_node_active = msg.data
 
     def check_luci_node(self, stat):
         if (

@@ -494,8 +494,8 @@ class SystemControl(rclpy.node.Node):
             True
         )  # re-enable drive when exiting homing arm after cup stabilization state
 
-    def on_exit_Arm_cupStabilize(self):
-        self.set_arm_mode_idle()  # set arm back to idle when exiting stabilizing cup state
+    # def on_exit_Arm_cupStabilize(self):
+    #     self.set_arm_mode_idle()  # set arm back to idle when exiting stabilizing cup state
 
     # ---------end of cup stabilizer state transition function calls-----------------
 

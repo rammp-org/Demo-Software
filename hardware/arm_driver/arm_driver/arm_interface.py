@@ -67,11 +67,21 @@ RAMMP_HOME_JOINTS = [
 ]  # TODO: tune
 RAMMP_RETRACT_JOINTS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # TODO: tune
 RAMMP_CUP_STABILIZE_JOINTS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # TODO: tune
+RAMMP_DRINK_DETECTION_JOINTS = [
+    -0.06731405,
+    -0.730118,
+    -3.095018,
+    -2.439361,
+    -0.020551,
+    -0.007976,
+    1.616167,
+]  # TODO: tune
 
 RAMMP_PRESET_NAMES = {
     "RAMMP_HOME": RAMMP_HOME_JOINTS,
     "RAMMP_RETRACT": RAMMP_RETRACT_JOINTS,
     "RAMMP_CUP_STABILIZE": RAMMP_CUP_STABILIZE_JOINTS,
+    "RAMMP_DRINK_DETECTION": RAMMP_DRINK_DETECTION_JOINTS,
 }
 
 
@@ -342,6 +352,9 @@ class KinovaArm:
 
     def cup_stabilize(self, blocking=True):
         self._execute_reference_action("RAMMP_HOME", blocking=blocking)
+
+    def drink_detection(self, blocking=True):
+        self._execute_reference_action("RAMMP_DRINK_DETECTION", blocking=blocking)
 
     def send_twist_base_frame(self, linear_xyz, angular_xyz):
         """Send a Cartesian twist in ``CARTESIAN_REFERENCE_FRAME_BASE``.

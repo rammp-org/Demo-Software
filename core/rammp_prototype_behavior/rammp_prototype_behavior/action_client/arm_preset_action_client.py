@@ -12,6 +12,7 @@ class ArmPreset(enum.IntEnum):
     RETRACT = ReachPreset.Goal.PRESET_RETRACT
     ZERO = ReachPreset.Goal.PRESET_ZERO
     CUP_STABILIZE = ReachPreset.Goal.PRESET_CUP_STABILIZE
+    DRINK_DETECTION = ReachPreset.Goal.PRESET_DRINK_DETECTION
 
 
 class ArmPresetActionClient(ActionClientWrapper):
@@ -62,6 +63,9 @@ class ArmPresetActionClient(ActionClientWrapper):
                 if self._node._mock_state.is_mocking_arm_retract():
                     self._node._mock_state.finish_current_mock_task()  # finish mock arm retract task after reaching retract preset
                 self._node.retracted()  # should enter arm retracted state after reaching retract preset when mocking arm retract
+            elif self._current_preset == ArmPreset.DRINK_DETECTION:
+                self._node.ReadyForDetection()  # should enter drink detection state after reaching drink detection preset
+
         else:
             self._node.get_logger().warn(
                 f"Arm failed to reach preset {self._current_preset.name}."

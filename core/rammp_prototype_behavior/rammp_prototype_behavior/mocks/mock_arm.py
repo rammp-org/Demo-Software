@@ -47,7 +47,7 @@ class KinovaArm:
 
     def _execute_reference_action(self, action_name, blocking=True):
         # Retrieve reference action
-        self.action_count = 50
+        self.action_count = 30
 
     def home(self, blocking=True):
         self._execute_reference_action("Home", blocking=blocking)
@@ -59,7 +59,10 @@ class KinovaArm:
         self._execute_reference_action("Zero", blocking=blocking)
 
     def cup_stabilize(self, blocking=True):
-        self._execute_reference_action("Home", blocking=blocking)
+        self._execute_reference_action("CUP_STABILIZE", blocking=blocking)
+
+    def drink_detection(self, blocking=True):
+        self._execute_reference_action("RAMMP_DRINK_DETECTION", blocking=blocking)
 
     def send_twist(self, linear_xyz, angular_xyz):
         """Send a Cartesian twist velocity command (SINGLE_LEVEL_SERVOING).

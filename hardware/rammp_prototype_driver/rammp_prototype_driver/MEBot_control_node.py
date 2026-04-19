@@ -1,17 +1,16 @@
 import json
 import math
+import threading
 import time
 from enum import IntEnum
 
 import diagnostic_updater
 import rclpy
 import serial
-import threading
 from ament_index_python.packages import get_package_share_directory
 from diagnostic_msgs.msg import DiagnosticStatus
 from luci_messages.msg import LuciJoystick
 from rammp_prototype_interfaces.action import Calibration, CurbTraverse
-
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState, SeatCommand
 from rclpy.action import ActionServer, CancelResponse
 from rclpy.executors import MultiThreadedExecutor
@@ -20,6 +19,7 @@ from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool
 from std_srvs.srv import Empty, SetBool
 
+from .joint_converter import BASE_JOINT_ORDER, JOINT_CONVERSIONS
 from .keyframe import NUM_MOTORS, Keyframe
 from .protocol import ProtocolEncoder, ProtocolParser, SeqGuardTrigData
 
@@ -132,15 +132,15 @@ class SerialField(IntEnum):
     ML_POS = 5
     ML_CARRIAGE_POS = 7
     MR_CARRIAGE_POS = 8
-    # ML_WHEEL_POS = 0      #TODO: add this index
-    # MR_WHEEL_POS = 0      #TODO: add this index
+
     FC_LOADCELL = 53
     RC_LOADCELL = 52
     MR_LOADCELL = 55
     ML_LOADCELL = 54
-    # APP_TIME = 0
-    # SPEED_ML = 0      #TODO: add this index
-    # SPEED_MR = 0      #TODO: add this index
+    ML_WHEEL_POS = 70
+    MR_WHEEL_POS = 71
+    ML_WHEEL_VEL = 72
+    MR_WHEEL_VEL = 73
     STATE = 2
     FB_PWM = 66
 
@@ -234,6 +234,8 @@ class MEBotControlNode(Node):
         self.MR_carriage_pos = 0.0
         self.ML_wheel_pos = 0.0
         self.MR_wheel_pos = 0.0
+        self.ML_wheel_vel = 0.0
+        self.MR_wheel_vel = 0.0
 
         # Loadcells
         self.RC_loadcell = 0.0
@@ -247,11 +249,7 @@ class MEBotControlNode(Node):
         # app time
         self.app_time = 0.0
 
-        # velocity and acceleration
-        self.prev_speed_ML = 0.0
         self.current_speed_ML = 0.0
-
-        self.prev_speed_MR = 0.0
         self.current_speed_MR = 0.0
 
         self.cal_joints_done = 0
@@ -341,9 +339,6 @@ class MEBotControlNode(Node):
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
 
-    # reading incoming serial data from teensy
-
-    # TODO: Add checks for serial corruption
     def read_serial_data(self):
         if self.ser is None:
             return
@@ -415,7 +410,6 @@ class MEBotControlNode(Node):
         else:
             self.write_serial_data("z\n")
 
-    # update variables to be published
     def update_data(self, data):
         # IMU
         self.imu_pitch = float(data[SerialField.IMU_PITCH])
@@ -429,17 +423,19 @@ class MEBotControlNode(Node):
         self.imu_qy = float(data[SerialField.IMU_QY])
         self.imu_qz = float(data[SerialField.IMU_QZ])
 
-        # Encoders — convert cm to meters
-        self.FC_pos = float(data[SerialField.FC_POS]) / 100.0
-        self.RC_pos = float(data[SerialField.RC_POS]) / 100.0
-        self.MR_pos = float(data[SerialField.MR_POS]) / 100.0
-        self.ML_pos = float(data[SerialField.ML_POS]) / 100.0
-        self.ML_carriage_pos = float(data[SerialField.ML_CARRIAGE_POS]) / 100.0
-        self.MR_carriage_pos = float(data[SerialField.MR_CARRIAGE_POS]) / 100.0
-        # TODO: ML/MR wheel joints are revolute — position should be in radians.
-        # Convert from distance traveled (m) to radians using wheel radius when known.
-        # self.ML_wheel_pos = float(data[SerialField.ML_WHEEL_POS]) / 100.0
-        # self.MR_wheel_pos = float(data[SerialField.MR_WHEEL_POS]) / 100.0
+        # Encoder positions — raw ticks from firmware
+        self.RC_pos = float(data[SerialField.RC_POS])
+        self.FC_pos = float(data[SerialField.FC_POS])
+        self.ML_pos = float(data[SerialField.ML_POS])
+        self.MR_pos = float(data[SerialField.MR_POS])
+        self.ML_carriage_pos = float(data[SerialField.ML_CARRIAGE_POS])
+        self.MR_carriage_pos = float(data[SerialField.MR_CARRIAGE_POS])
+        self.ML_wheel_pos = float(data[SerialField.ML_WHEEL_POS])
+        self.MR_wheel_pos = float(data[SerialField.MR_WHEEL_POS])
+
+        # Wheel velocities — raw ticks/sec from firmware
+        self.ML_wheel_vel = float(data[SerialField.ML_WHEEL_VEL])
+        self.MR_wheel_vel = float(data[SerialField.MR_WHEEL_VEL])
 
         # Loadcells
         self.RC_loadcell = float(data[SerialField.RC_LOADCELL])
@@ -447,44 +443,36 @@ class MEBotControlNode(Node):
         self.MR_loadcell = float(data[SerialField.MR_LOADCELL])
         self.ML_loadcell = float(data[SerialField.ML_LOADCELL])
 
-        # app_time
-        # self.app_time = float(data[SerialField.APP_TIME])
-
-        # Velocity — convert cm/s to m/s
-        # TODO: Fix wheel velocities once they are sent by the Teensy (currently sending 0 in SerialField.SPEED_ML and SPEED_MR)
-        # self.prev_speed_ML = self.current_speed_ML
-        # self.current_speed_ML = float(data[SerialField.SPEED_ML]) / 100.0
-        # self.prev_speed_MR = self.current_speed_MR
-        # self.current_speed_MR = float(data[SerialField.SPEED_MR]) / 100.0
-
         # State
         self.state = int(data[SerialField.STATE])
 
         self.fb_pwm = int(100.0 * float(data[SerialField.FB_PWM]))
 
     def publish_joint_states(self):
+        conv = JOINT_CONVERSIONS
+        raw_ticks = {
+            "front_caster_swing_arm": self.FC_pos,
+            "rear_caster_swing_arm": self.RC_pos,
+            "motor_swing_arm_r": self.MR_pos,
+            "motor_swing_arm_l": self.ML_pos,
+            "dw_main_plate_l": self.ML_carriage_pos,
+            "dw_main_plate_r": self.MR_carriage_pos,
+            "drive_wheel_l": self.ML_wheel_pos,
+            "drive_wheel_r": self.MR_wheel_pos,
+        }
+        raw_vels = {
+            "drive_wheel_l": self.ML_wheel_vel,
+            "drive_wheel_r": self.MR_wheel_vel,
+        }
+
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.name = [
-            "FC_joint",
-            "RC_joint",
-            "MR_joint",
-            "ML_joint",
-            "ML_carriage_joint",
-            "MR_carriage_joint",
-            "ML_wheel_joint",
-            "MR_wheel_joint",
+        msg.name = list(BASE_JOINT_ORDER)
+        msg.position = [conv[n].position(raw_ticks[n]) for n in BASE_JOINT_ORDER]
+        msg.velocity = [
+            conv[n].velocity(raw_vels[n]) if n in raw_vels else 0.0
+            for n in BASE_JOINT_ORDER
         ]
-        msg.position = [
-            self.FC_pos,
-            self.RC_pos,
-            self.MR_pos,
-            self.ML_pos,
-            self.ML_carriage_pos,
-            self.MR_carriage_pos,
-            self.ML_wheel_pos,
-            self.MR_wheel_pos,
-        ]  # joint positions from encoders
         self.joint_state_publisher.publish(msg)
 
     def publish_RAMMPPrototypeState(self):

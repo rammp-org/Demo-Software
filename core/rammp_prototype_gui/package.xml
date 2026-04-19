@@ -16,6 +16,8 @@
   <depend>visualization_msgs</depend>
   <depend>realsense2_camera_msgs</depend>
   <depend>python3-numpy</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
   <exec_depend>python3-websockets</exec_depend>
   <exec_depend>python3-scipy</exec_depend>
   <exec_depend>python3-posix-ipc</exec_depend>

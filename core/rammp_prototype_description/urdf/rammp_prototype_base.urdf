@@ -1,0 +1,613 @@
+<?xml version="1.0" ?>
+<robot name="mebot">
+  <link name="mebot">
+    <collision>
+      <origin xyz="0.25505018 7.8447051e-08 0.12639356" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.58792095 0.32972591 0.3152285"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="dw_main_plate_l">
+    <collision>
+      <origin xyz="0.13018937 0.039099979 0.03940314" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.50650459 0.11104949 0.19489857"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="elevator_dampener_l">
+    <collision>
+      <origin xyz="0.061043181 0.0044548201 0.02593331" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.14069603 0.05536654 0.07983018"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="elevator_dampener_rod_l">
+    <collision>
+      <origin xyz="0.04040624 -0.00086528658 0.01182837" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.09170026 0.03040913 0.05264638"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="elevator_dampener_link_l">
+    <collision>
+      <origin xyz="0.003539367 -0.018173041 0.01245473" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.03584674 0.05572598 0.08989982"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="elevator_dampener_aux_link_l">
+    <collision>
+      <origin xyz="0.00010324833 -0.01025144 -0.00044443" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.06485847 0.05572598 0.04206339"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="motor_elevator_pivot_l">
+    <collision>
+      <origin xyz="0.00013694947 -0.00325144 0.00776064" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.0348219 0.055726 0.11343967"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="motor_elevator_rod_link_l">
+    <collision>
+      <origin xyz="-0.015611848 0.015020673 -0.00167789" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.05621069 0.03960348 0.02815335"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="motor_swing_arm_l">
+    <collision>
+      <origin xyz="0.12885356 0.033309949 0.03282941" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.51492058 0.09961185 0.22599331"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="drive_motor_l">
+    <collision>
+      <origin xyz="-0.1178492 -0.018750011 -0.02394956" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.36895565 0.12473512 0.18089205"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="drive_wheel_l">
+    <collision>
+      <origin xyz="0.00016916998 -0.00013787003 0.001080625" rpy="1.5707963 0 -1.6292068e-07"/>
+      <geometry>
+        <cylinder radius="0.18405948" length="0.07531252"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="motor_elevator_l">
+    <collision>
+      <origin xyz="0.13868475 0.040864127 0.01437042" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.31770224 0.16015203 0.10412746"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="motor_elevator_rod_l">
+    <collision>
+      <origin xyz="-0.07604067 5.2388598e-08 -0.00589005" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.15428148 0.01472626 0.0264382"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="dw_main_plate_r">
+    <collision>
+      <origin xyz="0.13018941 -0.039100021 0.03940315" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.50650471 0.11104949 0.19489859"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="elevator_dampener_link_r">
+    <collision>
+      <origin xyz="0.003539373 0.018173039 0.01245471" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.03584674 0.05572598 0.08989982"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="elevator_dampener_aux_link_r">
+    <collision>
+      <origin xyz="0.00010326167 0.01025143 -0.00044444" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.06485847 0.055726 0.04206337"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="elevator_dampener_r">
+    <collision>
+      <origin xyz="0.061043159 -0.0044548199 0.02593333" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.14069599 0.05536654 0.07983014"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="elevator_dampener_rod_r">
+    <collision>
+      <origin xyz="0.04040625 -0.00086527658 0.01182838" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.09170024 0.03040915 0.05264638"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="motor_elevator_pivot_r">
+    <collision>
+      <origin xyz="0.00013695053 0.00325142 0.00776064" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.03482189 0.055726 0.11343967"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="motor_elevator_rod_link_r">
+    <collision>
+      <origin xyz="-0.015611842 -0.015020667 -0.00167789" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.05621065 0.03960348 0.02815335"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="motor_swing_arm_r">
+    <collision>
+      <origin xyz="0.12885358 -0.033309991 0.03282942" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.51492065 0.09961185 0.22599335"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="drive_motor_r">
+    <collision>
+      <origin xyz="-0.11784914 0.018750029 -0.02394957" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.3689555 0.12473508 0.18089203"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="drive_wheel_r">
+    <collision>
+      <origin xyz="0.000160065 5.7999739e-06 0.00120842" rpy="1.5707963 0 -1.6292068e-07"/>
+      <geometry>
+        <cylinder radius="0.18400001" length="0.07504826"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="motor_elevator_r">
+    <collision>
+      <origin xyz="0.13868477 -0.040864183 0.01437042" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.31770231 0.16015205 0.10412746"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="motor_elevator_rod_r">
+    <collision>
+      <origin xyz="-0.07604066 -1.7611404e-08 -0.00589005" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.15428148 0.01472628 0.0264382"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_caster_arm_mount">
+    <collision>
+      <origin xyz="0.020211103 0.082269537 0.02169449" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.05957055 0.2174925 0.33392075"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_caster_linkage">
+    <collision>
+      <origin xyz="-0.012885901 -0.0033807079 -0.00804519" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.12406686 0.15465524 0.08576815"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_caster_linkage_arm">
+    <collision>
+      <origin xyz="0.021889261 0.0031749964 -0.04977203" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.06859943 0.01924052 0.12588344"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_caster_linkage_aux">
+    <collision>
+      <origin xyz="0.035906281 0.0033106142 0.01346739" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.09835817 0.09627954 0.05295907"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_caster_linkage_aux_arm">
+    <collision>
+      <origin xyz="-1.0259655e-08 -0.00159375 -0.09961986" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.02560044 0.06753366 0.23171562"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_caster_motor">
+    <collision>
+      <origin xyz="0.037384147 0.041027804 0.09367814" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.16582256 0.15973445 0.29427607"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_caster_motor_rod">
+    <collision>
+      <origin xyz="-0.02746044 3.4473874e-08 -0.07093265" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.06880845 0.01472628 0.14813025"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_caster_swing_arm">
+    <collision>
+      <origin xyz="0.10795039 2.4126491e-09 -0.0002825" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.25664846 0.41687759 0.05637217"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_caster_wheel_l">
+    <collision>
+      <origin xyz="-7.65249e-05 0.00061094001 -0.00041974" rpy="1.5707963 0 -1.6292068e-07"/>
+      <geometry>
+        <cylinder radius="0.075772228" length="0.03500004"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_caster_wheel_r">
+    <collision>
+      <origin xyz="-0.00011911512 -0.00070897998 -0.000419035" rpy="1.5707963 0 -1.6292068e-07"/>
+      <geometry>
+        <cylinder radius="0.07577222" length="0.03531252"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="rear_caster_arm_mount">
+    <collision>
+      <origin xyz="-0.020211117 0.018305203 0.02165517" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.05957056 0.21956352 0.33400005"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="rear_caster_aux_linkage">
+    <collision>
+      <origin xyz="-0.022286641 -0.0031750064 -0.04962828" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.06932261 0.01924053 0.12552524"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="rear_caster_motor">
+    <collision>
+      <origin xyz="-0.013053807 -0.041027888 0.09845894" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.10986443 0.15973476 0.30805624"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="rear_caster_motor_rod">
+    <collision>
+      <origin xyz="0.01057343 8.2773696e-09 -0.07548236" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.03574337 0.0147263 0.15405519"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="rear_caster_motor_dampener_pivot">
+    <collision>
+      <origin xyz="-0.035862641 -0.0058741542 0.01564737" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.09846002 0.1095987 0.05736808"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="rear_caster_dampener">
+    <collision>
+      <origin xyz="-0.0042347493 0.0044548207 -0.0610576" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.05521638 0.10907251 0.14179277"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="rear_caster_dampener_rod">
+    <collision>
+      <origin xyz="0.00017634998 -0.00013267003 -0.04503211" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.03041535 0.08411511 0.09096487"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="rear_caster_suspension_arm">
+    <collision>
+      <origin xyz="0.011952111 0.0033807181 -0.00930348" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.11663665 0.15465521 0.0960804"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="rear_caster_swing_arm">
+    <collision>
+      <origin xyz="-0.10792336 4.7582947e-08 -0.00093755" rpy="0 0 -1.6292068e-07"/>
+      <geometry>
+        <box size="0.25659388 0.29502104 0.05491834"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="rear_casteer_wheel_l">
+    <collision>
+      <origin xyz="2.5551473e-06 0.000904155 0.000198935" rpy="1.5707963 0 -1.6292068e-07"/>
+      <geometry>
+        <cylinder radius="0.10106661" length="0.04100423"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="rear_caster_wheel_r">
+    <collision>
+      <origin xyz="-8.5375025e-05 -0.00015483499 0.00020302" rpy="1.5707963 0 -1.6292068e-07"/>
+      <geometry>
+        <cylinder radius="0.10106661" length="0.04131671"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="dw_main_plate_l" type="prismatic">
+    <origin xyz="0.16682016 0.16011085 0.11342"/>
+    <parent link="mebot"/>
+    <child link="dw_main_plate_l"/>
+    <limit lower="-0.4" upper="0.4" effort="100" velocity="1"/>
+  </joint>
+  <joint name="elevator_dampener_l" type="fixed">
+    <origin xyz="0.076200047 0.051297682 0.057149991"/>
+    <parent link="dw_main_plate_l"/>
+    <child link="elevator_dampener_l"/>
+  </joint>
+  <joint name="elevator_dampener_rod_l" type="fixed">
+    <origin xyz="0.1152238 0.00054357559 0.039672166"/>
+    <parent link="elevator_dampener_l"/>
+    <child link="elevator_dampener_rod_l"/>
+  </joint>
+  <joint name="elevator_dampener_link_l" type="fixed">
+    <origin xyz="0.2612579 0.062086197 0.076413751"/>
+    <parent link="dw_main_plate_l"/>
+    <child link="elevator_dampener_link_l"/>
+  </joint>
+  <joint name="elevator_dampener_aux_link_l" type="fixed">
+    <origin xyz="0.017809785 -0.0079216241 -0.010299265"/>
+    <parent link="elevator_dampener_link_l"/>
+    <child link="elevator_dampener_aux_link_l"/>
+  </joint>
+  <joint name="motor_elevator_pivot_l" type="fixed">
+    <origin xyz="0.29884989 0.047164555 0.10968776"/>
+    <parent link="dw_main_plate_l"/>
+    <child link="motor_elevator_pivot_l"/>
+  </joint>
+  <joint name="motor_elevator_rod_link_l" type="fixed">
+    <origin xyz="-9.5196621e-09 -0.012699932 0.050799996"/>
+    <parent link="motor_elevator_pivot_l"/>
+    <child link="motor_elevator_rod_link_l"/>
+  </joint>
+  <joint name="motor_swing_arm_l" type="revolute">
+    <origin xyz="3.3368913e-08 0.021891579 -2.9802322e-08"/>
+    <parent link="dw_main_plate_l"/>
+    <child link="motor_swing_arm_l"/>
+    <axis xyz="-1.6292068e-07 -1 0"/>
+    <limit lower="-0.78539816" upper="0.78539816" effort="100" velocity="3.14"/>
+  </joint>
+  <joint name="drive_motor_l" type="fixed">
+    <origin xyz="0.31876997 0.059524991 -0.013799995"/>
+    <parent link="motor_swing_arm_l"/>
+    <child link="drive_motor_l"/>
+  </joint>
+  <joint name="drive_wheel_l" type="fixed">
+    <origin xyz="2.0954368e-08 0.060019985 -1.4901161e-08"/>
+    <parent link="drive_motor_l"/>
+    <child link="drive_wheel_l"/>
+    <dynamics damping="50000000"/>
+  </joint>
+  <joint name="motor_elevator_l" type="fixed">
+    <origin xyz="-0.10371974 0.025273042 0.12667592"/>
+    <parent link="motor_swing_arm_l"/>
+    <child link="motor_elevator_l"/>
+  </joint>
+  <joint name="motor_elevator_rod_l" type="prismatic">
+    <origin xyz="0.37865084 -3.188773e-08 0.031802922"/>
+    <parent link="motor_elevator_l"/>
+    <child link="motor_elevator_rod_l"/>
+    <limit lower="-0.1" upper="0.1" effort="100" velocity="1"/>
+  </joint>
+  <joint name="dw_main_plate_r" type="prismatic">
+    <origin xyz="0.16682011 -0.16522513 0.11342"/>
+    <parent link="mebot"/>
+    <child link="dw_main_plate_r"/>
+    <limit lower="-0.4" upper="0.4" effort="100" velocity="1"/>
+  </joint>
+  <joint name="elevator_dampener_link_r" type="fixed">
+    <origin xyz="0.26125791 -0.062086297 0.07641378"/>
+    <parent link="dw_main_plate_r"/>
+    <child link="elevator_dampener_link_r"/>
+  </joint>
+  <joint name="elevator_dampener_aux_link_r" type="fixed">
+    <origin xyz="0.017809824 0.0079216183 -0.010299325"/>
+    <parent link="elevator_dampener_link_r"/>
+    <child link="elevator_dampener_aux_link_r"/>
+  </joint>
+  <joint name="elevator_dampener_r" type="fixed">
+    <origin xyz="0.07620009 -0.046344457 0.057150006"/>
+    <parent link="dw_main_plate_r"/>
+    <child link="elevator_dampener_r"/>
+  </joint>
+  <joint name="elevator_dampener_rod_r" type="fixed">
+    <origin xyz="0.11522374 0.00066014737 0.039672166"/>
+    <parent link="elevator_dampener_r"/>
+    <child link="elevator_dampener_rod_r"/>
+  </joint>
+  <joint name="motor_elevator_pivot_r" type="fixed">
+    <origin xyz="0.2988499 -0.047164668 0.10968776"/>
+    <parent link="dw_main_plate_r"/>
+    <child link="motor_elevator_pivot_r"/>
+  </joint>
+  <joint name="motor_elevator_rod_link_r" type="fixed">
+    <origin xyz="1.6970243e-08 0.012699932 0.050799996"/>
+    <parent link="motor_elevator_pivot_r"/>
+    <child link="motor_elevator_rod_link_r"/>
+  </joint>
+  <joint name="motor_swing_arm_r" type="revolute">
+    <origin xyz="8.5840374e-08 -0.021891594 0"/>
+    <parent link="dw_main_plate_r"/>
+    <child link="motor_swing_arm_r"/>
+    <axis xyz="-1.6292068e-07 -1 0"/>
+    <limit lower="-0.78539816" upper="0.78539816" effort="100" velocity="3.14"/>
+  </joint>
+  <joint name="drive_motor_r" type="fixed">
+    <origin xyz="0.31877001 -0.059525139 -0.013799995"/>
+    <parent link="motor_swing_arm_r"/>
+    <child link="drive_motor_r"/>
+  </joint>
+  <joint name="drive_wheel_r" type="fixed">
+    <origin xyz="2.7474406e-08 -0.060019985 2.9802322e-08"/>
+    <parent link="drive_motor_r"/>
+    <child link="drive_wheel_r"/>
+    <dynamics damping="50000000"/>
+  </joint>
+  <joint name="motor_elevator_r" type="fixed">
+    <origin xyz="-0.10371975 -0.025273038 0.12667592"/>
+    <parent link="motor_swing_arm_r"/>
+    <child link="motor_elevator_r"/>
+  </joint>
+  <joint name="motor_elevator_rod_r" type="prismatic">
+    <origin xyz="0.37865081 -7.6591209e-08 0.031802893"/>
+    <parent link="motor_elevator_r"/>
+    <child link="motor_elevator_rod_r"/>
+    <limit lower="-0.1" upper="0.1" effort="100" velocity="1"/>
+  </joint>
+  <joint name="front_caster_arm_mount" type="fixed">
+    <origin xyz="0.54610012 -0.10160004 0.11048999"/>
+    <parent link="mebot"/>
+    <child link="front_caster_arm_mount"/>
+  </joint>
+  <joint name="front_caster_linkage" type="fixed">
+    <origin xyz="0.0063500624 0.069056271 0.17145006"/>
+    <parent link="front_caster_arm_mount"/>
+    <child link="front_caster_linkage"/>
+  </joint>
+  <joint name="front_caster_linkage_arm" type="fixed">
+    <origin xyz="0.038479512 0.029744528 0.024554312"/>
+    <parent link="front_caster_linkage"/>
+    <child link="front_caster_linkage_arm"/>
+  </joint>
+  <joint name="front_caster_linkage_aux" type="fixed">
+    <origin xyz="0.031750066 0.10160003 0.073000029"/>
+    <parent link="front_caster_arm_mount"/>
+    <child link="front_caster_linkage_aux"/>
+  </joint>
+  <joint name="front_caster_linkage_aux_arm" type="fixed">
+    <origin xyz="0.071120039 0.0015937393 -5.9604645e-08"/>
+    <parent link="front_caster_linkage_aux"/>
+    <child link="front_caster_linkage_aux_arm"/>
+  </joint>
+  <joint name="front_caster_motor" type="fixed">
+    <origin xyz="-0.13932584 0.036512524 -0.076101474"/>
+    <parent link="front_caster_arm_mount"/>
+    <child link="front_caster_motor"/>
+  </joint>
+  <joint name="front_caster_motor_rod" type="prismatic">
+    <origin xyz="0.085516706 -3.6284182e-08 0.21774301"/>
+    <parent link="front_caster_motor"/>
+    <child link="front_caster_motor_rod"/>
+    <limit lower="-0.1" upper="0.1" effort="100" velocity="1"/>
+  </joint>
+  <joint name="front_caster_swing_arm" type="revolute">
+    <origin xyz="0.031750055 0.10160004 -0.12700002"/>
+    <parent link="front_caster_arm_mount"/>
+    <child link="front_caster_swing_arm"/>
+    <axis xyz="-1.6292068e-07 -1 0"/>
+    <limit lower="-0.78539816" upper="0.78539816" effort="100" velocity="3.14"/>
+  </joint>
+  <joint name="front_caster_wheel_l" type="fixed">
+    <origin xyz="0.20954992 0.17938748 0.012701166"/>
+    <parent link="front_caster_swing_arm"/>
+    <child link="front_caster_wheel_l"/>
+  </joint>
+  <joint name="front_caster_wheel_r" type="fixed">
+    <origin xyz="0.2095499 -0.17938751 0.012701166"/>
+    <parent link="front_caster_swing_arm"/>
+    <child link="front_caster_wheel_r"/>
+  </joint>
+  <joint name="rear_caster_arm_mount" type="fixed">
+    <origin xyz="1.1922769e-07 0.00011293404 0.13588999"/>
+    <parent link="mebot"/>
+    <child link="rear_caster_arm_mount"/>
+  </joint>
+  <joint name="rear_caster_aux_linkage" type="fixed">
+    <origin xyz="-0.035861497 -0.029368747 0.028359771"/>
+    <parent link="rear_caster_suspension_arm"/>
+    <child link="rear_caster_aux_linkage"/>
+  </joint>
+  <joint name="rear_caster_motor" type="fixed">
+    <origin xyz="0.085632365 0.065087498 -0.095719427"/>
+    <parent link="rear_caster_arm_mount"/>
+    <child link="rear_caster_motor"/>
+  </joint>
+  <joint name="rear_caster_motor_rod" type="prismatic">
+    <origin xyz="-0.033906817 -1.9264589e-09 0.23146388"/>
+    <parent link="rear_caster_motor"/>
+    <child link="rear_caster_motor_rod"/>
+    <limit lower="-0.1" upper="0.1" effort="100" velocity="1"/>
+  </joint>
+  <joint name="rear_caster_motor_dampener_pivot" type="fixed">
+    <origin xyz="-0.031750023 0.0024430031 0.073000029"/>
+    <parent link="rear_caster_arm_mount"/>
+    <child link="rear_caster_motor_dampener_pivot"/>
+  </joint>
+  <joint name="rear_caster_dampener" type="fixed">
+    <origin xyz="-0.071119965 -0.002477363 -1.1920929e-07"/>
+    <parent link="rear_caster_motor_dampener_pivot"/>
+    <child link="rear_caster_dampener"/>
+  </joint>
+  <joint name="rear_caster_dampener_rod" type="prismatic">
+    <origin xyz="-5.9604644e-08 4.1909613e-09 -0.12100005"/>
+    <parent link="rear_caster_dampener"/>
+    <child link="rear_caster_dampener_rod"/>
+    <limit lower="-0.05" upper="0.05" effort="100" velocity="1"/>
+  </joint>
+  <joint name="rear_caster_suspension_arm" type="fixed">
+    <origin xyz="-0.0063499159 0.032543761 0.17145005"/>
+    <parent link="rear_caster_arm_mount"/>
+    <child link="rear_caster_suspension_arm"/>
+  </joint>
+  <joint name="rear_caster_swing_arm" type="revolute">
+    <origin xyz="-0.031749904 1.2623297e-08 -0.12700003"/>
+    <parent link="rear_caster_arm_mount"/>
+    <child link="rear_caster_swing_arm"/>
+    <axis xyz="-1.6292068e-07 -1 0"/>
+    <limit lower="-0.78539816" upper="0.78539816" effort="100" velocity="3.14"/>
+  </joint>
+  <joint name="rear_casteer_wheel_l" type="fixed">
+    <origin xyz="-0.20954995 0.084264581 0.01270004"/>
+    <parent link="rear_caster_swing_arm"/>
+    <child link="rear_casteer_wheel_l"/>
+  </joint>
+  <joint name="rear_caster_wheel_r" type="fixed">
+    <origin xyz="-0.20954998 -0.084264445 0.012699991"/>
+    <parent link="rear_caster_swing_arm"/>
+    <child link="rear_caster_wheel_r"/>
+  </joint>
+</robot>

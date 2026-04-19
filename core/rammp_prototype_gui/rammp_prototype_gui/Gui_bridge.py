@@ -15,8 +15,10 @@ from gui_interfaces.srv import UserInputs
 # from realsense2_camera_msgs.msg import Extrinsics
 from neu_navigation_interfaces.msg import CurbInfo
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+import tf2_ros
 from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import CameraInfo, Image, JointState
 from std_msgs.msg import Bool, Float32
@@ -129,6 +131,37 @@ def rotation_matrix_to_euler_zyx(R):
     return np.degrees(roll), np.degrees(pitch), np.degrees(yaw)  # degrees
 
 
+def _tf_to_ue_extrinsics(transform_stamped) -> "Extrinsics":
+    """Convert a geometry_msgs TransformStamped to a UE-compatible Extrinsics.
+
+    Position is converted from meters to centimeters.
+    Rotation is converted from quaternion to Euler angles (roll, pitch, yaw) in degrees.
+    Uses direct conversion — no axis flips applied.
+
+    # ROS→UE coordinate adjustment:
+    # UE Y-axis is flipped from ROS, so negate y_cm.
+    """
+    t = transform_stamped.transform.translation
+    r = transform_stamped.transform.rotation
+
+    rot = R.from_quat([r.x, r.y, r.z, r.w])
+    roll_deg, pitch_deg, yaw_deg = rotation_matrix_to_euler_zyx(rot.as_matrix())
+
+    x_cm = t.x * 100.0
+    y_cm = -t.y * 100.0
+    z_cm = t.z * 100.0
+
+    # Mirror rotation to match Y-axis flip
+    pitch_deg = -pitch_deg
+    yaw_deg = -yaw_deg
+
+    return Extrinsics(
+        location=Vector(x_cm, y_cm, z_cm),
+        rotation=Vector(roll_deg, pitch_deg, yaw_deg),
+        scale=Vector(1.0, 1.0, 1.0),
+    )
+
+
 class GuiBridge(Node):
     instance = None
 
@@ -182,6 +215,56 @@ class GuiBridge(Node):
             .get_parameter_value()
             .string_value
         )
+        # TF frame names for camera extrinsics lookup
+        self.declare_parameter("tf_base_frame", "mebot")
+        self.tf_base_frame = (
+            self.get_parameter("tf_base_frame").get_parameter_value().string_value
+        )
+        self.declare_parameter("wrist_camera_tf_frame", "wrist_color_frame")
+        self.wrist_camera_tf_frame = (
+            self.get_parameter("wrist_camera_tf_frame")
+            .get_parameter_value()
+            .string_value
+        )
+        self.declare_parameter("nav_camera_1_tf_frame", "nav1_link")
+        self.nav_camera_1_tf_frame = (
+            self.get_parameter("nav_camera_1_tf_frame")
+            .get_parameter_value()
+            .string_value
+        )
+        self.declare_parameter("nav_camera_2_tf_frame", "nav2_link")
+        self.nav_camera_2_tf_frame = (
+            self.get_parameter("nav_camera_2_tf_frame")
+            .get_parameter_value()
+            .string_value
+        )
+
+        self._trim_prefixes = {
+            self.wrist_camera_tf_frame: "wrist",
+            self.nav_camera_1_tf_frame: "nav1",
+            self.nav_camera_2_tf_frame: "nav2",
+        }
+        # Per-camera extrinsic trim offsets (cm for position, degrees for rotation).
+        # Values captured from TrimTUI calibration session.
+        _trim_defaults = {
+            # wrist
+            ("wrist", "x"): 10.0,
+            ("wrist", "y"): -3.0,
+            ("wrist", "z"): 2.0,
+            # nav1 (mounted sideways → roll -90°)
+            ("nav1", "roll"): -90.0,
+            # nav2
+            ("nav2", "x"): -1.0,
+            ("nav2", "y"): 1.0,
+            ("nav2", "pitch"): -2.0,
+        }
+        for cam in ["wrist", "nav1", "nav2"]:
+            for axis in ["x", "y", "z", "roll", "pitch", "yaw"]:
+                self.declare_parameter(
+                    f"{cam}_trim_{axis}",
+                    _trim_defaults.get((cam, axis), 0.0),
+                )
+
         self.declare_parameter("image_channel", 0)
         self.image_channel = (
             self.get_parameter("image_channel").get_parameter_value().integer_value
@@ -223,6 +306,12 @@ class GuiBridge(Node):
             # Map it
             self.mapfile = mmap.mmap(self.shm.fd, self.shm_size)
             self.shm.close_fd()
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(
+            self.tf_buffer, self, spin_thread=True
+        )
+        self._last_extrinsics: dict[str, "Extrinsics"] = {}
 
         self.init_publisher()
         self.init_subscriber()
@@ -321,18 +410,14 @@ class GuiBridge(Node):
         self.nav_camera_1_image = None
         self.nav_camera_1_depth = None
         self.nav_camera_1_extrinsics = Extrinsics(
-            location=Vector(3.634, -26.4223, 38.361),
-            rotation=Vector(0.0, -20.0, 0),
-            scale=Vector(1, 1, 1),
+            location=Vector(0, 0, 0), rotation=Vector(0, 0, 0), scale=Vector(1, 1, 1)
         )
         self.nav_camera_2_image_info = None
         self.nav_camera_2_depth_info = None
         self.nav_camera_2_image = None
         self.nav_camera_2_depth = None
         self.nav_camera_2_extrinsics = Extrinsics(
-            location=Vector(3.634, 26.4223, 38.361),
-            rotation=Vector(0, -40.0, 0),
-            scale=Vector(1, 1, 1),
+            location=Vector(0, 0, 0), rotation=Vector(0, 0, 0), scale=Vector(1, 1, 1)
         )
         self.rear_camera_image_info = None
         self.rear_camera_depth_info = None
@@ -370,14 +455,6 @@ class GuiBridge(Node):
             0,
             callback_group=self._cb_group,
         )
-        # self.wrist_camera_extrinsics_sub = self.create_subscription(
-        #     Extrinsics,
-        #     f"{self.wrist_camera_namespace}/extrinsics/depth_to_color",
-        #     self.wrist_camera_extrinsics_callback,
-        #     10,
-        #     callback_group=self._cb_group,
-        # )
-
         # nav camera 1
         self.nav_camera_1_image_info_sub = self.create_subscription(
             CameraInfo,
@@ -407,14 +484,6 @@ class GuiBridge(Node):
             0,
             callback_group=self._cb_group,
         )
-        # self.nav_camera_1_extrinsics_sub = self.create_subscription(
-        #     Extrinsics,
-        #     f"{self.nav_camera_namespace_1}/extrinsics/depth_to_color",
-        #     self.nav_camera_1_extrinsics_callback,
-        #     10,
-        #     callback_group=self._cb_group,
-        # )
-
         # nav camera 2
         self.nav_camera_2_image_info_sub = self.create_subscription(
             CameraInfo,
@@ -444,13 +513,6 @@ class GuiBridge(Node):
             0,
             callback_group=self._cb_group,
         )
-        # self.nav_camera_2_extrinsics_sub = self.create_subscription(
-        #     Extrinsics,
-        #     f"{self.nav_camera_namespace_2}/extrinsics/depth_to_color",
-        #     self.nav_camera_2_extrinsics_callback,
-        #     10,
-        #     callback_group=self._cb_group,
-        # )
         # rear camera
         self.rear_camera_image_info_sub = self.create_subscription(
             CameraInfo,
@@ -480,14 +542,6 @@ class GuiBridge(Node):
             0,
             callback_group=self._cb_group,
         )
-        # self.rear_camera_extrinsics_sub = self.create_subscription(
-        #     Extrinsics,
-        #     f"{self.rear_camera_namespace}/extrinsics/depth_to_color",
-        #     self.rear_camera_extrinsics_callback,
-        #     10,
-        #     callback_group=self._cb_group,
-        # )
-
         # curb info
         self.curb_info_sub = self.create_subscription(
             CurbInfo,
@@ -568,14 +622,17 @@ class GuiBridge(Node):
 
     def wrist_camera_image_callback(self, msg: Image):
         self.wrist_camera_image = msg
+        self.wrist_camera_extrinsics = self._lookup_camera_extrinsics(
+            self.wrist_camera_tf_frame
+        )
         self.send_wrist_camera_image()
 
     def wrist_camera_depth_callback(self, msg: Image):
         self.wrist_camera_depth = msg
+        self.wrist_camera_extrinsics = self._lookup_camera_extrinsics(
+            self.wrist_camera_tf_frame
+        )
         self.send_wrist_camera_depth()
-
-    def wrist_camera_extrinsics_callback(self, msg: Extrinsics):
-        self.wrist_camera_extrinsics = msg
 
     def nav_camera_1_image_info_callback(self, msg: CameraInfo):
         self.nav_camera_1_image_info = msg
@@ -585,14 +642,17 @@ class GuiBridge(Node):
 
     def nav_camera_1_image_callback(self, msg: Image):
         self.nav_camera_1_image = msg
+        self.nav_camera_1_extrinsics = self._lookup_camera_extrinsics(
+            self.nav_camera_1_tf_frame
+        )
         self.send_nav_camera_1_image()
 
     def nav_camera_1_depth_callback(self, msg: Image):
         self.nav_camera_1_depth = msg
+        self.nav_camera_1_extrinsics = self._lookup_camera_extrinsics(
+            self.nav_camera_1_tf_frame
+        )
         self.send_nav_camera_1_depth()
-
-    def nav_camera_1_extrinsics_callback(self, msg: Extrinsics):
-        self.nav_camera_1_extrinsics = msg
 
     def nav_camera_2_image_info_callback(self, msg: CameraInfo):
         self.nav_camera_2_image_info = msg
@@ -602,14 +662,17 @@ class GuiBridge(Node):
 
     def nav_camera_2_image_callback(self, msg: Image):
         self.nav_camera_2_image = msg
+        self.nav_camera_2_extrinsics = self._lookup_camera_extrinsics(
+            self.nav_camera_2_tf_frame
+        )
         self.send_nav_camera_2_image()
 
     def nav_camera_2_depth_callback(self, msg: Image):
         self.nav_camera_2_depth = msg
+        self.nav_camera_2_extrinsics = self._lookup_camera_extrinsics(
+            self.nav_camera_2_tf_frame
+        )
         self.send_nav_camera_2_depth()
-
-    def nav_camera_2_extrinsics_callback(self, msg: Extrinsics):
-        self.nav_camera_2_extrinsics = msg
 
     def rear_camera_image_info_callback(self, msg: CameraInfo):
         self.rear_camera_image_info = msg
@@ -625,8 +688,59 @@ class GuiBridge(Node):
         self.rear_camera_depth = msg
         self.send_rear_camera_depth()
 
-    def rear_camera_extrinsics_callback(self, msg: Extrinsics):
-        self.rear_camera_extrinsics = msg
+    def _lookup_camera_extrinsics(self, camera_tf_frame: str) -> Extrinsics:
+        try:
+            tf = self.tf_buffer.lookup_transform(
+                self.tf_base_frame,
+                camera_tf_frame,
+                rclpy.time.Time(),
+                timeout=Duration(seconds=1.0),
+            )
+            extrinsics = _tf_to_ue_extrinsics(tf)
+            self._last_extrinsics[camera_tf_frame] = extrinsics
+        except Exception as e:
+            self.get_logger().warn(
+                f"TF2 lookup failed for {self.tf_base_frame} → {camera_tf_frame}: {e}",
+                throttle_duration_sec=5.0,
+            )
+            extrinsics = self._last_extrinsics.get(
+                camera_tf_frame,
+                Extrinsics(
+                    location=Vector(0, 0, 0),
+                    rotation=Vector(0, 0, 0),
+                    scale=Vector(1, 1, 1),
+                ),
+            )
+
+        prefix = self._trim_prefixes.get(camera_tf_frame)
+        if prefix:
+            extrinsics = Extrinsics(
+                location=Vector(
+                    extrinsics.location.X
+                    + self.get_parameter(f"{prefix}_trim_x").value,
+                    extrinsics.location.Y
+                    + self.get_parameter(f"{prefix}_trim_y").value,
+                    extrinsics.location.Z
+                    + self.get_parameter(f"{prefix}_trim_z").value,
+                ),
+                rotation=Vector(
+                    extrinsics.rotation.X
+                    + self.get_parameter(f"{prefix}_trim_roll").value,
+                    extrinsics.rotation.Y
+                    + self.get_parameter(f"{prefix}_trim_pitch").value,
+                    extrinsics.rotation.Z
+                    + self.get_parameter(f"{prefix}_trim_yaw").value,
+                ),
+                scale=Vector(1.0, 1.0, 1.0),
+            )
+
+        self.get_logger().debug(
+            f"TF2 [{camera_tf_frame}]: "
+            f"pos=({extrinsics.location.X:.1f}, {extrinsics.location.Y:.1f}, {extrinsics.location.Z:.1f})cm "
+            f"rot=({extrinsics.rotation.X:.1f}, {extrinsics.rotation.Y:.1f}, {extrinsics.rotation.Z:.1f})deg",
+            throttle_duration_sec=1.0,
+        )
+        return extrinsics
 
     def send_image(
         self,

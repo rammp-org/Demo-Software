@@ -360,6 +360,8 @@ class ArmDriverNode(rclpy.node.Node):
 
         self._connect_timer.cancel()
         self._init_collision_checker()
+        if self._arm:
+            self._arm.close_gripper()
 
     def _init_collision_checker(self):
         """Initialise the CollisionChecker from the kortex_description URDF.

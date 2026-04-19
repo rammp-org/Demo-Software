@@ -526,7 +526,7 @@ class SystemControl(rclpy.node.Node):
 
     def on_enter_Arm_OrderDrink_raisingArm(self):
         self.get_logger().info("Raising arm to prepare for drink detection.")
-        self.arm_preset_client.set_preset(ArmPreset.HOME)
+        self.arm_preset_client.set_preset(ArmPreset.DRINK_DETECTION)
 
     def on_enter_Arm_OrderDrink_detectingDrink(self):
         self.get_logger().info("Detecting drink to confirm if the drink is received.")
@@ -1624,7 +1624,7 @@ class SystemControl(rclpy.node.Node):
             {
                 "trigger": "detectDrink",
                 "source": "Arm_home",
-                "dest": "Arm_OrderDrink_detectingDrink",
+                "dest": "Arm_OrderDrink_raisingArm",
             },
             {
                 "trigger": "detectDrink",
@@ -1632,9 +1632,14 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_OrderDrink_raisingArm",
             },
             {
-                "trigger": "homed",
+                "trigger": "ReadyForDetection",
                 "source": "Arm_OrderDrink_raisingArm",
                 "dest": "Arm_OrderDrink_detectingDrink",
+            },
+            {
+                "trigger": "detectDrink",
+                "source": "Arm_retracted",
+                "dest": "Arm_OrderDrink_raisingArm",
             },
             {
                 "trigger": "receiveDrinkConfirm",

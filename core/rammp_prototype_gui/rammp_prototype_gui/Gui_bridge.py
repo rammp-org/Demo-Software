@@ -244,9 +244,26 @@ class GuiBridge(Node):
             self.nav_camera_1_tf_frame: "nav1",
             self.nav_camera_2_tf_frame: "nav2",
         }
+        # Per-camera extrinsic trim offsets (cm for position, degrees for rotation).
+        # Values captured from TrimTUI calibration session.
+        _trim_defaults = {
+            # wrist
+            ("wrist", "x"): 10.0,
+            ("wrist", "y"): -3.0,
+            ("wrist", "z"): 2.0,
+            # nav1 (mounted sideways → roll -90°)
+            ("nav1", "roll"): -90.0,
+            # nav2
+            ("nav2", "x"): -1.0,
+            ("nav2", "y"): 1.0,
+            ("nav2", "pitch"): -2.0,
+        }
         for cam in ["wrist", "nav1", "nav2"]:
             for axis in ["x", "y", "z", "roll", "pitch", "yaw"]:
-                self.declare_parameter(f"{cam}_trim_{axis}", 0.0)
+                self.declare_parameter(
+                    f"{cam}_trim_{axis}",
+                    _trim_defaults.get((cam, axis), 0.0),
+                )
 
         self.declare_parameter("image_channel", 0)
         self.image_channel = (

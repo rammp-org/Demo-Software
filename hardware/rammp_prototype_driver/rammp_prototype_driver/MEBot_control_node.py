@@ -561,7 +561,7 @@ class MEBotControlNode(Node):
         active_nodes = [ns.rstrip("/") + "/" + name for name, ns in active_nodes]
 
         # TODO: test this
-        if "/interfaces" not in active_nodes:
+        if "/interface" not in active_nodes:
             stat.add("node_status", "dead")
             stat.summary(DiagnosticStatus.ERROR, "Luci node not active")
         else:

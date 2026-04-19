@@ -53,7 +53,6 @@ cleanup() {
     echo "Shutting down RAMMP system..."
 
     tmux send-keys -t "$SESSION:jetson" C-c ""
-    tmux send-keys -t "$SESSION:laptop" C-c ""
     sleep 3
 
     # Kill laptop node first (remote)
@@ -127,16 +126,21 @@ tmux new-window -t "$SESSION" -n "laptop" \
 tmux new-window -t "$SESSION" -n "jetson" \
     "zsh -c 'source $ROS_SETUP && \
             source $JETSON_WS/install/setup.zsh && \
-            ros2 launch rammp_prototype_bringup full.launch.py $ARGS_STR | grep '\''system'\''; \
+            ros2 launch rammp_prototype_bringup full.launch.py $ARGS_STR | grep -v '\''luci'\''; \
             echo \"[jetson] Launch exited.\"; read'"
 
-# Window 4: Calibration — waits for arm to be ready
+# Window 4: Calibration — waits for arm and base to be ready
 tmux new-window -t "$SESSION" -n "calibration" \
     "zsh -c 'source $ROS_SETUP && \
               source $JETSON_WS/install/setup.zsh && \
-              echo \"Waiting for arm to be ready...\" && \
-              until ros2 node list | grep -q \"/arm_driver_node\"; do sleep 3; done && \
-              echo \"Arm ready. Running calibration...\" && \
+              echo \"Waiting for base action server...\" && \
+              until ros2 action list | grep -q \"/base/calibrate\"; do sleep 3; done && \
+              echo \"Base ready. Running base calibration...\" && \
+              sleep 1 && \
+              ros2 action send_goal /base/calibrate rammp_prototype_interfaces/action/Calibration '\''{enable: true}'\'' && \
+              echo \"Waiting for arm action server...\" && \
+              until ros2 action list | grep -q \"/arm/calibrate\"; do sleep 3; done && \
+              echo \"Arm ready. Running arm calibration...\" && \
               ros2 action send_goal /arm/calibrate arm_interfaces/action/Calibrate \"{}\" && \
               echo \"[calibration] done.\"; read'"
 

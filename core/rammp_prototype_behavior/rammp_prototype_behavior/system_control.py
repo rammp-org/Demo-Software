@@ -1637,6 +1637,16 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_OrderDrink_detectingDrink",
             },
             {
+                "trigger": "detectDrink",
+                "source": "Arm_retracted",
+                "dest": "Arm_OrderDrink_raisingArm",
+            },
+            {
+                "trigger": "homed",
+                "source": "Arm_OrderDrink_raisingArm",
+                "dest": "Arm_OrderDrink_detectingDrink",
+            },
+            {
                 "trigger": "receiveDrinkConfirm",
                 "source": "Arm_OrderDrink_detectingDrink",
                 "dest": "Arm_OrderDrink_receivingDrink",

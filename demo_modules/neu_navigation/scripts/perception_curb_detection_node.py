@@ -30,16 +30,12 @@ class PerceptionCurbDetectionNode(Node):
         from ament_index_python.packages import get_package_share_directory
 
         # Parameters
-        self.declare_parameter("model_name", "segmentation_best.pth")
+        self.declare_parameter("model_name", "segmentation_ascent.pth")
         self.declare_parameter("confidence_threshold", 0.5)
+        self.declare_parameter("input_image_topic", "/camera/nav1/color/image_rotated")
+        self.declare_parameter("input_depth_topic", "/camera/nav1/depth/image_rotated")
         self.declare_parameter(
-            "input_image_topic", "/camera/nav/color/image_raw_rotated"
-        )
-        self.declare_parameter(
-            "input_depth_topic", "/camera/nav/depth/image_raw_rotated"
-        )
-        self.declare_parameter(
-            "input_info_topic", "/camera/nav/color/camera_info_rotated"
+            "input_info_topic", "/camera/nav1/color/camera_info_rotated"
         )
         self.declare_parameter("output_marker_topic", "/perception/curb_visual")
         self.declare_parameter("curb_info_topic", "/nav/curb/info")
@@ -47,10 +43,10 @@ class PerceptionCurbDetectionNode(Node):
         self.declare_parameter("mask_image_topic", "/perception/curb_mask_image")
         self.declare_parameter("curb_class_id", 0)
         self.declare_parameter("rotation_degrees", 90)
-        self.declare_parameter("target_frame", "base_link")
+        self.declare_parameter("target_frame", "mebot")
         self.declare_parameter("ransac_threshold", 0.1)
         self.declare_parameter("ransac_iterations", 100)
-        self.declare_parameter("detection_rate_hz", 5.0)
+        self.declare_parameter("detection_rate_hz", 30.0)
 
         model_name = self.get_parameter("model_name").get_parameter_value().string_value
         self.conf_threshold = (
@@ -285,42 +281,48 @@ class PerceptionCurbDetectionNode(Node):
 
             combined_mask = np.any(detections.mask[mask_indices], axis=0)
 
-            # Publish segmentation mask (mono8) and annotated mask image
-            self.mask_pub.publish(
-                self.bridge.cv2_to_imgmsg(
-                    combined_mask.astype(np.uint8) * 255,
-                    encoding="mono8",
-                    header=img_msg.header,
+            if self.mask_pub.get_subscription_count() > 0:
+                # Publish segmentation mask (mono8) and annotated mask image
+                self.mask_pub.publish(
+                    self.bridge.cv2_to_imgmsg(
+                        combined_mask.astype(np.uint8) * 255,
+                        encoding="mono8",
+                        header=img_msg.header,
+                    )
                 )
-            )
-            labels = [
-                f"{self.class_names.get(class_id, 'unknown')} {confidence:.2f}"
-                for class_id, confidence in zip(
-                    detections.class_id, detections.confidence
+
+            if self.mask_image_pub.get_subscription_count() > 0:
+                labels = [
+                    f"{self.class_names.get(class_id, 'unknown')} {confidence:.2f}"
+                    for class_id, confidence in zip(
+                        detections.class_id, detections.confidence
+                    )
+                ]
+                annotated = self.mask_annotator.annotate(
+                    scene=cv_image.copy(), detections=detections
                 )
-            ]
-            annotated = self.mask_annotator.annotate(
-                scene=cv_image.copy(), detections=detections
-            )
-            annotated = self.label_annotator.annotate(
-                scene=annotated, detections=detections, labels=labels
-            )
-            self.mask_image_pub.publish(
-                self.bridge.cv2_to_imgmsg(
-                    annotated, encoding="bgr8", header=img_msg.header
+                annotated = self.label_annotator.annotate(
+                    scene=annotated, detections=detections, labels=labels
                 )
-            )
+                self.mask_image_pub.publish(
+                    self.bridge.cv2_to_imgmsg(
+                        annotated, encoding="bgr8", header=img_msg.header
+                    )
+                )
 
             # 2. 3D Projection
             depth_img = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="16UC1")
 
-            # Rotate depth to match rotated color image
-            if self.rotation == 90:
-                depth_proc = cv2.rotate(depth_img, cv2.ROTATE_90_CLOCKWISE)
-            elif self.rotation == -90:
-                depth_proc = cv2.rotate(depth_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            elif self.rotation == 180:
-                depth_proc = cv2.rotate(depth_img, cv2.ROTATE_180)
+            # Check if depth rotation is needed manually by comparing matrix bounds
+            if combined_mask.shape != depth_img.shape:
+                if self.rotation == 90:
+                    depth_proc = cv2.rotate(depth_img, cv2.ROTATE_90_CLOCKWISE)
+                elif self.rotation == -90 or self.rotation == 270:
+                    depth_proc = cv2.rotate(depth_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                elif self.rotation == 180:
+                    depth_proc = cv2.rotate(depth_img, cv2.ROTATE_180)
+                else:
+                    depth_proc = depth_img
             else:
                 depth_proc = depth_img
 
@@ -349,22 +351,34 @@ class PerceptionCurbDetectionNode(Node):
             if len(depths) < 10:
                 return
 
-            # Un-rotate to sensor frame
-            if self.rotation == 90:
-                u_orig, v_orig = v_rot, info_msg.height - 1 - u_rot
-            elif self.rotation == -90:
-                u_orig, v_orig = info_msg.width - 1 - v_rot, u_rot
-            else:
-                u_orig, v_orig = u_rot, v_rot
+            # Do not un-rotate pixels, because info_topic provides rotated camera intrinsics
+            u_orig, v_orig = u_rot, v_rot
 
             # Project to camera 3D
             fx, fy = info_msg.k[0], info_msg.k[4]
             cx, cy = info_msg.k[2], info_msg.k[5]
-            x_cam = (u_orig - cx) * depths / fx
-            y_cam = (v_orig - cy) * depths / fy
+
+            x_cam_rot = (u_orig - cx) * depths / fx
+            y_cam_rot = (v_orig - cy) * depths / fy
             z_cam = depths
 
-            # Transform to base_link (non-blocking — skip frame if TF not ready)
+            # The computed points are in the rotated optical frame.
+            # TF transforms from the unrotated optical frame (info_msg.header.frame_id).
+            # We unrotate the 3D coordinates so TF aligns them correctly to mebot.
+            if self.rotation == 90:
+                x_cam = y_cam_rot
+                y_cam = -x_cam_rot
+            elif self.rotation == -90 or self.rotation == 270:
+                x_cam = -y_cam_rot
+                y_cam = x_cam_rot
+            elif self.rotation == 180:
+                x_cam = -x_cam_rot
+                y_cam = -y_cam_rot
+            else:
+                x_cam = x_cam_rot
+                y_cam = y_cam_rot
+
+            # Transform to mebot (non-blocking — skip frame if TF not ready)
             try:
                 source_frame = info_msg.header.frame_id
                 trans = self.tf_buffer.lookup_transform(

@@ -1,4 +1,5 @@
 from glob import glob
+import os
 
 from setuptools import find_packages, setup
 
@@ -12,6 +13,7 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
         ("share/" + package_name + "/config", glob("config/*.json")),
+        (os.path.join("share", package_name, "launch"), glob("launch/*.launch.py")),
     ],
     install_requires=["setuptools", "transitions"],
     zip_safe=True,
@@ -29,6 +31,8 @@ setup(
             "test_nn_monitor = rammp_prototype_behavior.test.test_nn_monitor:main",  # just for testing
             "test_node1 = rammp_prototype_behavior.test.test_node1:main",  # just for testing
             "test_node2 = rammp_prototype_behavior.test.test_node2:main",  # just for testing
+            "test_callback_group = rammp_prototype_behavior.test.test_callback_group:main",  # just for testing
+            "test_callback_group_pub = rammp_prototype_behavior.test.test_callback_group_pub:main",  # just for testing
             "system_control = rammp_prototype_behavior.system_control:main",
             "mock_arm_driver = rammp_prototype_behavior.mocks.mock_arm_driver:main",
             "mock_drinking_node = rammp_prototype_behavior.mocks.mock_drinking_node:main",

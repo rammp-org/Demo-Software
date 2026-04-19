@@ -106,6 +106,8 @@ STATE_COLORS = {
     4: THEME.teal,  # SELF_LEVELING
     5: THEME.mauve,  # CONFIGURATION
     6: THEME.peach,  # AUTO_CURB_CLIMBING
+    7: THEME.sky,  # CALIBRATING
+    8: THEME.maroon,  # UNCALIBRATED
 }
 
 STATE_NAMES = {
@@ -116,6 +118,8 @@ STATE_NAMES = {
     4: "SELF_LEVELING",
     5: "CONFIGURATION",
     6: "AUTO_CURB",
+    7: "CALIBRATING",
+    8: "UNCALIBRATED",
 }
 
 

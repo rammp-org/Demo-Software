@@ -18,6 +18,7 @@
   <exec_depend>orbbec_camera</exec_depend>
   <exec_depend>orbbec_description</exec_depend>
   <exec_depend>rmw_cyclonedds_cpp</exec_depend>
+  <exec_depend>rammp_prototype_utils</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

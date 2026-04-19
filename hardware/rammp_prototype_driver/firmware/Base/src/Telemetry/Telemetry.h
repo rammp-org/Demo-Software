@@ -11,7 +11,9 @@ enum SystemState {
   ESTOP,
   SELF_LEVELING,
   CONFIGURATION,
-  AUTO_CURB_CLIMBING
+  AUTO_CURB_CLIMBING,
+  CALIBRATING,
+  UNCALIBRATED
 };
 
 // System Telemetry
@@ -55,6 +57,7 @@ class StrainGauge;
 
 extern SystemState current_state;
 extern SystemTelemetry telemetry;
+extern bool calibrated;
 extern Motor rc, fc, ml, mr, ml_carriage, mr_carriage, drive_fb, drive_lr;
 extern float raw_ml_enc_pos, raw_mr_enc_pos;
 extern float raw_ml_enc_vel, raw_mr_enc_vel;

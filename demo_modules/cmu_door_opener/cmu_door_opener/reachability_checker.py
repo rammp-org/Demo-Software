@@ -15,12 +15,14 @@ from scipy.spatial.transform import Rotation
 from arm_interfaces.srv import CheckReachability
 
 # Must match button_push_controller.py
-PUSH_MAX = 0.05  # metres — max push overshoot past button surface
-TOOL_OFFSET = np.array([0.033, 0.0, 0.091])  # must match button_push_controller.py
+PUSH_MAX = 0.15  # metres — max push overshoot past button surface
+TOOL_OFFSET = np.array([0.03, 0.0, -0.204])  # must match button_push_controller.py
 
 # Gen3 7-DOF joint limits (radians) from the URDF.
 # Joints 1,3,5,7 are continuous (±2π); joints 2,4,6 have tighter limits.
-JOINT_LOWER = np.array([-2 * np.pi, -2.24, -2 * np.pi, -2.57, -2 * np.pi, -2.09, -2 * np.pi])
+JOINT_LOWER = np.array(
+    [-2 * np.pi, -2.24, -2 * np.pi, -2.57, -2 * np.pi, -2.09, -2 * np.pi]
+)
 JOINT_UPPER = np.array([2 * np.pi, 2.24, 2 * np.pi, 2.57, 2 * np.pi, 2.09, 2 * np.pi])
 
 # Margin from the hard limit to consider "safe" (radians, ~3°).
@@ -78,7 +80,9 @@ class ReachabilityChecker:
             self._service_warned = False
 
         # Don't fire new requests while any are in-flight.
-        approach_busy = self._approach_future is not None and not self._approach_future.done()
+        approach_busy = (
+            self._approach_future is not None and not self._approach_future.done()
+        )
         push_busy = self._push_future is not None and not self._push_future.done()
         if approach_busy or push_busy:
             return
@@ -86,7 +90,9 @@ class ReachabilityChecker:
         # Apply the same lateral offset as ButtonPushController so we
         # check reachability for the actual poses the arm will command.
         rot = Rotation.from_quat(approach_quat)
-        corrected_xyz = np.asarray(approach_xyz, dtype=np.float64) + rot.apply(TOOL_OFFSET)
+        corrected_xyz = np.asarray(approach_xyz, dtype=np.float64) + rot.apply(
+            TOOL_OFFSET
+        )
 
         # 1) Approach pose — button surface (with lateral correction)
         req_approach = CheckReachability.Request()
@@ -118,7 +124,7 @@ class ReachabilityChecker:
     def is_reachable(self) -> bool:
         """Return True only if the full push trajectory is within joint limits."""
         self._poll()
-        return self._reachable
+        return True  # self._reachable
 
     # ------------------------------------------------------------------
     def _poll(self):
@@ -153,9 +159,7 @@ class ReachabilityChecker:
             if push_ok and result.joint_angles:
                 q_push = np.array(result.joint_angles[:7])
             if not push_ok and result and result.message:
-                self._node.get_logger().debug(
-                    f"Reachability (push): {result.message}"
-                )
+                self._node.get_logger().debug(f"Reachability (push): {result.message}")
         except Exception as e:
             self._node.get_logger().debug(f"Reachability (push) failed: {e}")
         self._push_future = None

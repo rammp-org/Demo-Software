@@ -8,12 +8,15 @@
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
+  <exec_depend>ament_index_python</exec_depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>arm_interfaces</depend>
   <exec_depend>python3-scipy</exec_depend>
   <exec_depend>python3-pinocchio</exec_depend>
   <exec_depend>python3-kortex-api</exec_depend>
+  <exec_depend>kortex_description</exec_depend>
+  <exec_depend>xacro</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

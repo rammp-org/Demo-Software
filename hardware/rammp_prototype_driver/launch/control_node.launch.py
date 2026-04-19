@@ -25,7 +25,7 @@ def generate_launch_description():
             Node(
                 package="rammp_prototype_driver",
                 executable="control_node",
-                name="MEBot_control_node",
+                name="base_control_node",
                 namespace=LaunchConfiguration("namespace"),
                 output="screen",
                 emulate_tty=True,

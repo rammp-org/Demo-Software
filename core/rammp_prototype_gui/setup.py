@@ -1,4 +1,6 @@
+from glob import glob
 from setuptools import find_packages, setup
+import os
 
 package_name = "rammp_prototype_gui"
 
@@ -9,8 +11,9 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
+        (os.path.join("share", package_name, "launch"), glob("launch/*.launch.py")),
     ],
-    install_requires=["setuptools"],
+    install_requires=["setuptools", "posix-ipc"],
     zip_safe=True,
     maintainer="root",
     maintainer_email="root@todo.todo",
@@ -22,6 +25,10 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "GuiBridge = rammp_prototype_gui.Gui_bridge:main",
+            "MockButtonInfoPublisher = rammp_prototype_gui.mock_button_info:main",
+            "MockCurbMarkerPublisher = rammp_prototype_gui.mock_curb_marker:main",
+        ],
     },
 )

@@ -385,10 +385,25 @@ class SerialHandler(QObject):
         self.send_command(ProtocolEncoder.enter_sequence_mode(enable))
 
     def send_keyframe(
-        self, index: int, targets: list, active: list, duration_ms, relative=None
+        self,
+        index: int,
+        targets: list,
+        active: list,
+        duration_ms,
+        relative=None,
+        guard_threshold=None,
+        guard_condition=None,
     ):
         self.send_command(
-            ProtocolEncoder.send_keyframe(index, targets, active, duration_ms, relative)
+            ProtocolEncoder.send_keyframe(
+                index,
+                targets,
+                active,
+                duration_ms,
+                relative,
+                guard_threshold=guard_threshold,
+                guard_condition=guard_condition,
+            )
         )
 
     def seq_auto_run(self, enable: bool):

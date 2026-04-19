@@ -3,15 +3,20 @@ from enum import IntEnum
 import time
 
 import rclpy
-from rammp_prototype_interfaces.action import CurbTraverse
+from rammp_prototype_interfaces.action import CurbTraverse, Calibration
+from rammp_prototype_interfaces.msg import SeatCommand
 
 # custom msgs/srvs
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
-from rclpy.action import ActionServer, GoalResponse
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
-from std_msgs.msg import Bool, String
+from std_msgs.msg import Bool, Int32
 from std_srvs.srv import SetBool
+import diagnostic_updater
+from diagnostic_msgs.msg import DiagnosticStatus
 
 
 class SerialField(IntEnum):
@@ -52,9 +57,20 @@ class SerialField(IntEnum):
     SPEED_MR = 19
 
 
+class SystemState(IntEnum):
+    INIT = 0
+    IDLE = 1
+    TUNER_MODE = 2
+    ESTOP = 3
+    SELF_LEVELING = 4
+    CONFIGURATION = 5
+    AUTO_CURB_CLIMBING = 6
+    CALIBRATING = 7
+
+
 class BaseControlNode(Node):
     def __init__(self):
-        super().__init__("base_control_node")
+        super().__init__("base_control_node", namespace="base")
 
         # # serial init
         # self.declare_parameter("serial_port", "/dev/ttyACM0")
@@ -66,6 +82,21 @@ class BaseControlNode(Node):
         #     baudrate=115200,
         #     timeout=1,
         # )
+        self.mock_luci_node_active = False  # mock variable to simulate whether the Luci node is active for diagnostics
+        self.mock_teensy_connected = False  # mock variable to simulate whether the Teensy is connected for diagnostics
+        self.mock_teensy_state = (
+            SystemState.INIT
+        )  # mock variable to simulate the Teensy state for diagnostics
+        self.luci_node_mock_count = 0  # counter to simulate Luci node becoming active after some time for diagnostics
+        self.teensy_connect_mock_count = (
+            0  # counter to simulate Teensy connecting after some time for diagnostics
+        )
+        # diagnostics updater init
+        self.updater = diagnostic_updater.Updater(self)
+        self.updater.setHardwareID("MEBot")
+        self.updater.add("LUCI status", self.check_luci_node)
+        self.updater.add("Teensy connection", self.check_teensy_connection)
+        self.updater.add("Teensy state", self.check_teensy_state)
 
         # Data transfer rates
         # Rate to read data from serial
@@ -127,6 +158,106 @@ class BaseControlNode(Node):
         self._init_actions()
         self._init_subscribers()
         self._init_publishers()
+        self._init_mock_subscribers()
+
+    def _init_mock_subscribers(self):
+        self._mock_system_state_subscriber = self.create_subscription(
+            Int32,
+            "/mock/chair/system_state",
+            self._mock_system_state_callback,
+            10,
+        )
+        self._mock_teensy_connection_subscriber = self.create_subscription(
+            Bool,
+            "/mock/chair/teensy_connection",
+            self._mock_teensy_connection_callback,
+            10,
+        )
+        self._mock_luci_active_subscriber = self.create_subscription(
+            Bool,
+            "/mock/chair/luci_active",
+            self._mock_luci_active_callback,
+            10,
+        )
+
+    def _mock_system_state_callback(self, msg: Int32):
+        if msg.data in SystemState._value2member_map_:
+            self.get_logger().info(
+                f"Mock system state updated to {SystemState(msg.data).name}"
+            )
+            self.mock_teensy_state = msg.data
+
+    def _mock_teensy_connection_callback(self, msg: Bool):
+        self.get_logger().info(f"Mock Teensy connection updated to {msg.data}")
+        self.mock_teensy_connected = msg.data
+
+    def _mock_luci_active_callback(self, msg: Bool):
+        self.get_logger().info(f"Mock Luci active status updated to {msg.data}")
+        self.mock_luci_node_active = msg.data
+
+    def check_luci_node(self, stat):
+        if (
+            self.luci_node_mock_count == 5
+        ):  # simulate Luci node becoming active after some time
+            self.mock_luci_node_active = True
+            self.get_logger().info("Luci node is now active for testing.")
+            self.luci_node_mock_count += 1
+        else:
+            if self.luci_node_mock_count < 6:
+                self.luci_node_mock_count += 1
+        if not self.mock_luci_node_active:
+            stat.add("node_status", "dead")
+            stat.summary(DiagnosticStatus.ERROR, "Luci node not active")
+        else:
+            stat.add("node_status", "active")
+            stat.summary(DiagnosticStatus.OK, "Luci node running")
+
+        return stat
+
+    def check_teensy_connection(self, stat):
+        if (
+            self.teensy_connect_mock_count == 5
+        ):  # simulate Teensy connecting after some time
+            self.mock_teensy_connected = True
+            self.get_logger().info("Teensy is now connected for testing.")
+            self.teensy_connect_mock_count += 1
+        else:
+            if self.teensy_connect_mock_count < 6:
+                self.teensy_connect_mock_count += 1
+        if not self.mock_teensy_connected:
+            stat.add("connection_status", "disconnected")
+            stat.summary(DiagnosticStatus.ERROR, "Teensy not connected")
+        else:
+            stat.add("connection_status", "connected")
+            stat.summary(DiagnosticStatus.OK, "Teensy connected")
+        return stat
+
+    def check_teensy_state(self, stat):
+        if self.mock_teensy_state == SystemState.ESTOP:
+            stat.add("state_status", "ESTOP state")
+            stat.summary(DiagnosticStatus.ERROR, "Teensy in estop state")
+        elif self.mock_teensy_state == SystemState.INIT:
+            stat.add("state_status", "Initialization state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in initialization state")
+        elif self.mock_teensy_state == SystemState.IDLE:
+            stat.add("state_status", "Idle state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in idle state")
+        elif self.mock_teensy_state == SystemState.TUNER_MODE:
+            stat.add("state_status", "Tuner mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in tuner mode")
+        elif self.mock_teensy_state == SystemState.SELF_LEVELING:
+            stat.add("state_status", "Self-leveling mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in self-leveling mode")
+        elif self.mock_teensy_state == SystemState.CONFIGURATION:
+            stat.add("state_status", "Configuration mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in configuration mode")
+        elif self.mock_teensy_state == SystemState.AUTO_CURB_CLIMBING:
+            stat.add("state_status", "Auto curb climbing mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in auto curb climbing mode")
+        elif self.mock_teensy_state == SystemState.CALIBRATING:
+            stat.add("state_status", "Calibrating")
+            stat.summary(DiagnosticStatus.OK, "Teensy is calibrating")
+        return stat
 
     def _init_services(self):
         # services
@@ -142,18 +273,34 @@ class BaseControlNode(Node):
         # actions
         self._action_running = False
         self._action_counter = 0
+        self._action_cb_group = ReentrantCallbackGroup()
         self.curb_traverse_action = ActionServer(
             self,
             CurbTraverse,
             "/base/curb_traverse",
             self._execute_callback,
             goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback,
+            callback_group=self._action_cb_group,
+        )
+
+        self.calibrate_action = ActionServer(
+            self,
+            Calibration,
+            "/base/calibrate",
+            self.calibrate_motors_callback,
+            goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback,
+            callback_group=self._action_cb_group,
         )
 
     def _init_subscribers(self):
         # subscriptions
         self.manual_seat_control_subscription = self.create_subscription(
-            String, "/base/manual_seat_control", self.manual_seat_control_callback, 10
+            SeatCommand,
+            "/base/manual_seat_control",
+            self.manual_seat_control_callback,
+            10,
         )  # message type is placeholder
 
         self.estop_subscription = self.create_subscription(
@@ -281,7 +428,7 @@ class BaseControlNode(Node):
         msg.ml_loadcell = self.ML_loadcell
 
         # CA_flag
-        msg.ca_flag = self.CA_flag
+        # msg.ca_flag = self.CA_flag
 
         # state
         msg.state = self.state
@@ -330,9 +477,11 @@ class BaseControlNode(Node):
         self.imu_publisher.publish(msg)
 
     def manual_seat_control_callback(self, msg):
-        if msg.data:
+        if msg.command:
             # content
-            self.get_logger().info("Manual seat control msg received.")
+            self.get_logger().info(
+                "Manual seat control msg received: " + str(msg.command)
+            )
             pass
 
     def estop_callback(self, msg):
@@ -352,9 +501,9 @@ class BaseControlNode(Node):
         feedback = CurbTraverse.Feedback()
         while self._action_counter > 0:
             self.get_logger().info("action counter left: " + str(self._action_counter))
-            feedback.ca_flag = (
-                0  # mock feedback, can be updated with actual data if needed
-            )
+            feedback.progress = (
+                float(20 - self._action_counter) / 20.0 * 100.0
+            )  # convert to percentage
             goal_handle.publish_feedback(feedback)
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
@@ -363,12 +512,43 @@ class BaseControlNode(Node):
             time.sleep(0.1)  # sleep 0.1s
         return True
 
+    def calibrate_motors_callback(self, goal_handle):
+        self.mock_teensy_state = (
+            SystemState.CALIBRATING
+        )  # set Teensy state to calibrating for diagnostics
+        self._action_running = True
+        self.get_logger().info("Calibrating motors...")
+        self._action_counter = 20  # 1s action time.
+        feedback = Calibration.Feedback()
+        result = Calibration.Result()
+        while self._action_counter > 0:
+            self.get_logger().info("action counter left: " + str(self._action_counter))
+            feedback.joints_calibrated = 20 - self._action_counter
+            goal_handle.publish_feedback(feedback)
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.success = False
+                self._action_running = False
+                self.mock_teensy_state = SystemState.INIT  # reset Teensy state to Init
+                return result
+            self._action_counter -= 1
+            time.sleep(0.1)  # sleep 0.1s
+        result.success = True
+        goal_handle.succeed()
+        self._action_running = False
+        self.get_logger().info("Motor calibration finished.")
+        self.mock_teensy_state = (
+            SystemState.IDLE
+        )  # set Teensy state back to idle after calibration
+        return result
+
     def _execute_callback(self, goal_handle):
         self._action_running = True
         self._action_counter = 20  # 2s action time.
         if not self.publish_feedback(goal_handle):  # canceled during action process
             result = CurbTraverse.Result()
             self._action_running = False
+            result.success = False
             return result
         self.get_logger().info("Action execution finished.")
         # mock result
@@ -382,6 +562,10 @@ class BaseControlNode(Node):
             goal_handle.abort()
             result.success = False
         return result
+
+    def _cancel_callback(self, goal_handle):
+        self.get_logger().info("Received a cancel request.")
+        return CancelResponse.ACCEPT
 
     def _goal_callback(self, goal_request):
         # goal_callback receives the Goal request message, not a goal handle.
@@ -419,7 +603,9 @@ class BaseControlNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = BaseControlNode()
-    rclpy.spin(node)
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    executor.spin()
     rclpy.shutdown()
 
 

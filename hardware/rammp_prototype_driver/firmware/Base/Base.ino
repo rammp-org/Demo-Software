@@ -32,6 +32,10 @@
 // cleared so the telemetry PWM output (read by the RNET joystick spoofer)
 // stays exactly zero rather than hunting.
 #define DRIVE_DEADZONE_TICKS 300.0f
+
+#define CAL_NUM_MOTORS 6
+#define CAL_MIN_DRIVE_MS 6000
+#define CAL_VEL_THRESHOLD 2.0f
 // TODO: Make DEBUG_MODE runtime-configurable via serial command
 
 // SystemState enum and SystemTelemetry struct moved to
@@ -40,6 +44,7 @@
 // Global State
 SystemState current_state = INIT;
 SystemTelemetry telemetry;
+bool calibrated = false;
 
 // Sequence player state moved to src/SequencePlayer/
 
@@ -52,7 +57,7 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 IMU_Class IMU = IMU_Class(bno);
 EncoderContainer EContr;
 Timer timer;
-CommandParser parser(60000);
+CommandParser parser(2000);
 
 // Limit switch states (global for telemetry)
 bool ml_fwd_limit = false;
@@ -382,6 +387,88 @@ void saveMotorConfig(int motor_id, Motor *m) {
   ConfigStorage::saveMotorConfig(motor_id, conf);
 }
 
+// --- Calibration ---
+// Drives all 6 actuated motors open-loop until they stall against their
+// mechanical limits, then zeros the encoders. Requires at least
+// CAL_MIN_DRIVE_MS of driving before checking for stall.
+
+unsigned long cal_start_ms = 0;
+float cal_pwm = 0.0f;
+bool cal_done[CAL_NUM_MOTORS] = {};
+
+void startCalibration(float pwm) {
+  cal_start_ms = millis();
+  cal_pwm = pwm;
+  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc,          &ml,
+                                       &mr, &ml_carriage, &mr_carriage};
+  for (int i = 0; i < CAL_NUM_MOTORS; i++) {
+    cal_done[i] = false;
+    cal_motors[i]->setMode(Motor::OPEN_LOOP);
+    cal_motors[i]->updateLimits(-9999999, cal_motors[i]->pos_limit_max);
+    cal_motors[i]->setTargetPWM(cal_pwm);
+  }
+  if (DEBUG_MODE)
+    Serial.println("CAL: Started calibration");
+}
+
+void runCalibration(float dt) {
+  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc,          &ml,
+                                       &mr, &ml_carriage, &mr_carriage};
+  unsigned long elapsed = millis() - cal_start_ms;
+  bool all_done = true;
+
+  for (int i = 0; i < CAL_NUM_MOTORS; i++) {
+    if (cal_done[i])
+      continue;
+
+    all_done = false;
+
+    if (elapsed >= CAL_MIN_DRIVE_MS &&
+        fabsf(cal_motors[i]->current_vel) < CAL_VEL_THRESHOLD) {
+      cal_motors[i]->setTargetPWM(0);
+
+      int enc_idx = motor_map[i].encoder_index;
+      EContr.zeroEncoder(enc_idx);
+      cal_motors[i]->pos_pid.reset();
+      cal_motors[i]->vel_pid.reset();
+      cal_motors[i]->target_pos = 0;
+      cal_motors[i]->current_pos = 0;
+      cal_motors[i]->prev_pos = 0;
+
+      cal_done[i] = true;
+
+      if (DEBUG_MODE) {
+        Serial.print("CAL: Homed ");
+        Serial.println(motor_map[i].name);
+      }
+    }
+  }
+
+  if (all_done) {
+    for (int i = 0; i < CAL_NUM_MOTORS; i++) {
+      cal_motors[i]->disable();
+      if (i == 4 || i == 5) {
+        cal_motors[i]->updateLimits(100, cal_motors[i]->pos_limit_max);
+      } else {
+        cal_motors[i]->updateLimits(20, cal_motors[i]->pos_limit_max);
+      }
+    }
+    calibrated = true;
+    current_state = IDLE;
+    Serial.println("CAL_DONE");
+  }
+}
+
+void abortCalibration() {
+  Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc,          &ml,
+                                       &mr, &ml_carriage, &mr_carriage};
+  for (int i = 0; i < CAL_NUM_MOTORS; i++)
+    cal_motors[i]->disable();
+  current_state = UNCALIBRATED;
+  if (DEBUG_MODE)
+    Serial.println("CAL: Aborted -> UNCALIBRATED");
+}
+
 void setup() {
   Serial.begin(460800);  // jetson
   Serial3.begin(460800); // roboclaw 1
@@ -459,6 +546,11 @@ void setup() {
     }
   }
 
+  rc.attachStrainGauge(&sg_rc);
+  fc.attachStrainGauge(&sg_fc);
+  ml.attachStrainGauge(&sg_ml);
+  mr.attachStrainGauge(&sg_mr);
+
   // Drive wheel motor objects keep encoder_dir=1 at all times.
   // The actual direction is tracked in ml_enc_dir/mr_enc_dir globals,
   // which were already loaded from EEPROM in the loop above (lines 429-430).
@@ -467,7 +559,9 @@ void setup() {
 
   Serial.println(
       "EEPROM CONFIG LOADED: All motor configs restored from EEPROM.");
-  current_state = IDLE;
+  current_state = UNCALIBRATED;
+  calibrated = false;
+  Serial.println("STATE: UNCALIBRATED — calibration required before operation");
 }
 
 void loop() {
@@ -487,6 +581,10 @@ void loop() {
   sg_fc.update(dt);
   sg_ml.update(dt);
   sg_mr.update(dt);
+  rc.updateLoad();
+  fc.updateLoad();
+  ml.updateLoad();
+  mr.updateLoad();
 
   rc.updateSensorData(EContr.encoderf[3], dt);
   fc.updateSensorData(EContr.encoderf[2], dt);
@@ -547,11 +645,15 @@ void loop() {
         Serial.println("DEBUG: Manual ESTOP Triggered");
     }
   } else if (cmd.type == CMD_C && current_state == ESTOP) {
-    current_state = IDLE;
+    current_state = calibrated ? IDLE : UNCALIBRATED;
     parser.feedWatchdog();
     was_connected = true; // Re-arm auto-save for next disconnect
-    if (DEBUG_MODE)
-      Serial.println("DEBUG: ESTOP Cleared, entering IDLE");
+    if (DEBUG_MODE) {
+      if (calibrated)
+        Serial.println("DEBUG: ESTOP Cleared, entering IDLE");
+      else
+        Serial.println("DEBUG: ESTOP Cleared, entering UNCALIBRATED");
+    }
   } else if (cmd.type == CMD_SEQ_MODE) {
     // All 8 motors are position-controlled during sequences (including drive
     // wheels).
@@ -564,7 +666,7 @@ void loop() {
         sequenceEnter(seq_motors);
         Serial.println("SEQ: Entered AUTO_CURB_CLIMBING mode");
       } else {
-        current_state = IDLE;
+        current_state = calibrated ? IDLE : UNCALIBRATED;
         sequenceExit(seq_motors);
         Serial.println("SEQ: Exited AUTO_CURB_CLIMBING mode");
       }
@@ -572,15 +674,24 @@ void loop() {
       // B2:1 / B2:0 — enable or disable auto-run
       sequenceSetAutoRun(cmd.value > 0.5f);
     }
+  } else if (cmd.type == CMD_CALIBRATE) {
+    if (cmd.value != 0.0f) {
+      current_state = CALIBRATING;
+      startCalibration(cmd.value);
+    } else if (current_state == CALIBRATING) {
+      abortCalibration();
+    }
   } else if (cmd.type == CMD_LEVEL_MODE) {
     if (cmd.value > 0.5) {
       current_state = SELF_LEVELING;
       if (DEBUG_MODE)
         Serial.println("DEBUG: Entering SELF_LEVELING mode");
     } else {
-      current_state = IDLE; // Fall back to IDLE so next cmd kicks to TUNER_MODE
+      current_state = calibrated ? IDLE : UNCALIBRATED;
       if (DEBUG_MODE)
-        Serial.println("DEBUG: Exiting SELF_LEVELING mode");
+        Serial.println(calibrated
+                           ? "DEBUG: Exiting SELF_LEVELING mode"
+                           : "DEBUG: Exiting SELF_LEVELING -> UNCALIBRATED");
     }
   } else if (cmd.type == CMD_LEVEL_PITCH) {
     target_pitch = cmd.value;
@@ -596,6 +707,11 @@ void loop() {
     current_state = TUNER_MODE;
     if (DEBUG_MODE)
       Serial.println("DEBUG: Entering TUNER_MODE");
+  } else if (cmd.type != CMD_NONE && current_state == UNCALIBRATED &&
+             cmd.type != CMD_CALIBRATE && cmd.type != CMD_GET_CONFIG) {
+    // Block motor commands in UNCALIBRATED state — calibration required first
+    if (DEBUG_MODE)
+      Serial.println("DEBUG: Command rejected — calibration required");
   }
 
   // Config reads are safe during any state (including E-Stop).
@@ -659,6 +775,8 @@ void loop() {
         &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7:
                                              // velocity-mode (drive wheels)
     sequenceUpdate(seq_motors);
+  } else if (current_state == CALIBRATING) {
+    runCalibration(dt);
   }
 
   float rc_pwm = rc.update(dt);

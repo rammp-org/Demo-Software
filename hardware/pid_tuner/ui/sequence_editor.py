@@ -32,15 +32,13 @@ from PyQt6.QtGui import QColor, QFont, QBrush
 
 from ..data.data_store import DataStore
 from ..serial_driver.serial_handler import SerialHandler
+from ..serial_driver.keyframe import Keyframe, NUM_MOTORS
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
 
 
-# Motor names in order (matching firmware motor array)
 MOTOR_NAMES = ["RC", "FC", "ML", "MR", "ML_Car", "MR_Car", "Drive_FB", "Drive_LR"]
-NUM_MOTORS = 8
 
-# Column indices in the QTableWidget
 COL_LABEL = 0
 COL_RC = 1
 COL_FC = 2
@@ -52,55 +50,7 @@ COL_DRIVE_FB = 7
 COL_DRIVE_LR = 8
 NUM_COLS = 9
 
-# Sentinel for "inactive" cells (motor not controlled in this keyframe)
 INACTIVE_TEXT = "--"
-
-
-class Keyframe:
-    def __init__(self):
-        self.label: str = ""
-        self.targets: List[Optional[float]] = [None] * NUM_MOTORS
-        self.duration_ms: int = 1000
-        self.relative: List[bool] = [False] * NUM_MOTORS
-        self.motor_durations: List[Optional[int]] = [None] * NUM_MOTORS
-
-    def is_active(self, motor_idx: int) -> bool:
-        return self.targets[motor_idx] is not None
-
-    def to_dict(self) -> dict:
-        return {
-            "label": self.label,
-            "targets": [t if t is not None else None for t in self.targets],
-            "duration_ms": self.duration_ms,
-            "relative": self.relative,
-            "motor_durations": [
-                d if d is not None else None for d in self.motor_durations
-            ],
-        }
-
-    @classmethod
-    def from_dict(cls, d: dict) -> "Keyframe":
-        kf = cls()
-        kf.label = d.get("label", "")
-        raw_targets = d.get("targets", [None] * NUM_MOTORS)
-        while len(raw_targets) < NUM_MOTORS:
-            raw_targets.append(None)
-        kf.targets = [
-            (float(t) if t is not None else None) for t in raw_targets[:NUM_MOTORS]
-        ]
-        kf.duration_ms = int(d.get("duration_ms", 1000))
-        raw_relative = d.get("relative", [False] * NUM_MOTORS)
-        while len(raw_relative) < NUM_MOTORS:
-            raw_relative.append(False)
-        kf.relative = [bool(r) for r in raw_relative[:NUM_MOTORS]]
-        raw_motor_durations = d.get("motor_durations", [None] * NUM_MOTORS)
-        while len(raw_motor_durations) < NUM_MOTORS:
-            raw_motor_durations.append(None)
-        kf.motor_durations = [
-            (max(0, int(float(v))) if v is not None else None)
-            for v in raw_motor_durations[:NUM_MOTORS]
-        ]
-        return kf
 
 
 class SequenceEditor(QWidget):
@@ -510,20 +460,21 @@ class SequenceEditor(QWidget):
     def _populate_table(self):
         self._table.blockSignals(True)
         self._table.clearContents()
-        self._table.setRowCount(2 * len(self._keyframes))
+        self._table.setRowCount(3 * len(self._keyframes))
         for keyframe_idx, kf in enumerate(self._keyframes):
             self._set_keyframe_rows(keyframe_idx, kf)
         vertical_labels: List[str] = []
         for i in range(len(self._keyframes)):
-            vertical_labels.extend([f"Step {i}", "dur"])
+            vertical_labels.extend([f"Step {i}", "dur", "guard"])
         self._table.setVerticalHeaderLabels(vertical_labels)
         self._table.blockSignals(False)
         self._sync_step_goto_range()
         self._highlight_active_step()
 
     def _set_keyframe_rows(self, keyframe_index: int, kf: Keyframe):
-        position_row = 2 * keyframe_index
+        position_row = 3 * keyframe_index
         duration_row = position_row + 1
+        guard_row = position_row + 2
         self._table.blockSignals(True)
 
         label_item = QTableWidgetItem(kf.label or f"Step {keyframe_index}")
@@ -565,6 +516,35 @@ class SequenceEditor(QWidget):
             dur_item.setBackground(QBrush(QColor(THEME.crust)))
             self._table.setItem(duration_row, col, dur_item)
 
+        # Guard row
+        guard_label_item = QTableWidgetItem("guard")
+        guard_label_item.setFlags(
+            guard_label_item.flags() & ~Qt.ItemFlag.ItemIsEditable
+        )
+        guard_label_item.setForeground(QBrush(QColor(THEME.overlay0)))
+        guard_label_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        guard_label_item.setBackground(QBrush(QColor(THEME.surface0)))
+        self._table.setItem(guard_row, COL_LABEL, guard_label_item)
+
+        for motor_idx in range(NUM_MOTORS):
+            col = COL_RC + motor_idx
+            condition = kf.guard_condition[motor_idx]
+            threshold = kf.guard_threshold[motor_idx]
+            if condition == 1:  # GUARD_GREATER_THAN
+                text = f">{threshold:.0f}"
+                color = THEME.green
+            elif condition == 2:  # GUARD_LESS_THAN
+                text = f"<{threshold:.0f}"
+                color = THEME.peach
+            else:
+                text = INACTIVE_TEXT
+                color = THEME.overlay0
+            guard_item = QTableWidgetItem(text)
+            guard_item.setForeground(QBrush(QColor(color)))
+            guard_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            guard_item.setBackground(QBrush(QColor(THEME.surface0)))
+            self._table.setItem(guard_row, col, guard_item)
+
         self._table.blockSignals(False)
 
     def _highlight_active_step(self):
@@ -584,7 +564,11 @@ class SequenceEditor(QWidget):
 
         active_rows = set()
         if 0 <= self._robot_step < len(self._keyframes):
-            active_rows = {2 * self._robot_step, 2 * self._robot_step + 1}
+            active_rows = {
+                3 * self._robot_step,
+                3 * self._robot_step + 1,
+                3 * self._robot_step + 2,
+            }
 
         for row in range(self._table.rowCount()):
             font = bold_font if row in active_rows else normal_font
@@ -608,12 +592,16 @@ class SequenceEditor(QWidget):
         self._table.blockSignals(False)
 
     def _apply_base_cell_background(self, row: int, col: int, item: QTableWidgetItem):
-        if row % 2 == 1:
+        if row % 3 == 1:  # duration row
             item.setBackground(QBrush(QColor(THEME.crust)))
             return
+        if row % 3 == 2:  # guard row
+            item.setBackground(QBrush(QColor(THEME.surface0)))
+            return
 
+        # position row (row % 3 == 0) — check for relative highlight
         if COL_RC <= col <= COL_DRIVE_LR:
-            kf_idx = row // 2
+            kf_idx = row // 3
             motor_idx = col - COL_RC
             if (
                 0 <= kf_idx < len(self._keyframes)
@@ -641,12 +629,12 @@ class SequenceEditor(QWidget):
     def _on_table_item_changed(self, item: QTableWidgetItem):
         row = item.row()
         col = item.column()
-        kf_idx = row // 2
+        kf_idx = row // 3
         if row < 0 or kf_idx < 0 or kf_idx >= len(self._keyframes):
             return
         kf = self._keyframes[kf_idx]
         text = item.text().strip()
-        is_position_row = row % 2 == 0
+        is_position_row = row % 3 == 0
 
         if is_position_row and col == COL_LABEL:
             kf.label = text
@@ -662,7 +650,7 @@ class SequenceEditor(QWidget):
                 except ValueError:
                     pass
 
-        elif (not is_position_row) and COL_RC <= col <= COL_DRIVE_LR:
+        elif row % 3 == 1 and COL_RC <= col <= COL_DRIVE_LR:
             motor_idx = col - COL_RC
             if text in {"", "-", INACTIVE_TEXT}:
                 kf.motor_durations[motor_idx] = None
@@ -671,6 +659,25 @@ class SequenceEditor(QWidget):
                     kf.motor_durations[motor_idx] = max(0, int(float(text)))
                 except ValueError:
                     pass
+
+        elif row % 3 == 2 and COL_RC <= col <= COL_DRIVE_LR:
+            # Guard row edit
+            motor_idx = col - COL_RC
+            if text.startswith(">"):
+                try:
+                    kf.guard_condition[motor_idx] = 1  # GUARD_GREATER_THAN
+                    kf.guard_threshold[motor_idx] = float(text[1:])
+                except ValueError:
+                    pass
+            elif text.startswith("<"):
+                try:
+                    kf.guard_condition[motor_idx] = 2  # GUARD_LESS_THAN
+                    kf.guard_threshold[motor_idx] = float(text[1:])
+                except ValueError:
+                    pass
+            else:
+                kf.guard_condition[motor_idx] = 0  # GUARD_NONE
+                kf.guard_threshold[motor_idx] = 0.0
 
         self._set_keyframe_rows(kf_idx, kf)
         self._uploaded = False
@@ -683,10 +690,10 @@ class SequenceEditor(QWidget):
 
         row = item.row()
         col = item.column()
-        if row % 2 != 0 or not (COL_RC <= col <= COL_DRIVE_LR):
+        if row % 3 != 0 or not (COL_RC <= col <= COL_DRIVE_LR):
             return
 
-        kf_idx = row // 2
+        kf_idx = row // 3
         if kf_idx < 0 or kf_idx >= len(self._keyframes):
             return
 
@@ -802,7 +809,13 @@ class SequenceEditor(QWidget):
                 for i in range(NUM_MOTORS)
             ]
             self._serial_handler.send_keyframe(
-                idx, targets, active, durations, kf.relative
+                idx,
+                targets,
+                active,
+                durations,
+                kf.relative,
+                guard_threshold=kf.guard_threshold,
+                guard_condition=kf.guard_condition,
             )
 
         # Start a timeout — if not all ACKs arrive within 3s, warn the user
@@ -832,7 +845,7 @@ class SequenceEditor(QWidget):
         self._keyframes.append(kf)
         keyframe_idx = len(self._keyframes) - 1
         self._populate_table()
-        self._table.selectRow(2 * keyframe_idx)
+        self._table.selectRow(3 * keyframe_idx)
         self._uploaded = False
         self._sync_step_goto_range()
         self._update_button_states()
@@ -842,7 +855,7 @@ class SequenceEditor(QWidget):
         if row < 0:
             QMessageBox.information(self, "Insert Keyframe", "Select a row first.")
             return
-        kf_idx = row // 2
+        kf_idx = row // 3
         if kf_idx >= len(self._keyframes):
             QMessageBox.information(self, "Insert Keyframe", "Select a row first.")
             return
@@ -851,7 +864,7 @@ class SequenceEditor(QWidget):
         self._apply_live_positions(kf)
         self._keyframes.insert(kf_idx, kf)
         self._populate_table()
-        self._table.selectRow(2 * kf_idx)
+        self._table.selectRow(3 * kf_idx)
         self._uploaded = False
         self._update_button_states()
 
@@ -860,7 +873,7 @@ class SequenceEditor(QWidget):
         if not rows:
             return
         row = self._table.currentRow()
-        kf_idx = row // 2
+        kf_idx = row // 3
         if 0 <= kf_idx < len(self._keyframes):
             self._keyframes.pop(kf_idx)
             self._populate_table()
@@ -874,14 +887,14 @@ class SequenceEditor(QWidget):
         if row < 0:
             QMessageBox.information(self, "Capture Positions", "Select a row first.")
             return
-        if row % 2 == 1:
+        if row % 3 != 0:
             QMessageBox.information(
                 self,
                 "Capture Positions",
-                "Select a position row (Step N), not the dur row.",
+                "Select a position row (Step N), not the dur/guard row.",
             )
             return
-        kf_idx = row // 2
+        kf_idx = row // 3
         if kf_idx >= len(self._keyframes):
             QMessageBox.information(self, "Capture Positions", "Select a row first.")
             return
@@ -919,7 +932,7 @@ class SequenceEditor(QWidget):
 
     def _on_table_selection_changed(self):
         row = self._table.currentRow()
-        keyframe_idx = row // 2
+        keyframe_idx = row // 3
         if keyframe_idx >= 0 and keyframe_idx <= self._spin_step_goto.maximum():
             self._spin_step_goto.blockSignals(True)
             self._spin_step_goto.setValue(keyframe_idx)

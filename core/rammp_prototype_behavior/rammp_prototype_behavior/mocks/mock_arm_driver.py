@@ -4,11 +4,11 @@ import time
 import rclpy
 import rclpy.action
 import rclpy.node
-from arm_interfaces.action import ExecuteTrajectory, ReachPreset
+from arm_interfaces.action import ExecuteTrajectory, ReachPreset, Calibrate
 from arm_interfaces.srv import GetSpeedPreset, SetMode, SetSpeedPreset
 from diagnostic_msgs.msg import DiagnosticStatus
 from geometry_msgs.msg import PoseStamped, Twist, Vector3Stamped
-from rclpy.action import ActionServer, GoalResponse
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from sensor_msgs.msg import Imu, JointState
@@ -190,6 +190,12 @@ class ArmDriverNode(rclpy.node.Node):
             self._on_close_gripper,
             callback_group=self._service_group,
         )
+        self._clear_error_srv = self.create_service(
+            Trigger,
+            "/arm/clear_error",
+            self._on_clear_error,
+            callback_group=self._service_group,
+        )
 
     def _init_actions(self):
         """Create all ROS action servers."""
@@ -199,6 +205,7 @@ class ArmDriverNode(rclpy.node.Node):
             "/arm/reach_preset",
             self._on_reach_preset,
             goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback,
             callback_group=self._action_group,
         )
         self._execute_trajectory_actions = [
@@ -215,12 +222,89 @@ class ArmDriverNode(rclpy.node.Node):
             for source in SOURCES
             if _SOURCE_MODE[source] == CommandMode.POSITION
         ]
+        self._calibrate_action = ActionServer(
+            self,
+            Calibrate,
+            "/arm/calibrate",
+            self._on_calibrate,
+            cancel_callback=self._cancel_callback,
+            goal_callback=self._goal_callback,
+            callback_group=self._action_group,
+        )
+
+    def _on_clear_error(self, request, response):
+        """Handle a /arm/clear_error service request.
+
+        Transitions the node from ERROR back to IDLE, allowing normal operation
+        to resume.  Rejected if the node is not currently in ERROR state.
+
+        Args:
+            request: Empty Trigger request.
+            response: Trigger response with ``success`` (bool) and ``message`` (str).
+
+        Returns:
+            The populated service response.
+        """
+        if self._state != ArmState.ERROR:
+            response.success = False
+            response.message = f"Not in ERROR state (current state: {self._state.name})"
+            return response
+
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected — reconnect before clearing error"
+            return response
+
+        try:
+            self._arm.clear_faults()
+        except Exception as e:
+            response.success = False
+            response.message = f"Kortex fault could not be cleared: {e}"
+            return response
+
+        self._error_reason = ""
+        self._kortex_arm_state = ""
+        self._transition_to(ArmState.IDLE)
+        response.success = True
+        response.message = "Error cleared — arm is IDLE"
+        return response
+
+    def _on_calibrate(self, goal_handle):
+        result = Calibrate.Result()
+
+        if not self._arm:
+            result.success = False
+            result.message = "Arm not connected"
+            goal_handle.abort()
+            return result
+
+        deadline = time.monotonic() + 3.0  # seconds until calibration times out
+        while time.monotonic() < deadline:
+            if goal_handle.is_cancel_requested:
+                self.get_logger().info("Calibration goal cancelled.")
+                goal_handle.canceled()
+                result.success = False
+                result.message = "Calibration cancelled"
+                return result
+            self.get_logger().info(
+                f"calibration will finished in {deadline - time.monotonic()} seconds"
+            )
+            time.sleep(0.2)
+
+        result.success = True
+        result.message = "Calibrated."
+        goal_handle.succeed()
+        return result
 
     def _goal_callback(self, goal_request):
         # goal_callback receives the Goal request message, not a goal handle.
         # Accept/reject by returning GoalResponse.
         self.get_logger().info("Received an action goal request.")
         return GoalResponse.ACCEPT
+
+    def _cancel_callback(self, goal_handle):
+        self.get_logger().info("Received an action cancel request.")
+        return CancelResponse.ACCEPT
 
     def _init_timers(self):
         """Create periodic timers for state publishing and twist streaming."""
@@ -466,6 +550,7 @@ class ArmDriverNode(rclpy.node.Node):
             response.success = False
             response.message = "Arm not connected"
             return response
+        self.get_logger().info("Received open gripper request.")
 
         if self._state in (ArmState.IDLE, ArmState.ERROR):
             response.success = False
@@ -498,11 +583,16 @@ class ArmDriverNode(rclpy.node.Node):
             response.message = "Arm not connected"
             return response
 
+        self.get_logger().info("Received close gripper request.")
         if self._state in (ArmState.IDLE, ArmState.ERROR):
             response.success = False
             response.message = (
                 f"Gripper commands not allowed in state {self._state.name}"
             )
+            self.get_logger().info(
+                f"Gripper commands not allowed in state {self._state.name}."
+            )
+
             return response
 
         try:
@@ -531,13 +621,20 @@ class ArmDriverNode(rclpy.node.Node):
         Returns:
             The populated action result.
         """
-        self._transition_to(ArmState.PRESET_IN_MOTION)
+        # self._transition_to(ArmState.PRESET_IN_MOTION)
         result = ReachPreset.Result()
 
         try:
             arm_fn(blocking=False)
             feedback = ReachPreset.Feedback()
             while not self._arm.ready():
+                if goal_handle.is_cancel_requested:
+                    self.get_logger().info("Action goal cancelled.")
+                    goal_handle.canceled()
+                    result.success = False
+                    result.message = "Action cancelled"
+                    return result
+
                 if self._state == ArmState.ERROR:
                     goal_handle.abort()
                     result.success = False
@@ -558,7 +655,7 @@ class ArmDriverNode(rclpy.node.Node):
                 result.message = "Action aborted: e-stop triggered during execution"
                 return result
 
-            self._transition_to(ArmState.IDLE)
+            # self._transition_to(ArmState.IDLE)
             goal_handle.succeed()
             result.success = True
         except Exception as e:
@@ -588,6 +685,7 @@ class ArmDriverNode(rclpy.node.Node):
             ReachPreset.Goal.PRESET_RETRACT: self._arm.retract,
             ReachPreset.Goal.PRESET_ZERO: self._arm.zero,
             ReachPreset.Goal.PRESET_CUP_STABILIZE: self._arm.cup_stabilize,
+            ReachPreset.Goal.PRESET_DRINK_DETECTION: self._arm.drink_detection,
         }
 
         arm_fn = dispatch.get(goal_handle.request.preset)

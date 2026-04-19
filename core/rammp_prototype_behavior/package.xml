@@ -11,6 +11,7 @@
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>diagnostic_msgs</depend>
+  <depend>diagnostic_updater</depend>
   <depend>arm_interfaces</depend>
   <depend>cornell_feeding_interfaces</depend>
   <depend>cmu_door_opener_interfaces</depend>

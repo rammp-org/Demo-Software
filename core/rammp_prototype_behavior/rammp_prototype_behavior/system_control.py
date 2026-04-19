@@ -6,7 +6,7 @@ from std_msgs.msg import Float32
 import rclpy
 import rclpy.action
 import rclpy.node
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
 import os
@@ -25,6 +25,8 @@ from .action_client.chair_curb_traverse_action_client import (
     CurbTraverseDirection,
     ChairCurbTraverseActionClient,
 )
+from .action_client.chair_calibrate_action_client import ChairCalibrateActionClient
+from .action_client.arm_calibrate_action_client import ArmCalibrateActionClient
 from gui_interfaces.srv import UserInputs
 from gui_interfaces.msg import SystemState
 from transitions.extensions import HierarchicalMachine as Machine
@@ -34,7 +36,7 @@ from arm_interfaces.srv import SetMode, SetSpeedPreset
 from std_srvs.srv import Trigger, SetBool
 from std_msgs.msg import Bool
 from sensor_msgs.msg import JointState
-from diagnostic_msgs.msg import DiagnosticStatus
+from diagnostic_msgs.msg import DiagnosticStatus, DiagnosticArray
 from rammp_prototype_interfaces.msg import SeatCommand
 
 UserInputsToSeatCommand: dict[str, int] = {
@@ -186,7 +188,16 @@ class SystemControl(rclpy.node.Node):
 
         self._arm_status = ""
         self._cb_group = ReentrantCallbackGroup()
+        self._mock_cb_group = MutuallyExclusiveCallbackGroup()
+        self._pub_cb_group = MutuallyExclusiveCallbackGroup()
+        self._system_monitor_cb_group = MutuallyExclusiveCallbackGroup()
         self._all_node_ready = False
+        self._teensy_calibrated = False
+        self._arm_calibrated = False
+        self._LUCI_connected = False
+        self._teensy_connected = False
+        self._base_error = False
+
         self.node_monitor = NodeNameMonitor(self, json_path, self.node_monitor_callback)
 
         self.current_arm_state = ""
@@ -197,17 +208,42 @@ class SystemControl(rclpy.node.Node):
         self.init_services()
         self.init_actions_clients()
         self._test_timer = self.create_timer(
-            1.0, self.mock_task, callback_group=self._cb_group
+            1.0, self.mock_task, callback_group=self._mock_cb_group
         )
         self._test_timer.cancel()  # cancel the timer and reset when system is ready
 
         self._system_monitor_timer = self.create_timer(
-            1.0, self.system_monitor_callback, callback_group=self._cb_group
+            1.0,
+            self.system_monitor_callback,
+            callback_group=self._system_monitor_cb_group,
         )
 
     def system_monitor_callback(self):
-        if self._all_node_ready and self._gui_connected:
+        if (
+            self._is_arm_error is None
+        ):  # not receive arm status yet, wait for it to be initialized
+            return
+        # try to clear arm error
+        if self._is_arm_error:
+            # try to clear error until it is cleared, it will trigger ready() when error is cleared successfully
+            self.clear_arm_error()
+            return  # return early
+
+        if (
+            self._all_node_ready
+            and self._gui_connected
+            and self._LUCI_connected
+            and self._teensy_connected
+            and self._teensy_calibrated
+        ):
+            if self.old_state == "init":
+                self.get_logger().info("All systems are ready. System is ready to use.")
             self.ready()
+        else:
+            if self.old_state == "init":
+                self.get_logger().info(
+                    f"all node ready: {self._all_node_ready}, gui connected: {self._gui_connected}, LUCI connected: {self._LUCI_connected}, Teensy connected: {self._teensy_connected}, Teensy calibrated: {self._teensy_calibrated}"
+                )
 
     def mock_task(self):
         self._mock_state.run_next_mock_task()
@@ -366,6 +402,15 @@ class SystemControl(rclpy.node.Node):
             False
         )  # disable cup stabilizer if it is on when arm is paused to avoid potential interference with pausing arm
         self.set_arm_mode_idle()  # set arm mode to idle when paused to stop any ongoing arm action
+        if self._is_arm_error:
+            if self.clear_arm_error():
+                self.get_logger().info("Arm error cleared successfully.")
+            else:
+                self.get_logger().warn("Failed to clear arm error.")
+                self.SystemError()
+        if self._base_error:
+            self.get_logger().warn("Base error, transitioning to system error state.")
+            self.SystemError()
 
     def on_exit_Arm_paused(self):
         self.base_drive_enable(True)  # re-enable drive when exiting paused state
@@ -404,10 +449,10 @@ class SystemControl(rclpy.node.Node):
 
     # ---------cup stabilizer state transition function calls------------------------
 
-    def on_enter_Arm_cupStabilize(self):
-        self.get_logger().info("Starting cup stabilization process.")
-        # should enter Arm_cupStabilize_moving state to move arm to cup stabilize position
-        self.set_arm_mode(ArmMode.CUP_STABILIZE)  # set arm mode to cup stabilize
+    # def on_enter_Arm_cupStabilize(self):
+    #     self.get_logger().info("Starting cup stabilization process.")
+    #     # should enter Arm_cupStabilize_moving state to move arm to cup stabilize position
+    #     self.set_arm_mode(ArmMode.CUP_STABILIZE)  # set arm mode to cup stabilize
 
     def on_enter_Arm_cupStabilize_moving(self):
         self.get_logger().info("Moving arm to cup stabilize position.")
@@ -449,8 +494,8 @@ class SystemControl(rclpy.node.Node):
             True
         )  # re-enable drive when exiting homing arm after cup stabilization state
 
-    def on_exit_Arm_cupStabilize(self):
-        self.set_arm_mode_idle()  # set arm back to idle when exiting stabilizing cup state
+    # def on_exit_Arm_cupStabilize(self):
+    #     self.set_arm_mode_idle()  # set arm back to idle when exiting stabilizing cup state
 
     # ---------end of cup stabilizer state transition function calls-----------------
 
@@ -478,6 +523,10 @@ class SystemControl(rclpy.node.Node):
     def on_exit_Arm_OrderDrink_releasingCup(self):
         self.base_drive_enable(True)  # re-enable drive when exiting releasing cup state
         self.set_arm_mode_idle()  # set arm mode back to idle after releasing cup
+
+    def on_enter_Arm_OrderDrink_raisingArm(self):
+        self.get_logger().info("Raising arm to prepare for drink detection.")
+        self.arm_preset_client.set_preset(ArmPreset.HOME)
 
     def on_enter_Arm_OrderDrink_detectingDrink(self):
         self.get_logger().info("Detecting drink to confirm if the drink is received.")
@@ -687,7 +736,7 @@ class SystemControl(rclpy.node.Node):
             SystemState, "/system/state", 10
         )
         self.system_state_publisher_timer = self.create_timer(
-            0.1, self.publish_system_state, callback_group=self._cb_group
+            0.1, self.publish_system_state, callback_group=self._pub_cb_group
         )
         self._curb_traverse_progress_publisher = self.create_publisher(
             Float32, "/nav/curb_traverse_progress", 10
@@ -722,6 +771,7 @@ class SystemControl(rclpy.node.Node):
         self.old_state = self.state
 
     def init_subscribers(self):
+        self._is_arm_error = None  # default to None to indicate not received arm status yet, will update to True/False after receiving arm status
         self.arm_status_subscriber = self.create_subscription(
             DiagnosticStatus,
             "/arm/status",
@@ -742,6 +792,15 @@ class SystemControl(rclpy.node.Node):
             JointState,
             "/arm/joint_states",
             self.arm_joints_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+
+        # subscribe to diagnostic status of other nodes to determine if all hardware are ready.
+        self.diagnostics_subscriber = self.create_subscription(
+            DiagnosticArray,
+            "/diagnostics",
+            self.diagnostics_callback,
             10,
             callback_group=self._cb_group,
         )
@@ -770,11 +829,11 @@ class SystemControl(rclpy.node.Node):
             "/arm/drink/detection/enable",
             callback_group=self._service_cb_group,
         )
-        self.cup_stabilizer_client = self.create_client(
-            SetBool,
-            "/arm/drink/stabilize/enable",
-            callback_group=self._service_cb_group,
-        )
+        # self.cup_stabilizer_client = self.create_client(
+        #     SetBool,
+        #     "/arm/drink/stabilize/enable",
+        #     callback_group=self._service_cb_group,
+        # )
         self.curb_detection_client = self.create_client(
             SetBool,
             "/nav/curb/detect",
@@ -803,6 +862,11 @@ class SystemControl(rclpy.node.Node):
             self._srv_user_inputs_callback,
             callback_group=self._service_cb_group,
         )
+        self.clear_arm_error_client = self.create_client(
+            Trigger,
+            "/arm/clear_error",
+            callback_group=self._service_cb_group,
+        )
 
     def init_actions_clients(self):
         self.arm_preset_client = ArmPresetActionClient(self)
@@ -810,11 +874,35 @@ class SystemControl(rclpy.node.Node):
         self.home_cup_client = HomeCupActionClient(self)
         self.grab_cup_from_table_client = GrabCupFromTableActionClient(self)
         self.put_cup_back_to_holder_client = PutCupBackToHolderActionClient(self)
+        self.chair_calibrate_client = ChairCalibrateActionClient(self)
+        self.arm_calibrate_client = ArmCalibrateActionClient(self)
         self.bring_cup_to_mouth_client = BringCupToMouthActionClient(self)
         self.open_door_client = OpenDoorActionClient(self)
         self.curb_traverse_client = ChairCurbTraverseActionClient(self)
 
     # ----------Helper functions to call services and actions for state transitions----------------
+    def start_arm_calibration(self):
+        self.get_logger().info("Starting arm calibration.")
+        self._arm_calibrated = False  # reset arm calibrated status before starting calibration, will update to True after receiving arm status indicating arm is calibrated
+        self.arm_calibrate_client.send_goal()
+
+    def start_chair_calibration(self):
+        self.get_logger().info("Starting chair calibration.")
+        self.chair_calibrate_client.send_goal()
+
+    def clear_arm_error(self) -> bool:
+        future = self.clear_arm_error_client.call_async(Trigger.Request())
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        event.wait(timeout=5.0)
+        if not future.done():
+            return False
+        if future.result() is not None:
+            self.get_logger().info(future.result().message)
+            return future.result().success
+        else:
+            return False
+
     def set_arm_mode_idle(self):
         return self.set_arm_mode(ArmMode.IDLE)
 
@@ -876,18 +964,19 @@ class SystemControl(rclpy.node.Node):
             return False
 
     def enable_cup_stabilizer(self, enable: bool) -> bool:
-        req = SetBool.Request()
-        req.data = enable
-        future = self.cup_stabilizer_client.call_async(req)
-        event = threading.Event()
-        future.add_done_callback(lambda _: event.set())
-        event.wait(timeout=5.0)
-        if not future.done():
-            return False
-        if future.result() is not None:
-            return future.result().success
-        else:
-            return False
+        # req = SetBool.Request()
+        # req.data = enable
+        # future = self.cup_stabilizer_client.call_async(req)
+        # event = threading.Event()
+        # future.add_done_callback(lambda _: event.set())
+        # event.wait(timeout=5.0)
+        # if not future.done():
+        #     return False
+        # if future.result() is not None:
+        #     return future.result().success
+        # else:
+        #     return False
+        return self.set_arm_mode(ArmMode.CUP_STABILIZE if enable else ArmMode.IDLE)
 
     def close_gripper(self) -> bool:
         future = self.close_gripper_client.call_async(Trigger.Request())
@@ -969,11 +1058,67 @@ class SystemControl(rclpy.node.Node):
     # ----------End of Helper functions to call services and actions for state transitions----------------
 
     # ----------publisher / service callback functions to process messages and update internal state----------------
+
+    def diagnostics_callback(self, msg: DiagnosticArray):
+        base_error = False
+        for status in msg.status:
+            if status.name == "base_control_node: LUCI status":
+                if status.level == DiagnosticStatus.ERROR:
+                    if self._LUCI_connected:
+                        self.get_logger().error("LUCI status error detected!")
+                    self._LUCI_connected = False
+                    base_error = True
+                else:
+                    if not self._LUCI_connected:
+                        self.get_logger().info("LUCI connection established!")
+                    self._LUCI_connected = True
+
+            if status.name == "base_control_node: Teensy connection":
+                if status.level == DiagnosticStatus.ERROR:
+                    if self._teensy_connected:
+                        self.get_logger().error("Teensy connection error detected!")
+                    self._teensy_connected = False
+                    base_error = True
+                else:
+                    if not self._teensy_connected:
+                        self.get_logger().info("Teensy connection established!")
+                    self._teensy_connected = True
+
+            if status.name == "base_control_node: Teensy state":
+                if status.level == DiagnosticStatus.ERROR:
+                    self.get_logger().error("Teensy state error detected!")
+                    base_error = True
+                else:
+                    if (
+                        status.message == "Teensy in idle state"
+                        and not self._teensy_calibrated
+                    ):
+                        self._teensy_calibrated = True
+                        self.get_logger().info("Teensy calibration completed!")
+                    else:
+                        if not self._teensy_calibrated:
+                            self.get_logger().warn(
+                                "Teensy not calibrated yet, current state: "
+                                + status.message
+                            )
+
+        if base_error:
+            self._base_error = True
+            self.BaseError()
+        else:
+            self._base_error = False
+
     def arm_status_callback(self, msg: DiagnosticStatus):
         # Placeholder for processing arm status messages
         if self._arm_status != msg.message:
             self.get_logger().info(f" arm status: {self._arm_status} --> {msg.message}")
             self._arm_status = msg.message
+        is_arm_error = msg.level == DiagnosticStatus.ERROR
+        if self._is_arm_error is not None and is_arm_error and not self._is_arm_error:
+            self.get_logger().error("Arm error detected!")
+            self._is_arm_error = True
+            self.ArmError()
+        self._is_arm_error = is_arm_error
 
     def Gui_connection_callback(self, msg: Bool):
         # Placeholder for processing GUI connection status, will replace with actual logic to handle GUI connection status later
@@ -1096,11 +1241,6 @@ class SystemControl(rclpy.node.Node):
         if all_nodes_ready:
             self.get_logger().info("All nodes are ready!")
             self._all_node_ready = True
-            self.ready()  # trigger transition to Chair state when all nodes are ready
-            # TODO: need check UI connection as well
-            # wait 2 senconds to start mock testing here
-            # self._test_timer.reset()  # reset and start the timer to run mock tasks
-
         else:
             self.get_logger().warn("Some nodes are missing!")
             self.eStop()  # trigger transition to error state when nodes are missing
@@ -1109,6 +1249,9 @@ class SystemControl(rclpy.node.Node):
     # ----------End of publisher callback functions to process messages and update internal state----------------
 
     # ----------state machine conditions----------------
+    def is_all_node_ready(self):
+        return self._all_node_ready
+
     def is_arm_state_good_for_driving(self):
         # several arm state is good for driving, e.g., retracted, home, homeWithDrink, cub_Stabilizing
         if self.state in [
@@ -1136,8 +1279,60 @@ class SystemControl(rclpy.node.Node):
     def is_arm_retracted(self):
         return self.current_arm_state == "Arm_retracted" or self.current_arm_state == ""
 
+    def is_arm_action_running(self):
+        # check if arm is currently performing an action
+        action_clients = (
+            getattr(self, "arm_preset_client", None),
+            getattr(self, "pickup_and_order_client", None),
+            getattr(self, "home_cup_client", None),
+            getattr(self, "grab_cup_from_table_client", None),
+            getattr(self, "put_cup_back_to_holder_client", None),
+            getattr(self, "bring_cup_to_mouth_client", None),
+            getattr(self, "open_door_client", None),
+            getattr(self, "curb_traverse_client", None),
+        )
+        return any(
+            client is not None and client.is_action_running()
+            for client in action_clients
+        )
+
     # ----------End of state machine conditions----------------
     # ----------state machine callbacks----------------
+    def on_enter_init(self):
+        self._LUCI_connected = (
+            False  # reset LUCI connection status when entering init state
+        )
+        self._teensy_connected = (
+            False  # reset Teensy connection status when entering init state
+        )
+        self._teensy_calibrated = (
+            False  # reset Teensy calibration status when entering init state
+        )
+        self._arm_status = ""  # reset arm status when entering init state
+        self._gui_connected = (
+            False  # reset GUI connection status when entering init state
+        )
+        self._base_error = False  # reset base error status when entering init state
+
+    def on_enter_calibrating_chair(self):
+        self.get_logger().info(
+            "Entering calibrating chair state, starting chair calibration."
+        )
+        self.start_chair_calibration()  # start chair calibration when entering calibrating chair state
+
+    def on_enter_calibrating_arm(self):
+        self.get_logger().info(
+            "Entering calibrating arm state, starting arm calibration."
+        )
+        self.start_arm_calibration()  # start arm calibration when entering calibrating arm state
+
+    def on_enter_calibrating_canceling(self):
+        self.get_logger().info(
+            "Entering calibrating canceling state, canceling chair and arm calibration."
+        )
+        self.chair_calibrate_client.cancel()  # cancel chair calibration when entering calibrating canceling state
+        self.arm_calibrate_client.cancel()  # cancel arm calibration when entering calibrating canceling state
+
     def on_enter_Chair(self):
         # for testing
         self.get_logger().info("Entering Chair state")
@@ -1150,9 +1345,21 @@ class SystemControl(rclpy.node.Node):
             False
         )  # disable self-leveling when entering error state
         self.set_arm_mode_idle()  # set arm mode to idle when entering error state to stop any ongoing arm action
+        self.current_arm_state = ""  # reset current arm state when entering error state
 
     def on_enter_Arm(self):
         self.get_logger().info("Entering Arm state")
+
+    def on_enter_ReadyForCalibration(self):
+        self.get_logger().info(
+            "Entering ReadyForCalibration state, waiting for calibrations to complete."
+        )
+        existing_timeout = getattr(self, "_calibration_wait_timeout", None)
+        if existing_timeout is not None:
+            existing_timeout.cancel()
+        # put a timeout for waiting
+        self._calibration_wait_timeout = threading.Timer(3.0, self.timeout)
+        self._calibration_wait_timeout.start()
 
     # ----------End of state machine callbacks----------------
 
@@ -1160,7 +1367,14 @@ class SystemControl(rclpy.node.Node):
     def init_state_machine(self):
         states = [
             "init",
+            # "calibrating",
+            {
+                "name": "calibrating",
+                "initial": "chair",
+                "children": ["chair", "arm", "canceling"],
+            },
             "Chair",
+            "ReadyForCalibration",  # waiting for calibration to complete, will transition to next state automatically after receiving calibration status from arm and base
             {
                 "name": "Arm",
                 "initial": "retracted",
@@ -1187,6 +1401,7 @@ class SystemControl(rclpy.node.Node):
                             "pickUpCup",
                             "holdingCup",
                             "releasingCup",
+                            "raisingArm",
                             "detectingDrink",
                             "receivingDrink",
                         ],
@@ -1287,6 +1502,7 @@ class SystemControl(rclpy.node.Node):
                     "Arm_OrderDrink_pickUpCup",
                     "Arm_OrderDrink_releasingCup",
                     "Arm_OrderDrink_receivingDrink",
+                    "Arm_OrderDrink_raisingArm",
                     "Arm_Door_raisingArm",
                     "Arm_Door_opening",
                     "Arm_cupStabilize_moving",
@@ -1411,6 +1627,16 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Arm_OrderDrink_detectingDrink",
             },
             {
+                "trigger": "detectDrink",
+                "source": "Arm_retracted",
+                "dest": "Arm_OrderDrink_raisingArm",
+            },
+            {
+                "trigger": "homed",
+                "source": "Arm_OrderDrink_raisingArm",
+                "dest": "Arm_OrderDrink_detectingDrink",
+            },
+            {
                 "trigger": "receiveDrinkConfirm",
                 "source": "Arm_OrderDrink_detectingDrink",
                 "dest": "Arm_OrderDrink_receivingDrink",
@@ -1528,6 +1754,39 @@ class SystemControl(rclpy.node.Node):
             # global transitions
             {"trigger": "eStop", "source": "*", "dest": "Error"},
             {"trigger": "UIDisconnected", "source": "*", "dest": "Error"},
+            {
+                "trigger": "ArmError",
+                "source": "Arm",
+                "dest": "Arm_canceling",
+                "conditions": "is_arm_action_running",
+            },  # if arm error happens during performing an action, try to cancel the action first; if arm is idle when error happens, directly go to error state
+            {
+                "trigger": "BaseError",
+                "source": "Arm",
+                "dest": "Arm_canceling",
+                "conditions": "is_arm_action_running",
+            },  # if base error when arm action running, cancel arm action first.
+            {
+                "trigger": "BaseError",
+                "source": "Arm",
+                "dest": "Arm_paused",
+                "unless": "is_arm_action_running",
+            },  # go to paused state so all the detection will stop.
+            {
+                "trigger": "ArmError",
+                "source": "Arm",
+                "dest": "Arm_paused",
+                "unless": "is_arm_action_running",
+            },
+            {
+                "trigger": "SystemError",
+                "source": "Arm_paused",
+                "dest": "Error",
+            },  # if arm error is not cleared successfully, treat as system error and require reset; if trigger by base error, it is system error.
+            {"trigger": "ArmError", "source": "Chair", "dest": "Error"},
+            {"trigger": "ArmError", "source": "Nav", "dest": "Error"},
+            {"trigger": "BaseError", "source": "Chair", "dest": "Error"},
+            {"trigger": "BaseError", "source": "Nav", "dest": "Error"},
             {"trigger": "ready", "source": "init", "dest": "Chair"},
             {"trigger": "reset", "source": "Error", "dest": "init"},
             # main state transitions
@@ -1645,6 +1904,47 @@ class SystemControl(rclpy.node.Node):
                 "dest": "Nav_paused",
             },
             {"trigger": "reset", "source": "Nav_paused", "dest": "Nav_SLOff"},
+            {
+                "trigger": "reset",
+                "source": "init",
+                "dest": "calibrating",
+                "conditions": "is_all_node_ready",
+            },
+            {
+                "trigger": "calibrationComplete",
+                "source": "calibrating_chair",
+                "dest": "calibrating_arm",
+            },
+            {
+                "trigger": "calibrationComplete",
+                "source": "calibrating_arm",
+                "dest": "init",
+            },
+            {
+                "trigger": "calibrationFailed",
+                "source": "calibrating",
+                "dest": "init",
+            },
+            {
+                "trigger": "cancel",
+                "source": "calibrating",
+                "dest": "calibrating_canceling",
+            },
+            {
+                "trigger": "reset",
+                "source": "Chair",
+                "dest": "ReadyForCalibration",
+            },
+            {
+                "trigger": "reset",
+                "source": "ReadyForCalibration",
+                "dest": "calibrating",
+            },
+            {
+                "trigger": "timeout",
+                "source": "ReadyForCalibration",
+                "dest": "init",
+            },
         ]
 
         self.machine = Machine(

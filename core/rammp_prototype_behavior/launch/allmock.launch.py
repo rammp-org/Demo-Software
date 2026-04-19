@@ -20,11 +20,11 @@ def generate_launch_description():
                 executable="mock_opening_door",
                 output="screen",
             ),
-            Node(
-                package="rammp_prototype_behavior",
-                executable="mock_cup_stabilizer",
-                output="screen",
-            ),
+            # Node(
+            #     package="rammp_prototype_behavior",
+            #     executable="mock_cup_stabilizer",
+            #     output="screen",
+            # ),
             Node(
                 package="rammp_prototype_behavior",
                 executable="mock_chair_control",

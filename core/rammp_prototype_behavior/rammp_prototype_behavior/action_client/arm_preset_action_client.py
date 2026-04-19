@@ -86,11 +86,11 @@ class ArmPresetActionClient(ActionClientWrapper):
         self._node.get_logger().info(f"Sending goal to reach preset: {arm_preset.name}")
         goal = ReachPreset.Goal()
         goal.preset = arm_preset.value
-        asyncio.run_coroutine_threadsafe(self.send_goal(goal), self._node._loop)
+        asyncio.run_coroutine_threadsafe(super().send_goal(goal), self._node._loop)
 
     def cancel(self):
         if not self.is_action_running():
             # do nothing if no action is currently running
             return
         self._current_preset = None
-        asyncio.run_coroutine_threadsafe(self.cancel_goal(), self._node._loop)
+        asyncio.run_coroutine_threadsafe(super().cancel_goal(), self._node._loop)

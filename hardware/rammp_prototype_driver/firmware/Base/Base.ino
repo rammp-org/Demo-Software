@@ -687,6 +687,14 @@ void loop() {
       if (DEBUG_MODE)
         Serial.println("DEBUG: Entering SELF_LEVELING mode");
     } else {
+      // Disable all position-controlled motors (zero power, PIDs reset).
+      // Motors are not backdrivable so holding position is unnecessary.
+      rc.disable();
+      fc.disable();
+      ml.disable();
+      mr.disable();
+      ml_carriage.disable();
+      mr_carriage.disable();
       current_state = calibrated ? IDLE : UNCALIBRATED;
       if (DEBUG_MODE)
         Serial.println(calibrated

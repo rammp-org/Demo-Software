@@ -146,15 +146,14 @@ void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS]) {
 }
 
 void sequenceExit(Motor *motors[SEQ_NUM_MOTORS]) {
+  // Disable actuators before tearing down state (actuators off first).
+  for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+    motors[i]->disable();
+  }
+
   seq_auto_run = false;
   seq_settling = false;
   seq_interpolating = false;
-
-  // Restore drive wheels to velocity control with zero velocity (safe stop).
-  for (int i = SEQ_NUM_POS_MOTORS; i < SEQ_NUM_MOTORS; i++) {
-    motors[i]->setTargetVelocity(0);
-    motors[i]->setMode(Motor::VELOCITY_CONTROL);
-  }
 }
 
 // ---------------------------------------------------------------------------

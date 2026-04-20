@@ -51,7 +51,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf);
 // ALL 8 motors are placed in POSITION_CONTROL for the duration of the sequence.
 void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS]);
 
-// Cleanup on mode exit.  Drive wheels are restored to VELOCITY_CONTROL.
+// Cleanup on mode exit.  All motors are disabled (zero power, PIDs reset).
 // SAFETY: must be called on ALL exit paths to prevent uncontrolled motion.
 void sequenceExit(Motor *motors[SEQ_NUM_MOTORS]);
 

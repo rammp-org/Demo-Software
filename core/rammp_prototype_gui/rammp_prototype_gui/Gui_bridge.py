@@ -562,7 +562,7 @@ class GuiBridge(Node):
         self._curb_marker = None
         self.curb_marker_sub = self.create_subscription(
             Marker,
-            "/perception/curb_marker",
+            "/perception/curb_visual",
             self.curb_marker_callback,
             0,
             callback_group=self._cb_group,

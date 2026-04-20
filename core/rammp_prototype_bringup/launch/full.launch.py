@@ -75,7 +75,7 @@ def generate_launch_description():
     # Future modules: flip default_value to "true" when ready to enable
     launch_neu_navigation_arg = DeclareLaunchArgument(
         "launch_neu_navigation",
-        default_value="true",
+        default_value="false",
         description="Launch NEU curb detection node",
     )
     launch_cornell_feeding_arg = DeclareLaunchArgument(

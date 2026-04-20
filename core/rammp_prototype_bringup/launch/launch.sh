@@ -122,14 +122,21 @@ tmux new-window -t "$SESSION" -n "laptop" \
         ros2 launch drink_actions_test minimal.launch.py\"; \
     echo \"[laptop] SSH session ended.\"; read'"
 
-# Window 3: Jetson nodes
+# Window 3: Jetson mock nodes
+tmux new-window -t "$SESSION" -n "jetson_mocks" \
+    "zsh -c 'source $ROS_SETUP && \
+            source $JETSON_WS/install/setup.zsh && \
+            ros2 launch rammp_prototype_behavior mock.launch.py; \
+            echo \"[jetson_mocks] Launch exited.\"; read'"
+
+# Window 4: Jetson nodes
 tmux new-window -t "$SESSION" -n "jetson" \
     "zsh -c 'source $ROS_SETUP && \
             source $JETSON_WS/install/setup.zsh && \
-            ros2 launch rammp_prototype_bringup full.launch.py $ARGS_STR | grep -v '\''luci'\''; \
+            ros2 launch rammp_prototype_bringup full.launch.py $ARGS_STR > "rammp_logs/rammp_logs_$(date +%Y-%m-%d_%H-%M-%S).txt"; \
             echo \"[jetson] Launch exited.\"; read'"
 
-# Window 4: Calibration — waits for arm and base to be ready
+# Window 5: Calibration — waits for arm and base to be ready
 tmux new-window -t "$SESSION" -n "calibration" \
     "zsh -c 'source $ROS_SETUP && \
               source $JETSON_WS/install/setup.zsh && \

@@ -61,7 +61,15 @@ void updateTelemetry() {
   telemetry.drive_positions[1] = drive_lr.current_pos;
   telemetry.drive_velocities[0] = drive_fb.current_vel;
   telemetry.drive_velocities[1] = drive_lr.current_vel;
-  telemetry.drive_pwms[0] = drive_fb.target_pwm * drive_fb.getDirection();
+  
+  // if we aren't in a driving sequence, hard set the drive commands to 0
+  if (drive_fb.mode != POSITION_CONTROL){
+    telemetry.drive_pwms[0] = 0;
+  }
+  else{
+    telemetry.drive_pwms[0] = drive_fb.target_pwm * drive_fb.getDirection();
+  }
+  
   // telemetry.drive_pwms[1] = drive_lr.target_pwm * drive_lr.getDirection();
   telemetry.drive_pwms[1] = 0;
   telemetry.drive_modes[0] = toGuiMode(drive_fb.mode);

@@ -188,9 +188,6 @@ class SystemControl(rclpy.node.Node):
 
         self._arm_status = ""
         self._cb_group = ReentrantCallbackGroup()
-        self._mock_cb_group = MutuallyExclusiveCallbackGroup()
-        self._pub_cb_group = MutuallyExclusiveCallbackGroup()
-        self._system_monitor_cb_group = MutuallyExclusiveCallbackGroup()
         self._all_node_ready = False
         self._teensy_calibrated = False
         self._arm_calibrated = False
@@ -208,14 +205,14 @@ class SystemControl(rclpy.node.Node):
         self.init_services()
         self.init_actions_clients()
         self._test_timer = self.create_timer(
-            1.0, self.mock_task, callback_group=self._mock_cb_group
+            1.0, self.mock_task, callback_group=MutuallyExclusiveCallbackGroup()
         )
         self._test_timer.cancel()  # cancel the timer and reset when system is ready
 
         self._system_monitor_timer = self.create_timer(
             1.0,
             self.system_monitor_callback,
-            callback_group=self._system_monitor_cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
     def system_monitor_callback(self):
@@ -736,7 +733,9 @@ class SystemControl(rclpy.node.Node):
             SystemState, "/system/state", 10
         )
         self.system_state_publisher_timer = self.create_timer(
-            0.1, self.publish_system_state, callback_group=self._pub_cb_group
+            0.1,
+            self.publish_system_state,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self._curb_traverse_progress_publisher = self.create_publisher(
             Float32, "/nav/curb_traverse_progress", 10
@@ -777,7 +776,7 @@ class SystemControl(rclpy.node.Node):
             "/arm/status",
             self.arm_status_callback,
             10,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self._gui_connected = False
         self.Gui_connection_subscriber = self.create_subscription(
@@ -785,7 +784,7 @@ class SystemControl(rclpy.node.Node):
             "/GuiBridge/gui_connection",
             self.Gui_connection_callback,
             10,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self._gripper_opened = False
         self.arm_joints_subscriber = self.create_subscription(
@@ -793,7 +792,7 @@ class SystemControl(rclpy.node.Node):
             "/arm/joint_states",
             self.arm_joints_callback,
             10,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # subscribe to diagnostic status of other nodes to determine if all hardware are ready.
@@ -802,7 +801,7 @@ class SystemControl(rclpy.node.Node):
             "/diagnostics",
             self.diagnostics_callback,
             10,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
     def init_services(self):
@@ -1966,7 +1965,7 @@ class SystemControl(rclpy.node.Node):
 
 def main():
     rclpy.init()
-    executor = MultiThreadedExecutor()
+    executor = MultiThreadedExecutor(50)  # have 30+ callbacks
     node = SystemControl()
     executor.add_node(node)
     try:

@@ -14,7 +14,7 @@ from gui_interfaces.srv import UserInputs
 
 # from realsense2_camera_msgs.msg import Extrinsics
 from neu_navigation_interfaces.msg import CurbInfo
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -288,10 +288,15 @@ class GuiBridge(Node):
             user_input_callback=self.user_input_callback,
         )
         self.stream_sender = StreamSender(host=self.host, port=30030, queue_size=10)
-        self.stream_check_timer = self.create_timer(1.0, self.check_streamer_connection)
-        self.update_ue_timer = self.create_timer(0.1, self.ue_update)
+        self.stream_check_timer = self.create_timer(
+            1.0,
+            self.check_streamer_connection,
+            callback_group=MutuallyExclusiveCallbackGroup(),
+        )
+        self.update_ue_timer = self.create_timer(
+            0.1, self.ue_update, callback_group=MutuallyExclusiveCallbackGroup()
+        )
 
-        self._cb_group = ReentrantCallbackGroup()
         self.arm_joints = None
         self.base_joints = None
         self._system_state = None
@@ -323,7 +328,9 @@ class GuiBridge(Node):
     def init_service(self):
         # make service client for user input, request should be string
         self.user_input_service_client = self.create_client(
-            UserInputs, "/GuiBridge/user_input", callback_group=self._cb_group
+            UserInputs,
+            "/GuiBridge/user_input",
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
     def send_user_input(self, input: str):
@@ -351,10 +358,15 @@ class GuiBridge(Node):
     def init_publisher(self):
         # make publisher for user input, message should be string
         self.connection_publisher = self.create_publisher(
-            Bool, "/GuiBridge/gui_connection", 10
+            Bool,
+            "/GuiBridge/gui_connection",
+            10,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.connection_publisher_timer = self.create_timer(
-            1.0, self.publish_connection_status
+            1.0,
+            self.publish_connection_status,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
     def init_subscriber(self):
@@ -364,7 +376,7 @@ class GuiBridge(Node):
             "/system/state",
             self.system_state_callback,
             10,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         # make subscriber for arm joint state,
         self.arm_joint_state_subscriber = self.create_subscription(
@@ -372,28 +384,28 @@ class GuiBridge(Node):
             "/arm/joint_states",
             self.arm_joint_state_callback,
             10,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.base_joint_state_subscriber = self.create_subscription(
             JointState,
             "/base/joint_states",
             self.base_joint_state_callback,
             10,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.curb_traverse_progress_subscriber = self.create_subscription(
             Float32,
             "/nav/curb_traverse_progress",
             self.curb_traverse_progress_callback,
             10,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.cup_info_subscriber = self.create_subscription(
             CupInfo,
             "/arm/drink/cup_info",
             self.cup_info_callback,
             10,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # init camera subscribers
@@ -432,28 +444,28 @@ class GuiBridge(Node):
             f"{self.wrist_camera_namespace}/color/camera_info",
             self.wrist_camera_image_info_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.wrist_camera_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.wrist_camera_namespace}/depth/camera_info",
             self.wrist_camera_depth_info_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.wrist_camera_image_sub = self.create_subscription(
             Image,
             f"{self.wrist_camera_namespace}/color/image_raw",
             self.wrist_camera_image_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.wrist_camera_depth_sub = self.create_subscription(
             Image,
             f"{self.wrist_camera_namespace}/depth/image_rect_raw",
             self.wrist_camera_depth_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         # nav camera 1
         self.nav_camera_1_image_info_sub = self.create_subscription(
@@ -461,28 +473,28 @@ class GuiBridge(Node):
             f"{self.nav_camera_namespace_1}/color/camera_info_rotated",
             self.nav_camera_1_image_info_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.nav_camera_1_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.nav_camera_namespace_1}/depth/camera_info_rotated",
             self.nav_camera_1_depth_info_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.nav_camera_1_image_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_1}/color/image_rotated",
             self.nav_camera_1_image_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.nav_camera_1_depth_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_1}/depth/image_rotated",
             self.nav_camera_1_depth_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         # nav camera 2
         self.nav_camera_2_image_info_sub = self.create_subscription(
@@ -490,28 +502,28 @@ class GuiBridge(Node):
             f"{self.nav_camera_namespace_2}/color/camera_info",
             self.nav_camera_2_image_info_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.nav_camera_2_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.nav_camera_namespace_2}/depth/camera_info",
             self.nav_camera_2_depth_info_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.nav_camera_2_image_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_2}/color/image_raw",
             self.nav_camera_2_image_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.nav_camera_2_depth_sub = self.create_subscription(
             Image,
             f"{self.nav_camera_namespace_2}/depth/image_raw",
             self.nav_camera_2_depth_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         # rear camera
         self.rear_camera_image_info_sub = self.create_subscription(
@@ -519,28 +531,28 @@ class GuiBridge(Node):
             f"{self.rear_camera_namespace}/color/camera_info",
             self.rear_camera_image_info_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.rear_camera_depth_info_sub = self.create_subscription(
             CameraInfo,
             f"{self.rear_camera_namespace}/depth/camera_info",
             self.rear_camera_depth_info_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.rear_camera_image_sub = self.create_subscription(
             Image,
             f"{self.rear_camera_namespace}/color/image_raw",
             self.rear_camera_image_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         self.rear_camera_depth_sub = self.create_subscription(
             Image,
             f"{self.rear_camera_namespace}/depth/image_raw",
             self.rear_camera_depth_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         # curb info
         self.curb_info_sub = self.create_subscription(
@@ -548,7 +560,7 @@ class GuiBridge(Node):
             "/nav/curb/info",
             self.curb_info_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         # curb mask
         self.curb_mask_sub = self.create_subscription(
@@ -556,7 +568,7 @@ class GuiBridge(Node):
             "/perception/curb_mask",
             self.curb_mask_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
         # curb marker
         self._curb_marker = None
@@ -565,7 +577,7 @@ class GuiBridge(Node):
             "/perception/curb_marker",
             self.curb_marker_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
         # door button info
@@ -574,7 +586,7 @@ class GuiBridge(Node):
             "/arm/door/button_info",
             self.door_button_info_callback,
             0,
-            callback_group=self._cb_group,
+            callback_group=MutuallyExclusiveCallbackGroup(),
         )
 
     def curb_marker_callback(self, msg: Marker):
@@ -1251,7 +1263,9 @@ class GuiBridge(Node):
 
 def main():
     rclpy.init()
-    executor = MultiThreadedExecutor()
+    executor = MultiThreadedExecutor(
+        50
+    )  # we have 30+ callback groups, so increase the number of threads
     node = GuiBridge()
     executor.add_node(node)
     try:

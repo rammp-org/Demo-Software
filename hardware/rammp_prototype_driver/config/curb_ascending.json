@@ -13,7 +13,7 @@
         0.0,
         0.0
       ],
-      "duration_ms": 1000,
+      "duration_ms": 3000,
       "relative": [
         false,
         false,
@@ -276,8 +276,8 @@
       "targets": [
         860.0,
         105.0,
-        0.0,
-        0.0,
+        30.0,
+        30.0,
         12661.0,
         12615.0,
         0.0,
@@ -341,8 +341,8 @@
       "relative": [
         false,
         false,
-        false,
-        false,
+        true,
+        true,
         false,
         false,
         true,
@@ -395,8 +395,8 @@
       "relative": [
         false,
         false,
-        false,
-        false,
+        true,
+        true,
         false,
         false,
         true,
@@ -438,8 +438,8 @@
       "targets": [
         0.0,
         0.0,
-        450.0,
-        380.0,
+        430.0,
+        360.0,
         0.0,
         0.0,
         0.0,
@@ -459,8 +459,8 @@
       "motor_durations": [
         null,
         null,
-        null,
-        null,
+        3000,
+        3000,
         null,
         null,
         null,

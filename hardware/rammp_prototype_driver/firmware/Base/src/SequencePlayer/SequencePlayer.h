@@ -8,7 +8,7 @@ struct RobotCommand;
 
 #define MAX_SEQ_KEYFRAMES 20
 #define SEQ_NUM_MOTORS 8
-#define SEQ_NUM_POS_MOTORS 8
+#define SEQ_NUM_POS_MOTORS 6
 
 static const float SEQ_COMPLETION_DEADZONE[SEQ_NUM_MOTORS] = {
     50.0f,   // 0: RC

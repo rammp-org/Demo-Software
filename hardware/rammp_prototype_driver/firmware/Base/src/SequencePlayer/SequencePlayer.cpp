@@ -124,6 +124,18 @@ void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS]) {
   seq_settling = false;
   seq_auto_run = false;
 
+  // Zero drive wheel positions so closed-loop control starts from a known
+  // origin.  This prevents float precision issues from accumulating over long
+  // drives and ensures repeatable sequence behavior.
+  for (int i = SEQ_NUM_POS_MOTORS; i < SEQ_NUM_MOTORS; i++) {
+    motors[i]->current_pos = 0.0f;
+    motors[i]->prev_pos = 0.0f;
+    motors[i]->current_vel = 0.0f;
+    motors[i]->prev_vel = 0.0f;
+    motors[i]->pos_pid.reset();
+    motors[i]->vel_pid.reset();
+  }
+
   // ALL motors — including drive wheels — run position control during
   // sequences.
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
@@ -138,11 +150,10 @@ void sequenceExit(Motor *motors[SEQ_NUM_MOTORS]) {
   seq_settling = false;
   seq_interpolating = false;
 
-  // Restore drive wheels: zero velocity, hold current position for safety.
+  // Restore drive wheels to velocity control with zero velocity (safe stop).
   for (int i = SEQ_NUM_POS_MOTORS; i < SEQ_NUM_MOTORS; i++) {
     motors[i]->setTargetVelocity(0);
-    motors[i]->setMode(Motor::POSITION_CONTROL);
-    motors[i]->setTargetPosition(motors[i]->current_pos);
+    motors[i]->setMode(Motor::VELOCITY_CONTROL);
   }
 }
 

@@ -61,7 +61,7 @@ void updateTelemetry() {
   telemetry.drive_positions[1] = drive_lr.current_pos;
   telemetry.drive_velocities[0] = drive_fb.current_vel;
   telemetry.drive_velocities[1] = drive_lr.current_vel;
-  
+
   // Only report drive PWMs when the system is actively commanding the wheels
   // (AUTO_CURB_CLIMBING).  In all other states, force zero so stale PID output
   // never leaks to the joystick spoofer.

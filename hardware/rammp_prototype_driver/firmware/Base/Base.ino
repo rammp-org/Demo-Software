@@ -687,8 +687,8 @@ void loop() {
       // so drive wheels don't stay in POSITION_CONTROL with stale targets.
       if (current_state == AUTO_CURB_CLIMBING) {
         Motor *seq_motors[SEQ_NUM_MOTORS] = {
-            &rc,          &fc,       &ml,      &mr, &ml_carriage,
-            &mr_carriage, &drive_fb, &drive_lr};
+            &rc,          &fc,          &ml,       &mr,
+            &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
         sequenceExit(seq_motors);
       }
       current_state = SELF_LEVELING;

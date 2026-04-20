@@ -256,8 +256,8 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS]) {
       // contributes to keyframe timing so we track t_i below.
       bool delta_zero = isDeltaZero(kf, i);
 
-      if (!delta_zero &&
-          kf.guard_condition[i] != GUARD_NONE && !seq_guard_triggered[i]) {
+      if (!delta_zero && kf.guard_condition[i] != GUARD_NONE &&
+          !seq_guard_triggered[i]) {
         bool condition_met = false;
         float current_load = motors[i]->current_load;
         if (kf.guard_condition[i] == GUARD_GREATER_THAN) {

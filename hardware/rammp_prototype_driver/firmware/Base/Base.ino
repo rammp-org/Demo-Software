@@ -683,6 +683,14 @@ void loop() {
     }
   } else if (cmd.type == CMD_LEVEL_MODE) {
     if (cmd.value > 0.5) {
+      // If jumping from AUTO_CURB_CLIMBING, clean up sequence state first
+      // so drive wheels don't stay in POSITION_CONTROL with stale targets.
+      if (current_state == AUTO_CURB_CLIMBING) {
+        Motor *seq_motors[SEQ_NUM_MOTORS] = {
+            &rc,          &fc,       &ml,      &mr, &ml_carriage,
+            &mr_carriage, &drive_fb, &drive_lr};
+        sequenceExit(seq_motors);
+      }
       current_state = SELF_LEVELING;
       if (DEBUG_MODE)
         Serial.println("DEBUG: Entering SELF_LEVELING mode");
@@ -776,6 +784,11 @@ void loop() {
     drive_fb.disable();
     drive_lr.disable();
   } else if (current_state == SELF_LEVELING) {
+    // Drive wheels are not used during leveling — disable every tick to prevent
+    // stale PID output from leaking to the joystick (e.g. if a prior mode left
+    // drive_fb in POSITION_CONTROL with a stale target).
+    drive_fb.disable();
+    drive_lr.disable();
     runSelfLeveling(dt);
   } else if (current_state == AUTO_CURB_CLIMBING) {
     Motor *seq_motors[SEQ_NUM_MOTORS] = {

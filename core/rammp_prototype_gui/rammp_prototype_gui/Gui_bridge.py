@@ -257,7 +257,7 @@ class GuiBridge(Node):
             # nav2
             ("nav2", "x"): -1.0,
             ("nav2", "y"): 1.0,
-            ("nav1", "z"): -15.24,
+            ("nav2", "z"): -15.24,
             ("nav2", "pitch"): -2.0,
         }
         for cam in ["wrist", "nav1", "nav2"]:

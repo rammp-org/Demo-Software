@@ -1091,8 +1091,8 @@ class SystemControl(rclpy.node.Node):
                 else:
                     if (
                         status.message == "Teensy in idle state"
-                        and not self._teensy_calibrated
-                    ):
+                        or status.message == "Teensy in tuner mode"
+                    ) and not self._teensy_calibrated:
                         self._teensy_calibrated = True
                         self.get_logger().info("Teensy calibration completed!")
                     else:

@@ -264,6 +264,12 @@ class MEBotControlNode(Node):
         self.fb_pwm = 0
         self.test_pwm = 0
 
+        # Debug: track previous fb_pwm to detect transitions
+        self._prev_fb_pwm = 0
+        # Throttle joystick warnings to avoid flooding logs
+        self._js_warn_count = 0
+        self._js_warn_interval = 200  # log every Nth unexpected non-zero publish
+
         #### Init all ROS interfaces
         self._init_services()
         self._init_actions()
@@ -446,7 +452,20 @@ class MEBotControlNode(Node):
         # State
         self.state = int(data[SerialField.STATE])
 
-        self.fb_pwm = int(100.0 * float(data[SerialField.FB_PWM]))
+        new_fb_pwm = int(100.0 * float(data[SerialField.FB_PWM]))
+
+        # Log transitions: zero→non-zero and non-zero→zero
+        if new_fb_pwm != 0 and self._prev_fb_pwm == 0:
+            self.get_logger().warn(
+                f"fb_pwm went non-zero: {new_fb_pwm} "
+                f"(raw={data[SerialField.FB_PWM]}, state={self.state})"
+            )
+        elif new_fb_pwm == 0 and self._prev_fb_pwm != 0:
+            self.get_logger().info(
+                f"fb_pwm returned to zero (was {self._prev_fb_pwm}, state={self.state})"
+            )
+        self._prev_fb_pwm = new_fb_pwm
+        self.fb_pwm = new_fb_pwm
 
     def publish_joint_states(self):
         conv = JOINT_CONVERSIONS
@@ -630,7 +649,9 @@ class MEBotControlNode(Node):
             self.write_serial_data("K0\n")
 
     def send_set_luci(self):
-        self.get_logger().info("Setting luci")
+        self.get_logger().info(
+            f"Setting LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
+        )
         request = Empty.Request()
         future = self.set_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
@@ -639,7 +660,9 @@ class MEBotControlNode(Node):
         return future
 
     def send_remove_luci(self):
-        self.get_logger().info("Removing luci")
+        self.get_logger().info(
+            f"Removing LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
+        )
         request = Empty.Request()
         future = self.remove_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
@@ -704,6 +727,21 @@ class MEBotControlNode(Node):
         msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
         msg.input_source = INPUT_REMOTE
         self.luci_js_publisher.publish(msg)
+
+        # Warn when publishing non-zero joystick data outside of active drive states
+        if self.fb_pwm != 0 and self.state != SystemState.AUTO_CURB_CLIMBING:
+            self._js_warn_count += 1
+            if self._js_warn_count == 1 or self._js_warn_count % self._js_warn_interval == 0:
+                self.get_logger().warn(
+                    f"Non-zero joystick published in state {self.state}: "
+                    f"fb_pwm={self.fb_pwm} (occurrence #{self._js_warn_count})"
+                )
+        else:
+            if self._js_warn_count > 0:
+                self.get_logger().info(
+                    f"Joystick data normalized after {self._js_warn_count} unexpected publishes"
+                )
+            self._js_warn_count = 0
 
     def curb_traverse_action_callback(self, goal):
         self.send_set_luci()  # enable LUCI control over js

@@ -8,7 +8,7 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.action.client import ClientGoalHandle
 from rclpy.task import Future
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.callback_groups import ReentrantCallbackGroup
 
 ActionClientCallback = Callable[[bool], None]  # (success, result) -> None
 ActionFeedbackCallback = Callable[[Any], None]  # (feedback_msg) -> None
@@ -45,7 +45,7 @@ class ActionClientWrapper:
             self._node,
             goal_type,
             self._action_name,
-            callback_group=MutuallyExclusiveCallbackGroup(),
+            callback_group=ReentrantCallbackGroup(),
             goal_service_qos_profile=self._qos_profile_services_goal,
         )
         self._goal_callback = goal_callback

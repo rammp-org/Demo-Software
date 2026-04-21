@@ -255,12 +255,14 @@ class GuiBridge(Node):
             # wrist
             ("wrist", "x"): 10.0,
             ("wrist", "y"): -3.0,
-            ("wrist", "z"): 2.0,
+            ("wrist", "z"): -3.0,
             # nav1 (mounted sideways → roll -90°)
             ("nav1", "roll"): -90.0,
+            ("nav1", "z"): 15.24,
             # nav2
             ("nav2", "x"): -1.0,
             ("nav2", "y"): 1.0,
+            ("nav2", "z"): 15.24,
             ("nav2", "pitch"): -2.0,
         }
         for cam in ["wrist", "nav1", "nav2"]:
@@ -577,7 +579,7 @@ class GuiBridge(Node):
         self._curb_marker = None
         self.curb_marker_sub = self.create_subscription(
             Marker,
-            "/perception/curb_marker",
+            "/perception/curb_visual",
             self.curb_marker_callback,
             0,
             callback_group=self._cb_group,

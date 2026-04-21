@@ -327,8 +327,16 @@ class GuiBridge(Node):
         # self.test_ue_counter = 0
         # self.test_ue_timer = self.create_timer(1.0, self.test_ue)
 
+        streaming_rate = self.streaming_rate
+        if streaming_rate <= 0:
+            self.get_logger().error(
+                f"Invalid streaming_rate '{streaming_rate}' provided; expected a value > 0. "
+                "Falling back to 1.0 Hz."
+            )
+            streaming_rate = 1.0
+
         self.streaming_timer = self.create_timer(
-            1.0 / self.streaming_rate,
+            1.0 / streaming_rate,
             self.publish_stream,
             callback_group=MutuallyExclusiveCallbackGroup(),
         )

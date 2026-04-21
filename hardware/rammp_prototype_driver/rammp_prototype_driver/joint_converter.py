@@ -95,12 +95,14 @@ JOINT_CONVERSIONS: dict[str, JointConversion] = {
         tick_max=0.0,
         output_min=0.0,
         output_max=0.30,
+        sign=-1,
     ),
     "dw_main_plate_r": JointConversion(
         tick_min=12000.0,
         tick_max=0.0,
         output_min=0.0,
         output_max=0.30,
+        sign=-1,
     ),
     # ── Drive wheels: ticks → radians (continuous rotation) ──────────
     #    velocity: tick_vel * scale = rad/s

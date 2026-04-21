@@ -1,0 +1,8 @@
+547:  rc.attachStrainGauge(&sg_rc);
+548:  fc.attachStrainGauge(&sg_fc);
+549:  ml.attachStrainGauge(&sg_ml);
+550:  mr.attachStrainGauge(&sg_mr);
+580:  rc.updateLoad();
+581:  fc.updateLoad();
+582:  ml.updateLoad();
+583:  mr.updateLoad();

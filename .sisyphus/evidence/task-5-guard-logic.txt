@@ -1,0 +1,28 @@
+=== seq_guard_triggered[i] = false ===
+42:    seq_guard_triggered[i] = false;
+
+=== SEQ_NUM_MOTORS * 6 ===
+60:  const int MAX_VALS = SEQ_NUM_MOTORS * 6;
+74:  if (count == SEQ_NUM_MOTORS * 6) {
+
+=== SEQ_GUARD_TRIG ===
+234:          Serial.print("SEQ_GUARD_TRIG,m");
+
+=== seq_guard_triggered[i] (all) ===
+42:    seq_guard_triggered[i] = false;
+223:      if (kf.guard_condition[i] != GUARD_NONE && !seq_guard_triggered[i]) {
+232:          seq_guard_triggered[i] = true;
+241:      if (seq_guard_triggered[i]) {
+284:        float final_dest = seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
+308:    float dest = seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
+
+=== seq_latch_pos[i] (all) ===
+233:          seq_latch_pos[i] = motors[i]->current_pos;
+242:        motors[i]->setTargetPosition(seq_latch_pos[i]);
+284:        float final_dest = seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
+308:    float dest = seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
+
+=== GUARD_NONE ===
+94:      kf.guard_condition[i] = GUARD_NONE;
+108:      kf.guard_condition[i] = GUARD_NONE;
+223:      if (kf.guard_condition[i] != GUARD_NONE && !seq_guard_triggered[i]) {

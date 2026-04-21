@@ -1,1 +1,0 @@
-> ⚠️ **Legacy Library** — This library is for RoboClaw V5 and earlier, or RoboClaw 2x60A / 2x60AHV V7 and earlier. For all current controllers, use **[basicmicro_arduino](https://github.com/basicmicro/basicmicro_arduino)** instead.

@@ -1,0 +1,4 @@
+PASS: hardware/rammp_prototype_driver/config/curb_ascending.json (13 keyframes, all 32-value format)
+PASS: hardware/rammp_prototype_driver/config/curb_descending.json (13 keyframes, all 32-value format)
+PASS: hardware/rammp_prototype_driver/config/dry_run_seq.json (2 keyframes, all 32-value format)
+PASS: hardware/rammp_prototype_driver/config/dry_run_seq_2.json (4 keyframes, all 32-value format)

@@ -1,0 +1,5 @@
+Loaded 3 keyframes
+  KF0: 32 values, guard=False, label=Standard move (no guard)
+  KF1: 48 values, guard=True, label=Guarded contact move on ML and MR (GUARD_GREATER_THAN)
+  KF2: 48 values, guard=True, label=Guarded clearance move on ML (GUARD_LESS_THAN)
+PASS: All keyframes serialize correctly

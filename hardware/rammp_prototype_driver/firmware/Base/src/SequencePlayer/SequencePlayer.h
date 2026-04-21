@@ -8,7 +8,7 @@ struct RobotCommand;
 
 #define MAX_SEQ_KEYFRAMES 20
 #define SEQ_NUM_MOTORS 8
-#define SEQ_NUM_POS_MOTORS 6
+#define SEQ_NUM_POS_MOTORS 8
 
 static const float SEQ_COMPLETION_DEADZONE[SEQ_NUM_MOTORS] = {
     50.0f,   // 0: RC
@@ -51,7 +51,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf);
 // ALL 8 motors are placed in POSITION_CONTROL for the duration of the sequence.
 void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS]);
 
-// Cleanup on mode exit.  All motors are disabled (zero power, PIDs reset).
+// Cleanup on mode exit.  Drive wheels are restored to VELOCITY_CONTROL.
 // SAFETY: must be called on ALL exit paths to prevent uncontrolled motion.
 void sequenceExit(Motor *motors[SEQ_NUM_MOTORS]);
 

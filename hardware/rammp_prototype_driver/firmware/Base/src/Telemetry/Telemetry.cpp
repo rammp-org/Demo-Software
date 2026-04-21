@@ -61,17 +61,9 @@ void updateTelemetry() {
   telemetry.drive_positions[1] = drive_lr.current_pos;
   telemetry.drive_velocities[0] = drive_fb.current_vel;
   telemetry.drive_velocities[1] = drive_lr.current_vel;
-
-  // Only report drive PWMs when the system is actively commanding the wheels
-  // (AUTO_CURB_CLIMBING).  In all other states, force zero so stale PID output
-  // never leaks to the joystick spoofer.
-  if (current_state == AUTO_CURB_CLIMBING) {
-    telemetry.drive_pwms[0] = drive_fb.target_pwm * drive_fb.getDirection();
-    telemetry.drive_pwms[1] = drive_lr.target_pwm * drive_lr.getDirection();
-  } else {
-    telemetry.drive_pwms[0] = 0;
-    telemetry.drive_pwms[1] = 0;
-  }
+  telemetry.drive_pwms[0] = drive_fb.target_pwm * drive_fb.getDirection();
+  // telemetry.drive_pwms[1] = drive_lr.target_pwm * drive_lr.getDirection();
+  telemetry.drive_pwms[1] = 0;
   telemetry.drive_modes[0] = toGuiMode(drive_fb.mode);
   telemetry.drive_modes[1] = toGuiMode(drive_lr.mode);
   telemetry.raw_enc_positions[0] = raw_ml_enc_pos;

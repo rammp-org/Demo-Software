@@ -91,14 +91,14 @@ JOINT_CONVERSIONS: dict[str, JointConversion] = {
     # ── Carriages: ticks → linear displacement (meters) ──────────────
     #    0-12000ish ticks  →  0-0.30m  (length of carriage travel)
     "dw_main_plate_l": JointConversion(
-        tick_min=12000.0,
-        tick_max=0.0,
+        tick_min=0.0,
+        tick_max=12000.0,
         output_min=0.0,
         output_max=0.30,
     ),
     "dw_main_plate_r": JointConversion(
-        tick_min=12000.0,
-        tick_max=0.0,
+        tick_min=0.0,
+        tick_max=12000.0,
         output_min=0.0,
         output_max=0.30,
     ),

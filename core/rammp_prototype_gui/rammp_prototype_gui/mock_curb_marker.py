@@ -10,7 +10,7 @@ class CurbMarkerPublisher(Node):
         super().__init__("curb_marker_publisher")
 
         self.publisher_marker = self.create_publisher(
-            Marker, "/perception/curb_visual", 10
+            Marker, "/perception/curb_marker", 10
         )
         self.publisher_curbInfo = self.create_publisher(CurbInfo, "/nav/curb/info", 10)
         self.timer = self.create_timer(1.0, self.publish_curb_marker_and_info)
@@ -50,7 +50,7 @@ class CurbMarkerPublisher(Node):
 
         self.publisher_marker.publish(marker)
         self.get_logger().info(
-            f"Published Marker id={marker.id} to /perception/curb_visual"
+            f"Published Marker id={marker.id} to /perception/curb_marker"
         )
 
         curb_info = CurbInfo()

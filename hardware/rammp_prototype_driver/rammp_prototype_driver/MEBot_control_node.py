@@ -255,15 +255,14 @@ class MEBotControlNode(Node):
         self.cal_joints_done = 0
         self.cal_complete = False
 
+        # One-shot timer: check calibration state 10s after startup
+        self._startup_cal_timer = self.create_timer(
+            10.0, self._startup_calibration_check
+        )
+
         # drive wheel velocities
         self.fb_pwm = 0
         self.test_pwm = 0
-
-        # Debug: track previous fb_pwm to detect transitions
-        self._prev_fb_pwm = 0
-        # Throttle joystick warnings to avoid flooding logs
-        self._js_warn_count = 0
-        self._js_warn_interval = 200  # log every Nth unexpected non-zero publish
 
         #### Init all ROS interfaces
         self._init_services()
@@ -447,20 +446,7 @@ class MEBotControlNode(Node):
         # State
         self.state = int(data[SerialField.STATE])
 
-        new_fb_pwm = int(100.0 * float(data[SerialField.FB_PWM]))
-
-        # Log transitions: zero→non-zero and non-zero→zero
-        if new_fb_pwm != 0 and self._prev_fb_pwm == 0:
-            self.get_logger().warn(
-                f"JoystickDebug: fb_pwm went non-zero: {new_fb_pwm} "
-                f"(raw={data[SerialField.FB_PWM]}, state={self.state})"
-            )
-        elif new_fb_pwm == 0 and self._prev_fb_pwm != 0:
-            self.get_logger().info(
-                f"JoystickDebug: fb_pwm returned to zero (was {self._prev_fb_pwm}, state={self.state})"
-            )
-        self._prev_fb_pwm = new_fb_pwm
-        self.fb_pwm = new_fb_pwm
+        self.fb_pwm = int(100.0 * float(data[SerialField.FB_PWM]))
 
     def publish_joint_states(self):
         conv = JOINT_CONVERSIONS
@@ -644,9 +630,7 @@ class MEBotControlNode(Node):
             self.write_serial_data("K0\n")
 
     def send_set_luci(self):
-        self.get_logger().info(
-            f"JoystickDebug: setting LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
-        )
+        self.get_logger().info("Setting luci")
         request = Empty.Request()
         future = self.set_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
@@ -655,9 +639,7 @@ class MEBotControlNode(Node):
         return future
 
     def send_remove_luci(self):
-        self.get_logger().info(
-            f"JoystickDebug: removing LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
-        )
+        self.get_logger().info("Removing luci")
         request = Empty.Request()
         future = self.remove_auto_remote_client.call_async(request)
         future.add_done_callback(self.luci_req_done)
@@ -705,6 +687,16 @@ class MEBotControlNode(Node):
         result.message = f"Calibrated {self.cal_joints_done}/6 joints"
         return result
 
+    def _startup_calibration_check(self):
+        """Called once, 10 s after startup. Sends calibrate if uncalibrated."""
+        self._startup_cal_timer.cancel()
+        self.get_logger().info(
+            "Startup calibration check: state is UNCALIBRATED, sending calibrate command"
+        )
+        self.cal_joints_done = 0
+        self.cal_complete = False
+        self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
+
     def _send_joystick(self):
         msg = LuciJoystick()
         msg.forward_back = self.fb_pwm
@@ -713,37 +705,11 @@ class MEBotControlNode(Node):
         msg.input_source = INPUT_REMOTE
         self.luci_js_publisher.publish(msg)
 
-        # Warn when publishing non-zero joystick data outside of active drive states
-        if self.fb_pwm != 0 and self.state != SystemState.AUTO_CURB_CLIMBING:
-            self._js_warn_count += 1
-            if (
-                self._js_warn_count == 1
-                or self._js_warn_count % self._js_warn_interval == 0
-            ):
-                self.get_logger().warn(
-                    f"JoystickDebug: non-zero joystick published in state {self.state}: "
-                    f"fb_pwm={self.fb_pwm} (occurrence #{self._js_warn_count})"
-                )
-        else:
-            if self._js_warn_count > 0:
-                self.get_logger().info(
-                    f"JoystickDebug: normalized after {self._js_warn_count} unexpected publishes"
-                )
-            self._js_warn_count = 0
-
     def curb_traverse_action_callback(self, goal):
         self.send_set_luci()  # enable LUCI control over js
 
         feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
-
-        # call the calibration function before going down curb
-        self.cal_joints_done = 0
-        self.cal_complete = False
-        self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
-
-        # delay while calibration runs
-        time.sleep(6)
 
         if goal.request.direction == 1:
             json_path = (
@@ -751,11 +717,16 @@ class MEBotControlNode(Node):
                 + "/config/curb_ascending.json"
             )
         else:
+            # call the calibration function before going down curb
+            self.cal_joints_done = 0
+            self.cal_complete = False
+            self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
                 + "/config/curb_descending.json"
             )
-
+            # delay while calibration runs
+            time.sleep(6)
         keyframes = _load_keyframes_from_json(json_path)
         self.get_logger().info(f"Loaded {len(keyframes)} keyframes from {json_path}")
 

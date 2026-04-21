@@ -1,3 +1,4 @@
+exclude: ^hardware/rammp_prototype_driver/config/
 repos:
   # 1. General Housekeeping
   - repo: https://github.com/pre-commit/pre-commit-hooks

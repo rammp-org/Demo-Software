@@ -1,1 +1,0 @@
-PASS: Parsed motor=2, load=523.7

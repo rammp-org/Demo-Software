@@ -60,4 +60,5 @@ void ODrive::disable() {
   float target_pos = this->odrive.getPosition();
   this->setMode(POSITION_CONTROL);
   this->odrive.setPosition(target_pos);
+  this->setMode(DISABLED)
 }

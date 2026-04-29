@@ -248,9 +248,9 @@ class GuiBridge(Node):
         # Values captured from TrimTUI calibration session.
         _trim_defaults = {
             # wrist
-            ("wrist", "x"): 10.0,
-            ("wrist", "y"): -3.0,
-            ("wrist", "z"): 2.0,
+            ("wrist", "x"): 0.0,
+            ("wrist", "y"): 0.0,
+            ("wrist", "z"): -10.0,
             # nav1 (mounted sideways → roll -90°)
             ("nav1", "roll"): -90.0,
             ("nav1", "z"): -15.24,

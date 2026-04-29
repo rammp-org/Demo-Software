@@ -70,6 +70,12 @@ RoboClaw roboclaw_carriages(&Serial3, 10000); // Serial3
 RoboClaw roboclaw_casters(&Serial4, 10000);   // Serial4
 RoboClaw roboclaw_main(&Serial5, 10000);      // Serial5
 
+// Init ODrive motors
+HardwareSerial &odriveL_serial = Serial1;
+HardwareSerial &odriveR_serial = Serial7;
+ODriveUART odriveL(odriveL_serial);
+ODriveUART odriveR(odriveR_serial);
+
 // Instantiate the 6 actuated Motor objects + 2 body-frame drive controllers
 Motor rc;
 Motor fc;
@@ -474,6 +480,8 @@ void setup() {
   Serial3.begin(460800); // roboclaw 1
   Serial4.begin(460800); // roboclaw 2
   Serial5.begin(460800); // roboclaw 3
+  Serial1.begin(460800); // odrive left
+  Serial7.begin(460800); // odrive right
 
   // set up limit switches
   pinMode(CARRIAGE_SW1_PIN, INPUT_PULLUP);

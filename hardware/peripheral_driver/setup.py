@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 from glob import glob
 import os
 
-package_name = "gamepad_driver"
+package_name = "peripheral_driver"
 
 setup(
     name=package_name,
@@ -25,6 +25,9 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": ["gamepad_node = gamepad_driver.gamepad_node:main"],
+        "console_scripts": [
+            "gamepad_node = peripheral_driver.gamepad_node:main",
+            "estop_node = peripheral_driver.estop_node:main",
+        ],
     },
 )

@@ -6,7 +6,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             Node(
-                package="gamepad_driver",
+                package="peripheral_driver",
                 executable="gamepad_node",
                 name="gamepad_node",
                 output="screen",
@@ -18,6 +18,12 @@ def generate_launch_description():
                 output="screen",
                 # Configure autorepeat
                 parameters=[{"autorepeat_rate": 40.0}],
+            ),
+            Node(
+                package="peripheral_driver",
+                executable="estop_node",
+                name="estop_node",
+                output="screen",
             ),
         ]
     )

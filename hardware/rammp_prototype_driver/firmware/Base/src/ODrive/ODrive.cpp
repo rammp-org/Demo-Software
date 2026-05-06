@@ -2,9 +2,14 @@
 
 ODrive::ODrive(ODriveUART &odrive) : odrive(odrive) {}
 
+void ODrive::updateEncoderReadings() {
+  current_pos = this->odrive.getPosition();
+}
+
 void ODrive::setMode(DriveMode new_mode) {
   this->mode = new_mode;
   switch (new_mode) {
+  case OPEN_LOOP:
   case DISABLED:
     while (this->odrive.getState() != AXIS_STATE_IDLE) {
       this->odrive.clearErrors();
@@ -12,9 +17,7 @@ void ODrive::setMode(DriveMode new_mode) {
       delay(10);
     }
     break;
-  case OPEN_LOOP:
-    // there is no open loop mode for odrive, idle??
-    break;
+
   case VELOCITY_CONTROL:
     while (this->odrive.getState() != AXIS_STATE_CLOSED_LOOP_CONTROL) {
       this->odrive.clearErrors();
@@ -48,17 +51,18 @@ void ODrive::setMode(DriveMode new_mode) {
   }
 }
 
-void ODrive::setTargetPosition(float target_pos) {
-  this->odrive.setPosition(target_pos);
-}
-
-void ODrive::setTargetVelocity(float target_vel) {
-  this->odrive.setVelocity(target_vel);
-}
+void ODrive::setTargetPosition(float pos) { target_pos = pos; }
 
 void ODrive::disable() {
-  float target_pos = this->odrive.getPosition();
+  float current_pos = this->odrive.getCurrentPosition();
   this->setMode(POSITION_CONTROL);
-  this->odrive.setPosition(target_pos);
-  this->setMode(DISABLED)
+  this->odrive.setPosition(current_pos);
+  this->setMode(DISABLED);
+}
+
+float ODrive::getTargetPosition() { return target_pos; }
+
+float ODrive::getCurrentPosition() {
+  this->updateEncoderReadings();
+  return current_pos;
 }

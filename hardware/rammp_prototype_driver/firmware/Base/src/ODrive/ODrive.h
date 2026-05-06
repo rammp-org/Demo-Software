@@ -3,13 +3,19 @@
 
 class ODrive {
 public:
-  enum DriveMode { DISABLED, OPEN_LOOP, VELOCITY_CONTROL, POSITION_CONTROL };
+  enum DriveMode { DISABLED, POSITION_CONTROL, VELOCITY_CONTROL, OPEN_LOOP };
 
   ODrive(ODriveUART &odrive);
-  ODriveUART &odrive;
   DriveMode mode;
-  void setMode(DriveMode mode);
+  float current_pos;
+  float target_pos;
+  void updateEncoderReadings();
+  void setMode(DriveMode new_mode);
   void setTargetPosition(float target_pos);
-  void setTargetVelocity(float target_vel);
+  float getTargetPosition();
+  float getCurrentPosition();
   void disable();
+  // may need to add absolute vs relative target position compute function
+private:
+  ODriveUART &odrive;
 };

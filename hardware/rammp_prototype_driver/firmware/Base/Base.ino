@@ -25,6 +25,9 @@
 #include "src/PIDController/PIDController.h"
 #include "src/StrainGauge/StrainGauge.h"
 
+#include <ODriveUART.h>
+#include "ODriveEnums.h"
+#include "src/ODrive/ODrive.h"
 #define DEBUG_MODE 1
 
 // Drive motor position deadzone. When the FB position error is within this
@@ -71,10 +74,10 @@ RoboClaw roboclaw_casters(&Serial4, 10000);   // Serial4
 RoboClaw roboclaw_main(&Serial5, 10000);      // Serial5
 
 // Init ODrive motors
-HardwareSerial &odriveL_serial = Serial1;
-HardwareSerial &odriveR_serial = Serial7;
-ODriveUART odriveL(odriveL_serial);
-ODriveUART odriveR(odriveR_serial);
+HardwareSerial &odriveR_serial = Serial1;
+
+// ODriveUART odriveL(odriveL_serial);
+// ODriveUART odriveR(odriveR_serial);
 
 // Instantiate the 6 actuated Motor objects + 2 body-frame drive controllers
 Motor rc;
@@ -85,6 +88,8 @@ Motor ml_carriage;
 Motor mr_carriage;
 Motor drive_fb;
 Motor drive_lr;
+ODriveUART odriveR(odriveR_serial);
+ODrive ODriveR(odriveR);
 
 int8_t ml_enc_dir = 1;
 int8_t mr_enc_dir = 1;
@@ -594,7 +599,8 @@ void loop() {
   ml.updateLoad();
   mr.updateLoad();
 
-  rc.updateSensorData(EContr.encoderf[3], dt);
+  // ODrive note: idk yet if I should add odrive update encoder reading function
+  // here
   fc.updateSensorData(EContr.encoderf[2], dt);
   ml.updateSensorData(EContr.encoderf[7], dt);
   mr.updateSensorData(EContr.encoderf[5], dt);
@@ -665,8 +671,10 @@ void loop() {
   } else if (cmd.type == CMD_SEQ_MODE) {
     // All 8 motors are position-controlled during sequences (including drive
     // wheels).
+    // ODrive note: add odrives to the motor array
     Motor *seq_motors[SEQ_NUM_MOTORS] = {
         &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
+    ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR};
     if (cmd.actuator_id == 1) {
       // B1:1 / B1:0 — enter or exit sequence mode
       if (cmd.value > 0.5f) {
@@ -791,19 +799,25 @@ void loop() {
     mr_carriage.disable();
     drive_fb.disable();
     drive_lr.disable();
+    // ODrive note: need to disable odrives
+    ODriveR.disable();
   } else if (current_state == SELF_LEVELING) {
     // Drive wheels are not used during leveling — disable every tick to prevent
     // stale PID output from leaking to the joystick (e.g. if a prior mode left
     // drive_fb in POSITION_CONTROL with a stale target).
     drive_fb.disable();
     drive_lr.disable();
+    // ODrive note: need to disable odrives
+    ODriveR.disable();
     runSelfLeveling(dt);
   } else if (current_state == AUTO_CURB_CLIMBING) {
+    // ODrive note: need to add odrives to the motor array
     Motor *seq_motors[SEQ_NUM_MOTORS] = {
         &rc,          &fc,       &ml,      &mr, &ml_carriage,
         &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7:
                                              // velocity-mode (drive wheels)
-    sequenceUpdate(seq_motors);
+    ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR};
+    sequenceUpdate(seq_motors, seq_odrives);
   } else if (current_state == CALIBRATING) {
     runCalibration(dt);
   }
@@ -814,6 +828,7 @@ void loop() {
   float mr_pwm = mr.update(dt);
   float mlc_pwm = ml_carriage.update(dt);
   float mrc_pwm = mr_carriage.update(dt);
+
   // Drive motor deadzone — applied only in position control mode.
   // If the position error is within ±DRIVE_DEADZONE_TICKS, snap the target to
   // the current position and clear both PIDs so the PWM output sent over
@@ -876,7 +891,9 @@ void loop() {
   roboclaw_carriages.DutyM1(0x80, (int16_t)mlc_pwm);
 
   roboclaw_carriages.DutyM2(0x80, (int16_t)mrc_pwm);
+  // ODrive note: add ODrive motor control here
 
+  ODriveR.setPosition(ODriveR.getTargetPosition());
   // 5. Send Telemetry
   updateTelemetry();
 

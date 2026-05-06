@@ -1,8 +1,8 @@
 #ifndef MOTOR_H
 #define MOTOR_H
 
-#include "../PIDController/PIDController.h"
-#include "../StrainGauge/StrainGauge.h"
+#include "PIDController.h"
+#include "StrainGauge.h"
 #include <Arduino.h>
 
 class Motor {

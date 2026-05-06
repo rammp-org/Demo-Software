@@ -2,7 +2,7 @@
 #define COMMAND_DISPATCH_H
 
 #include <Arduino.h>
-#include "../CommandParser/CommandParser.h"
+#include "CommandParser.h"
 
 class Motor;
 class RoboClaw;

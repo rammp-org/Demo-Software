@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include "Telemetry.h"
-#include "../Motor/Motor.h"
-#include "../IMU_Class/IMU_Class.h"
-#include "../StrainGauge/StrainGauge.h"
+#include "Motor.h"
+#include "IMU_Class.h"
+#include "StrainGauge.h"
 
 // Map firmware ControlMode enum to GUI mode integers (0=Open Loop, 1=Velocity,
 // 2=Position)

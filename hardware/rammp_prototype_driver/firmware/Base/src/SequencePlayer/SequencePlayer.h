@@ -60,7 +60,8 @@ void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
 
 // Cleanup on mode exit.  All motors are disabled (zero power, PIDs reset).
 // SAFETY: must be called on ALL exit paths to prevent uncontrolled motion.
-void sequenceExit(Motor *motors[SEQ_NUM_MOTORS]);
+void sequenceExit(Motor *motors[SEQ_NUM_MOTORS],
+                  ODrive *odrives[SEQ_NUM_ODRIVES]);
 
 // Handle incoming sequence commands (keyframe upload, step, goto).
 void sequenceHandleCommand(const RobotCommand &cmd,
@@ -69,7 +70,8 @@ void sequenceHandleCommand(const RobotCommand &cmd,
                            const String &payload);
 
 // Tick interpolation / settling / auto-run (called every loop).
-void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS]);
+void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
+                    ODrive *odrives[SEQ_NUM_ODRIVES]);
 
 // Auto-run: automatically advance to the next keyframe on completion.
 void sequenceSetAutoRun(bool enable);

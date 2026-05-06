@@ -1,7 +1,8 @@
 #include <Arduino.h>
 #include "SequencePlayer.h"
-#include "../Motor/Motor.h"
-#include "../CommandParser/CommandParser.h"
+#include "Motor.h"
+#include "ODrive.h"
+#include "CommandParser.h"
 
 // ---------------------------------------------------------------------------
 //  Module-scope state
@@ -67,7 +68,7 @@ static void beginInterp(Motor *motors[SEQ_NUM_MOTORS],
   }
   // ODrive note: put another loop for odrives, need to set mode and target
   // position for odrive
-  if (kf.odrive_active[i]) {
+  if (kf.odrive_active[0]) {
     for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
       seq_start_pos_odrives[i] = odrives[i]->current_pos;
       odrives[i]->setMode(ODrive::POSITION_CONTROL);

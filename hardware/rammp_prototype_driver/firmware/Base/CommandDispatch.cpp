@@ -1,10 +1,10 @@
 #include <Arduino.h>
 #include "CommandDispatch.h"
-#include "../CommandParser/CommandParser.h"
-#include "../MotorMap/MotorMap.h"
-#include "../Motor/Motor.h"
-#include "../EncoderContainer/EncoderContainer.h"
-#include "../ConfigStorage/ConfigStorage.h"
+#include "CommandParser.h"
+#include "MotorMap.h"
+#include "Motor.h"
+#include "EncoderContainer.h"
+#include "ConfigStorage.h"
 
 // Extern declarations for functions/globals defined in Base.ino
 extern void saveMotorConfig(int motor_id, Motor *m);

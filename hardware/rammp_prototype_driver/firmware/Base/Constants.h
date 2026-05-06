@@ -1,7 +1,7 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-#include "../RoboClaw/RoboClaw.h"
+#include "RoboClaw.h"
 
 // RoboClaw Objects
 extern RoboClaw roboclaw_casters;

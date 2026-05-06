@@ -785,7 +785,7 @@ void loop() {
         &rc,          &fc,       &ml,      &mr, &ml_carriage,
         &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7:
                                              // velocity-mode (drive wheels)
-    sequenceHandleCommand(cmd, seq_motors, parser.last_payload);
+    sequenceHandleCommand(cmd, seq_motors, seq_odrives, parser.last_payload);
   }
 
   // 4. Update Motors
@@ -893,7 +893,7 @@ void loop() {
   roboclaw_carriages.DutyM2(0x80, (int16_t)mrc_pwm);
   // ODrive note: add ODrive motor control here
 
-  ODriveR.setPosition(ODriveR.getTargetPosition());
+  odriveR.setPosition(ODriveR.getTargetPosition());
   // 5. Send Telemetry
   updateTelemetry();
 

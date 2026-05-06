@@ -68,7 +68,7 @@ static void beginInterp(Motor *motors[SEQ_NUM_MOTORS],
   }
   // ODrive note: put another loop for odrives, need to set mode and target
   // position for odrive
-  if (kf.odrive_active[i]) {
+  if (kf.odrive_active[0]) {
     for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
       seq_start_pos_odrives[i] = odrives[i]->current_pos;
       odrives[i]->setMode(ODrive::POSITION_CONTROL);
@@ -251,7 +251,7 @@ void sequenceHandleCommand(const RobotCommand &cmd,
   if (cmd.type == CMD_SEQ_STEP_FWD) {
     if (!seq_interpolating && !seq_settling && seq_current < seq_length - 1) {
       seq_current++;
-      beginInterp(motors);
+      beginInterp(motors, odrives);
     }
     return;
   }
@@ -260,7 +260,7 @@ void sequenceHandleCommand(const RobotCommand &cmd,
   if (cmd.type == CMD_SEQ_STEP_BWD) {
     if (!seq_interpolating && !seq_settling && seq_current > 0) {
       seq_current--;
-      beginInterp(motors);
+      beginInterp(motors, odrives);
     }
     return;
   }
@@ -271,7 +271,7 @@ void sequenceHandleCommand(const RobotCommand &cmd,
     if (!seq_interpolating && !seq_settling && target_step >= 0 &&
         target_step < seq_length) {
       seq_current = target_step;
-      beginInterp(motors);
+      beginInterp(motors, odrives);
     }
     return;
   }
@@ -440,7 +440,7 @@ if (all_settled || timed_out) {
   // Auto-run: advance to next keyframe if available.
   if (seq_auto_run && seq_current < seq_length - 1) {
     seq_current++;
-    beginInterp(motors); // sends SEQ_STATUS ...,1
+    beginInterp(motors, odrives); // sends SEQ_STATUS ...,1
   } else {
     seq_interpolating = false;
     Serial.print("SEQ_STATUS,");

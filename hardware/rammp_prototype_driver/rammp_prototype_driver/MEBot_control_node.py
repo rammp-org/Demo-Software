@@ -397,6 +397,9 @@ class MEBotControlNode(Node):
                     kf.relative,
                     guard_threshold=kf.guard_threshold,
                     guard_condition=kf.guard_condition,
+                    odrive_active=kf.odrive_active,
+                    odrive_relative=kf.odrive_relative,
+                    odrive_targets=kf.odrive_targets,
                 )
             )
         if auto_run:

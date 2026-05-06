@@ -28,12 +28,8 @@ class ODriveNode(Node):
     def write_serial_data(self, data):
         if self.ser is None:
             return
-        if isinstance(data, bytes):
-            with self.lock:
-                self.ser.write(data)
-        else:
-            with self.lock:
-                self.ser.write(data.encode("utf-8"))
+        print(data)
+        self.ser.write(data)
 
     def send_sequence(self, keyframes: list[Keyframe], auto_run: bool = True):
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(True))
@@ -55,6 +51,9 @@ class ODriveNode(Node):
                     kf.relative,
                     guard_threshold=kf.guard_threshold,
                     guard_condition=kf.guard_condition,
+                    odrive_active=kf.odrive_active,
+                    odrive_relative=kf.odrive_relative,
+                    odrive_targets=kf.odrive_targets,
                 )
             )
         if auto_run:
@@ -71,6 +70,7 @@ class ODriveNode(Node):
         command = input("Waiting to send odrive sequence...")
         if command == "s":
             self.send_sequence(self.keyframes, auto_run=True)
+            print("Sequence sent")
 
 
 def main(args=None):

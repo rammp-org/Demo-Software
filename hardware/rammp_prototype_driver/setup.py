@@ -29,6 +29,7 @@ setup(
         "console_scripts": [
             "control_node = rammp_prototype_driver.MEBot_control_node:main",
             "control_node_test = rammp_prototype_driver.MEBot_control_node_test:main",
+            "odrive_node = rammp_prototype_driver.odrive_node:main",
         ],
     },
 )

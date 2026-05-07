@@ -572,12 +572,14 @@ void setup() {
 
   Serial.println(
       "EEPROM CONFIG LOADED: All motor configs restored from EEPROM.");
-  current_state = UNCALIBRATED;
-  calibrated = false;
+  current_state =
+      IDLE; // TODO: change back to UNCALIBRATED after odrive testing done
+  calibrated = true; // TODO: change back to false after odrive testing done
   Serial.println("STATE: UNCALIBRATED — calibration required before operation");
 }
 
 void loop() {
+  Serial.println("LOOP: Entered loop");
   timer.updateTime();
   float dt = timer.elapsed_time;
 
@@ -672,6 +674,7 @@ void loop() {
     // All 8 motors are position-controlled during sequences (including drive
     // wheels).
     // ODrive note: add odrives to the motor array
+    Serial.println("SEQ: Entered SEQ_MODE");
     Motor *seq_motors[SEQ_NUM_MOTORS] = {
         &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
     ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR};

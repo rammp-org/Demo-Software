@@ -168,6 +168,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
 // ODrive note: add odrive array to passed arguments
 void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
                    ODrive *odrives[SEQ_NUM_ODRIVES]) {
+  Serial.println("SEQ: Entered sequenceEnter");
   seq_length = 0;
   seq_current = -1;
   seq_interpolating = false;
@@ -185,7 +186,7 @@ void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
     motors[i]->pos_pid.reset();
     motors[i]->vel_pid.reset();
   }
-
+  Serial.println("SEQ: Set motor positions to 0");
   // ALL motors — including drive wheels — run position control during
   // sequences.
   // ODrive note: need to loop over odrives to set mode and target position and
@@ -195,12 +196,18 @@ void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
     motors[i]->setTargetPosition(motors[i]->current_pos);
     seq_start_pos[i] = motors[i]->current_pos;
   }
-
+  Serial.println("SEQ: Set odrive positions to 0");
   for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
     odrives[i]->setMode(ODrive::POSITION_CONTROL);
+    Serial.println("ODrivesetMode complete");
     odrives[i]->setTargetPosition(odrives[i]->getCurrentPosition());
+    Serial.println("ODrive setTargetPosition complete");
     seq_start_pos_odrives[i] = odrives[i]->getCurrentPosition();
+    Serial.println("ODrive getCurrentPosition complete");
   }
+  Serial.println("SEQ: Set odrive mode to POSITION_CONTROL");
+
+  Serial.println("SEQ: Exited sequenceEnter");
 }
 
 void sequenceExit(Motor *motors[SEQ_NUM_MOTORS],

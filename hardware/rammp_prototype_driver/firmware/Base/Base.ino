@@ -28,7 +28,7 @@
 #include <ODriveUART.h>
 #include "ODriveEnums.h"
 #include "src/ODrive/ODrive.h"
-#define DEBUG_MODE 1
+#define DEBUG_MODE 0
 
 // Drive motor position deadzone. When the FB position error is within this
 // many ticks, the target is snapped to current position and both PIDs are
@@ -56,8 +56,8 @@ float target_pitch = 0.0f;
 float target_roll = 0.0f;
 
 // Hardware Objects
-// Adafruit_BNO055 bno = Adafruit_BNO055(55);
-// IMU_Class IMU = IMU_Class(bno);
+Adafruit_BNO055 bno = Adafruit_BNO055(55);
+IMU_Class IMU = IMU_Class(bno);
 EncoderContainer EContr;
 Timer timer;
 CommandParser parser(2000);
@@ -497,12 +497,12 @@ void setup() {
   delay(1000);
 
   // Initialize IMU
-  // if (!bno.begin()) {
-  //   Serial.println("ERROR: BNO055 not detected!");
-  // } else {
-  //   IMU.initialize_BNO055_sensor();
-  //   Serial.println("IMU initialized");
-  // }
+  if (!bno.begin()) {
+    Serial.println("ERROR: BNO055 not detected!");
+  } else {
+    IMU.initialize_BNO055_sensor();
+    Serial.println("IMU initialized");
+  }
 
   // Initialize ConfigStorage and load saved motor configurations
   ConfigStorage::begin();
@@ -580,7 +580,7 @@ void setup() {
 }
 
 void loop() {
-  Serial.println("LOOP: Entered loop");
+  // Serial.println("LOOP: Entered loop");
   timer.updateTime();
   float dt = timer.elapsed_time;
 
@@ -680,8 +680,10 @@ void loop() {
         &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
     ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR};
     if (cmd.actuator_id == 1) {
+      // Serial.println("SEQ: B1:1 / B1:0 — enter or exit sequence mode");
       // B1:1 / B1:0 — enter or exit sequence mode
       if (cmd.value > 0.5f) {
+        // Serial.println("SEQ: B1:1 — entering AUTO_CURB_CLIMBING mode");
         current_state = AUTO_CURB_CLIMBING;
         sequenceEnter(seq_motors, seq_odrives);
         Serial.println("SEQ: Entered AUTO_CURB_CLIMBING mode");
@@ -906,7 +908,7 @@ void loop() {
   static unsigned long last_telem_time = 0;
   if (millis() - last_telem_time >= 100) { // Fixed 10Hz telemetry
     last_telem_time = millis();
-    sendTelemetry();
+    // sendTelemetry();
   }
 
   // TODO: Replace delayMicroseconds with hardware timer for deterministic loop

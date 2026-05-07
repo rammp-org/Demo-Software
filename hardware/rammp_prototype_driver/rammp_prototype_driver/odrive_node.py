@@ -40,7 +40,11 @@ class ODriveNode(Node):
     def write_serial_data(self, data):
         if self.ser is None:
             return
-        self.ser.write(data.encode("utf-8"))
+
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+
+        self.ser.write(data)
 
     def send_sequence(self, keyframes: list[Keyframe], auto_run: bool = True):
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(True))

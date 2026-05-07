@@ -733,15 +733,15 @@ class MEBotControlNode(Node):
             self._js_warn_count = 0
 
     def curb_traverse_action_callback(self, goal):
-        self.send_set_luci()  # enable LUCI control over js
+        # self.send_set_luci()  # enable LUCI control over js
 
         feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
 
         # call the calibration function before going down curb
-        self.cal_joints_done = 0
-        self.cal_complete = False
-        self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
+        # self.cal_joints_done = 0
+        # self.cal_complete = False
+        # self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
 
         # delay while calibration runs
         time.sleep(6)
@@ -749,7 +749,7 @@ class MEBotControlNode(Node):
         if goal.request.direction == 1:
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/curb_ascending.json"
+                + "/config/test_odrive.json"
             )
         else:
             json_path = (
@@ -779,7 +779,7 @@ class MEBotControlNode(Node):
             if goal.is_cancel_requested:
                 goal.canceled()
                 result.success = False
-                self.send_remove_luci()
+                # self.send_remove_luci()
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")
@@ -801,7 +801,7 @@ class MEBotControlNode(Node):
         self.seq_length = 0
         self.seq_mode = 0
 
-        self.send_remove_luci()
+        # self.send_remove_luci()
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
         return result
 

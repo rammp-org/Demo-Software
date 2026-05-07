@@ -37,6 +37,13 @@ static inline float finalTarget(const Keyframe &kf, int i) {
   return kf.targets[i];                      // absolute position
 }
 
+// ODrive note: add odrive final target function
+static inline float finalTargetOdrive(const Keyframe &kf, int i) {
+  if (kf.odrive_relative[0])
+    return seq_start_pos_odrives[i] + kf.odrive_targets[0]; // relative delta
+  return kf.odrive_targets[0];                              // absolute position
+}
+
 // A "delta-zero" motor is active but has a relative target of 0 — meaning
 // "don't move, just wait."  These motors should not enter position control
 // and should not draw power; only their duration contributes to keyframe
@@ -168,7 +175,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
 // ODrive note: add odrive array to passed arguments
 void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
                    ODrive *odrives[SEQ_NUM_ODRIVES]) {
-  Serial.println("SEQ: Entered sequenceEnter");
+  // Serial.println("SEQ: Entered sequenceEnter");
   seq_length = 0;
   seq_current = -1;
   seq_interpolating = false;
@@ -186,7 +193,7 @@ void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
     motors[i]->pos_pid.reset();
     motors[i]->vel_pid.reset();
   }
-  Serial.println("SEQ: Set motor positions to 0");
+  // Serial.println("SEQ: Set motor positions to 0");
   // ALL motors — including drive wheels — run position control during
   // sequences.
   // ODrive note: need to loop over odrives to set mode and target position and
@@ -196,18 +203,18 @@ void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
     motors[i]->setTargetPosition(motors[i]->current_pos);
     seq_start_pos[i] = motors[i]->current_pos;
   }
-  Serial.println("SEQ: Set odrive positions to 0");
+  // Serial.println("SEQ: Set odrive positions to 0");
   for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
     odrives[i]->setMode(ODrive::POSITION_CONTROL);
-    Serial.println("ODrivesetMode complete");
+    // Serial.println("ODrivesetMode complete");
     odrives[i]->setTargetPosition(odrives[i]->getCurrentPosition());
-    Serial.println("ODrive setTargetPosition complete");
+    // Serial.println("ODrive setTargetPosition complete");
     seq_start_pos_odrives[i] = odrives[i]->getCurrentPosition();
-    Serial.println("ODrive getCurrentPosition complete");
+    // Serial.println("ODrive getCurrentPosition complete");
   }
-  Serial.println("SEQ: Set odrive mode to POSITION_CONTROL");
+  // Serial.println("SEQ: Set odrive mode to POSITION_CONTROL");
 
-  Serial.println("SEQ: Exited sequenceEnter");
+  // Serial.println("SEQ: Exited sequenceEnter");
 }
 
 void sequenceExit(Motor *motors[SEQ_NUM_MOTORS],
@@ -350,14 +357,16 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
 
     // ODrive note: add odrive loop here
     for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
+      float t_i = (kf.duration_ms[i] == 0)
+                      ? 1.0f
+                      : min(1.0f, (float)elapsed / (float)kf.duration_ms[0]);
+
       if (!kf.odrive_active[0])
         continue;
-      if (kf.odrive_relative[0]) {
-        float dest = seq_start_pos_odrives[i] + kf.odrive_targets[0];
-        odrives[i]->setTargetPosition(dest);
-      } else {
-        odrives[i]->setTargetPosition(kf.odrive_targets[0]);
-      }
+      float dest = finalTargetOdrive(kf, i);
+      float pos =
+          seq_start_pos_odrives[i] + t_i * (dest - seq_start_pos_odrives[i]);
+      odrives[i]->setTargetPosition(pos);
     }
 
     if (elapsed % 500 < 20 && !all_lerps_done) {
@@ -393,6 +402,13 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
         }
       }
       // ODrive note: maybe add odrive loop here?
+      for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
+        if (!kf.odrive_active[0])
+          continue;
+        float dest = finalTargetOdrive(kf, i);
+        odrives[i]->setTargetPosition(dest);
+      }
+
       seq_settling = true;
       seq_settle_start = millis();
 
@@ -402,6 +418,7 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
       Serial.print(seq_length);
       Serial.println(",2"); // 2 = settling
     }
+
     return;
   }
 

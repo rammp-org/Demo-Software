@@ -7,9 +7,9 @@ void ODrive::updateEncoderReadings() {
 }
 
 void ODrive::setMode(DriveMode new_mode) {
-  Serial.println("ODrive setMode called");
+  // Serial.println("ODrive setMode called");
   this->mode = new_mode;
-  Serial.println(new_mode);
+  // Serial.println(new_mode);
   switch (new_mode) {
   case OPEN_LOOP:
   case DISABLED:
@@ -36,7 +36,7 @@ void ODrive::setMode(DriveMode new_mode) {
     }
     break;
   case POSITION_CONTROL:
-    Serial.println("ODrive setMode POSITION_CONTROL called");
+    // Serial.println("ODrive setMode POSITION_CONTROL called");
     while (this->odrive.getState() != AXIS_STATE_CLOSED_LOOP_CONTROL) {
       Serial.println("ODrive setMode POSITION_CONTROL still waiting!!");
       this->odrive.clearErrors();

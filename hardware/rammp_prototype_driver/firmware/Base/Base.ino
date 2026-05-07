@@ -604,6 +604,8 @@ void loop() {
 
   // ODrive note: idk yet if I should add odrive update encoder reading function
   // here
+  ODriveR.updateEncoderReadings();
+
   fc.updateSensorData(EContr.encoderf[2], dt);
   ml.updateSensorData(EContr.encoderf[7], dt);
   mr.updateSensorData(EContr.encoderf[5], dt);
@@ -675,7 +677,7 @@ void loop() {
     // All 8 motors are position-controlled during sequences (including drive
     // wheels).
     // ODrive note: add odrives to the motor array
-    Serial.println("SEQ: Entered SEQ_MODE");
+    // Serial.println("SEQ: Entered SEQ_MODE");
     Motor *seq_motors[SEQ_NUM_MOTORS] = {
         &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
     ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR};
@@ -690,7 +692,7 @@ void loop() {
       } else {
         current_state = calibrated ? IDLE : UNCALIBRATED;
         sequenceExit(seq_motors, seq_odrives);
-        Serial.println("SEQ: Exited AUTO_CURB_CLIMBING mode");
+        // Serial.println("SEQ: Exited AUTO_CURB_CLIMBING mode");
       }
     } else if (cmd.actuator_id == 2) {
       // B2:1 / B2:0 — enable or disable auto-run

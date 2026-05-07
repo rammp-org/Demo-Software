@@ -690,6 +690,7 @@ void loop() {
         sequenceEnter(seq_motors, seq_odrives);
         Serial.println("SEQ: Entered AUTO_CURB_CLIMBING mode");
       } else {
+        Serial.println("SEQ: Exited AUTO_CURB_CLIMBING mode");
         current_state = calibrated ? IDLE : UNCALIBRATED;
         sequenceExit(seq_motors, seq_odrives);
         // Serial.println("SEQ: Exited AUTO_CURB_CLIMBING mode");
@@ -902,6 +903,11 @@ void loop() {
 
   roboclaw_carriages.DutyM2(0x80, (int16_t)mrc_pwm);
   // ODrive note: add ODrive motor control here
+  float pos = ODriveR.getTargetPosition();
+
+  // if (pos != 0) {
+  //   Serial.println(pos);
+  // }
 
   odriveR.setPosition(ODriveR.getTargetPosition());
   // 5. Send Telemetry

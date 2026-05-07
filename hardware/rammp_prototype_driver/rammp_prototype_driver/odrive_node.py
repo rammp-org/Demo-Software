@@ -57,13 +57,26 @@ class ODriveNode(Node):
         self.heartbeat_timer = self.create_timer(0.5, self.send_serial_heartbeat)
         self._stdin_thread = threading.Thread(target=self._stdin_loop, daemon=True)
         self._stdin_thread.start()
+        self._exit_on_seq_complete = True
+        self._seq_exited = False
 
     def read_serial_data(self):
         if self.ser is None:
             return
         line = self.ser.readline()
         if line:
-            self.get_logger().info(line.decode("utf-8", errors="replace").strip())
+            text = line.decode("utf-8", errors="replace").strip()
+            self.get_logger().info(text)
+            # Auto-exit sequence mode when the Teensy reports completion.
+            # Format: SEQ_STATUS,<current>,<total>,<state> where state 0=idle/complete.
+            if (
+                self._exit_on_seq_complete
+                and not self._seq_exited
+                and text.startswith("SEQ_STATUS,")
+            ):
+                parts = text.split(",")
+                if len(parts) >= 4 and parts[3].strip() == "0":
+                    self.exit_sequence_mode()
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -79,7 +92,13 @@ class ODriveNode(Node):
         except serial.SerialException as e:
             self.get_logger().error(f"Serial write failed: {e}")
 
+    def exit_sequence_mode(self):
+        """Exit AUTO_CURB_CLIMBING sequence mode (sends B1:0)."""
+        self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+        self._seq_exited = True
+
     def send_sequence(self, keyframes: list[Keyframe], auto_run: bool = True):
+        self._seq_exited = False
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(True))
         for idx, kf in enumerate(keyframes):
             targets = [t if t is not None else 0.0 for t in kf.targets]

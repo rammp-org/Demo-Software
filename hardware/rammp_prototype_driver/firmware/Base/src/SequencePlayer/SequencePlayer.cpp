@@ -366,6 +366,8 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
       float dest = finalTargetOdrive(kf, i);
       float pos =
           seq_start_pos_odrives[i] + t_i * (dest - seq_start_pos_odrives[i]);
+      Serial.println("ODrive target position in sequenceUpdate: ");
+      Serial.println(pos);
       odrives[i]->setTargetPosition(pos);
     }
 

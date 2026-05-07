@@ -1,7 +1,7 @@
 import json
-
 import rclpy
 import serial
+from serial.tools import list_ports
 from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 
@@ -19,15 +19,39 @@ def _load_keyframes_from_json(json_path: str) -> list[Keyframe]:
 class ODriveNode(Node):
     def __init__(self):
         super().__init__("odrive_node")
+
+        # Serial settings as ROS params for quick iteration on Jetson.
+        self.declare_parameter("port", "/dev/ttyACM0")
+        self.declare_parameter("baud", 460800)
+        port = str(self.get_parameter("port").value)
+        baud = int(self.get_parameter("baud").value)
+
+        ports = [p.device for p in list_ports.comports()]
+        self.get_logger().info(f"Detected serial ports: {ports}")
+
         self.keyframes = _load_keyframes_from_json(
             get_package_share_directory("rammp_prototype_driver")
             + "/config/test_odrive.json"
         )
         # NOTE: Base.ino uses Serial.begin(460800) for the Jetson link.
         # Use a short timeout so reads/writes can't hang callbacks.
-        self.ser = serial.Serial(
-            "/dev/ttyACM0", 460800, timeout=0.01, write_timeout=0.2
-        )
+        self.ser = None
+        try:
+            self.ser = serial.Serial(
+                port, baud, timeout=0.01, write_timeout=0.2, exclusive=True
+            )
+            self.get_logger().info(f"Opened serial: port={port} baud={baud}")
+        except TypeError:
+            # 'exclusive' isn't supported on all pyserial/platform combos.
+            self.ser = serial.Serial(port, baud, timeout=0.01, write_timeout=0.2)
+            self.get_logger().info(
+                f"Opened serial (no exclusive): port={port} baud={baud}"
+            )
+        except serial.SerialException as e:
+            self.get_logger().error(f"Failed to open serial {port} @ {baud}: {e}")
+            self.get_logger().error(f"Available ports: {ports}")
+            self.ser = None
+
         self.serial_timer = self.create_timer(0.02, self.read_serial_data)
         self.heartbeat_timer = self.create_timer(0.5, self.send_serial_heartbeat)
         # self._stdin_thread = threading.Thread(target=self._stdin_loop, daemon=True)
@@ -36,9 +60,19 @@ class ODriveNode(Node):
     def read_serial_data(self):
         if self.ser is None:
             return
-        if self.ser.in_waiting > 0:
-            line = self.ser.readline()
-            self.get_logger().info(line.decode("utf-8", errors="replace").strip())
+        try:
+            waiting = self.ser.in_waiting
+            if waiting <= 0:
+                return
+            data = self.ser.read(waiting)
+        except serial.SerialException as e:
+            self.get_logger().error(f"Serial read failed: {e}")
+            return
+
+        self.get_logger().info(f"RX {len(data)}B: {repr(data)}")
+        text = data.decode("utf-8", errors="replace")
+        if text.strip():
+            self.get_logger().info(f"RX txt: {text.rstrip()}")
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -47,7 +81,12 @@ class ODriveNode(Node):
         if isinstance(data, str):
             data = data.encode("utf-8")
 
-        self.ser.write(data)
+        try:
+            self.ser.write(data)
+        except serial.SerialTimeoutException as e:
+            self.get_logger().error(f"Serial write timeout: {e}")
+        except serial.SerialException as e:
+            self.get_logger().error(f"Serial write failed: {e}")
 
     def send_sequence(self, keyframes: list[Keyframe], auto_run: bool = True):
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(True))
@@ -79,6 +118,8 @@ class ODriveNode(Node):
         self.write_serial_data(ProtocolEncoder.seq_step_forward())
 
     def send_serial_heartbeat(self):
+        if self.ser is None:
+            return
         self.write_serial_data("c\n")
 
     # def _stdin_loop(self):

@@ -60,19 +60,9 @@ class ODriveNode(Node):
     def read_serial_data(self):
         if self.ser is None:
             return
-        try:
-            waiting = self.ser.in_waiting
-            if waiting <= 0:
-                return
-            data = self.ser.read(waiting)
-        except serial.SerialException as e:
-            self.get_logger().error(f"Serial read failed: {e}")
-            return
-
-        self.get_logger().info(f"RX {len(data)}B: {repr(data)}")
-        text = data.decode("utf-8", errors="replace")
-        if text.strip():
-            self.get_logger().info(f"RX txt: {text.rstrip()}")
+        line = self.ser.readline()
+        if line:
+            self.get_logger().info(line.decode("utf-8", errors="replace").strip())
 
     def write_serial_data(self, data):
         if self.ser is None:

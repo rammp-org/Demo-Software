@@ -575,7 +575,8 @@ void setup() {
   current_state =
       IDLE; // TODO: change back to UNCALIBRATED after odrive testing done
   calibrated = true; // TODO: change back to false after odrive testing done
-  Serial.println("STATE: UNCALIBRATED — calibration required before operation");
+  // Serial.println("STATE: UNCALIBRATED — calibration required before
+  // operation");
 }
 
 void loop() {

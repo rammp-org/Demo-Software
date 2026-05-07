@@ -54,7 +54,7 @@ void ODrive::setMode(DriveMode new_mode) {
 void ODrive::setTargetPosition(float pos) { target_pos = pos; }
 
 void ODrive::disable() {
-  float current_pos = this->odrive.getCurrentPosition();
+  float current_pos = this->getCurrentPosition();
   this->setMode(POSITION_CONTROL);
   this->odrive.setPosition(current_pos);
   this->setMode(DISABLED);

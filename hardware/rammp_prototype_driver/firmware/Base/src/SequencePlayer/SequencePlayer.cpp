@@ -352,104 +352,103 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
         odrives[i]->setTargetPosition(kf.odrive_targets[0]);
       }
     }
+
+    if (elapsed % 500 < 20 && !all_lerps_done) {
+      Serial.print("SEQ_LERP,elapsed=");
+      Serial.print(elapsed);
+      Serial.print(",blocking=m");
+      Serial.print(blocking_motor);
+      Serial.print(",dur=");
+      Serial.print(blocking_dur);
+      Serial.print(",active=[");
+      for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+        if (i > 0)
+          Serial.print(",");
+        Serial.print(kf.active[i] ? "1" : "0");
+      }
+      Serial.print("],durs=[");
+      for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+        if (i > 0)
+          Serial.print(",");
+        Serial.print(kf.duration_ms[i]);
+      }
+      Serial.println("]");
+    }
+
+    if (all_lerps_done) {
+      // Ensure every motor's PID is chasing the exact final target.
+      // Delta-zero motors are disabled and have no target to snap to.
+      for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+        if (kf.active[i] && !isDeltaZero(kf, i)) {
+          float final_dest =
+              seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
+          motors[i]->setTargetPosition(final_dest);
+        }
+      }
+      // ODrive note: maybe add odrive loop here?
+      seq_settling = true;
+      seq_settle_start = millis();
+
+      Serial.print("SEQ_STATUS,");
+      Serial.print(seq_current);
+      Serial.print(",");
+      Serial.print(seq_length);
+      Serial.println(",2"); // 2 = settling
+    }
+    return;
   }
 
-  if (elapsed % 500 < 20 && !all_lerps_done) {
-    Serial.print("SEQ_LERP,elapsed=");
-    Serial.print(elapsed);
-    Serial.print(",blocking=m");
-    Serial.print(blocking_motor);
-    Serial.print(",dur=");
-    Serial.print(blocking_dur);
-    Serial.print(",active=[");
-    for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      if (i > 0)
-        Serial.print(",");
-      Serial.print(kf.active[i] ? "1" : "0");
-    }
-    Serial.print("],durs=[");
-    for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      if (i > 0)
-        Serial.print(",");
-      Serial.print(kf.duration_ms[i]);
-    }
-    Serial.println("]");
-  }
+  // ==== Phase 2: Settling (wait for motors to physically arrive) ========
+  bool all_settled = true;
+  unsigned long settle_elapsed = millis() - seq_settle_start;
 
-  if (all_lerps_done) {
-    // Ensure every motor's PID is chasing the exact final target.
-    // Delta-zero motors are disabled and have no target to snap to.
-    for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      if (kf.active[i] && !isDeltaZero(kf, i)) {
-        float final_dest =
-            seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
-        motors[i]->setTargetPosition(final_dest);
+  for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+    if (!kf.active[i] || isDeltaZero(kf, i))
+      continue;
+
+    float dest = seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
+    motors[i]->setTargetPosition(dest);
+    float err = fabs(motors[i]->current_pos - dest);
+
+    if (err > SEQ_COMPLETION_DEADZONE[i]) {
+      all_settled = false;
+      if (settle_elapsed % 500 < 20) {
+        Serial.print("SEQ_SETTLE_WAIT,");
+        Serial.print(i);
+        Serial.print(",err=");
+        Serial.print(err, 1);
+        Serial.print(",pos=");
+        Serial.print(motors[i]->current_pos, 1);
+        Serial.print(",tgt=");
+        Serial.print(dest, 1);
+        Serial.print(",dz=");
+        Serial.println(SEQ_COMPLETION_DEADZONE[i], 1);
       }
     }
-    // ODrive note: maybe add odrive loop here?
-    seq_settling = true;
-    seq_settle_start = millis();
-
-    Serial.print("SEQ_STATUS,");
-    Serial.print(seq_current);
-    Serial.print(",");
-    Serial.print(seq_length);
-    Serial.println(",2"); // 2 = settling
   }
-  return;
-}
 
-// ==== Phase 2: Settling (wait for motors to physically arrive) ========
-bool all_settled = true;
-unsigned long settle_elapsed = millis() - seq_settle_start;
+  bool timed_out = settle_elapsed > SEQ_COMPLETION_TIMEOUT_MS;
 
-for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-  if (!kf.active[i] || isDeltaZero(kf, i))
-    continue;
+  if (all_settled || timed_out) {
+    // ---- Keyframe complete ----
+    seq_settling = false;
 
-  float dest = seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
-  motors[i]->setTargetPosition(dest);
-  float err = fabs(motors[i]->current_pos - dest);
+    if (timed_out)
+      Serial.println("SEQ_TIMEOUT");
 
-  if (err > SEQ_COMPLETION_DEADZONE[i]) {
-    all_settled = false;
-    if (settle_elapsed % 500 < 20) {
-      Serial.print("SEQ_SETTLE_WAIT,");
-      Serial.print(i);
-      Serial.print(",err=");
-      Serial.print(err, 1);
-      Serial.print(",pos=");
-      Serial.print(motors[i]->current_pos, 1);
-      Serial.print(",tgt=");
-      Serial.print(dest, 1);
-      Serial.print(",dz=");
-      Serial.println(SEQ_COMPLETION_DEADZONE[i], 1);
+    // Auto-run: advance to next keyframe if available.
+    if (seq_auto_run && seq_current < seq_length - 1) {
+      seq_current++;
+      beginInterp(motors, odrives); // sends SEQ_STATUS ...,1
+    } else {
+      seq_interpolating = false;
+      Serial.print("SEQ_STATUS,");
+      Serial.print(seq_current);
+      Serial.print(",");
+      Serial.print(seq_length);
+      Serial.println(",0"); // 0 = idle / complete
     }
   }
-}
-
-bool timed_out = settle_elapsed > SEQ_COMPLETION_TIMEOUT_MS;
-
-if (all_settled || timed_out) {
-  // ---- Keyframe complete ----
-  seq_settling = false;
-
-  if (timed_out)
-    Serial.println("SEQ_TIMEOUT");
-
-  // Auto-run: advance to next keyframe if available.
-  if (seq_auto_run && seq_current < seq_length - 1) {
-    seq_current++;
-    beginInterp(motors, odrives); // sends SEQ_STATUS ...,1
-  } else {
-    seq_interpolating = false;
-    Serial.print("SEQ_STATUS,");
-    Serial.print(seq_current);
-    Serial.print(",");
-    Serial.print(seq_length);
-    Serial.println(",0"); // 0 = idle / complete
-  }
-}
 }
 
 // ---------------------------------------------------------------------------

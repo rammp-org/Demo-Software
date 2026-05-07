@@ -679,11 +679,11 @@ void loop() {
       // B1:1 / B1:0 — enter or exit sequence mode
       if (cmd.value > 0.5f) {
         current_state = AUTO_CURB_CLIMBING;
-        sequenceEnter(seq_motors);
+        sequenceEnter(seq_motors, seq_odrives);
         Serial.println("SEQ: Entered AUTO_CURB_CLIMBING mode");
       } else {
         current_state = calibrated ? IDLE : UNCALIBRATED;
-        sequenceExit(seq_motors);
+        sequenceExit(seq_motors, seq_odrives);
         Serial.println("SEQ: Exited AUTO_CURB_CLIMBING mode");
       }
     } else if (cmd.actuator_id == 2) {
@@ -705,7 +705,8 @@ void loop() {
         Motor *seq_motors[SEQ_NUM_MOTORS] = {
             &rc,          &fc,          &ml,       &mr,
             &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
-        sequenceExit(seq_motors);
+        ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR};
+        sequenceExit(seq_motors, seq_odrives);
       }
       current_state = SELF_LEVELING;
       if (DEBUG_MODE)
@@ -785,6 +786,7 @@ void loop() {
         &rc,          &fc,       &ml,      &mr, &ml_carriage,
         &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7:
                                              // velocity-mode (drive wheels)
+    ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR};
     sequenceHandleCommand(cmd, seq_motors, seq_odrives, parser.last_payload);
   }
 

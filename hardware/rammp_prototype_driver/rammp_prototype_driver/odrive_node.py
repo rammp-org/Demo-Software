@@ -25,6 +25,13 @@ class ODriveNode(Node):
         )
         self.ser = serial.Serial("/dev/ttyACM0", 115200)
 
+    def read_serial_data(self):
+        if self.ser is None:
+            return
+        if self.ser.in_waiting > 0:
+            line = self.ser.readline()
+            print(line)
+
     def write_serial_data(self, data):
         if self.ser is None:
             return

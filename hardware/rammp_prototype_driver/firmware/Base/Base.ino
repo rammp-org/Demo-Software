@@ -56,8 +56,8 @@ float target_pitch = 0.0f;
 float target_roll = 0.0f;
 
 // Hardware Objects
-Adafruit_BNO055 bno = Adafruit_BNO055(55);
-IMU_Class IMU = IMU_Class(bno);
+// Adafruit_BNO055 bno = Adafruit_BNO055(55);
+// IMU_Class IMU = IMU_Class(bno);
 EncoderContainer EContr;
 Timer timer;
 CommandParser parser(2000);
@@ -497,12 +497,12 @@ void setup() {
   delay(1000);
 
   // Initialize IMU
-  if (!bno.begin()) {
-    Serial.println("ERROR: BNO055 not detected!");
-  } else {
-    IMU.initialize_BNO055_sensor();
-    Serial.println("IMU initialized");
-  }
+  // if (!bno.begin()) {
+  //   Serial.println("ERROR: BNO055 not detected!");
+  // } else {
+  //   IMU.initialize_BNO055_sensor();
+  //   Serial.println("IMU initialized");
+  // }
 
   // Initialize ConfigStorage and load saved motor configurations
   ConfigStorage::begin();

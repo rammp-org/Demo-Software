@@ -23,7 +23,11 @@ class ODriveNode(Node):
             get_package_share_directory("rammp_prototype_driver")
             + "/config/test_odrive.json"
         )
-        self.ser = serial.Serial("/dev/ttyACM0", 115200)
+        # NOTE: Base.ino uses Serial.begin(460800) for the Jetson link.
+        # Use a short timeout so reads/writes can't hang callbacks.
+        self.ser = serial.Serial(
+            "/dev/ttyACM0", 460800, timeout=0.01, write_timeout=0.2
+        )
         self.serial_timer = self.create_timer(0.02, self.read_serial_data)
         self.heartbeat_timer = self.create_timer(0.5, self.send_serial_heartbeat)
         # self._stdin_thread = threading.Thread(target=self._stdin_loop, daemon=True)

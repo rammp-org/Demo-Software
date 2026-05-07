@@ -1,4 +1,5 @@
 import json
+import threading
 
 import rclpy
 import serial
@@ -24,13 +25,17 @@ class ODriveNode(Node):
             + "/config/test_odrive.json"
         )
         self.ser = serial.Serial("/dev/ttyACM0", 115200)
+        self.serial_timer = self.create_timer(0.02, self.read_serial_data)
+        self.heartbeat_timer = self.create_timer(0.5, self.send_serial_heartbeat)
+        self._stdin_thread = threading.Thread(target=self._stdin_loop, daemon=True)
+        self._stdin_thread.start()
 
     def read_serial_data(self):
         if self.ser is None:
             return
         if self.ser.in_waiting > 0:
             line = self.ser.readline()
-            print(line)
+            self.get_logger().info(line.decode("utf-8", errors="replace").strip())
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -68,20 +73,35 @@ class ODriveNode(Node):
         self.write_serial_data(ProtocolEncoder.seq_step_forward())
 
     def send_serial_heartbeat(self):
-        if not self.estop:
-            self.write_serial_data("c\n")
-        else:
-            self.write_serial_data("z\n")
+        self.write_serial_data("c\n")
+
+    def _stdin_loop(self):
+        while rclpy.ok():
+            try:
+                command = input("Type 's' to send odrive sequence: ").strip()
+            except EOFError:
+                return
+            except KeyboardInterrupt:
+                return
+
+            if command == "s":
+                self.send_sequence(self.keyframes, auto_run=True)
+                self.get_logger().info("Sequence sent")
 
     def send_odrive_sequence(self):
-        command = input("Waiting to send odrive sequence...")
-        if command == "s":
-            self.send_sequence(self.keyframes, auto_run=True)
-            print("Sequence sent")
+        # Deprecated: use the stdin thread to trigger sending without blocking spin()
+        self.get_logger().warn(
+            "send_odrive_sequence() is deprecated; use stdin prompt."
+        )
 
 
 def main(args=None):
     rclpy.init(args=args)
     node = ODriveNode()
-    node.send_odrive_sequence()
     rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

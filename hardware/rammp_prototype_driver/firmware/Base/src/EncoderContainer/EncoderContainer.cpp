@@ -8,12 +8,16 @@ void EncoderContainer::retrieve_readings() {
   encoder[3] = Enc1.read() - encoder_offset[3];   // RC bottom 0-850
   encoder[4] = Enc3.read() - encoder_offset[4];   // FC top
   encoder[5] = Enc12.read() - encoder_offset[5];  // MR back
-  encoder[6] = Enc6.read() - encoder_offset[6];   // ML front
+  encoder[6] = Enc6.read() - encoder_offset[6];   // ML front (unused slot)
   encoder[7] = Enc11.read() - encoder_offset[7];  // ML back
   encoder[8] = Enc10.read() - encoder_offset[8];  // MR front
   encoder[9] = Enc5.read() - encoder_offset[9];   // ML drive wheel
   encoder[10] = Enc8.read() - encoder_offset[10]; // MR drive wheel
-  encoder[11] = Enc7.read() - encoder_offset[11]; // ML carriage
+  // NOTE: We intentionally read Enc6 into encoder[11] so existing code that
+  // refers to "ML carriage = encoder index 11" (see motor_map in Base.ino)
+  // keeps working after rewiring. This effectively ties Enc6 (pins 7/6) to
+  // ml_carriage.
+  encoder[11] = Enc6.read() - encoder_offset[11]; // ML carriage (wired to Enc6)
   encoder[12] = Enc9.read() - encoder_offset[12]; // MR carriage
   encoderf[1] = encoderf[1] + K_sensors * (encoder[1] - encoderf[1]);
   encoderf[2] = encoderf[2] + K_sensors * (encoder[2] - encoderf[2]);
@@ -66,7 +70,9 @@ void EncoderContainer::zeroEncoder(int index) {
       encoder_offset[index] = Enc8.read();
       break;
     case 11:
-      encoder_offset[index] = Enc7.read();
+      // Keep zeroing consistent with retrieve_readings(): encoder[11] uses
+      // Enc6.
+      encoder_offset[index] = Enc6.read();
       break;
     case 12:
       encoder_offset[index] = Enc9.read();

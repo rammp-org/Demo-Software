@@ -7,7 +7,8 @@ from enum import IntEnum
 import rclpy
 import serial
 from ament_index_python.packages import get_package_share_directory
-from luci_messages.msg import LuciJoystick
+
+# from luci_messages.msg import LuciJoystick
 from rammp_prototype_interfaces.action import Calibration, CurbTraverse
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState, SeatCommand
 from rclpy.action import ActionServer, CancelResponse
@@ -269,7 +270,7 @@ class MEBotControlNode(Node):
         self._init_subscribers()
         self._init_publishers()
 
-        self.send_remove_luci()
+        # self.send_remove_luci()
 
     def _init_services(self):
         # services
@@ -330,10 +331,10 @@ class MEBotControlNode(Node):
             self.state_publish_rate, self.publish_RAMMPPrototypeState
         )
 
-        self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
+        # self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
-        self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
-        self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
+        # self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
+        # self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
 
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
@@ -366,6 +367,8 @@ class MEBotControlNode(Node):
                     self.cal_joints_done += 1
                 elif raw_data == "CAL_DONE":
                     self.cal_complete = True
+                else:
+                    self.get_logger().info(str(raw_data))
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -638,40 +641,40 @@ class MEBotControlNode(Node):
     def estop_callback(self, msg):
         self.estop = msg.data
         if msg.data:
-            self.send_remove_luci()  # may be redundent, ensure user has manual control
+            # self.send_remove_luci()  # may be redundent, ensure user has manual control
             self.write_serial_data(
                 "z\n"
             )  # triggers MotorController function NO_MOVEMENT
             self.write_serial_data("K0\n")
 
-    def send_set_luci(self):
-        self.get_logger().info(
-            f"JoystickDebug: setting LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
-        )
-        request = Empty.Request()
-        future = self.set_auto_remote_client.call_async(request)
-        future.add_done_callback(self.luci_req_done)
+    # def send_set_luci(self):
+    #     self.get_logger().info(
+    #         f"JoystickDebug: setting LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
+    #     )
+    #     request = Empty.Request()
+    #     future = self.set_auto_remote_client.call_async(request)
+    #     future.add_done_callback(self.luci_req_done)
 
-        self.luci_heartbeat_timer.reset()
-        return future
+    #     self.luci_heartbeat_timer.reset()
+    #     return future
 
-    def send_remove_luci(self):
-        self.get_logger().info(
-            f"JoystickDebug: removing LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
-        )
-        request = Empty.Request()
-        future = self.remove_auto_remote_client.call_async(request)
-        future.add_done_callback(self.luci_req_done)
+    # def send_remove_luci(self):
+    #     self.get_logger().info(
+    #         f"JoystickDebug: removing LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
+    #     )
+    #     request = Empty.Request()
+    #     future = self.remove_auto_remote_client.call_async(request)
+    #     future.add_done_callback(self.luci_req_done)
 
-        self.luci_heartbeat_timer.cancel()
-        return future
+    #     self.luci_heartbeat_timer.cancel()
+    #     return future
 
-    def luci_req_done(self, future):
-        result = future.result()
-        if result:
-            self.get_logger().info("Service call completed")
-            return
-        self.get_logger().error("Service call failed")
+    # def luci_req_done(self, future):
+    #     result = future.result()
+    #     if result:
+    #         self.get_logger().info("Service call completed")
+    #         return
+    #     self.get_logger().error("Service call failed")
 
     def calibrate_motors_callback(self, goal):
         result = Calibration.Result()
@@ -706,31 +709,31 @@ class MEBotControlNode(Node):
         result.message = f"Calibrated {self.cal_joints_done}/6 joints"
         return result
 
-    def _send_joystick(self):
-        msg = LuciJoystick()
-        msg.forward_back = self.fb_pwm
-        msg.left_right = 0
-        msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
-        msg.input_source = INPUT_REMOTE
-        self.luci_js_publisher.publish(msg)
+    # def _send_joystick(self):
+    #     msg = LuciJoystick()
+    #     msg.forward_back = self.fb_pwm
+    #     msg.left_right = 0
+    #     msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
+    #     msg.input_source = INPUT_REMOTE
+    #     self.luci_js_publisher.publish(msg)
 
-        # Warn when publishing non-zero joystick data outside of active drive states
-        if self.fb_pwm != 0 and self.state != SystemState.AUTO_CURB_CLIMBING:
-            self._js_warn_count += 1
-            if (
-                self._js_warn_count == 1
-                or self._js_warn_count % self._js_warn_interval == 0
-            ):
-                self.get_logger().warn(
-                    f"JoystickDebug: non-zero joystick published in state {self.state}: "
-                    f"fb_pwm={self.fb_pwm} (occurrence #{self._js_warn_count})"
-                )
-        else:
-            if self._js_warn_count > 0:
-                self.get_logger().info(
-                    f"JoystickDebug: normalized after {self._js_warn_count} unexpected publishes"
-                )
-            self._js_warn_count = 0
+    #     # Warn when publishing non-zero joystick data outside of active drive states
+    #     if self.fb_pwm != 0 and self.state != SystemState.AUTO_CURB_CLIMBING:
+    #         self._js_warn_count += 1
+    #         if (
+    #             self._js_warn_count == 1
+    #             or self._js_warn_count % self._js_warn_interval == 0
+    #         ):
+    #             self.get_logger().warn(
+    #                 f"JoystickDebug: non-zero joystick published in state {self.state}: "
+    #                 f"fb_pwm={self.fb_pwm} (occurrence #{self._js_warn_count})"
+    #             )
+    #     else:
+    #         if self._js_warn_count > 0:
+    #             self.get_logger().info(
+    #                 f"JoystickDebug: normalized after {self._js_warn_count} unexpected publishes"
+    #             )
+    #         self._js_warn_count = 0
 
     def curb_traverse_action_callback(self, goal):
         # self.send_set_luci()  # enable LUCI control over js
@@ -766,7 +769,7 @@ class MEBotControlNode(Node):
             if goal.is_cancel_requested:
                 goal.canceled()
                 result.success = False
-                self.send_remove_luci()
+                # self.send_remove_luci()
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")
@@ -807,9 +810,14 @@ class MEBotControlNode(Node):
 
     def drive_enable_callback(self, request, response):
         if request.data:
-            self.send_remove_luci()
+            # self.send_remove_luci()
+            self.write_serial_data(
+                "M5:2\nP5:4.0\nI5:0.0\nD5:0.0\np5:2.0\ni5:0.0\nd5:0.0\nK5\n"
+            )
+            self.write_serial_data("G5\n")
         else:
-            self.send_set_luci()
+            # self.send_set_luci()
+            pass
 
         response.success = True  # just acknowledges request recieved and sent
         return response

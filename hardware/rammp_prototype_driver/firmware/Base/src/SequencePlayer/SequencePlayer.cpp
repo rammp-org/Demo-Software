@@ -128,6 +128,9 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
       kf.odrive_relative[i] = (vals[SEQ_NUM_MOTORS * 7 + i] > 0.5f);
       kf.odrive_targets[i] = vals[SEQ_NUM_MOTORS * 8 + i];
     }
+
+    Serial.println("ODrive target in parseKeyframePayload: ");
+    Serial.println(kf.odrive_targets[0]);
     return true;
   }
 
@@ -145,6 +148,8 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
       kf.odrive_relative[i] = (vals[SEQ_NUM_MOTORS * 5 + i] > 0.5f);
       kf.odrive_targets[i] = vals[SEQ_NUM_MOTORS * 6 + i];
     }
+    Serial.println("ODrive target in parseKeyframePayload: ");
+    Serial.println(kf.odrive_targets[0]);
     return true;
   }
 
@@ -163,6 +168,8 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
       kf.odrive_relative[i] = (vals[SEQ_NUM_MOTORS * 3 + i] > 0.5f);
       kf.odrive_targets[i] = vals[SEQ_NUM_MOTORS * 4 + i];
     }
+    Serial.println("ODrive target in parseKeyframePayload: ");
+    Serial.println(kf.odrive_targets[0]);
     return true;
   }
 
@@ -221,6 +228,9 @@ void sequenceExit(Motor *motors[SEQ_NUM_MOTORS],
                   ODrive *odrives[SEQ_NUM_ODRIVES]) {
   // Disable actuators before tearing down state (actuators off first).
   // ODrive note: need to loop over odrives to disable
+  float pos = odrives[0]->getCurrentPosition();
+  Serial.print("ODrive current position in sequenceExit: ");
+  Serial.println(pos);
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
     motors[i]->disable();
   }
@@ -453,9 +463,22 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
     }
   }
 
+  // ODrive note: add odrive loop here
+  for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
+    if (!kf.odrive_active[0])
+      continue;
+    float dest = finalTargetOdrive(kf, i);
+    float err = fabs(odrives[i]->getCurrentPosition() - dest);
+    Serial.print("ODrive error in sequenceUpdate: ");
+    Serial.println(err);
+    if (err > 1.0f) {
+      all_settled = false;
+    }
+  }
+
   bool timed_out = settle_elapsed > SEQ_COMPLETION_TIMEOUT_MS;
 
-  if (all_settled || timed_out) {
+  if (all_settled) { // ODrive note: removed || timeout check for testing odrive
     // ---- Keyframe complete ----
     seq_settling = false;
 

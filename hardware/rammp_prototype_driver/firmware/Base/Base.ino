@@ -606,6 +606,7 @@ void loop() {
   // here
   ODriveR.updateEncoderReadings();
 
+  rc.updateSensorData(EContr.encoderf[3], dt);
   fc.updateSensorData(EContr.encoderf[2], dt);
   ml.updateSensorData(EContr.encoderf[7], dt);
   mr.updateSensorData(EContr.encoderf[5], dt);

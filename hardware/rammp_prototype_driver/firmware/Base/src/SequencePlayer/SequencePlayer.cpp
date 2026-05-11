@@ -113,6 +113,49 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     }
   }
 
+  //-------WITHOUT ODRIVES FORMAT-------
+  // New guarded format: 48 values (targets, active, relative, durations,
+  // guard_thresholds, guard_conditions)
+  if (count == SEQ_NUM_MOTORS * 6) { // ODrive note: add 3 for odrives
+    for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+      kf.targets[i] = vals[i];
+      kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
+      kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
+      kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
+      kf.guard_threshold[i] = vals[SEQ_NUM_MOTORS * 4 + i];
+      kf.guard_condition[i] = (uint8_t)vals[SEQ_NUM_MOTORS * 5 + i];
+    }
+    return true;
+  }
+
+  // New format: 32 values  (targets, active, relative, durations)
+  if (count == SEQ_NUM_MOTORS * 4) { // ODrive note: add 3 for odrives
+    for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+      kf.targets[i] = vals[i];
+      kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
+      kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
+      kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
+      kf.guard_threshold[i] = 0.0f;
+      kf.guard_condition[i] = GUARD_NONE;
+    }
+    return true;
+  }
+
+  // Legacy format: 17 values  (targets, active, one global duration)
+  if (count == SEQ_NUM_MOTORS * 2 + 1) { // ODrive note: add 3 for odrives
+    uint32_t global_dur = (uint32_t)vals[SEQ_NUM_MOTORS * 2];
+    for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
+      kf.targets[i] = vals[i];
+      kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
+      kf.relative[i] = false;
+      kf.duration_ms[i] = global_dur;
+      kf.guard_threshold[i] = 0.0f;
+      kf.guard_condition[i] = GUARD_NONE;
+    }
+    return true;
+  }
+
+  //-------WITH ODRIVES FORMAT-------
   // New guarded format: 48 values (targets, active, relative, durations,
   // guard_thresholds, guard_conditions)
   if (count == SEQ_NUM_MOTORS * 9) { // ODrive note: add 3 for odrives

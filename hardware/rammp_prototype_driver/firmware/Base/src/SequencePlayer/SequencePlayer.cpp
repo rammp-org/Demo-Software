@@ -363,7 +363,9 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
       float t_i = (kf.duration_ms[0] == 0)
                       ? 1.0f
                       : min(1.0f, (float)elapsed / (float)kf.duration_ms[0]);
-
+      if (t_i < 1.0f) {
+        all_lerps_done = false;
+      }
       if (!kf.odrive_active[0])
         continue;
       float dest = finalTargetOdrive(kf, i);
@@ -462,9 +464,9 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
       continue;
     float dest = finalTargetOdrive(kf, i);
     float err = fabs(odrives[i]->getCurrentPosition() - dest);
-    Serial.print("ODrive error in sequenceUpdate: ");
-    Serial.println(err);
-    if (err > 1.0f) {
+    // Serial.print("ODrive error in sequenceUpdate: ");
+    // Serial.println(err);
+    if (err > 0.1f) {
       all_settled = false;
     }
   }

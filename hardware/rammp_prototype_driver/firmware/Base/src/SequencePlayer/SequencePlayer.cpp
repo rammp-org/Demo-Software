@@ -128,9 +128,6 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
       kf.odrive_relative[i] = (vals[SEQ_NUM_MOTORS * 7 + i] > 0.5f);
       kf.odrive_targets[i] = vals[SEQ_NUM_MOTORS * 8 + i];
     }
-
-    Serial.println("ODrive target in parseKeyframePayload: ");
-    Serial.println(kf.odrive_targets[0]);
     return true;
   }
 
@@ -148,8 +145,6 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
       kf.odrive_relative[i] = (vals[SEQ_NUM_MOTORS * 5 + i] > 0.5f);
       kf.odrive_targets[i] = vals[SEQ_NUM_MOTORS * 6 + i];
     }
-    Serial.println("ODrive target in parseKeyframePayload: ");
-    Serial.println(kf.odrive_targets[0]);
     return true;
   }
 
@@ -168,8 +163,6 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
       kf.odrive_relative[i] = (vals[SEQ_NUM_MOTORS * 3 + i] > 0.5f);
       kf.odrive_targets[i] = vals[SEQ_NUM_MOTORS * 4 + i];
     }
-    Serial.println("ODrive target in parseKeyframePayload: ");
-    Serial.println(kf.odrive_targets[0]);
     return true;
   }
 
@@ -367,7 +360,7 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
 
     // ODrive note: add odrive loop here
     for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
-      float t_i = (kf.duration_ms[i] == 0)
+      float t_i = (kf.duration_ms[0] == 0)
                       ? 1.0f
                       : min(1.0f, (float)elapsed / (float)kf.duration_ms[0]);
 
@@ -376,7 +369,7 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
       float dest = finalTargetOdrive(kf, i);
       float pos =
           seq_start_pos_odrives[i] + t_i * (dest - seq_start_pos_odrives[i]);
-      Serial.println("ODrive target position in sequenceUpdate: ");
+      Serial.print("ODrive target position in sequenceUpdate: ");
       Serial.println(pos);
       odrives[i]->setTargetPosition(pos);
     }

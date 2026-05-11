@@ -38,7 +38,7 @@ void ODrive::setMode(DriveMode new_mode) {
   case POSITION_CONTROL:
     // Serial.println("ODrive setMode POSITION_CONTROL called");
     while (this->odrive.getState() != AXIS_STATE_CLOSED_LOOP_CONTROL) {
-      Serial.println("ODrive setMode POSITION_CONTROL still waiting!!");
+      // Serial.println("ODrive setMode POSITION_CONTROL still waiting!!");
       this->odrive.clearErrors();
       this->odrive.setState(AXIS_STATE_CLOSED_LOOP_CONTROL);
       delay(10);

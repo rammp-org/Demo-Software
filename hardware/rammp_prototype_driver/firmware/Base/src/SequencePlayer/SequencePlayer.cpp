@@ -37,7 +37,7 @@ static inline float finalTarget(const Keyframe &kf, int i) {
   return kf.targets[i];                      // absolute position
 }
 
-// ODrive note: add odrive final target function
+// ODrive note: odrive final target function
 static inline float finalTargetOdrive(const Keyframe &kf, int i) {
   if (kf.odrive_relative[0])
     return seq_start_pos_odrives[i] + kf.odrive_targets[0]; // relative delta
@@ -73,8 +73,7 @@ static void beginInterp(Motor *motors[SEQ_NUM_MOTORS],
       motors[i]->setTargetPosition(motors[i]->current_pos);
     }
   }
-  // ODrive note: put another loop for odrives, need to set mode and target
-  // position for odrive
+  // ODrive note: Set mode and target and non jumping position for odrive
   if (kf.odrive_active[0]) {
     for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
       seq_start_pos_odrives[i] = odrives[i]->current_pos;
@@ -97,7 +96,7 @@ static void beginInterp(Motor *motors[SEQ_NUM_MOTORS],
 // ---------------------------------------------------------------------------
 //  Payload parser (supports new 32-value and legacy 17-value formats)
 // ---------------------------------------------------------------------------
-// ODrive note: need to change to support parsing odrive payloads
+
 bool parseKeyframePayload(const String &payload, Keyframe &kf) {
   // Maximum possible values: 8*6 = 48
   const int MAX_VALS = SEQ_NUM_MOTORS * 9; // ODrive note: add 3 for odrives
@@ -215,10 +214,9 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
 // ---------------------------------------------------------------------------
 //  Enter / Exit
 // ---------------------------------------------------------------------------
-// ODrive note: add odrive array to passed arguments
+
 void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
                    ODrive *odrives[SEQ_NUM_ODRIVES]) {
-  // Serial.println("SEQ: Entered sequenceEnter");
   seq_length = 0;
   seq_current = -1;
   seq_interpolating = false;
@@ -236,37 +234,28 @@ void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
     motors[i]->pos_pid.reset();
     motors[i]->vel_pid.reset();
   }
-  // Serial.println("SEQ: Set motor positions to 0");
+
   // ALL motors — including drive wheels — run position control during
   // sequences.
-  // ODrive note: need to loop over odrives to set mode and target position and
-  // get current position
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
     motors[i]->setMode(Motor::POSITION_CONTROL);
     motors[i]->setTargetPosition(motors[i]->current_pos);
     seq_start_pos[i] = motors[i]->current_pos;
   }
-  // Serial.println("SEQ: Set odrive positions to 0");
+
   for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
     odrives[i]->setMode(ODrive::POSITION_CONTROL);
-    // Serial.println("ODrivesetMode complete");
     odrives[i]->setTargetPosition(odrives[i]->getCurrentPosition());
-    // Serial.println("ODrive setTargetPosition complete");
     seq_start_pos_odrives[i] = odrives[i]->getCurrentPosition();
-    // Serial.println("ODrive getCurrentPosition complete");
   }
-  // Serial.println("SEQ: Set odrive mode to POSITION_CONTROL");
-
-  // Serial.println("SEQ: Exited sequenceEnter");
 }
 
 void sequenceExit(Motor *motors[SEQ_NUM_MOTORS],
                   ODrive *odrives[SEQ_NUM_ODRIVES]) {
   // Disable actuators before tearing down state (actuators off first).
-  // ODrive note: need to loop over odrives to disable
-  float pos = odrives[0]->getCurrentPosition();
-  Serial.print("ODrive current position in sequenceExit: ");
-  Serial.println(pos);
+  // float pos = odrives[0]->getCurrentPosition();
+  // Serial.print("ODrive current position in sequenceExit: ");
+  // Serial.println(pos);
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
     motors[i]->disable();
   }
@@ -283,7 +272,6 @@ void sequenceExit(Motor *motors[SEQ_NUM_MOTORS],
 // ---------------------------------------------------------------------------
 //  Command handler
 // ---------------------------------------------------------------------------
-// ODrive note: add odrive array to passed arguments
 void sequenceHandleCommand(const RobotCommand &cmd,
                            Motor *motors[SEQ_NUM_MOTORS],
                            ODrive *odrives[SEQ_NUM_ODRIVES],
@@ -340,7 +328,6 @@ void sequenceHandleCommand(const RobotCommand &cmd,
 // ---------------------------------------------------------------------------
 //  Update (called every loop iteration while in AUTO_CURB_CLIMBING)
 // ---------------------------------------------------------------------------
-// ODrive note: add odrive array to passed arguments
 void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
                     ODrive *odrives[SEQ_NUM_ODRIVES]) {
   if (!seq_interpolating || seq_current < 0 || seq_current >= seq_length)
@@ -401,7 +388,7 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
       }
     }
 
-    // ODrive note: add odrive loop here
+    //---ODRIVES INTERPOLATION LOOP---
     for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
       float t_i = (kf.duration_ms[0] == 0)
                       ? 1.0f
@@ -414,11 +401,13 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
       float dest = finalTargetOdrive(kf, i);
       float pos =
           seq_start_pos_odrives[i] + t_i * (dest - seq_start_pos_odrives[i]);
-      Serial.print("ODrive target position in sequenceUpdate: ");
-      Serial.println(pos);
+      // Serial.print("ODrive target position in sequenceUpdate: ");
+      // Serial.println(pos);
       odrives[i]->setTargetPosition(pos);
     }
 
+    // ODrive note: odrives not included in this debug print (blocking motors
+    // don't track odrives)
     if (elapsed % 500 < 20 && !all_lerps_done) {
       Serial.print("SEQ_LERP,elapsed=");
       Serial.print(elapsed);
@@ -451,7 +440,7 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
           motors[i]->setTargetPosition(final_dest);
         }
       }
-      // ODrive note: maybe add odrive loop here?
+      // ODrive loop
       for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
         if (!kf.odrive_active[0])
           continue;
@@ -501,7 +490,7 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
     }
   }
 
-  // ODrive note: add odrive loop here
+  // ODrive loop
   for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
     if (!kf.odrive_active[0])
       continue;

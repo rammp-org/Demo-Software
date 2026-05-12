@@ -1,9 +1,10 @@
 #include "ODrive.h"
 
-ODrive::ODrive(ODriveUART &odrive) : odrive(odrive) {}
+ODrive::ODrive(ODriveUART &odrive, int axis_direction)
+    : odrive(odrive), direction(axis_direction) {}
 
 void ODrive::updateEncoderReadings() {
-  current_pos = this->odrive.getPosition();
+  current_pos = this->odrive.getPosition() * this->direction;
 }
 
 void ODrive::setMode(DriveMode new_mode) {
@@ -58,13 +59,15 @@ void ODrive::setMode(DriveMode new_mode) {
 void ODrive::setTargetPosition(float pos) { target_pos = pos; }
 
 void ODrive::disable() {
-  float current_pos = this->getCurrentPosition();
+  // getCurrentPosition() is robot frame; UART setPosition expects hardware.
+  const float robot_pos = this->getCurrentPosition();
+  const float hw_pos = robot_pos / static_cast<float>(direction);
   this->setMode(POSITION_CONTROL);
-  this->odrive.setPosition(current_pos);
+  this->odrive.setPosition(hw_pos);
   this->setMode(DISABLED);
 }
 
-float ODrive::getTargetPosition() { return target_pos; }
+float ODrive::getTargetPosition() { return target_pos * this->direction; }
 
 float ODrive::getCurrentPosition() {
   this->updateEncoderReadings();

@@ -5,7 +5,9 @@ class ODrive {
 public:
   enum DriveMode { DISABLED, POSITION_CONTROL, VELOCITY_CONTROL, OPEN_LOOP };
 
-  ODrive(ODriveUART &odrive);
+  /// \p axis_direction: +1 or -1 maps ODrive hardware position into robot
+  /// frame (read/write). SequencePlayer uses robot frame.
+  ODrive(ODriveUART &odrive, int axis_direction = 1);
   DriveMode mode;
   float current_pos;
   float target_pos;
@@ -18,4 +20,5 @@ public:
   // may need to add absolute vs relative target position compute function
 private:
   ODriveUART &odrive;
+  int direction;
 };

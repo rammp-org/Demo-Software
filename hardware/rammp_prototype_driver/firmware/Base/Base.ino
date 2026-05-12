@@ -75,6 +75,7 @@ RoboClaw roboclaw_main(&Serial5, 10000);      // Serial5
 
 // Init ODrive motors
 HardwareSerial &odriveR_serial = Serial1;
+HardwareSerial &odriveL_serial = Serial6;
 
 // ODriveUART odriveL(odriveL_serial);
 // ODriveUART odriveR(odriveR_serial);
@@ -89,7 +90,9 @@ Motor mr_carriage;
 Motor drive_fb;
 Motor drive_lr;
 ODriveUART odriveR(odriveR_serial);
-ODrive ODriveR(odriveR);
+ODriveUART odriveL(odriveL_serial);
+ODrive ODriveR(odriveR);     // hardware == robot +X
+ODrive ODriveL(odriveL, -1); // flip hardware vs robot frame
 
 int8_t ml_enc_dir = 1;
 int8_t mr_enc_dir = 1;
@@ -485,8 +488,9 @@ void setup() {
   Serial3.begin(460800); // roboclaw 1
   Serial4.begin(460800); // roboclaw 2
   Serial5.begin(460800); // roboclaw 3
-  Serial1.begin(460800); // odrive left
-  Serial7.begin(460800); // odrive right
+  Serial1.begin(460800); // odrive right
+  // Serial7.begin(460800); // unknown serial port
+  Serial6.begin(460800); // odrive left
 
   // set up limit switches
   pinMode(CARRIAGE_SW1_PIN, INPUT_PULLUP);
@@ -605,6 +609,7 @@ void loop() {
   // ODrive note: idk yet if I should add odrive update encoder reading function
   // here
   ODriveR.updateEncoderReadings();
+  ODriveL.updateEncoderReadings();
 
   rc.updateSensorData(EContr.encoderf[3], dt);
   fc.updateSensorData(EContr.encoderf[2], dt);
@@ -681,7 +686,7 @@ void loop() {
     // Serial.println("SEQ: Entered SEQ_MODE");
     Motor *seq_motors[SEQ_NUM_MOTORS] = {
         &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
-    ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR};
+    ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR, &ODriveL};
     if (cmd.actuator_id == 1) {
       // Serial.println("SEQ: B1:1 / B1:0 — enter or exit sequence mode");
       // B1:1 / B1:0 — enter or exit sequence mode
@@ -715,7 +720,7 @@ void loop() {
         Motor *seq_motors[SEQ_NUM_MOTORS] = {
             &rc,          &fc,          &ml,       &mr,
             &ml_carriage, &mr_carriage, &drive_fb, &drive_lr};
-        ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR};
+        ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR, &ODriveL};
         sequenceExit(seq_motors, seq_odrives);
       }
       current_state = SELF_LEVELING;
@@ -796,7 +801,7 @@ void loop() {
         &rc,          &fc,       &ml,      &mr, &ml_carriage,
         &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7:
                                              // velocity-mode (drive wheels)
-    ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR};
+    ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR, &ODriveL};
     sequenceHandleCommand(cmd, seq_motors, seq_odrives, parser.last_payload);
   }
 
@@ -828,7 +833,7 @@ void loop() {
         &rc,          &fc,       &ml,      &mr, &ml_carriage,
         &mr_carriage, &drive_fb, &drive_lr}; // indices 0-5: position-mode; 6-7:
                                              // velocity-mode (drive wheels)
-    ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR};
+    ODrive *seq_odrives[SEQ_NUM_ODRIVES] = {&ODriveR, &ODriveL};
     sequenceUpdate(seq_motors, seq_odrives);
   } else if (current_state == CALIBRATING) {
     runCalibration(dt);
@@ -903,14 +908,9 @@ void loop() {
   roboclaw_carriages.DutyM1(0x80, (int16_t)mrc_pwm);
 
   roboclaw_carriages.DutyM2(0x80, (int16_t)mlc_pwm);
-  // ODrive note: add ODrive motor control here
-  float pos = ODriveR.getTargetPosition();
-
-  // if (pos != 0) {
-  //   Serial.println(pos);
-  // }
 
   odriveR.setPosition(ODriveR.getTargetPosition());
+  odriveL.setPosition(ODriveL.getTargetPosition());
   // 5. Send Telemetry
   updateTelemetry();
 

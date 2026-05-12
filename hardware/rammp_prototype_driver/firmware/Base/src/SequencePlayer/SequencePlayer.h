@@ -8,8 +8,8 @@ class Motor;
 struct RobotCommand;
 
 #define MAX_SEQ_KEYFRAMES 20
-#define SEQ_NUM_MOTORS 8 // ODrive note: change to 10 for odrives
-#define SEQ_NUM_ODRIVES 1
+#define SEQ_NUM_MOTORS 8
+#define SEQ_NUM_ODRIVES 2
 #define SEQ_NUM_POS_MOTORS 6
 
 static const float SEQ_COMPLETION_DEADZONE[SEQ_NUM_MOTORS] = {

@@ -1345,7 +1345,16 @@ class ControlPanel(QWidget):
                 for i in range(NUM_MOTORS)
             ]
             self._serial_handler.send_keyframe(
-                idx, targets, active, durations, kf.relative
+                idx,
+                targets,
+                active,
+                durations,
+                kf.relative,
+                guard_threshold=kf.guard_threshold,
+                guard_condition=kf.guard_condition,
+                odrive_active=kf.odrive_active,
+                odrive_relative=kf.odrive_relative,
+                odrive_targets=kf.odrive_targets,
             )
 
         self._serial_handler.seq_auto_run(True)
@@ -1466,7 +1475,16 @@ class ControlPanel(QWidget):
                 for i in range(NUM_MOTORS)
             ]
             self._serial_handler.send_keyframe(
-                idx, targets, active, durations, kf.relative
+                idx,
+                targets,
+                active,
+                durations,
+                kf.relative,
+                guard_threshold=kf.guard_threshold,
+                guard_condition=kf.guard_condition,
+                odrive_active=kf.odrive_active,
+                odrive_relative=kf.odrive_relative,
+                odrive_targets=kf.odrive_targets,
             )
 
         self._serial_handler.seq_auto_run(True)

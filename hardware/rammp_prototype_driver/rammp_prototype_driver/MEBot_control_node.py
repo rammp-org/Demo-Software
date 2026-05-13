@@ -140,6 +140,8 @@ class SerialField(IntEnum):
     MR_WHEEL_POS = 71
     ML_WHEEL_VEL = 72
     MR_WHEEL_VEL = 73
+    ODRIVE_L_POS = 78
+    ODRIVE_R_POS = 79
     STATE = 2
     FB_PWM = 66
 
@@ -235,6 +237,8 @@ class MEBotControlNode(Node):
         self.MR_wheel_pos = 0.0
         self.ML_wheel_vel = 0.0
         self.MR_wheel_vel = 0.0
+        self.odrive_l_pos = 0.0
+        self.odrive_r_pos = 0.0
 
         # Loadcells
         self.RC_loadcell = 0.0
@@ -465,6 +469,10 @@ class MEBotControlNode(Node):
             )
         self._prev_fb_pwm = new_fb_pwm
         self.fb_pwm = new_fb_pwm
+
+        if len(data) > SerialField.ODRIVE_R_POS:
+            self.odrive_l_pos = float(data[SerialField.ODRIVE_L_POS])
+            self.odrive_r_pos = float(data[SerialField.ODRIVE_R_POS])
 
     def publish_joint_states(self):
         conv = JOINT_CONVERSIONS

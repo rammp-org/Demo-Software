@@ -816,6 +816,9 @@ class SequenceEditor(QWidget):
                 kf.relative,
                 guard_threshold=kf.guard_threshold,
                 guard_condition=kf.guard_condition,
+                odrive_active=kf.odrive_active,
+                odrive_relative=kf.odrive_relative,
+                odrive_targets=kf.odrive_targets,
             )
 
         # Start a timeout — if not all ACKs arrive within 3s, warn the user

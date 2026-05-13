@@ -775,8 +775,23 @@ void loop() {
   }
 
   if (current_state == TUNER_MODE && cmd.type != CMD_NONE) {
-    // Special case: Save all motors (K0)
-    if (cmd.type == CMD_SAVE_CONFIG && cmd.actuator_id == 0) {
+    if (cmd.type == CMD_ODRIVE_POS) {
+      parser.feedWatchdog();
+      const int axis = cmd.actuator_id;
+      const float pos = cmd.value;
+      auto apply_od = [&](ODrive &od) {
+        od.setMode(ODrive::POSITION_CONTROL);
+        od.setTargetPosition(pos);
+      };
+      if (axis == 0) {
+        apply_od(ODriveR);
+        apply_od(ODriveL);
+      } else if (axis == 1) {
+        apply_od(ODriveL);
+      } else if (axis == 2) {
+        apply_od(ODriveR);
+      }
+    } else if (cmd.type == CMD_SAVE_CONFIG && cmd.actuator_id == 0) {
       saveAllMotorConfigs();
       if (DEBUG_MODE) {
         Serial.println("DEBUG: Saved config for ALL motors (K0)");

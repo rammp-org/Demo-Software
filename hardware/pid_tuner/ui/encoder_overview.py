@@ -1,6 +1,6 @@
 """
-Encoder overview widget showing all 6 encoder positions in a compact layout,
-with combined motion controls and saved position buttons.
+Encoder overview: per-joint bars from telemetry, ODrive L/R positions, grouped
+moves (carriage, legs, both ODrives), and saved pose buttons for joints 1–6.
 """
 
 from PyQt6.QtWidgets import (
@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import pyqtSlot, pyqtSignal, Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPen, QBrush
+from typing import List, Optional
 
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
@@ -31,17 +32,28 @@ MODE_POSITION = 2
 class JointBox(QFrame):
     clicked = pyqtSignal(int)
 
-    def __init__(self, joint_id: int, name: str, color: str, parent=None):
+    def __init__(
+        self,
+        joint_id: int,
+        name: str,
+        color: str,
+        parent=None,
+        clickable: bool = True,
+    ):
         super().__init__(parent)
         self._joint_id = joint_id
         self._name = name
         self._color = color
         self._value = 0.0
         self._selected = False
+        self._clickable = clickable
         self._min_val = -10000.0
         self._max_val = 10000.0
 
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        if clickable:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
         self.setFrameShape(QFrame.Shape.StyledPanel)
 
         self.setFixedHeight(scaled(22))
@@ -139,6 +151,8 @@ class JointBox(QFrame):
         )
 
     def mousePressEvent(self, a0):
+        if not self._clickable:
+            return
         if a0 is not None and a0.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit(self._joint_id)
 
@@ -206,8 +220,8 @@ class SavedPositionButton(QPushButton):
 
 class EncoderOverview(QWidget):
     """
-    Widget showing all 6 encoder positions in a compact layout,
-    with combined motion controls and saved position buttons.
+    Compact joint + ODrive readouts, grouped moves (carriage, legs, ODrives),
+    and six saved-position buttons for joints 1–6.
     """
 
     joint_selected = pyqtSignal(int)
@@ -220,7 +234,9 @@ class EncoderOverview(QWidget):
         super().__init__(parent)
         self._data_store = data_store
         self._serial_handler = serial_handler
-        self._boxes = []
+        self._boxes: List[JointBox] = []
+        self._odrive_l_box: Optional[JointBox] = None
+        self._odrive_r_box: Optional[JointBox] = None
         self._selected_joint = 1
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -250,10 +266,29 @@ class EncoderOverview(QWidget):
                 joint_id=joint.id,
                 name=joint.short_name,
                 color=color,
+                clickable=True,
             )
             box.clicked.connect(self._on_box_clicked)
             self._boxes.append(box)
             boxes_layout.addWidget(box)
+
+        self._odrive_l_box = JointBox(
+            joint_id=-1,
+            name="OD_L",
+            color=THEME.teal,
+            clickable=False,
+        )
+        self._odrive_l_box.set_limits(-1.0e6, 1.0e6)
+        boxes_layout.addWidget(self._odrive_l_box)
+
+        self._odrive_r_box = JointBox(
+            joint_id=-2,
+            name="OD_R",
+            color=THEME.mauve,
+            clickable=False,
+        )
+        self._odrive_r_box.set_limits(-1.0e6, 1.0e6)
+        boxes_layout.addWidget(self._odrive_r_box)
 
         root.addLayout(boxes_layout, stretch=1)
 
@@ -284,6 +319,23 @@ class EncoderOverview(QWidget):
         btn_legs.clicked.connect(self._on_legs_go)
         controls_layout.addWidget(btn_legs)
 
+        controls_layout.addSpacing(SIZES["spacing_large"])
+
+        controls_layout.addWidget(QLabel("ODrives (L+R):"))
+        self._odrive_both_spin = QDoubleSpinBox()
+        self._odrive_both_spin.setRange(-1.0e6, 1.0e6)
+        self._odrive_both_spin.setDecimals(2)
+        self._odrive_both_spin.setSingleStep(0.1)
+        self._odrive_both_spin.setToolTip(
+            "Send same position setpoint to both ODrives (Teensy TUNER_MODE: o0:…)"
+        )
+        controls_layout.addWidget(self._odrive_both_spin)
+
+        btn_odrive_both = QPushButton("Go")
+        btn_odrive_both.setToolTip("o0:<pos> — both ODrive axes (logical turns)")
+        btn_odrive_both.clicked.connect(self._on_odrive_both_go)
+        controls_layout.addWidget(btn_odrive_both)
+
         root.addLayout(controls_layout)
 
         pos_grid = QGridLayout()
@@ -308,6 +360,11 @@ class EncoderOverview(QWidget):
             if joint_data:
                 box.set_value(joint_data.current_position)
 
+        if self._odrive_l_box is not None:
+            self._odrive_l_box.set_value(self._data_store.odrive_l_pos)
+        if self._odrive_r_box is not None:
+            self._odrive_r_box.set_value(self._data_store.odrive_r_pos)
+
     def _on_box_clicked(self, joint_id: int):
         self.set_selected_joint(joint_id)
         self.joint_selected.emit(joint_id)
@@ -325,6 +382,10 @@ class EncoderOverview(QWidget):
             self._serial_handler.set_mode(j, MODE_POSITION)
             self._serial_handler.set_target(j, val)
             self._data_store.set_target(j, val)
+
+    def _on_odrive_both_go(self):
+        val = self._odrive_both_spin.value()
+        self._serial_handler.set_odrive_position(0, val)
 
     @pyqtSlot(int)
     def set_selected_joint(self, joint_id: int):

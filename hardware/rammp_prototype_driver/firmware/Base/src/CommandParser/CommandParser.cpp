@@ -128,6 +128,9 @@ RobotCommand CommandParser::parse(Stream &serial) {
           case 'O':
             cmd.type = CMD_OFFSET;
             break;
+          case 'o':
+            cmd.type = CMD_ODRIVE_POS;
+            break;
           case 'L':
             cmd.type = CMD_LEVEL_MODE;
             break;

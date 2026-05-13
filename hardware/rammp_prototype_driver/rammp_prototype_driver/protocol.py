@@ -31,6 +31,10 @@ PC -> Teensy Protocol:
 
     ESTOP: z\n
     Clear ESTOP: c\n
+
+    ODrive position (TUNER_MODE): o<axis>:<pos> then newline.
+        axis 0 = both L+R same setpoint; 1 = left only; 2 = right only.
+        Example: o0:1.25
 """
 
 from dataclasses import dataclass, field
@@ -105,6 +109,8 @@ class EncoderData:
     drive_lr_dir: int = 1
     drive_fb_enc_dir: int = 1
     drive_lr_enc_dir: int = 1
+    odrive_l_pos: float = 0.0
+    odrive_r_pos: float = 0.0
 
     @property
     def num_joints(self) -> int:
@@ -330,6 +336,9 @@ class ProtocolParser:
                         data.drive_lr_dir = int(values[72])
                         data.drive_fb_enc_dir = int(values[73])
                         data.drive_lr_enc_dir = int(values[74])
+                    if len(values) >= 77:
+                        data.odrive_l_pos = values[75]
+                        data.odrive_r_pos = values[76]
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:
@@ -565,6 +574,14 @@ class ProtocolEncoder:
         """
         cmd = f"O{joint_id}:{desired_position:.2f}\n"
         return cmd.encode("ascii")
+
+    @staticmethod
+    def set_odrive_position(axis_id: int, position: float) -> bytes:
+        """
+        Set ODrive position in TUNER_MODE (Teensy `o<id>:<pos>`).
+        axis_id 0 = both L and R same setpoint; 1 = left only; 2 = right only.
+        """
+        return f"o{int(axis_id)}:{position:.4f}\n".encode("ascii")
 
     @staticmethod
     def enter_sequence_mode(enable: bool) -> bytes:

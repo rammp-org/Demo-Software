@@ -820,7 +820,7 @@ class MEBotControlNode(Node):
         if request.data:
             # self.send_remove_luci()
             self.write_serial_data(
-                "M5:2\nP5:4.0\nI5:0.0\nD5:0.0\np5:2.0\ni5:0.0\nd5:0.0\nK5\n"
+                "M5:2\nP5:4.0\nI5:0.0\nD5:0.0\np5:3.0\ni5:0.0\nd5:0.0\nK5\n"
             )
             self.write_serial_data("G5\n")
         else:

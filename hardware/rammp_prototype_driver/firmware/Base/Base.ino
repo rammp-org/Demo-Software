@@ -75,7 +75,7 @@ RoboClaw roboclaw_main(&Serial5, 10000);      // Serial5
 
 // Init ODrive motors
 HardwareSerial &odriveR_serial = Serial1;
-HardwareSerial &odriveL_serial = Serial6;
+HardwareSerial &odriveL_serial = Serial7;
 
 // ODriveUART odriveL(odriveL_serial);
 // ODriveUART odriveR(odriveR_serial);
@@ -106,8 +106,8 @@ MotorEntry motor_map[8] = {
     {&fc, 2, &roboclaw_casters, 2, true, true, "fc"},
     {&ml, 7, &roboclaw_main, 1, true, true, "ml"},
     {&mr, 5, &roboclaw_main, 2, true, true, "mr"},
-    {&ml_carriage, 11, &roboclaw_carriages, 2, true, true, "ml_carriage"},
-    {&mr_carriage, 12, &roboclaw_carriages, 1, true, true, "mr_carriage"},
+    {&ml_carriage, 11, &roboclaw_carriages, 1, true, true, "ml_carriage"},
+    {&mr_carriage, 12, &roboclaw_carriages, 2, true, true, "mr_carriage"},
     {&drive_fb, 9, nullptr, 0, false, false, "drive_fb"},
     {&drive_lr, 10, nullptr, 0, false, false, "drive_lr"},
 };

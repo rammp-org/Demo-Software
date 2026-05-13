@@ -9,8 +9,8 @@ public:
   // EncoderContainer.cpp (must match motor_map in Base.ino).
   float K_sensors = 1;
   // Encoder Enc2 = Encoder(1, 0);    // RC top — pins repurposed (e.g. ODrive)
-  Encoder Enc1 = Encoder(3, 2); // RC bottom          (3,2)
-  // Encoder Enc3 = Encoder(5, 4);    // FC top — not populated on current build
+  Encoder Enc3 =
+      Encoder(3, 2); // FC top (3,2) — also feeds motor_map enc 3 (rc)
   Encoder Enc6 = Encoder(7, 6);    // FC bottom         (7,6)
   Encoder Enc5 = Encoder(9, 8);    // ML drive wheel    (9,8)
   Encoder Enc10 = Encoder(11, 10); // MR carriage         (11,10)

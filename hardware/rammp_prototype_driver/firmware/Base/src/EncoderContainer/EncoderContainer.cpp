@@ -4,19 +4,19 @@
 // Physical Encoder objects and pins are defined only in EncoderContainer.h.
 
 void EncoderContainer::retrieve_readings() {
-  encoder[3] = Enc1.read() - encoder_offset[3]; // RC bottom → joint rc (enc 3)
-  encoder[1] =
-      encoder[3]; // slot 1 not in motor_map; old RC-top (Enc2) pins repurposed
-  encoder[2] = Enc6.read() - encoder_offset[2]; // FC bottom → joint fc
-  encoder[4] = 0; // FC top (Enc3) removed per EncoderContainer.h — slot unused
-  encoder[5] = Enc12.read() - encoder_offset[5]; // MR back → joint mr
-  encoder[6] = 0; // no sensor; legacy “ML front” slot unused by motor_map
-  encoder[7] = Enc11.read() - encoder_offset[7]; // ML back → joint ml
-  encoder[8] = 0; // MR-front aux removed (Enc9/Enc10 pins → carriage / odrive)
+  encoder[3] =
+      Enc3.read() - encoder_offset[3]; // motor_map rc → Enc3 (pins 3,2)
+  encoder[1] = encoder[3]; // slot 1 not in motor_map; tied to same sensor as 3
+  encoder[2] = Enc6.read() - encoder_offset[2]; // fc → FC bottom
+  encoder[4] = 0; // no separate (5,4) FC-top encoder in header
+  encoder[5] = Enc12.read() - encoder_offset[5];   // mr → MR back
+  encoder[6] = 0;                                  // unused by motor_map
+  encoder[7] = Enc11.read() - encoder_offset[7];   // ml → ML back
+  encoder[8] = 0;                                  // no MR-front aux in header
   encoder[9] = Enc5.read() - encoder_offset[9];    // ML drive wheel
   encoder[10] = Enc8.read() - encoder_offset[10];  // MR drive wheel
-  encoder[11] = Enc7.read() - encoder_offset[11];  // ML carriage (pins 24,12)
-  encoder[12] = Enc10.read() - encoder_offset[12]; // MR carriage (pins 11,10)
+  encoder[11] = Enc7.read() - encoder_offset[11];  // ML carriage
+  encoder[12] = Enc10.read() - encoder_offset[12]; // MR carriage
 
   encoderf[1] = encoderf[1] + K_sensors * (encoder[1] - encoderf[1]);
   encoderf[2] = encoderf[2] + K_sensors * (encoder[2] - encoderf[2]);
@@ -36,8 +36,7 @@ void EncoderContainer::zeroEncoder(int index) {
   if (index >= 1 && index <= 12) {
     switch (index) {
     case 1:
-      // Keep slot 1 aligned with slot 3 (same Enc1 / RC bottom).
-      encoder_offset[3] = Enc1.read();
+      encoder_offset[3] = Enc3.read();
       encoder_offset[1] = encoder_offset[3];
       encoderf[1] = encoderf[3] = 0;
       break;
@@ -45,7 +44,7 @@ void EncoderContainer::zeroEncoder(int index) {
       encoder_offset[index] = Enc6.read();
       break;
     case 3:
-      encoder_offset[index] = Enc1.read();
+      encoder_offset[index] = Enc3.read();
       encoder_offset[1] = encoder_offset[3];
       encoderf[1] = encoderf[3] = 0;
       break;
@@ -105,7 +104,7 @@ signed long EncoderContainer::getRawReading(int index) {
   switch (index) {
   case 1:
   case 3:
-    return Enc1.read();
+    return Enc3.read();
   case 2:
     return Enc6.read();
   case 4:

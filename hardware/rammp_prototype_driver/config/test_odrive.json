@@ -56,7 +56,7 @@
         0
       ],
       "odrive_active": [
-        false,
+        true,
         true,
         true,
         true,

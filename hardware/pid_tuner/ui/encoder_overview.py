@@ -240,6 +240,8 @@ class EncoderOverview(QWidget):
         self._selected_joint = 1
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        # Outer vertical splitter used to default ~150px tall; 8 joints + OD_L/R + rows need more.
+        self.setMinimumHeight(scaled(320))
 
         self._setup_ui()
         self._setup_timer()

@@ -925,9 +925,9 @@ void loop() {
   roboclaw_casters.DutyM1(0x80, (int16_t)rc_pwm);
   roboclaw_casters.DutyM2(0x80, (int16_t)fc_pwm);
 
-  roboclaw_carriages.DutyM1(0x80, (int16_t)mrc_pwm);
+  roboclaw_carriages.DutyM1(0x80, (int16_t)mlc_pwm);
 
-  roboclaw_carriages.DutyM2(0x80, (int16_t)mlc_pwm);
+  roboclaw_carriages.DutyM2(0x80, (int16_t)mrc_pwm);
 
   odriveR.setPosition(ODriveR.getTargetPosition());
   odriveL.setPosition(ODriveL.getTargetPosition());

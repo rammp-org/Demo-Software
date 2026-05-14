@@ -734,7 +734,7 @@ class MEBotControlNode(Node):
     def curb_traverse_action_callback(self, goal):
         self.send_set_luci()  # enable LUCI control over js
 
-        feedback_msg = CurbTraverse.Feedback()
+        # feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
 
         # call the calibration function before going down curb
@@ -784,12 +784,12 @@ class MEBotControlNode(Node):
                 self.write_serial_data("c\n")
                 return result
 
-            feedback_msg.progress = (
-                self.current_seq * 100.0 / float(self.seq_length)
-                if self.seq_length > 0
-                else 0.0
-            )
-            goal.publish_feedback(feedback_msg)
+            # feedback_msg.progress = (
+            #     self.current_seq * 100.0 / float(self.seq_length)
+            #     if self.seq_length > 0
+            #     else 0.0
+            # )
+            # goal.publish_feedback(feedback_msg)
 
             time.sleep(0.05)
 

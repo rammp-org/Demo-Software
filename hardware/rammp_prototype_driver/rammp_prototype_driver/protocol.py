@@ -111,6 +111,8 @@ class EncoderData:
     drive_lr_enc_dir: int = 1
     odrive_l_pos: float = 0.0
     odrive_r_pos: float = 0.0
+    odrive_l_torque_nm: float = 0.0
+    odrive_r_torque_nm: float = 0.0
 
     @property
     def num_joints(self) -> int:
@@ -339,6 +341,9 @@ class ProtocolParser:
                     if len(values) >= 77:
                         data.odrive_l_pos = values[75]
                         data.odrive_r_pos = values[76]
+                    if len(values) >= 79:
+                        data.odrive_l_torque_nm = values[77]
+                        data.odrive_r_torque_nm = values[78]
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:

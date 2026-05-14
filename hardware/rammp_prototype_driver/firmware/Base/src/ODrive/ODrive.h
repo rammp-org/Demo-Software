@@ -16,6 +16,7 @@ public:
   void setTargetPosition(float target_pos);
   float getTargetPosition();
   float getCurrentPosition();
+  float getCurrentTorque();
   void disable();
   // may need to add absolute vs relative target position compute function
 private:

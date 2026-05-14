@@ -90,16 +90,8 @@ void updateTelemetry() {
 }
 
 // Helper to send telemetry — builds the full CSV line into a buffer, single
-// Serial.print Packet format (77 comma-separated values after the header):
-//   TELEMETRY,<ms>,<state>,
-//   <6 positions>,<6 velocities>,<6 pwms>,
-//   <6 motor dirs>,<6 enc dirs>,<4 limit switches>,
-//   <3 imu angles>,<3 imu accel>,<4 quaternion>,
-//   <5 leveling debug>,<4 strain gauges>,<6 control modes>,
-//   <2 drive positions>,<2 drive velocities>,<2 drive pwms>,
-//   <2 drive control modes>,<2 raw enc positions>,<2 raw enc velocities>,
-//   <2 drive directions>,<2 drive enc directions>,
-//   <odrive L position>,<odrive R position>
+// Serial.print Payload after "TELEMETRY,<ms>,<state>," is 79 comma-separated
+// floats/ints (incl. odrive L/R position then L/R torque estimate, Nm).
 void sendTelemetry() {
   char buf[800];
   int n = 0;
@@ -171,8 +163,13 @@ void sendTelemetry() {
     n += snprintf(buf + n, sizeof(buf) - n, ",%d",
                   telemetry.drive_enc_directions[i]);
 
-  n += snprintf(buf + n, sizeof(buf) - n, ",%.2f,%.2f",
-                telemetry.odrive_l_position, telemetry.odrive_r_position);
+  // Torque: read at send time only (UART) to avoid doubling ODrive traffic
+  // every control-loop tick.
+  const float od_tl = ODriveL.getCurrentTorque();
+  const float od_tr = ODriveR.getCurrentTorque();
+  n += snprintf(buf + n, sizeof(buf) - n, ",%.2f,%.2f,%.4f,%.4f",
+                telemetry.odrive_l_position, telemetry.odrive_r_position, od_tl,
+                od_tr);
 
   n += snprintf(buf + n, sizeof(buf) - n, "\n");
 

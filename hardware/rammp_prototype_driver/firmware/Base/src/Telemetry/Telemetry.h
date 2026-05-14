@@ -26,7 +26,8 @@ enum SystemState {
 // raw_enc: direction-corrected individual ML/MR encoder readings
 // drive_directions: motor direction for drive_fb/drive_lr
 // drive_enc_directions: encoder direction for drive_fb/drive_lr
-// odrive_l/r: ODrive axis position (logical frame after ODrive wrapper sign)
+// odrive_l/r position: logical frame (wrapper sign); CSV also appends torque
+// (Nm)
 struct SystemTelemetry {
   SystemState state;
   float positions[6];

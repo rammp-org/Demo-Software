@@ -142,6 +142,8 @@ class SerialField(IntEnum):
     MR_WHEEL_VEL = 73
     ODRIVE_L_POS = 78
     ODRIVE_R_POS = 79
+    ODRIVE_L_TORQUE_NM = 80
+    ODRIVE_R_TORQUE_NM = 81
     STATE = 2
     FB_PWM = 66
 
@@ -239,6 +241,8 @@ class MEBotControlNode(Node):
         self.MR_wheel_vel = 0.0
         self.odrive_l_pos = 0.0
         self.odrive_r_pos = 0.0
+        self.odrive_l_torque_nm = 0.0
+        self.odrive_r_torque_nm = 0.0
 
         # Loadcells
         self.RC_loadcell = 0.0
@@ -473,6 +477,9 @@ class MEBotControlNode(Node):
         if len(data) > SerialField.ODRIVE_R_POS:
             self.odrive_l_pos = float(data[SerialField.ODRIVE_L_POS])
             self.odrive_r_pos = float(data[SerialField.ODRIVE_R_POS])
+        if len(data) > SerialField.ODRIVE_R_TORQUE_NM:
+            self.odrive_l_torque_nm = float(data[SerialField.ODRIVE_L_TORQUE_NM])
+            self.odrive_r_torque_nm = float(data[SerialField.ODRIVE_R_TORQUE_NM])
 
     def publish_joint_states(self):
         conv = JOINT_CONVERSIONS
@@ -547,6 +554,9 @@ class MEBotControlNode(Node):
 
         # app time
         msg.app_time = float(self.app_time)
+
+        msg.odrive_l_torque_nm = float(self.odrive_l_torque_nm)
+        msg.odrive_r_torque_nm = float(self.odrive_r_torque_nm)
 
         # velocities
         msg.ml_vel = float(self.current_speed_ML)

@@ -73,3 +73,8 @@ float ODrive::getCurrentPosition() {
   this->updateEncoderReadings();
   return current_pos;
 }
+
+float ODrive::getCurrentTorque() {
+  return this->odrive.getParameterAsFloat("axis0.motor.torque_estimate") *
+         static_cast<float>(this->direction);
+}

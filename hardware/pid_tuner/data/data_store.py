@@ -393,6 +393,8 @@ class DataStore(QObject):
 
         self._odrive_l_pos: float = 0.0
         self._odrive_r_pos: float = 0.0
+        self._odrive_l_torque_nm: float = 0.0
+        self._odrive_r_torque_nm: float = 0.0
 
         # Motor directions (6 motors)
         self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1, 1, 1]
@@ -645,6 +647,14 @@ class DataStore(QObject):
         return self._odrive_r_pos
 
     @property
+    def odrive_l_torque_nm(self) -> float:
+        return self._odrive_l_torque_nm
+
+    @property
+    def odrive_r_torque_nm(self) -> float:
+        return self._odrive_r_torque_nm
+
+    @property
     def motor_directions(self) -> List[int]:
         """Get motor directions (1 or -1 for each of 6 motors)."""
         return self._motor_directions
@@ -762,6 +772,9 @@ class DataStore(QObject):
         if hasattr(data, "odrive_l_pos"):
             self._odrive_l_pos = data.odrive_l_pos
             self._odrive_r_pos = data.odrive_r_pos
+        if hasattr(data, "odrive_l_torque_nm"):
+            self._odrive_l_torque_nm = data.odrive_l_torque_nm
+            self._odrive_r_torque_nm = data.odrive_r_torque_nm
 
         # Feed drive wheel data into JointData for joints 7 (Drive FB) and 8 (Drive LR)
         # so the plotter can display them when selected.

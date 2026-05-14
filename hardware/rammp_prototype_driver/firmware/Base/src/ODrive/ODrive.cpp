@@ -15,6 +15,7 @@ void ODrive::setMode(DriveMode new_mode) {
   case OPEN_LOOP:
   case DISABLED:
     while (this->odrive.getState() != AXIS_STATE_IDLE) {
+      Serial.println("ODrive setMode POSITION_CONTROL still waiting!!");
       this->odrive.clearErrors();
       this->odrive.setState(AXIS_STATE_IDLE);
       delay(10);
@@ -39,7 +40,7 @@ void ODrive::setMode(DriveMode new_mode) {
   case POSITION_CONTROL:
     // Serial.println("ODrive setMode POSITION_CONTROL called");
     while (this->odrive.getState() != AXIS_STATE_CLOSED_LOOP_CONTROL) {
-      // Serial.println("ODrive setMode POSITION_CONTROL still waiting!!");
+      Serial.println("ODrive setMode POSITION_CONTROL still waiting!!");
       this->odrive.clearErrors();
       this->odrive.setState(AXIS_STATE_CLOSED_LOOP_CONTROL);
       delay(10);
@@ -62,7 +63,7 @@ void ODrive::disable() {
   // getCurrentPosition() is robot frame; UART setPosition expects hardware.
   const float robot_pos = this->getCurrentPosition();
   const float hw_pos = robot_pos / static_cast<float>(direction);
-  this->setMode(POSITION_CONTROL);
+  this->setMode(DISABLED);
   this->odrive.setPosition(hw_pos);
   this->setMode(DISABLED);
 }

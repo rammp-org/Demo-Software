@@ -489,8 +489,8 @@ void setup() {
   Serial4.begin(460800); // roboclaw 2
   Serial5.begin(460800); // roboclaw 3
   Serial1.begin(460800); // odrive right
-  // Serial7.begin(460800); // unknown serial port
-  Serial6.begin(460800); // odrive left
+  Serial7.begin(460800); // unknown serial port
+  // Serial6.begin(460800); // odrive left
 
   // set up limit switches
   pinMode(CARRIAGE_SW1_PIN, INPUT_PULLUP);
@@ -729,6 +729,9 @@ void loop() {
     } else {
       // Disable all position-controlled motors (zero power, PIDs reset).
       // Motors are not backdrivable so holding position is unnecessary.
+      // ODrive note: need to disable odrives
+      ODriveR.disable();
+      ODriveL.disable();
       rc.disable();
       fc.disable();
       ml.disable();
@@ -833,6 +836,7 @@ void loop() {
     drive_lr.disable();
     // ODrive note: need to disable odrives
     ODriveR.disable();
+    ODriveL.disable();
   } else if (current_state == SELF_LEVELING) {
     // Drive wheels are not used during leveling — disable every tick to prevent
     // stale PID output from leaking to the joystick (e.g. if a prior mode left
@@ -841,6 +845,7 @@ void loop() {
     drive_lr.disable();
     // ODrive note: need to disable odrives
     ODriveR.disable();
+    ODriveL.disable();
     runSelfLeveling(dt);
   } else if (current_state == AUTO_CURB_CLIMBING) {
     // ODrive note: need to add odrives to the motor array

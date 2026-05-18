@@ -62,7 +62,38 @@ JOINTS: List[JointInfo] = [
         short_name="D_LR",
         description="Left/Right steering correction controller (output via LUCI)",
     ),
+    JointInfo(
+        id=9,
+        name="ODrive L",
+        short_name="OD_L",
+        description="Left ODrive axis (TUNER_MODE: o1:<pos>)",
+    ),
+    JointInfo(
+        id=10,
+        name="ODrive R",
+        short_name="OD_R",
+        description="Right ODrive axis (TUNER_MODE: o2:<pos>)",
+    ),
 ]
+
+# Teensy CMD_ODRIVE_POS actuator_id (not RoboClaw joint id)
+ODRIVE_JOINT_L = 9
+ODRIVE_JOINT_R = 10
+ODRIVE_AXIS_LEFT = 1
+ODRIVE_AXIS_RIGHT = 2
+
+
+def is_odrive_joint(joint_id: int) -> bool:
+    return joint_id in (ODRIVE_JOINT_L, ODRIVE_JOINT_R)
+
+
+def odrive_axis_id(joint_id: int) -> int:
+    if joint_id == ODRIVE_JOINT_L:
+        return ODRIVE_AXIS_LEFT
+    if joint_id == ODRIVE_JOINT_R:
+        return ODRIVE_AXIS_RIGHT
+    raise ValueError(f"Not an ODrive joint id: {joint_id}")
+
 
 # Create lookup dictionary by ID
 JOINT_BY_ID: Dict[int, JointInfo] = {joint.id: joint for joint in JOINTS}

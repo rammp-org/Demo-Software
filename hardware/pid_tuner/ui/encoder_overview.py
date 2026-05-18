@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import pyqtSlot, pyqtSignal, Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPen, QBrush
-from typing import List, Optional
+from typing import List
 
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
@@ -235,12 +235,10 @@ class EncoderOverview(QWidget):
         self._data_store = data_store
         self._serial_handler = serial_handler
         self._boxes: List[JointBox] = []
-        self._odrive_l_box: Optional[JointBox] = None
-        self._odrive_r_box: Optional[JointBox] = None
         self._selected_joint = 1
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        # Outer vertical splitter used to default ~150px tall; 8 joints + OD_L/R + rows need more.
+        # Outer vertical splitter used to default ~150px tall; 10 joints + control rows need more.
         self.setMinimumHeight(scaled(320))
 
         self._setup_ui()
@@ -273,24 +271,6 @@ class EncoderOverview(QWidget):
             box.clicked.connect(self._on_box_clicked)
             self._boxes.append(box)
             boxes_layout.addWidget(box)
-
-        self._odrive_l_box = JointBox(
-            joint_id=-1,
-            name="OD_L",
-            color=THEME.teal,
-            clickable=False,
-        )
-        self._odrive_l_box.set_limits(-1.0e6, 1.0e6)
-        boxes_layout.addWidget(self._odrive_l_box)
-
-        self._odrive_r_box = JointBox(
-            joint_id=-2,
-            name="OD_R",
-            color=THEME.mauve,
-            clickable=False,
-        )
-        self._odrive_r_box.set_limits(-1.0e6, 1.0e6)
-        boxes_layout.addWidget(self._odrive_r_box)
 
         root.addLayout(boxes_layout, stretch=1)
 
@@ -361,11 +341,6 @@ class EncoderOverview(QWidget):
             joint_data = self._data_store.get_joint(JOINTS[i].id)
             if joint_data:
                 box.set_value(joint_data.current_position)
-
-        if self._odrive_l_box is not None:
-            self._odrive_l_box.set_value(self._data_store.odrive_l_pos)
-        if self._odrive_r_box is not None:
-            self._odrive_r_box.set_value(self._data_store.odrive_r_pos)
 
     def _on_box_clicked(self, joint_id: int):
         self.set_selected_joint(joint_id)

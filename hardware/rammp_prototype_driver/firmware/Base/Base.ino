@@ -91,8 +91,8 @@ Motor drive_fb;
 Motor drive_lr;
 ODriveUART odriveR(odriveR_serial);
 ODriveUART odriveL(odriveL_serial);
-ODrive ODriveR(odriveR, -1); // hardware == robot +X
-ODrive ODriveL(odriveL);     // flip hardware vs robot frame
+ODrive ODriveR(odriveR);     // hardware == robot +X
+ODrive ODriveL(odriveL, -1); // flip hardware vs robot frame
 
 int8_t ml_enc_dir = 1;
 int8_t mr_enc_dir = 1;

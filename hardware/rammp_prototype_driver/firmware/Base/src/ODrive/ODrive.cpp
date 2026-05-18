@@ -15,7 +15,7 @@ void ODrive::setMode(DriveMode new_mode) {
   case OPEN_LOOP:
   case DISABLED:
     while (this->odrive.getState() != AXIS_STATE_IDLE) {
-      Serial.println("ODrive setMode POSITION_CONTROL still waiting!!");
+      Serial.println("ODrive setMode DISABLED still waiting!!");
       this->odrive.clearErrors();
       this->odrive.setState(AXIS_STATE_IDLE);
       delay(10);

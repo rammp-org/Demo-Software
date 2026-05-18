@@ -666,6 +666,11 @@ class ProtocolEncoder:
         if has_guard:
             gt_str = ",".join(f"{v:.4f}" for v in _gt)
             gc_str = ",".join(str(int(v)) for v in _gc)
+            if has_odrive:
+                return (
+                    f"J{index}:{t_str},{a_str},{r_str},{d_str},"
+                    f"{gt_str},{gc_str},{oa_str},{or_str},{ot_str}\n".encode("ascii")
+                )
             return (
                 f"J{index}:{t_str},{a_str},{r_str},{d_str},{gt_str},{gc_str}\n".encode(
                     "ascii"

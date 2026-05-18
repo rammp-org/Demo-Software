@@ -1379,7 +1379,11 @@ class ControlPanel(QWidget):
             QMessageBox.warning(self, "Empty Sequence", "No keyframes found in file.")
             return
 
-        from ..serial_driver.keyframe import Keyframe, NUM_MOTORS
+        from ..serial_driver.keyframe import (
+            Keyframe,
+            NUM_MOTORS,
+            odrive_arrays_for_firmware,
+        )
 
         keyframes = [Keyframe.from_dict(d) for d in keyframes_data]
 
@@ -1393,6 +1397,7 @@ class ControlPanel(QWidget):
                 else kf.duration_ms
                 for i in range(NUM_MOTORS)
             ]
+            od_active, od_relative, od_targets = odrive_arrays_for_firmware(kf)
             self._serial_handler.send_keyframe(
                 idx,
                 targets,
@@ -1401,9 +1406,9 @@ class ControlPanel(QWidget):
                 kf.relative,
                 guard_threshold=kf.guard_threshold,
                 guard_condition=kf.guard_condition,
-                odrive_active=kf.odrive_active,
-                odrive_relative=kf.odrive_relative,
-                odrive_targets=kf.odrive_targets,
+                odrive_active=od_active,
+                odrive_relative=od_relative,
+                odrive_targets=od_targets,
             )
 
         self._serial_handler.seq_auto_run(True)
@@ -1509,7 +1514,11 @@ class ControlPanel(QWidget):
             QMessageBox.warning(self, "Empty Sequence", "No keyframes found in file.")
             return
 
-        from ..serial_driver.keyframe import Keyframe, NUM_MOTORS
+        from ..serial_driver.keyframe import (
+            Keyframe,
+            NUM_MOTORS,
+            odrive_arrays_for_firmware,
+        )
 
         keyframes = [Keyframe.from_dict(d) for d in keyframes_data]
 
@@ -1523,6 +1532,7 @@ class ControlPanel(QWidget):
                 else kf.duration_ms
                 for i in range(NUM_MOTORS)
             ]
+            od_active, od_relative, od_targets = odrive_arrays_for_firmware(kf)
             self._serial_handler.send_keyframe(
                 idx,
                 targets,
@@ -1531,9 +1541,9 @@ class ControlPanel(QWidget):
                 kf.relative,
                 guard_threshold=kf.guard_threshold,
                 guard_condition=kf.guard_condition,
-                odrive_active=kf.odrive_active,
-                odrive_relative=kf.odrive_relative,
-                odrive_targets=kf.odrive_targets,
+                odrive_active=od_active,
+                odrive_relative=od_relative,
+                odrive_targets=od_targets,
             )
 
         self._serial_handler.seq_auto_run(True)

@@ -13,6 +13,36 @@ from typing import List, Optional
 # Number of motors controlled by the sequence player (must match firmware SEQ_NUM_MOTORS)
 NUM_MOTORS = 8
 
+# ODrive columns in the sequence editor map to slots 0 (L) and 1 (R) in odrive_* arrays.
+# Current Teensy SequencePlayer applies odrive_active[0] / odrive_targets[0] to both axes.
+ODRIVE_SLOT_L = 0
+ODRIVE_SLOT_R = 1
+
+
+def odrive_arrays_for_firmware(
+    kf: "Keyframe",
+) -> tuple[list[bool], list[bool], list[float]]:
+    """
+    Build 8-wide odrive_* arrays for J-upload without changing Teensy SequencePlayer.
+
+    The GUI may edit L/R in slots 0/1; firmware motion uses slot 0 for both ODrives.
+    """
+    active = list(kf.odrive_active)
+    relative = list(kf.odrive_relative)
+    targets = list(kf.odrive_targets)
+
+    l_on = active[ODRIVE_SLOT_L]
+    r_on = active[ODRIVE_SLOT_R]
+    active[ODRIVE_SLOT_L] = l_on or r_on
+    if active[ODRIVE_SLOT_L]:
+        if l_on:
+            targets[ODRIVE_SLOT_L] = kf.odrive_targets[ODRIVE_SLOT_L]
+            relative[ODRIVE_SLOT_L] = kf.odrive_relative[ODRIVE_SLOT_L]
+        else:
+            targets[ODRIVE_SLOT_L] = kf.odrive_targets[ODRIVE_SLOT_R]
+            relative[ODRIVE_SLOT_L] = kf.odrive_relative[ODRIVE_SLOT_R]
+    return active, relative, targets
+
 
 class Keyframe:
     def __init__(self):

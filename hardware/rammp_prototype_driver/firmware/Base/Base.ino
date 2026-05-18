@@ -584,7 +584,7 @@ void setup() {
 }
 
 void loop() {
-  // Serial.println("LOOP: Entered loop");
+  //   Serial.println("LOOP: Entered loop");
   timer.updateTime();
   float dt = timer.elapsed_time;
 
@@ -937,7 +937,7 @@ void loop() {
   static unsigned long last_telem_time = 0;
   if (millis() - last_telem_time >= 100) { // Fixed 10Hz telemetry
     last_telem_time = millis();
-    // sendTelemetry();
+    sendTelemetry();
   }
 
   // TODO: Replace delayMicroseconds with hardware timer for deterministic loop

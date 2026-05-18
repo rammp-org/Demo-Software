@@ -61,10 +61,10 @@ void ODrive::setTargetPosition(float pos) { target_pos = pos; }
 
 void ODrive::disable() {
   // getCurrentPosition() is robot frame; UART setPosition expects hardware.
-  const float robot_pos = this->getCurrentPosition();
-  const float hw_pos = robot_pos / static_cast<float>(direction);
-  this->setMode(DISABLED);
-  this->odrive.setPosition(hw_pos);
+  // const float robot_pos = this->getCurrentPosition();
+  // const float hw_pos = robot_pos / static_cast<float>(direction);
+  // this->setMode(POSITION_CONTROL);
+  // this->odrive.setPosition(hw_pos);
   this->setMode(DISABLED);
 }
 

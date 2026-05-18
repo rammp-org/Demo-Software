@@ -244,6 +244,10 @@ class SerialHandler(QObject):
         """axis_id 0 = both ODrives; 1 = left; 2 = right (TUNER_MODE on Teensy)."""
         self.send_command(ProtocolEncoder.set_odrive_position(axis_id, position))
 
+    def set_odrive_velocity(self, axis_id: int, velocity: float):
+        """axis_id 0 = both ODrives; 1 = left; 2 = right (TUNER_MODE on Teensy)."""
+        self.send_command(ProtocolEncoder.set_odrive_velocity(axis_id, velocity))
+
     def toggle_encoder_direction(self, joint_id: int):
         """Toggle encoder direction."""
         cmd = ProtocolEncoder.toggle_encoder_direction(joint_id)

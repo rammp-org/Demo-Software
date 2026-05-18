@@ -35,6 +35,9 @@ PC -> Teensy Protocol:
     ODrive position (TUNER_MODE): o<axis>:<pos> then newline.
         axis 0 = both L+R same setpoint; 1 = left only; 2 = right only.
         Example: o0:1.25
+
+    ODrive velocity (TUNER_MODE): y<axis>:<vel> then newline.
+        Same axis ids as position. Example: y1:0.5
 """
 
 from dataclasses import dataclass, field
@@ -587,6 +590,14 @@ class ProtocolEncoder:
         axis_id 0 = both L and R same setpoint; 1 = left only; 2 = right only.
         """
         return f"o{int(axis_id)}:{position:.4f}\n".encode("ascii")
+
+    @staticmethod
+    def set_odrive_velocity(axis_id: int, velocity: float) -> bytes:
+        """
+        Set ODrive velocity in TUNER_MODE (Teensy `y<id>:<vel>`).
+        axis_id 0 = both L and R same setpoint; 1 = left only; 2 = right only.
+        """
+        return f"y{int(axis_id)}:{velocity:.4f}\n".encode("ascii")
 
     @staticmethod
     def enter_sequence_mode(enable: bool) -> bytes:

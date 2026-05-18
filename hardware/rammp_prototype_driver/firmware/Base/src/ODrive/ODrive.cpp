@@ -59,6 +59,10 @@ void ODrive::setMode(DriveMode new_mode) {
 
 void ODrive::setTargetPosition(float pos) { target_pos = pos; }
 
+void ODrive::setTargetVelocity(float vel) { target_vel = vel; }
+
+float ODrive::getTargetVelocity() { return target_vel * this->direction; }
+
 void ODrive::disable() {
   // getCurrentPosition() is robot frame; UART setPosition expects hardware.
   // const float robot_pos = this->getCurrentPosition();

@@ -589,6 +589,14 @@ class ProtocolEncoder:
         return f"o{int(axis_id)}:{position:.4f}\n".encode("ascii")
 
     @staticmethod
+    def set_odrive_velocity(axis_id: int, velocity: float) -> bytes:
+        """
+        Set ODrive velocity in TUNER_MODE (Teensy `y<id>:<vel>`).
+        axis_id 0 = both L and R same setpoint; 1 = left only; 2 = right only.
+        """
+        return f"y{int(axis_id)}:{velocity:.4f}\n".encode("ascii")
+
+    @staticmethod
     def enter_sequence_mode(enable: bool) -> bytes:
         val = 1 if enable else 0
         return f"B1:{val}\n".encode("ascii")

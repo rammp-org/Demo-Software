@@ -48,8 +48,9 @@ MODE_UNITS = {
     MODE_POSITION: "ticks",
 }
 
-# ODrive position setpoints use logical turns (Teensy TUNER_MODE o1:/o2:)
+# ODrive setpoints use logical turns (Teensy TUNER_MODE o1:/o2:, y1:/y2:)
 ODRIVE_POSITION_UNIT = "turns"
+ODRIVE_VELOCITY_UNIT = "turns/s"
 
 MODE_NAMES = {
     MODE_OPEN_LOOP: "Open Loop",
@@ -96,6 +97,7 @@ class ControlPanel(QWidget):
 
         # Current control mode (tracked locally)
         self._current_mode = MODE_OPEN_LOOP
+        self._odrive_ui_joint: int | None = None
 
         # Sine wave state
         self._sine_active = False
@@ -137,16 +139,35 @@ class ControlPanel(QWidget):
         self._data_store.set_target(joint_id, target)
         self._serial_handler.set_odrive_position(axis, target)
 
-    def _apply_odrive_unit_labels(self) -> None:
-        unit = ODRIVE_POSITION_UNIT
+    def _send_odrive_velocity(self, target: float) -> None:
+        """Engage TUNER_MODE velocity on one ODrive (y1: left, y2: right)."""
+        joint_id = self._selected_joint_id()
+        axis = odrive_axis_id(joint_id)
+        self._data_store.set_target(joint_id, target)
+        self._serial_handler.set_odrive_velocity(axis, target)
+
+    def _send_odrive_target(self, target: float) -> None:
+        if self._current_mode == MODE_VELOCITY:
+            self._send_odrive_velocity(target)
+        else:
+            self._send_odrive_position(target)
+
+    def _apply_odrive_unit_labels(self, mode: int = MODE_POSITION) -> None:
+        if mode == MODE_VELOCITY:
+            unit = ODRIVE_VELOCITY_UNIT
+            indicator = "ODrive Velocity"
+        else:
+            unit = ODRIVE_POSITION_UNIT
+            indicator = "ODrive Position"
+            mode = MODE_POSITION
         self._target_unit_label.setText(unit)
         self._target_input_unit_label.setText(unit)
         self._step_unit_label.setText(unit)
         self._sine_amplitude_unit_label.setText(unit)
         self._error_unit_label.setText(unit)
-        self._current_mode = MODE_POSITION
-        self._mode_indicator_label.setText("ODrive Position")
-        self._set_mode_banner_pending(MODE_POSITION)
+        self._current_mode = mode
+        self._mode_indicator_label.setText(indicator)
+        self._set_mode_banner_pending(mode)
 
     def _setup_ui(self):
         """Set up the control panel layout with scroll area."""
@@ -1520,8 +1541,18 @@ class ControlPanel(QWidget):
 
     def _update_status(self):
         """Update the status display with current values."""
+        joint_id = self._selected_joint_id()
         if self._is_odrive_selected():
-            self._apply_odrive_unit_labels()
+            if self._odrive_ui_joint != joint_id:
+                self._odrive_ui_joint = joint_id
+                odrive_mode = (
+                    self._current_mode
+                    if self._current_mode in (MODE_POSITION, MODE_VELOCITY)
+                    else MODE_POSITION
+                )
+                self._apply_odrive_unit_labels(odrive_mode)
+        else:
+            self._odrive_ui_joint = None
 
         joint_data = self._data_store.get_selected_joint_data()
 
@@ -1648,7 +1679,7 @@ class ControlPanel(QWidget):
         joint_id = self._selected_joint_id()
 
         if self._is_odrive_selected():
-            self._send_odrive_position(target)
+            self._send_odrive_target(target)
             return
 
         self._data_store.set_target(joint_id, target)
@@ -1658,7 +1689,10 @@ class ControlPanel(QWidget):
         """Set target input to current position/velocity based on mode."""
         joint_data = self._data_store.get_selected_joint_data()
         if self._is_odrive_selected():
-            self._target_input.setText(f"{joint_data.current_position:.4f}")
+            if self._current_mode == MODE_VELOCITY:
+                self._target_input.setText(f"{joint_data.current_velocity:.4f}")
+            else:
+                self._target_input.setText(f"{joint_data.current_position:.4f}")
         elif self._current_mode == MODE_VELOCITY:
             self._target_input.setText(str(joint_data.current_velocity))
         else:
@@ -1670,7 +1704,7 @@ class ControlPanel(QWidget):
 
         self._target_input.setText("0")
         if self._is_odrive_selected():
-            self._send_odrive_position(0.0)
+            self._send_odrive_target(0.0)
             return
 
         self._data_store.set_target(joint_id, 0)
@@ -1743,10 +1777,13 @@ class ControlPanel(QWidget):
         confirms the mode via a CONFIG echo (_on_config_updated).
         """
         if self._is_odrive_selected():
+            target = self._get_float_from_lineedit(self._target_input)
             if mode == MODE_POSITION:
-                target = self._get_float_from_lineedit(self._target_input)
                 self._send_odrive_position(target)
-                self._apply_odrive_unit_labels()
+                self._apply_odrive_unit_labels(MODE_POSITION)
+            elif mode == MODE_VELOCITY:
+                self._send_odrive_velocity(target)
+                self._apply_odrive_unit_labels(MODE_VELOCITY)
             return
 
         joint_id = self._selected_joint_id()
@@ -1899,7 +1936,7 @@ class ControlPanel(QWidget):
         self._target_input.setText(f"{target:.4g}")
 
         if self._is_odrive_selected():
-            self._send_odrive_position(target)
+            self._send_odrive_target(target)
             self._step_timer.start(int(duration * 1000))
             return
 
@@ -1913,7 +1950,7 @@ class ControlPanel(QWidget):
         center = getattr(self, "_step_center", 0.0)
         self._target_input.setText(f"{center:.4g}")
         if self._is_odrive_selected():
-            self._send_odrive_position(center)
+            self._send_odrive_target(center)
             return
         joint_id = self._selected_joint_id()
         self._serial_handler.set_target(joint_id, center)
@@ -1963,7 +2000,10 @@ class ControlPanel(QWidget):
         # Set target back to center
         joint_id = self._data_store.selected_joint
         self._data_store.set_target(joint_id, self._sine_center)
-        self._serial_handler.set_target(joint_id, self._sine_center)
+        if self._is_odrive_selected():
+            self._send_odrive_target(self._sine_center)
+        else:
+            self._serial_handler.set_target(joint_id, self._sine_center)
         self._target_input.setText(str(self._sine_center))
 
     def _update_sine_wave(self):
@@ -1986,7 +2026,10 @@ class ControlPanel(QWidget):
         # Update
         joint_id = self._data_store.selected_joint
         self._data_store.set_target(joint_id, target)
-        self._serial_handler.set_target(joint_id, target)
+        if self._is_odrive_selected():
+            self._send_odrive_target(target)
+        else:
+            self._serial_handler.set_target(joint_id, target)
 
         # Update time remaining
         remaining = self._sine_duration - self._sine_start_time

@@ -11,10 +11,13 @@ public:
   DriveMode mode;
   float current_pos;
   float target_pos;
+  float target_vel;
   void updateEncoderReadings();
   void setMode(DriveMode new_mode);
   void setTargetPosition(float target_pos);
+  void setTargetVelocity(float target_vel);
   float getTargetPosition();
+  float getTargetVelocity();
   float getCurrentPosition();
   float getCurrentTorque();
   void disable();

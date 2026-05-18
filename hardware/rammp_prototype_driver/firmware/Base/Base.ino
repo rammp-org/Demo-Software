@@ -794,6 +794,22 @@ void loop() {
       } else if (axis == 2) {
         apply_od(ODriveR);
       }
+    } else if (cmd.type == CMD_ODRIVE_VEL) {
+      parser.feedWatchdog();
+      const int axis = cmd.actuator_id;
+      const float vel = cmd.value;
+      auto apply_od = [&](ODrive &od) {
+        od.setMode(ODrive::VELOCITY_CONTROL);
+        od.setTargetVelocity(vel);
+      };
+      if (axis == 0) {
+        apply_od(ODriveR);
+        apply_od(ODriveL);
+      } else if (axis == 1) {
+        apply_od(ODriveL);
+      } else if (axis == 2) {
+        apply_od(ODriveR);
+      }
     } else if (cmd.type == CMD_SAVE_CONFIG && cmd.actuator_id == 0) {
       saveAllMotorConfigs();
       if (DEBUG_MODE) {
@@ -929,8 +945,16 @@ void loop() {
 
   roboclaw_carriages.DutyM2(0x80, (int16_t)mrc_pwm);
 
-  odriveR.setPosition(ODriveR.getTargetPosition());
-  odriveL.setPosition(ODriveL.getTargetPosition());
+  if (ODriveR.mode == ODrive::VELOCITY_CONTROL) {
+    odriveR.setVelocity(ODriveR.getTargetVelocity());
+  } else if (ODriveR.mode == ODrive::POSITION_CONTROL) {
+    odriveR.setPosition(ODriveR.getTargetPosition());
+  }
+  if (ODriveL.mode == ODrive::VELOCITY_CONTROL) {
+    odriveL.setVelocity(ODriveL.getTargetVelocity());
+  } else if (ODriveL.mode == ODrive::POSITION_CONTROL) {
+    odriveL.setPosition(ODriveL.getTargetPosition());
+  }
   // 5. Send Telemetry
   updateTelemetry();
 

@@ -42,6 +42,8 @@ enum CommandType {
   CMD_CALIBRATE,    // e.g. W0:<pwm> (start open-loop calibration), W0:0 (abort)
   CMD_ODRIVE_POS,   // e.g. o0:<pos> both ODrives same; o1: left; o2: right
                     // (TUNER_MODE)
+  CMD_ODRIVE_VEL,   // e.g. y0:<vel> both ODrives same; y1: left; y2: right
+                    // (TUNER_MODE)
   CMD_UNKNOWN,
   CMD_NONE
 };

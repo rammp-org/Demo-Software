@@ -21,7 +21,13 @@ from typing import List
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
 from ..data.data_store import DataStore
-from ..data.joint_config import JOINTS
+from ..data.joint_config import (
+    JOINTS,
+    ODRIVE_AXIS_LEFT,
+    ODRIVE_AXIS_RIGHT,
+    ODRIVE_JOINT_L,
+    ODRIVE_JOINT_R,
+)
 from ..serial_driver.serial_handler import SerialHandler
 
 MODE_OPEN_LOOP = 0
@@ -303,18 +309,20 @@ class EncoderOverview(QWidget):
 
         controls_layout.addSpacing(SIZES["spacing_large"])
 
-        controls_layout.addWidget(QLabel("ODrives (L+R):"))
+        controls_layout.addWidget(QLabel("ODrives Δ (L+R):"))
         self._odrive_both_spin = QDoubleSpinBox()
         self._odrive_both_spin.setRange(-1.0e6, 1.0e6)
         self._odrive_both_spin.setDecimals(2)
         self._odrive_both_spin.setSingleStep(0.1)
         self._odrive_both_spin.setToolTip(
-            "Send same position setpoint to both ODrives (Teensy TUNER_MODE: o0:…)"
+            "Relative offset (turns) added to each ODrive's current position"
         )
         controls_layout.addWidget(self._odrive_both_spin)
 
         btn_odrive_both = QPushButton("Go")
-        btn_odrive_both.setToolTip("o0:<pos> — both ODrive axes (logical turns)")
+        btn_odrive_both.setToolTip(
+            "o1:/o2: — move L and R by this delta from live telemetry position"
+        )
         btn_odrive_both.clicked.connect(self._on_odrive_both_go)
         controls_layout.addWidget(btn_odrive_both)
 
@@ -361,8 +369,13 @@ class EncoderOverview(QWidget):
             self._data_store.set_target(j, val)
 
     def _on_odrive_both_go(self):
-        val = self._odrive_both_spin.value()
-        self._serial_handler.set_odrive_position(0, val)
+        delta = self._odrive_both_spin.value()
+        target_l = self._data_store.odrive_l_pos + delta
+        target_r = self._data_store.odrive_r_pos + delta
+        self._serial_handler.set_odrive_position(ODRIVE_AXIS_LEFT, target_l)
+        self._serial_handler.set_odrive_position(ODRIVE_AXIS_RIGHT, target_r)
+        self._data_store.set_target(ODRIVE_JOINT_L, target_l)
+        self._data_store.set_target(ODRIVE_JOINT_R, target_r)
 
     @pyqtSlot(int)
     def set_selected_joint(self, joint_id: int):

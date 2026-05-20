@@ -493,10 +493,10 @@ void setup() {
   // Serial6.begin(460800); // odrive left
 
   // set up limit switches
-  pinMode(CARRIAGE_SW1_PIN, INPUT_PULLUP);
-  pinMode(CARRIAGE_SW2_PIN, INPUT_PULLUP);
-  pinMode(CARRIAGE_SW3_PIN, INPUT_PULLUP);
-  pinMode(CARRIAGE_SW4_PIN, INPUT_PULLUP);
+  pinMode(CARRIAGE_SW1_PIN, INPUT_PULLDOWN);
+  pinMode(CARRIAGE_SW2_PIN, INPUT_PULLDOWN);
+  pinMode(CARRIAGE_SW3_PIN, INPUT_PULLDOWN);
+  pinMode(CARRIAGE_SW4_PIN, INPUT_PULLDOWN);
 
   delay(1000);
 

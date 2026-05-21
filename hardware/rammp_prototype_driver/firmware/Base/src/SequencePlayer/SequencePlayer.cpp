@@ -44,7 +44,7 @@ static inline bool isDeltaZero(const Keyframe &kf, int i) {
 }
 
 // Begin interpolation toward the current keyframe.
-static void beginInterp(Motor *motors[SEQ_NUM_MOTORS]) {
+static void beginInterp(MotorBase *motors[SEQ_NUM_MOTORS]) {
   const Keyframe &kf = seq_keyframes[seq_current];
 
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
@@ -58,7 +58,7 @@ static void beginInterp(Motor *motors[SEQ_NUM_MOTORS]) {
     } else if (kf.active[i]) {
       // Re-enable active motors that may have been disabled by a previous
       // delta-zero keyframe.  setMode resets PIDs on mode change.
-      motors[i]->setMode(Motor::POSITION_CONTROL);
+      motors[i]->setMode(MotorBase::POSITION_CONTROL);
       motors[i]->setTargetPosition(motors[i]->current_pos);
     }
   }
@@ -74,10 +74,9 @@ static void beginInterp(Motor *motors[SEQ_NUM_MOTORS]) {
 }
 
 // ---------------------------------------------------------------------------
-//  Payload parser (supports new 32-value and legacy 17-value formats)
+//  Payload parser (SEQ_NUM_MOTORS = 10 only)
 // ---------------------------------------------------------------------------
 bool parseKeyframePayload(const String &payload, Keyframe &kf) {
-  // Maximum possible values: 8*6 = 48
   const int MAX_VALS = SEQ_NUM_MOTORS * 6;
   float vals[MAX_VALS];
   int count = 0;
@@ -91,8 +90,8 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     }
   }
 
-  // New guarded format: 48 values (targets, active, relative, durations,
-  // guard_thresholds, guard_conditions)
+  // Guarded format: 60 values (targets, active, relative, durations, guards ×
+  // 10)
   if (count == SEQ_NUM_MOTORS * 6) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = vals[i];
@@ -105,7 +104,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     return true;
   }
 
-  // New format: 32 values  (targets, active, relative, durations)
+  // Standard format: 40 values (targets, active, relative, durations × 10)
   if (count == SEQ_NUM_MOTORS * 4) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = vals[i];
@@ -118,7 +117,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     return true;
   }
 
-  // Legacy format: 17 values  (targets, active, one global duration)
+  // Compact format: 21 values (10 targets, 10 active, one global duration)
   if (count == SEQ_NUM_MOTORS * 2 + 1) {
     uint32_t global_dur = (uint32_t)vals[SEQ_NUM_MOTORS * 2];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
@@ -138,17 +137,16 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
 // ---------------------------------------------------------------------------
 //  Enter / Exit
 // ---------------------------------------------------------------------------
-void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS]) {
+void sequenceEnter(MotorBase *motors[SEQ_NUM_MOTORS]) {
   seq_length = 0;
   seq_current = -1;
   seq_interpolating = false;
   seq_settling = false;
   seq_auto_run = false;
 
-  // Zero drive wheel positions so closed-loop control starts from a known
-  // origin.  This prevents float precision issues from accumulating over long
-  // drives and ensures repeatable sequence behavior.
-  for (int i = SEQ_NUM_POS_MOTORS; i < SEQ_NUM_MOTORS; i++) {
+  // Zero synthetic drive-wheel positions (not ODrive axes — keep real encoder
+  // state).  Prevents float drift on drive_fb / drive_lr virtual encoders.
+  for (int i = SEQ_DRIVE_START; i < SEQ_ODRIVE_START; i++) {
     motors[i]->current_pos = 0.0f;
     motors[i]->prev_pos = 0.0f;
     motors[i]->current_vel = 0.0f;
@@ -160,13 +158,13 @@ void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS]) {
   // ALL motors — including drive wheels — run position control during
   // sequences.
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-    motors[i]->setMode(Motor::POSITION_CONTROL);
+    motors[i]->setMode(MotorBase::POSITION_CONTROL);
     motors[i]->setTargetPosition(motors[i]->current_pos);
     seq_start_pos[i] = motors[i]->current_pos;
   }
 }
 
-void sequenceExit(Motor *motors[SEQ_NUM_MOTORS]) {
+void sequenceExit(MotorBase *motors[SEQ_NUM_MOTORS]) {
   // Disable actuators before tearing down state (actuators off first).
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
     motors[i]->disable();
@@ -181,7 +179,7 @@ void sequenceExit(Motor *motors[SEQ_NUM_MOTORS]) {
 //  Command handler
 // ---------------------------------------------------------------------------
 void sequenceHandleCommand(const RobotCommand &cmd,
-                           Motor *motors[SEQ_NUM_MOTORS],
+                           MotorBase *motors[SEQ_NUM_MOTORS],
                            const String &payload) {
   // ---- Keyframe upload ----
   if (cmd.type == CMD_SEQ_KEYFRAME) {
@@ -235,7 +233,7 @@ void sequenceHandleCommand(const RobotCommand &cmd,
 // ---------------------------------------------------------------------------
 //  Update (called every loop iteration while in AUTO_CURB_CLIMBING)
 // ---------------------------------------------------------------------------
-void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS]) {
+void sequenceUpdate(MotorBase *motors[SEQ_NUM_MOTORS]) {
   if (!seq_interpolating || seq_current < 0 || seq_current >= seq_length)
     return;
 

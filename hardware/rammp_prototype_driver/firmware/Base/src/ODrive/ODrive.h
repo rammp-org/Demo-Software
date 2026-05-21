@@ -14,9 +14,10 @@ public:
 
   void setMode(ControlMode new_mode) override;
   void disable() override;
+  void updateSensorData(float current_pos, float dt) override;
 
   // only odrive functions
-  void updateEncoderReadings();
+  //   void updateEncoderReadings();
   float getTargetPosition();
   float getTargetVelocity();
   float getCurrentPosition();

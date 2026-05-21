@@ -144,7 +144,9 @@ class SequencePlotter(QWidget):
 
         latest_time = 0
 
-        for i in range(8):
+        from ..serial_driver.keyframe import NUM_MOTORS
+
+        for i in range(min(NUM_MOTORS, 8)):
             joint_data = self._data_store.get_joint(i + 1)
             if joint_data:
                 timestamps, _, _ = joint_data.get_plot_data()
@@ -156,7 +158,7 @@ class SequencePlotter(QWidget):
 
         min_time = latest_time - self._time_window
 
-        for i in range(8):
+        for i in range(min(NUM_MOTORS, 8)):
             joint_id = i + 1
             joint_data = self._data_store.get_joint(joint_id)
             if not joint_data:
@@ -255,7 +257,9 @@ class SequencePlotter(QWidget):
         self._pause_btn.setText("Resume" if checked else "Pause")
 
     def _on_clear_clicked(self):
-        for i in range(8):
+        from ..serial_driver.keyframe import NUM_MOTORS
+
+        for i in range(min(NUM_MOTORS, 8)):
             joint_id = i + 1
             self._data_store.clear_joint(joint_id)
             self._position_curves[joint_id].setData([], [])

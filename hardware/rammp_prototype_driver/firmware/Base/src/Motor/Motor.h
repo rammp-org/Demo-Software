@@ -10,6 +10,7 @@ public:
 
   void setMode(ControlMode mode) override;
   void disable() override;
+  void updateSensorData(float current_pos, float dt) override;
 };
 
 #endif

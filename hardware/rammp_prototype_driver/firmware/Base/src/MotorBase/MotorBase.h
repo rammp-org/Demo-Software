@@ -15,9 +15,9 @@ public:
   // --- Pure virtual: subclasses MUST define ---
   virtual void setMode(ControlMode mode) = 0;
   virtual void disable() = 0;
+  virtual void updateSensorData(float current_pos, float dt) = 0;
 
   // --- Shared implementations ---
-  virtual void updateSensorData(float current_pos, float dt);
   virtual float update(float dt);
 
   virtual void initPIDs(float p_kp, float p_ki, float p_kd, float p_min,

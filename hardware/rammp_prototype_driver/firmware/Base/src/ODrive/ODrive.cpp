@@ -5,9 +5,18 @@ ODrive::ODrive(ODriveUART &odrive, int axis_direction)
   direction = (axis_direction >= 0) ? 1 : -1;
 }
 
-void ODrive::updateEncoderReadings() {
-  current_pos = this->odrive.getPosition() * this->direction;
+void ODrive::updateSensorData(float current_pos, float dt) {
+  this->current_pos = this->odrive.getPosition() * this->direction;
+
+  if (dt > 0.0f) {
+    this->current_vel = (this->current_pos - this->prev_pos) / dt;
+  }
+  this->prev_pos = this->current_pos;
 }
+
+// void ODrive::updateEncoderReadings() {
+//   current_pos = this->odrive.getPosition() * this->direction;
+// }
 
 void ODrive::setMode(ControlMode new_mode) {
   // Serial.println("ODrive setMode called");
@@ -73,10 +82,7 @@ void ODrive::disable() {
 
 float ODrive::getTargetPosition() { return target_pos * this->direction; }
 
-float ODrive::getCurrentPosition() {
-  this->updateEncoderReadings();
-  return current_pos;
-}
+float ODrive::getCurrentPosition() { return current_pos; }
 
 float ODrive::getCurrentTorque() {
   return this->odrive.getParameterAsFloat("axis0.motor.torque_estimate") *

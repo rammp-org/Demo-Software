@@ -105,6 +105,10 @@ class EncoderData:
     drive_lr_dir: int = 1
     drive_fb_enc_dir: int = 1
     drive_lr_enc_dir: int = 1
+    odrive_l_pos: float = 0.0
+    odrive_r_pos: float = 0.0
+    odrive_l_torque_nm: float = 0.0
+    odrive_r_torque_nm: float = 0.0
 
     @property
     def num_joints(self) -> int:
@@ -569,25 +573,27 @@ class ProtocolEncoder:
         guard_condition: Optional[List[int]] = None,
     ) -> bytes:
         """
-        Upload one keyframe.  Sends the new 32-value format:
-        targets(8), active(8), relative(8), durations(8).
-        duration_ms: single int (broadcast to all motors) or list of 8 ints.
-        relative: list of 8 bools (default all False).
+        Upload one keyframe.  Sends the 40-value format (NUM_MOTORS=10):
+        targets(10), active(10), relative(10), durations(10).
+        duration_ms: single int (broadcast) or list of 10 ints.
+        relative: list of 10 bools (default all False).
         """
+        from .keyframe import NUM_MOTORS
+
         t_str = ",".join(f"{t:.2f}" for t in targets)
         a_str = ",".join(str(int(bool(a))) for a in active)
 
         if relative is None:
-            relative = [False] * 8
+            relative = [False] * NUM_MOTORS
         r_str = ",".join(str(int(bool(r))) for r in relative)
 
         if isinstance(duration_ms, (int, float)):
-            d_str = ",".join(str(int(duration_ms)) for _ in range(8))
+            d_str = ",".join(str(int(duration_ms)) for _ in range(NUM_MOTORS))
         else:
             d_str = ",".join(str(int(d)) for d in duration_ms)
 
-        _gt = guard_threshold if guard_threshold is not None else [0.0] * 8
-        _gc = guard_condition if guard_condition is not None else [0] * 8
+        _gt = guard_threshold if guard_threshold is not None else [0.0] * NUM_MOTORS
+        _gc = guard_condition if guard_condition is not None else [0] * NUM_MOTORS
         has_guard = any(c != 0 for c in _gc)
 
         if has_guard:

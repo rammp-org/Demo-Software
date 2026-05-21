@@ -1,8 +1,9 @@
 """
 Sequence / Trajectory Editor for AUTO_CURB_CLIMBING mode.
 
-Motor order: [RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR]
-All 8 motors use position interpolation during sequences.
+Motor order: [RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR,
+              ODrive_R, ODrive_L]  (matches firmware SEQ_NUM_MOTORS)
+All sequence slots use position interpolation during AUTO_CURB_CLIMBING.
 """
 
 from __future__ import annotations
@@ -37,7 +38,18 @@ from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
 
 
-MOTOR_NAMES = ["RC", "FC", "ML", "MR", "ML_Car", "MR_Car", "Drive_FB", "Drive_LR"]
+MOTOR_NAMES = [
+    "RC",
+    "FC",
+    "ML",
+    "MR",
+    "ML_Car",
+    "MR_Car",
+    "Drive_FB",
+    "Drive_LR",
+    "OD_R",
+    "OD_L",
+]
 
 COL_LABEL = 0
 COL_RC = 1
@@ -48,7 +60,9 @@ COL_ML_CAR = 5
 COL_MR_CAR = 6
 COL_DRIVE_FB = 7
 COL_DRIVE_LR = 8
-NUM_COLS = 9
+COL_OD_R = 9
+COL_OD_L = 10
+NUM_COLS = 11
 
 INACTIVE_TEXT = "--"
 
@@ -220,17 +234,7 @@ class SequenceEditor(QWidget):
         return bar
 
     def _build_table(self) -> QTableWidget:
-        headers = [
-            "Label",
-            "RC",
-            "FC",
-            "ML",
-            "MR",
-            "ML_Car",
-            "MR_Car",
-            "Drive_FB",
-            "Drive_LR",
-        ]
+        headers = ["Label"] + MOTOR_NAMES
         self._table = QTableWidget(0, NUM_COLS)
         self._table.setHorizontalHeaderLabels(headers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -600,7 +604,7 @@ class SequenceEditor(QWidget):
             return
 
         # position row (row % 3 == 0) — check for relative highlight
-        if COL_RC <= col <= COL_DRIVE_LR:
+        if COL_RC <= col <= COL_OD_L:
             kf_idx = row // 3
             motor_idx = col - COL_RC
             if (
@@ -639,7 +643,7 @@ class SequenceEditor(QWidget):
         if is_position_row and col == COL_LABEL:
             kf.label = text
 
-        elif is_position_row and COL_RC <= col <= COL_DRIVE_LR:
+        elif is_position_row and COL_RC <= col <= COL_OD_L:
             motor_idx = col - COL_RC
             parse_text = text[1:] if text.startswith("Δ") else text
             if parse_text == INACTIVE_TEXT or parse_text == "" or parse_text == "-":
@@ -650,7 +654,7 @@ class SequenceEditor(QWidget):
                 except ValueError:
                     pass
 
-        elif row % 3 == 1 and COL_RC <= col <= COL_DRIVE_LR:
+        elif row % 3 == 1 and COL_RC <= col <= COL_OD_L:
             motor_idx = col - COL_RC
             if text in {"", "-", INACTIVE_TEXT}:
                 kf.motor_durations[motor_idx] = None
@@ -660,7 +664,7 @@ class SequenceEditor(QWidget):
                 except ValueError:
                     pass
 
-        elif row % 3 == 2 and COL_RC <= col <= COL_DRIVE_LR:
+        elif row % 3 == 2 and COL_RC <= col <= COL_OD_L:
             # Guard row edit
             motor_idx = col - COL_RC
             if text.startswith(">"):
@@ -690,7 +694,7 @@ class SequenceEditor(QWidget):
 
         row = item.row()
         col = item.column()
-        if row % 3 != 0 or not (COL_RC <= col <= COL_DRIVE_LR):
+        if row % 3 != 0 or not (COL_RC <= col <= COL_OD_L):
             return
 
         kf_idx = row // 3
@@ -905,12 +909,24 @@ class SequenceEditor(QWidget):
 
     def _apply_live_positions(self, kf: Keyframe):
         for i in range(NUM_MOTORS):
-            joint_data = self._data_store.get_joint(i + 1)
-            if joint_data is not None:
+            if i < 8:
+                joint_data = self._data_store.get_joint(i + 1)
+                if joint_data is None:
+                    continue
                 if kf.relative[i]:
                     kf.targets[i] = 0.0
                 else:
                     kf.targets[i] = round(joint_data.current_position, 1)
+            elif i == 8:
+                if kf.relative[i]:
+                    kf.targets[i] = 0.0
+                else:
+                    kf.targets[i] = round(self._data_store.odrive_r_pos, 2)
+            elif i == 9:
+                if kf.relative[i]:
+                    kf.targets[i] = 0.0
+                else:
+                    kf.targets[i] = round(self._data_store.odrive_l_pos, 2)
 
     # ------------------------------------------------------------------ #
     #  Step commands                                                        #
@@ -1003,6 +1019,7 @@ class SequenceEditor(QWidget):
             kf = self._keyframes[step]
             for i in range(NUM_MOTORS):
                 if kf.targets[i] is not None:
+                    # RoboClaw / drive slots 0–7 → joint ids 1–8; ODrive slots → 9–10
                     targets[i + 1] = kf.targets[i]
         self._data_store.set_seq_targets(targets)
 

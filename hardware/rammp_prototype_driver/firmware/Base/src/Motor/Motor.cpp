@@ -18,3 +18,20 @@ void Motor::disable() {
   vel_pid.reset();
   setMode(DISABLED);
 }
+
+void Motor::updateSensorData(float current_pos, float dt) {
+  // Multiply by encoder direction to allow reversing logical sensor axis
+  float raw_pos = current_pos * encoder_dir;
+
+  // position input LPF
+  this->current_pos =
+      this->current_pos + this->lpf_input_alpha * (raw_pos - this->current_pos);
+
+  if (dt > 0.0f) {
+    float raw_vel = (this->current_pos - this->prev_pos) / dt;
+    // velocity input LPF
+    this->current_vel = this->current_vel +
+                        this->lpf_input_alpha * (raw_vel - this->current_vel);
+  }
+  this->prev_pos = this->current_pos;
+}

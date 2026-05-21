@@ -196,10 +196,6 @@ void sequenceHandleCommand(const RobotCommand &cmd,
       } else {
         Serial.print("SEQ_ERR,bad_payload,");
         Serial.print(idx);
-        Serial.print(",");
-        Serial.print(count);
-        Serial.print(",expect:");
-        Serial.println(SEQ_NUM_MOTORS * 4);
       }
     }
     return;

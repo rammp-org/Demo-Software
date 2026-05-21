@@ -9,7 +9,7 @@
 // Extern declarations for functions/globals defined in Base.ino
 extern void saveMotorConfig(int motor_id, MotorBase *m);
 extern void saveAllMotorConfigs();
-extern Motor drive_fb, drive_lr;
+extern MotorBase drive_fb, drive_lr;
 extern int8_t ml_enc_dir, mr_enc_dir;
 
 // DEBUG_MODE is defined in Base.ino — replicate here for debug prints

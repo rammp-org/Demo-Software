@@ -26,6 +26,7 @@ import os
 import numpy as np
 
 from ..data.data_store import DataStore
+from ..data.joint_config import is_odrive_actuator
 from ..serial_driver.serial_handler import SerialHandler
 from .theme import THEME
 from .scaling import SIZES, scaled
@@ -60,6 +61,11 @@ MODE_COLORS = {
     MODE_POSITION: THEME.blue,
 }
 
+ODRIVE_MODE_UNITS = {
+    MODE_VELOCITY: "turns/s",
+    MODE_POSITION: "turns",
+}
+
 
 class ControlPanel(QWidget):
     """
@@ -92,6 +98,7 @@ class ControlPanel(QWidget):
 
         # Current control mode (tracked locally)
         self._current_mode = MODE_OPEN_LOOP
+        self._last_ui_joint_id = 0
 
         # Sine wave state
         self._sine_active = False
@@ -454,8 +461,9 @@ class ControlPanel(QWidget):
         layout.addWidget(self._velocity_label, 2, 1)
         layout.addWidget(QLabel("units/s"), 2, 2)
 
-        # PWM
-        layout.addWidget(QLabel("PWM:"), 3, 0)
+        # PWM / torque (ODrive shows Nm in this row)
+        self._pwm_row_label = QLabel("PWM:")
+        layout.addWidget(self._pwm_row_label, 3, 0)
         self._pwm_label = QLabel("---")
         self._pwm_label.setStyleSheet(value_style)
         layout.addWidget(self._pwm_label, 3, 1)
@@ -747,6 +755,12 @@ class ControlPanel(QWidget):
 
         layout.addLayout(config_layout)
 
+        self._eeprom_config_widgets = (
+            self._load_config_btn,
+            self._save_config_btn,
+            self._save_pos_btn,
+        )
+
         group.addWidget(content)
         return group
 
@@ -854,7 +868,9 @@ class ControlPanel(QWidget):
         layout.addLayout(motor_config_layout)
 
         # Position Limits row
-        limits_layout = QHBoxLayout()
+        self._limits_row = QWidget()
+        limits_layout = QHBoxLayout(self._limits_row)
+        limits_layout.setContentsMargins(0, 0, 0, 0)
         limits_layout.setSpacing(SIZES["spacing_small"])
 
         limits_layout.addWidget(QLabel("Min Limit:"))
@@ -881,10 +897,12 @@ class ControlPanel(QWidget):
         self._set_max_limit_btn.clicked.connect(self._on_set_max_limit)
         limits_layout.addWidget(self._set_max_limit_btn)
 
-        layout.addLayout(limits_layout)
+        layout.addWidget(self._limits_row)
 
         # Encoder Direction row
-        enc_config_layout = QHBoxLayout()
+        self._enc_dir_row = QWidget()
+        enc_config_layout = QHBoxLayout(self._enc_dir_row)
+        enc_config_layout.setContentsMargins(0, 0, 0, 0)
         enc_config_layout.setSpacing(SIZES["spacing_small"])
 
         enc_config_layout.addStretch()  # Push to right to align with motor dir
@@ -902,10 +920,12 @@ class ControlPanel(QWidget):
         self._enc_dir_btn.clicked.connect(self._on_toggle_encoder_direction)
         enc_config_layout.addWidget(self._enc_dir_btn)
 
-        layout.addLayout(enc_config_layout)
+        layout.addWidget(self._enc_dir_row)
 
         # Position Offset row
-        offset_layout = QHBoxLayout()
+        self._offset_row = QWidget()
+        offset_layout = QHBoxLayout(self._offset_row)
+        offset_layout.setContentsMargins(0, 0, 0, 0)
         offset_layout.setSpacing(SIZES["spacing_small"])
 
         offset_layout.addWidget(QLabel("Set Position As:"))
@@ -932,7 +952,13 @@ class ControlPanel(QWidget):
 
         offset_layout.addStretch()
 
-        layout.addLayout(offset_layout)
+        layout.addWidget(self._offset_row)
+
+        self._target_roboclaw_only_rows = (
+            self._limits_row,
+            self._enc_dir_row,
+            self._offset_row,
+        )
 
         group.addWidget(content)
         return group
@@ -1472,8 +1498,68 @@ class ControlPanel(QWidget):
         self._serial_handler.seq_auto_run(True)
         self._serial_handler.seq_step_forward()
 
+    def _mode_units_for_joint(self, joint_id: int, mode: int) -> str:
+        if is_odrive_actuator(joint_id):
+            return ODRIVE_MODE_UNITS.get(mode, "turns")
+        return MODE_UNITS.get(mode, "")
+
+    def _sync_joint_ui_constraints(self, joint_id: int):
+        """Show/hide controls that do not apply to ODrive axes."""
+        if joint_id == self._last_ui_joint_id:
+            return
+        self._last_ui_joint_id = joint_id
+        is_odrive = is_odrive_actuator(joint_id)
+
+        self._open_loop_btn.setVisible(not is_odrive)
+        self._clear_pid_btn.setVisible(not is_odrive)
+        self._quick_jog_group.setVisible(not is_odrive)
+
+        for widget in self._eeprom_config_widgets:
+            widget.setVisible(not is_odrive)
+        for row in self._target_roboclaw_only_rows:
+            row.setVisible(not is_odrive)
+
+        self._home_btn.setVisible(not is_odrive)
+        self._pwm_row_label.setText("Torque:" if is_odrive else "PWM:")
+        self._pwm_percent_label.setVisible(not is_odrive)
+
+        if is_odrive:
+            mode = self._data_store._control_modes[joint_id - 1]
+            if mode == MODE_OPEN_LOOP:
+                mode = MODE_POSITION
+                self._data_store._control_modes[joint_id - 1] = mode
+            self._current_mode = mode
+            self._data_store.control_mode = mode
+            self._apply_odrive_unit_labels(mode)
+            self._on_mode_confirmed(mode)
+        else:
+            self._position_unit_label.setText("ticks")
+            mode = self._data_store.control_mode
+            self._current_mode = mode
+            unit = MODE_UNITS.get(mode, "")
+            self._target_unit_label.setText(unit)
+            self._target_input_unit_label.setText(unit)
+            self._step_unit_label.setText(unit)
+            self._sine_amplitude_unit_label.setText(unit)
+
+    def _apply_odrive_unit_labels(self, mode: int):
+        unit = ODRIVE_MODE_UNITS.get(mode, "turns")
+        self._position_unit_label.setText("turns")
+        self._target_unit_label.setText(unit)
+        self._target_input_unit_label.setText(unit)
+        self._step_unit_label.setText(unit)
+        self._sine_amplitude_unit_label.setText(unit)
+        if mode == MODE_POSITION:
+            self._error_unit_label.setText("turns")
+        elif mode == MODE_VELOCITY:
+            self._error_unit_label.setText("turns/s")
+        else:
+            self._error_unit_label.setText("")
+
     def _update_status(self):
         """Update the status display with current values."""
+        joint_id = self._data_store.selected_joint
+        self._sync_joint_ui_constraints(joint_id)
         joint_data = self._data_store.get_selected_joint_data()
 
         position = joint_data.current_position
@@ -1490,20 +1576,25 @@ class ControlPanel(QWidget):
             error = 0
 
         # Update labels
-        self._position_label.setText(f"{position:.2f}")
-        self._velocity_label.setText(f"{velocity:.2f}")
-        self._pwm_label.setText(f"{pwm:.2f}")
-        self._pwm_percent_label.setText(f"({abs(pwm) / 32767 * 100:.1f}%)")
-        self._target_label.setText(f"{target:.2f}")
-        self._error_label.setText(f"{error:.2f}")
+        self._position_label.setText(f"{position:.4f}")
+        self._velocity_label.setText(f"{velocity:.4f}")
+        self._pwm_label.setText(f"{pwm:.3f}")
+        if is_odrive_actuator(joint_id):
+            self._pwm_percent_label.setText("Nm")
+        else:
+            self._pwm_percent_label.setText(f"({abs(pwm) / 32767 * 100:.1f}%)")
+        self._target_label.setText(f"{target:.4f}")
+        self._error_label.setText(f"{error:.4f}")
 
         # Color the error label based on magnitude
         value_font_size = SIZES["font_medium"]
-        if abs(error) < 10:
+        err_ok = 0.05 if is_odrive_actuator(joint_id) else 10
+        err_warn = 0.2 if is_odrive_actuator(joint_id) else 100
+        if abs(error) < err_ok:
             self._error_label.setStyleSheet(
                 f"font-weight: bold; font-size: {value_font_size}pt; color: green;"
             )
-        elif abs(error) < 100:
+        elif abs(error) < err_warn:
             self._error_label.setStyleSheet(
                 f"font-weight: bold; font-size: {value_font_size}pt; color: orange;"
             )
@@ -1582,6 +1673,8 @@ class ControlPanel(QWidget):
     def _on_clear_pid(self):
         """Send reset PID command to clear integrator windup."""
         joint_id = self._data_store.selected_joint
+        if is_odrive_actuator(joint_id):
+            return
         self._serial_handler.reset_pid(joint_id)
 
     def _get_float_from_lineedit(
@@ -1683,33 +1776,32 @@ class ControlPanel(QWidget):
                 )
 
     def _on_set_mode(self, mode: int):
-        """Send mode set command and update local unit labels.
-
-        The mode banner is NOT updated here — it only updates when the robot
-        confirms the mode via a CONFIG echo (_on_config_updated).
-        """
+        """Send mode set command and update local unit labels."""
         joint_id = self._data_store.selected_joint
         self._serial_handler.set_mode(joint_id, mode)
 
-        # Update local tracking for unit labels (send-side bookkeeping only).
-        # Do NOT set data_store.control_mode here — that is set exclusively from
-        # incoming telemetry so the mode banner only reflects what the robot confirms.
         self._current_mode = mode
-        unit = MODE_UNITS.get(mode, "")
+        self._data_store._control_modes[joint_id - 1] = mode
+        unit = self._mode_units_for_joint(joint_id, mode)
         self._target_unit_label.setText(unit)
         self._target_input_unit_label.setText(unit)
         self._step_unit_label.setText(unit)
         self._sine_amplitude_unit_label.setText(unit)
         self._mode_indicator_label.setText(MODE_NAMES.get(mode, "Unknown"))
-        if mode == MODE_POSITION:
-            self._error_unit_label.setText("ticks")
-        elif mode == MODE_VELOCITY:
-            self._error_unit_label.setText("units/s")
+        if is_odrive_actuator(joint_id):
+            self._apply_odrive_unit_labels(mode)
+            self._data_store.control_mode = mode
+            self._on_mode_confirmed(mode)
         else:
-            self._error_unit_label.setText("")
+            if mode == MODE_POSITION:
+                self._error_unit_label.setText("ticks")
+                self._position_unit_label.setText("ticks")
+            elif mode == MODE_VELOCITY:
+                self._error_unit_label.setText("units/s")
+            else:
+                self._error_unit_label.setText("")
+            self._set_mode_banner_pending(mode)
 
-        # Mark banner as pending confirmation from robot
-        self._set_mode_banner_pending(mode)
         self.mode_changed.emit(mode)
 
     def _on_set_pos_pid(self):

@@ -330,7 +330,7 @@ class DataStore(QObject):
     seq_status_updated = pyqtSignal(int, int, int)
     seq_targets_changed = pyqtSignal()
 
-    NUM_JOINTS = 8
+    NUM_JOINTS = 10
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
     SIMULATION_UPDATE_MS = 20  # 50 Hz simulation rate
     DATA_UPDATE_THROTTLE_MS = 50  # Max 20Hz for data_updated signal
@@ -343,9 +343,11 @@ class DataStore(QObject):
         ]
         self._selected_joint: int = 1
         self._control_mode: int = 0  # 0: Open, 1: Vel, 2: Pos (for selected joint)
-        self._control_modes: List[int] = [
-            0
-        ] * self.NUM_JOINTS  # per-joint modes from telemetry
+        self._control_modes: List[int] = [0] * 8 + [
+            2,
+            2,
+        ]  # RoboClaw from telemetry; ODrive default CL position
+        self._odrive_prev_sample: dict = {}  # joint_id -> (pos, timestamp_ms)
         self._simulation_mode: bool = False
         self._current_state: int = 0
         self._seq_targets: dict = {}
@@ -694,6 +696,30 @@ class DataStore(QObject):
         """Get JointData for the currently selected joint."""
         return self._joints[self._selected_joint - 1]
 
+    def _feed_odrive_joint(
+        self,
+        joint_id: int,
+        timestamp_ms: int,
+        position: float,
+        torque_nm: float,
+    ):
+        """Update JointData for an ODrive axis (joint ids 9–10)."""
+        if joint_id < 9 or joint_id > self.NUM_JOINTS:
+            return
+        prev = self._odrive_prev_sample.get(joint_id)
+        velocity = 0.0
+        if prev is not None:
+            prev_pos, prev_ts = prev
+            dt_s = (timestamp_ms - prev_ts) / 1000.0
+            if dt_s > 0:
+                velocity = (position - prev_pos) / dt_s
+        self._odrive_prev_sample[joint_id] = (position, timestamp_ms)
+        self._joints[joint_id - 1].add_sample(
+            timestamp_ms, position, velocity, torque_nm
+        )
+        if joint_id == self._selected_joint:
+            self._throttled_data_updated(joint_id)
+
     def process_encoder_data(self, data: EncoderData):
         """
         Process incoming telemetry data and update all joints.
@@ -775,6 +801,12 @@ class DataStore(QObject):
             self._odrive_l_pos = data.odrive_l_pos
             self._odrive_r_torque_nm = data.odrive_r_torque_nm
             self._odrive_l_torque_nm = data.odrive_l_torque_nm
+            self._feed_odrive_joint(
+                9, data.timestamp_ms, self._odrive_l_pos, self._odrive_l_torque_nm
+            )
+            self._feed_odrive_joint(
+                10, data.timestamp_ms, self._odrive_r_pos, self._odrive_r_torque_nm
+            )
 
         # Feed drive wheel data into JointData for joints 7 (Drive FB) and 8 (Drive LR)
         # so the plotter can display them when selected.

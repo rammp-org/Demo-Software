@@ -62,7 +62,22 @@ JOINTS: List[JointInfo] = [
         short_name="D_LR",
         description="Left/Right steering correction controller (output via LUCI)",
     ),
+    JointInfo(
+        id=9,
+        name="ODrive L",
+        short_name="OD_L",
+        description="Left ODrive axis (actuator 9, robot-frame turns)",
+    ),
+    JointInfo(
+        id=10,
+        name="ODrive R",
+        short_name="OD_R",
+        description="Right ODrive axis (actuator 10, robot-frame turns)",
+    ),
 ]
+
+# Actuator ids 9–10 (motor_map): 9=ODriveL, 10=ODriveR
+ODRIVE_ACTUATOR_IDS = (9, 10)
 
 # Create lookup dictionary by ID
 JOINT_BY_ID: Dict[int, JointInfo] = {joint.id: joint for joint in JOINTS}
@@ -81,3 +96,8 @@ def get_joint_names() -> List[str]:
 def get_joint_id_from_index(index: int) -> int:
     """Convert dropdown index (0-based) to joint ID (1-based)."""
     return index + 1
+
+
+def is_odrive_actuator(joint_id: int) -> bool:
+    """True for ODrive axes (actuator ids 9 and 10)."""
+    return joint_id in ODRIVE_ACTUATOR_IDS

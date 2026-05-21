@@ -316,6 +316,11 @@ class ProtocolParser:
                         data.drive_lr_dir = int(values[72])
                         data.drive_fb_enc_dir = int(values[73])
                         data.drive_lr_enc_dir = int(values[74])
+                    if len(values) >= 79:
+                        data.odrive_r_pos = values[75]
+                        data.odrive_l_pos = values[76]
+                        data.odrive_r_torque_nm = values[77]
+                        data.odrive_l_torque_nm = values[78]
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:

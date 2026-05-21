@@ -22,18 +22,12 @@ from PyQt6.QtGui import QColor, QPainter, QPen, QBrush
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
 from ..data.data_store import DataStore
-from ..data.joint_config import JOINTS
+from ..data.joint_config import JOINTS, is_odrive_actuator
 from ..serial_driver.serial_handler import SerialHandler
 
 MODE_OPEN_LOOP = 0
 MODE_VELOCITY = 1
 MODE_POSITION = 2
-
-# Actuator ids 9–10 (motor_map): 9=ODriveL, 10=ODriveR — robot-frame turns
-ODRIVE_ACTUATORS = (
-    (10, "OD_R", "odrive_r_pos"),
-    (9, "OD_L", "odrive_l_pos"),
-)
 
 
 class JointBox(QFrame):
@@ -259,18 +253,8 @@ class EncoderOverview(QWidget):
                 name=joint.short_name,
                 color=color,
             )
-            box.clicked.connect(self._on_box_clicked)
-            self._boxes.append(box)
-            boxes_layout.addWidget(box)
-
-        odrive_color_start = 8
-        for i, (actuator_id, name, _pos_attr) in enumerate(ODRIVE_ACTUATORS):
-            color_idx = odrive_color_start + i
-            color = (
-                JOINT_COLORS[color_idx] if color_idx < len(JOINT_COLORS) else THEME.text
-            )
-            box = JointBox(joint_id=actuator_id, name=name, color=color)
-            box.set_limits(-50.0, 50.0)
+            if is_odrive_actuator(joint.id):
+                box.set_limits(-50.0, 50.0)
             box.clicked.connect(self._on_box_clicked)
             self._boxes.append(box)
             boxes_layout.addWidget(box)
@@ -353,12 +337,6 @@ class EncoderOverview(QWidget):
             if joint_data:
                 self._boxes[i].set_value(joint_data.current_position)
 
-        base = len(JOINTS)
-        for j, (actuator_id, _name, pos_attr) in enumerate(ODRIVE_ACTUATORS):
-            idx = base + j
-            if idx < len(self._boxes):
-                self._boxes[idx].set_value(getattr(self._data_store, pos_attr))
-
     def _on_box_clicked(self, joint_id: int):
         self.set_selected_joint(joint_id)
         self.joint_selected.emit(joint_id)
@@ -379,11 +357,14 @@ class EncoderOverview(QWidget):
 
     def _on_odrive_go(self):
         delta = self._odrive_spin.value()
-        for actuator_id, _name, pos_attr in ODRIVE_ACTUATORS:
-            current = getattr(self._data_store, pos_attr)
+        for joint in JOINTS:
+            if not is_odrive_actuator(joint.id):
+                continue
+            joint_data = self._data_store.get_joint(joint.id)
+            current = joint_data.current_position if joint_data else 0.0
             target = current + delta
-            self._serial_handler.set_mode(actuator_id, MODE_POSITION)
-            self._serial_handler.set_target(actuator_id, target)
+            self._serial_handler.set_mode(joint.id, MODE_POSITION)
+            self._serial_handler.set_target(joint.id, target)
 
     @pyqtSlot(int)
     def set_selected_joint(self, joint_id: int):

@@ -1,7 +1,8 @@
 #include <Arduino.h>
 #include "SequencePlayer.h"
-#include "../Motor/Motor.h"
+#include "../MotorBase/MotorBase.h"
 #include "../CommandParser/CommandParser.h"
+#include "../CommandDispatch/CommandDispatch.h"
 
 // ---------------------------------------------------------------------------
 //  Module-scope state

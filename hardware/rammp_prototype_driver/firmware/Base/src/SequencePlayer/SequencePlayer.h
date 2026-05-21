@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-class Motor;
+class MotorBase;
 struct RobotCommand;
 
 #define MAX_SEQ_KEYFRAMES 20

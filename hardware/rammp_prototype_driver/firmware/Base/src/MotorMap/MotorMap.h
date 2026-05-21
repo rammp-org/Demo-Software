@@ -2,8 +2,9 @@
 #define MOTOR_MAP_H
 
 #include <Arduino.h>
+#include "../MotorBase/MotorBase.h"
 
-class Motor;
+class MotorBase;
 class RoboClaw;
 
 // Centralized motor-encoder mapping for the RAMMP mobile base firmware.

@@ -51,7 +51,7 @@ inline uint8_t getEncoderIndex(uint8_t actuator_id) {
   return entry ? entry->encoder_index : 0;
 }
 
-inline Motor *getMotor(uint8_t actuator_id) {
+inline MotorBase *getMotor(uint8_t actuator_id) {
   const MotorEntry *entry = getMotorEntry(actuator_id);
   return entry ? entry->motor : nullptr;
 }

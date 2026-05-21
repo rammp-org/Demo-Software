@@ -107,8 +107,8 @@ MotorEntry motor_map[10] = {
     {&mr_carriage, 12, &roboclaw_carriages, 2, true, true, "mr_carriage"},
     {&drive_fb, 9, nullptr, 0, false, false, "drive_fb"},
     {&drive_lr, 10, nullptr, 0, false, false, "drive_lr"},
-    {&ODriveL, -1, nullptr, 0, false, false, "odrive_l"},
-    {&ODriveR, -1, nullptr, 0, false, false, "odrive_r"}};
+    {&ODriveL, 0, nullptr, 0, false, false, "odrive_l"},
+    {&ODriveR, 0, nullptr, 0, false, false, "odrive_r"}};
 
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
 StrainGauge sg_rc(RC_LOADCELL_PIN, 0.8f);
@@ -754,7 +754,7 @@ void loop() {
   // Config reads are safe during any state (including E-Stop).
   if (cmd.type == CMD_GET_CONFIG && cmd.type != CMD_NONE) {
     const MotorEntry *cfg_entry = getMotorEntry(cmd.actuator_id);
-    Motor *cfg_m = cfg_entry ? cfg_entry->motor : nullptr;
+    MotorBase *cfg_m = cfg_entry ? cfg_entry->motor : nullptr;
     if (cfg_m != nullptr) {
       CommandContext cfg_ctx = {cfg_m,     (uint8_t)cmd.actuator_id,
                                 cmd.value, parser.last_payload,
@@ -772,7 +772,7 @@ void loop() {
       }
     } else {
       const MotorEntry *entry = getMotorEntry(cmd.actuator_id);
-      Motor *m = entry ? entry->motor : nullptr;
+      MotorBase *m = entry ? entry->motor : nullptr;
 
       if (m != nullptr) {
         // Build dispatch context and delegate to table-driven handler

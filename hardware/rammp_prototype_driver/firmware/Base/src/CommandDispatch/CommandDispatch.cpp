@@ -2,12 +2,12 @@
 #include "CommandDispatch.h"
 #include "../CommandParser/CommandParser.h"
 #include "../MotorMap/MotorMap.h"
-#include "../Motor/Motor.h"
+#include "../MotorBase/MotorBase.h"
 #include "../EncoderContainer/EncoderContainer.h"
 #include "../ConfigStorage/ConfigStorage.h"
 
 // Extern declarations for functions/globals defined in Base.ino
-extern void saveMotorConfig(int motor_id, Motor *m);
+extern void saveMotorConfig(int motor_id, MotorBase *m);
 extern void saveAllMotorConfigs();
 extern Motor drive_fb, drive_lr;
 extern int8_t ml_enc_dir, mr_enc_dir;
@@ -21,11 +21,11 @@ extern int8_t ml_enc_dir, mr_enc_dir;
 
 void handleSetMode(CommandContext &ctx) {
   if (ctx.value == 0)
-    ctx.motor->setMode(Motor::OPEN_LOOP);
+    ctx.motor->setMode(MotorBase::OPEN_LOOP);
   else if (ctx.value == 1)
-    ctx.motor->setMode(Motor::VELOCITY_CONTROL);
+    ctx.motor->setMode(MotorBase::VELOCITY_CONTROL);
   else if (ctx.value == 2)
-    ctx.motor->setMode(Motor::POSITION_CONTROL);
+    ctx.motor->setMode(MotorBase::POSITION_CONTROL);
   if (DEBUG_MODE) {
     Serial.print("DEBUG: Set Mode to ");
     Serial.println(ctx.value);
@@ -33,11 +33,11 @@ void handleSetMode(CommandContext &ctx) {
 }
 
 void handleSetTarget(CommandContext &ctx) {
-  if (ctx.motor->mode == Motor::OPEN_LOOP)
+  if (ctx.motor->mode == MotorBase::OPEN_LOOP)
     ctx.motor->setTargetPWM(ctx.value);
-  else if (ctx.motor->mode == Motor::VELOCITY_CONTROL)
+  else if (ctx.motor->mode == MotorBase::VELOCITY_CONTROL)
     ctx.motor->setTargetVelocity(ctx.value);
-  else if (ctx.motor->mode == Motor::POSITION_CONTROL)
+  else if (ctx.motor->mode == MotorBase::POSITION_CONTROL)
     ctx.motor->setTargetPosition(ctx.value);
   if (DEBUG_MODE) {
     Serial.print("DEBUG: Set Target to ");

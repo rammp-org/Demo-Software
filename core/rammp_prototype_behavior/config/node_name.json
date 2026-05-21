@@ -1,0 +1,31 @@
+{
+  "nodes": [
+    {
+      "name": "/arm_driver_node"
+    },
+    {
+      "name": "/system_control"
+    },
+    {
+      "name": "/drink_action_server"
+    },
+    {
+      "name": "/button_push_controller"
+    },
+    {
+      "name": "/base/base_control_node"
+    },
+    {
+      "name": "/perception_curb_descent_detection_node"
+    },
+    {
+      "name": "/perception_curb_detection_node"
+    },
+    {
+      "name": "/Gui_bridge_node"
+    },
+    {
+      "name": "/button_detector"
+    }
+  ]
+}

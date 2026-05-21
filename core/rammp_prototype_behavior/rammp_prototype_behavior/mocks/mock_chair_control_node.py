@@ -1,0 +1,613 @@
+import math
+from enum import IntEnum
+import time
+
+import rclpy
+from rammp_prototype_interfaces.action import CurbTraverse, Calibration
+from rammp_prototype_interfaces.msg import SeatCommand
+
+# custom msgs/srvs
+from rammp_prototype_interfaces.msg import RAMMPPrototypeState
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.node import Node
+from sensor_msgs.msg import Imu, JointState
+from std_msgs.msg import Bool, Int32
+from std_srvs.srv import SetBool
+import diagnostic_updater
+from diagnostic_msgs.msg import DiagnosticStatus
+
+
+class SerialField(IntEnum):
+    """Named indices for the serial data list sent by the Teensy.
+
+    The Teensy sends sensor data as a Python list string (e.g. '[0.5, 1.2, ...]'),
+    which is parsed with ast.literal_eval into a list. Each enum member's integer
+    value is the index of that field in the list, matching the order the Teensy
+    populates its output array in Base.ino.
+
+    Usage:
+        data = ast.literal_eval(raw)
+        pitch = data[SerialField.IMU_PITCH]  # instead of data[0]
+
+    If the Teensy serial protocol changes field order, update the values here.
+    """
+
+    #  Indices here should match the order of data sent from the Teensy in Base.ino's serial output array
+    IMU_PITCH = 0
+    IMU_ROLL = 1
+    ACCEL_X = 2
+    ACCEL_Y = 3
+    ACCEL_Z = 4
+    FC_POS = 5
+    RC_POS = 6
+    MR_POS = 7
+    ML_POS = 8
+    ML_CARRIAGE_POS = 9
+    MR_CARRIAGE_POS = 10
+    ML_WHEEL_POS = 11
+    MR_WHEEL_POS = 12
+    FC_LOADCELL = 13
+    MR_LOADCELL = 14
+    ML_LOADCELL = 15
+    CA_FLAG = 16
+    APP_TIME = 17
+    SPEED_ML = 18
+    SPEED_MR = 19
+
+
+class SystemState(IntEnum):
+    INIT = 0
+    IDLE = 1
+    TUNER_MODE = 2
+    ESTOP = 3
+    SELF_LEVELING = 4
+    CONFIGURATION = 5
+    AUTO_CURB_CLIMBING = 6
+    CALIBRATING = 7
+
+
+class BaseControlNode(Node):
+    def __init__(self):
+        super().__init__("base_control_node", namespace="base")
+
+        # # serial init
+        # self.declare_parameter("serial_port", "/dev/ttyACM0")
+        # serial_port = (
+        #     self.get_parameter("serial_port").get_parameter_value().string_value
+        # )
+        # self.ser = serial.Serial(
+        #     port=serial_port,
+        #     baudrate=115200,
+        #     timeout=1,
+        # )
+        self.mock_luci_node_active = False  # mock variable to simulate whether the Luci node is active for diagnostics
+        self.mock_teensy_connected = False  # mock variable to simulate whether the Teensy is connected for diagnostics
+        self.mock_teensy_state = (
+            SystemState.INIT
+        )  # mock variable to simulate the Teensy state for diagnostics
+        self.luci_node_mock_count = 0  # counter to simulate Luci node becoming active after some time for diagnostics
+        self.teensy_connect_mock_count = (
+            0  # counter to simulate Teensy connecting after some time for diagnostics
+        )
+        # diagnostics updater init
+        self.updater = diagnostic_updater.Updater(self)
+        self.updater.setHardwareID("MEBot")
+        self.updater.add("LUCI status", self.check_luci_node)
+        self.updater.add("Teensy connection", self.check_teensy_connection)
+        self.updater.add("Teensy state", self.check_teensy_state)
+
+        # Data transfer rates
+        # Rate to read data from serial
+        self.serial_rate = 1 / 1000.0
+        # Rate to publish joint states
+        self.joint_state_rate = 1 / 100.0
+        # Rate to publish RAMMPPrototypeState
+        self.state_publish_rate = 1 / 100.0
+        # Diagnostic publish rate
+        self.diagnostic_publish_rate = 1 / 1.0
+
+        # timer for serial data reading
+        # self.serial_timer = self.create_timer(self.serial_rate, self.read_serial_data)
+
+        ### Fields to store incoming data from serial for publishing in ROS messages
+        # IMU
+        self.imu_pitch = 0.0
+        self.imu_roll = 0.0
+        self.accel_x = 0.0
+        self.accel_y = 0.0
+        self.accel_z = 0.0
+
+        # Encoders
+        self.FC_pos = 0.0
+        self.RC_pos = 0.0
+        self.MR_pos = 0.0
+        self.ML_pos = 0.0
+        self.ML_carriage_pos = 0.0
+        self.MR_carriage_pos = 0.0
+        self.ML_wheel_pos = 0.0
+        self.MR_wheel_pos = 0.0
+
+        # Loadcells
+        self.FC_loadcell = 0.0
+        self.MR_loadcell = 0.0
+        self.ML_loadcell = 0.0
+
+        # CA_flag
+        self.CA_flag = 0
+
+        # state
+        self.state = RAMMPPrototypeState.STATE_IDLE
+
+        # app time
+        self.app_time = 0.0
+
+        # velocity and acceleration
+        self.prev_speed_ML = 0.0
+        self.current_speed_ML = 0.0
+
+        self.prev_speed_MR = 0.0
+        self.current_speed_MR = 0.0
+
+        # mock variables for testing
+        self._mock_action_result = True  # whether the mock action should succeed or fail, can be set via service calls for testing different scenarios
+        self._mock_action_reject = False
+        #### Init all ROS interfaces
+        self._init_services()
+        self._init_actions()
+        self._init_subscribers()
+        self._init_publishers()
+        self._init_mock_subscribers()
+
+    def _init_mock_subscribers(self):
+        self._mock_system_state_subscriber = self.create_subscription(
+            Int32,
+            "/mock/chair/system_state",
+            self._mock_system_state_callback,
+            10,
+        )
+        self._mock_teensy_connection_subscriber = self.create_subscription(
+            Bool,
+            "/mock/chair/teensy_connection",
+            self._mock_teensy_connection_callback,
+            10,
+        )
+        self._mock_luci_active_subscriber = self.create_subscription(
+            Bool,
+            "/mock/chair/luci_active",
+            self._mock_luci_active_callback,
+            10,
+        )
+
+    def _mock_system_state_callback(self, msg: Int32):
+        if msg.data in SystemState._value2member_map_:
+            self.get_logger().info(
+                f"Mock system state updated to {SystemState(msg.data).name}"
+            )
+            self.mock_teensy_state = msg.data
+
+    def _mock_teensy_connection_callback(self, msg: Bool):
+        self.get_logger().info(f"Mock Teensy connection updated to {msg.data}")
+        self.mock_teensy_connected = msg.data
+
+    def _mock_luci_active_callback(self, msg: Bool):
+        self.get_logger().info(f"Mock Luci active status updated to {msg.data}")
+        self.mock_luci_node_active = msg.data
+
+    def check_luci_node(self, stat):
+        if (
+            self.luci_node_mock_count == 5
+        ):  # simulate Luci node becoming active after some time
+            self.mock_luci_node_active = True
+            self.get_logger().info("Luci node is now active for testing.")
+            self.luci_node_mock_count += 1
+        else:
+            if self.luci_node_mock_count < 6:
+                self.luci_node_mock_count += 1
+        if not self.mock_luci_node_active:
+            stat.add("node_status", "dead")
+            stat.summary(DiagnosticStatus.ERROR, "Luci node not active")
+        else:
+            stat.add("node_status", "active")
+            stat.summary(DiagnosticStatus.OK, "Luci node running")
+
+        return stat
+
+    def check_teensy_connection(self, stat):
+        if (
+            self.teensy_connect_mock_count == 5
+        ):  # simulate Teensy connecting after some time
+            self.mock_teensy_connected = True
+            self.get_logger().info("Teensy is now connected for testing.")
+            self.teensy_connect_mock_count += 1
+        else:
+            if self.teensy_connect_mock_count < 6:
+                self.teensy_connect_mock_count += 1
+        if not self.mock_teensy_connected:
+            stat.add("connection_status", "disconnected")
+            stat.summary(DiagnosticStatus.ERROR, "Teensy not connected")
+        else:
+            stat.add("connection_status", "connected")
+            stat.summary(DiagnosticStatus.OK, "Teensy connected")
+        return stat
+
+    def check_teensy_state(self, stat):
+        if self.mock_teensy_state == SystemState.ESTOP:
+            stat.add("state_status", "ESTOP state")
+            stat.summary(DiagnosticStatus.ERROR, "Teensy in estop state")
+        elif self.mock_teensy_state == SystemState.INIT:
+            stat.add("state_status", "Initialization state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in initialization state")
+        elif self.mock_teensy_state == SystemState.IDLE:
+            stat.add("state_status", "Idle state")
+            stat.summary(DiagnosticStatus.OK, "Teensy in idle state")
+        elif self.mock_teensy_state == SystemState.TUNER_MODE:
+            stat.add("state_status", "Tuner mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in tuner mode")
+        elif self.mock_teensy_state == SystemState.SELF_LEVELING:
+            stat.add("state_status", "Self-leveling mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in self-leveling mode")
+        elif self.mock_teensy_state == SystemState.CONFIGURATION:
+            stat.add("state_status", "Configuration mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in configuration mode")
+        elif self.mock_teensy_state == SystemState.AUTO_CURB_CLIMBING:
+            stat.add("state_status", "Auto curb climbing mode")
+            stat.summary(DiagnosticStatus.OK, "Teensy in auto curb climbing mode")
+        elif self.mock_teensy_state == SystemState.CALIBRATING:
+            stat.add("state_status", "Calibrating")
+            stat.summary(DiagnosticStatus.OK, "Teensy is calibrating")
+        return stat
+
+    def _init_services(self):
+        # services
+        self.drive_enable_service = self.create_service(
+            SetBool, "/base/drive_enable", self.drive_enable_callback
+        )
+
+        self.self_level_enable_service = self.create_service(
+            SetBool, "/base/self_level_enable", self.self_level_enable_callback
+        )
+
+    def _init_actions(self):
+        # actions
+        self._action_running = False
+        self._action_counter = 0
+        self._action_cb_group = ReentrantCallbackGroup()
+        self.curb_traverse_action = ActionServer(
+            self,
+            CurbTraverse,
+            "/base/curb_traverse",
+            self._execute_callback,
+            goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback,
+            callback_group=self._action_cb_group,
+        )
+
+        self.calibrate_action = ActionServer(
+            self,
+            Calibration,
+            "/base/calibrate",
+            self.calibrate_motors_callback,
+            goal_callback=self._goal_callback,
+            cancel_callback=self._cancel_callback,
+            callback_group=self._action_cb_group,
+        )
+
+    def _init_subscribers(self):
+        # subscriptions
+        self.manual_seat_control_subscription = self.create_subscription(
+            SeatCommand,
+            "/base/manual_seat_control",
+            self.manual_seat_control_callback,
+            10,
+        )  # message type is placeholder
+
+        self.estop_subscription = self.create_subscription(
+            Bool, "estop", self.estop_callback, 10
+        )
+
+    def _init_publishers(self):
+        # joint state publisher
+        self.joint_state_publisher = self.create_publisher(
+            JointState, "joint_states", 10
+        )
+        self.joint_state_timer = self.create_timer(
+            self.joint_state_rate, self.publish_joint_states
+        )
+
+        # state publisher
+        self.RAMMPPrototypeState_publisher = self.create_publisher(
+            RAMMPPrototypeState, "rammp_prototype_state", 10
+        )
+        self.RAMMPPrototypeState_timer = self.create_timer(
+            self.state_publish_rate, self.publish_RAMMPPrototypeState
+        )
+
+        # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
+        # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
+
+    # reading incoming serial data from teensy
+    # def read_serial_data(self):
+    #     line = self.ser.readline()
+    #     if line:
+    #         raw_data = line.decode("utf-8", errors="replace").strip()
+    #         if raw_data.startswith("[") and raw_data.endswith(
+    #             "]"
+    #         ):  # check if data is in expected list format
+    #             data = ast.literal_eval(raw_data)
+    #             self.update_data(data)  # Update variables with new data
+
+    # def write_serial_data(self, data):
+    #     self.ser.write(data.encode("utf-8"))
+
+    # update variables to be published
+    def update_data(self, data):
+        # IMU
+        self.imu_pitch = data[SerialField.IMU_PITCH]
+        self.imu_roll = data[SerialField.IMU_ROLL]
+        self.accel_x = data[SerialField.ACCEL_X]
+        self.accel_y = data[SerialField.ACCEL_Y]
+        self.accel_z = data[SerialField.ACCEL_Z]
+
+        # Encoders — convert cm to meters
+        self.FC_pos = data[SerialField.FC_POS] / 100.0
+        self.RC_pos = data[SerialField.RC_POS] / 100.0
+        self.MR_pos = data[SerialField.MR_POS] / 100.0
+        self.ML_pos = data[SerialField.ML_POS] / 100.0
+        self.ML_carriage_pos = data[SerialField.ML_CARRIAGE_POS] / 100.0
+        self.MR_carriage_pos = data[SerialField.MR_CARRIAGE_POS] / 100.0
+        # TODO: ML/MR wheel joints are revolute — position should be in radians.
+        # Convert from distance traveled (m) to radians using wheel radius when known.
+        self.ML_wheel_pos = data[SerialField.ML_WHEEL_POS] / 100.0
+        self.MR_wheel_pos = data[SerialField.MR_WHEEL_POS] / 100.0
+
+        # Loadcells
+        self.FC_loadcell = data[SerialField.FC_LOADCELL]
+        self.MR_loadcell = data[SerialField.MR_LOADCELL]
+        self.ML_loadcell = data[SerialField.ML_LOADCELL]
+
+        # CA_flag
+        self.CA_flag = int(data[SerialField.CA_FLAG])
+
+        # app_time
+        self.app_time = data[SerialField.APP_TIME]
+
+        # Velocity — convert cm/s to m/s
+        # TODO:
+        self.prev_speed_ML = self.current_speed_ML
+        self.current_speed_ML = data[SerialField.SPEED_ML] / 100.0
+        self.prev_speed_MR = self.current_speed_MR
+        self.current_speed_MR = data[SerialField.SPEED_MR] / 100.0
+
+    def publish_joint_states(self):
+        msg = JointState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.name = [
+            "FC_joint",
+            "RC_joint",
+            "MR_joint",
+            "ML_joint",
+            "ML_carriage_joint",
+            "MR_carriage_joint",
+            "ML_wheel_joint",
+            "MR_wheel_joint",
+        ]
+        msg.position = [
+            self.FC_pos,
+            self.RC_pos,
+            self.MR_pos,
+            self.ML_pos,
+            self.ML_carriage_pos,
+            self.MR_carriage_pos,
+            self.ML_wheel_pos,
+            self.MR_wheel_pos,
+        ]  # joint positions from encoders
+        self.joint_state_publisher.publish(msg)
+
+    def publish_RAMMPPrototypeState(self):
+        msg = RAMMPPrototypeState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+
+        # TODO: populate orientation, linear_acceleration, angular_velocity, tilt
+        # once Teensy sends quaternion data directly over serial
+
+        # Encoders
+        msg.fc_pos = self.FC_pos
+        msg.rc_pos = self.RC_pos
+        msg.mr_pos = self.MR_pos
+        msg.ml_pos = self.ML_pos
+        msg.ml_carriage_pos = self.ML_carriage_pos
+        msg.mr_carriage_pos = self.MR_carriage_pos
+        msg.ml_wheel_pos = self.ML_wheel_pos
+        msg.mr_wheel_pos = self.MR_wheel_pos
+
+        # loadcells
+        msg.fc_loadcell = self.FC_loadcell
+        msg.mr_loadcell = self.MR_loadcell
+        msg.ml_loadcell = self.ML_loadcell
+
+        # CA_flag
+        # msg.ca_flag = self.CA_flag
+
+        # state
+        msg.state = self.state
+
+        # app time
+        msg.app_time = float(self.app_time)
+
+        # velocities
+        msg.ml_vel = float(self.current_speed_ML)
+        msg.mr_vel = float(self.current_speed_MR)
+        # TODO: Add the remaining velocities once they are sent by the Teensy
+
+        self.RAMMPPrototypeState_publisher.publish(msg)
+
+    def publish_imu_data(self):
+        msg = Imu()
+        # populate Imu message fields with appropriate data
+        msg.linear_acceleration.x = self.accel_x
+        msg.linear_acceleration.y = self.accel_y
+        msg.linear_acceleration.z = self.accel_z
+
+        # convert IMU angles from degrees to radians for orientation fields
+        pitch = math.radians(self.imu_pitch)
+        roll = math.radians(self.imu_roll)
+        yaw = 0.0  # assuming yaw is 0 since it is not measured by the IMU
+
+        # populate orientation fields using Euler angles (assuming yaw is 0)
+        qx = math.sin(roll / 2) * math.cos(pitch / 2) * math.cos(yaw / 2) - math.cos(
+            roll / 2
+        ) * math.sin(pitch / 2) * math.sin(yaw / 2)
+        qy = math.cos(roll / 2) * math.sin(pitch / 2) * math.cos(yaw / 2) + math.sin(
+            roll / 2
+        ) * math.cos(pitch / 2) * math.sin(yaw / 2)
+        qz = math.cos(roll / 2) * math.cos(pitch / 2) * math.sin(yaw / 2) - math.sin(
+            roll / 2
+        ) * math.sin(pitch / 2) * math.cos(yaw / 2)
+        qw = math.cos(roll / 2) * math.cos(pitch / 2) * math.cos(yaw / 2) + math.sin(
+            roll / 2
+        ) * math.sin(pitch / 2) * math.sin(yaw / 2)
+
+        msg.orientation.x = qx
+        msg.orientation.y = qy
+        msg.orientation.z = qz
+        msg.orientation.w = qw
+
+        self.imu_publisher.publish(msg)
+
+    def manual_seat_control_callback(self, msg):
+        if msg.command:
+            # content
+            self.get_logger().info(
+                "Manual seat control msg received: " + str(msg.command)
+            )
+            pass
+
+    def estop_callback(self, msg):
+        if msg.data:
+            # content
+            self.get_logger().info("E-stop activated!")
+            pass
+        else:
+            # content
+            pass
+
+    def curb_traverse_action_callback(self, goal, response):
+        # content
+        return response
+
+    def publish_feedback(self, goal_handle) -> bool:
+        feedback = CurbTraverse.Feedback()
+        while self._action_counter > 0:
+            self.get_logger().info("action counter left: " + str(self._action_counter))
+            feedback.progress = (
+                float(20 - self._action_counter) / 20.0 * 100.0
+            )  # convert to percentage
+            goal_handle.publish_feedback(feedback)
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                return False
+            self._action_counter -= 1
+            time.sleep(0.1)  # sleep 0.1s
+        return True
+
+    def calibrate_motors_callback(self, goal_handle):
+        self.mock_teensy_state = (
+            SystemState.CALIBRATING
+        )  # set Teensy state to calibrating for diagnostics
+        self._action_running = True
+        self.get_logger().info("Calibrating motors...")
+        self._action_counter = 20  # 1s action time.
+        feedback = Calibration.Feedback()
+        result = Calibration.Result()
+        while self._action_counter > 0:
+            self.get_logger().info("action counter left: " + str(self._action_counter))
+            feedback.joints_calibrated = 20 - self._action_counter
+            goal_handle.publish_feedback(feedback)
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.success = False
+                self._action_running = False
+                self.mock_teensy_state = SystemState.INIT  # reset Teensy state to Init
+                return result
+            self._action_counter -= 1
+            time.sleep(0.1)  # sleep 0.1s
+        result.success = True
+        goal_handle.succeed()
+        self._action_running = False
+        self.get_logger().info("Motor calibration finished.")
+        self.mock_teensy_state = (
+            SystemState.IDLE
+        )  # set Teensy state back to idle after calibration
+        return result
+
+    def _execute_callback(self, goal_handle):
+        self._action_running = True
+        self._action_counter = 20  # 2s action time.
+        if not self.publish_feedback(goal_handle):  # canceled during action process
+            result = CurbTraverse.Result()
+            self._action_running = False
+            result.success = False
+            return result
+        self.get_logger().info("Action execution finished.")
+        # mock result
+        result = CurbTraverse.Result()
+        self._action_running = False
+
+        if self._mock_action_result:
+            goal_handle.succeed()
+            result.success = True
+        else:
+            goal_handle.abort()
+            result.success = False
+        return result
+
+    def _cancel_callback(self, goal_handle):
+        self.get_logger().info("Received a cancel request.")
+        return CancelResponse.ACCEPT
+
+    def _goal_callback(self, goal_request):
+        # goal_callback receives the Goal request message, not a goal handle.
+        # Accept/reject by returning GoalResponse.
+        self.get_logger().info("Received an action goal request.")
+        if self._action_running or self._mock_action_reject:
+            self.get_logger().warn(
+                "Another action is already running. Rejecting new goal request."
+            )
+            return GoalResponse.REJECT
+        return GoalResponse.ACCEPT
+
+    def drive_enable_callback(self, request, response):
+        if request.data:
+            # content
+            self.get_logger().info("Drive enabled.")
+
+        else:
+            # content
+            self.get_logger().info("Drive disabled.")
+        response.success = True
+        return response
+
+    def self_level_enable_callback(self, request, response):
+        if request.data:
+            self.get_logger().info("Self-leveling enabled.")
+
+        else:
+            self.get_logger().info("Self-leveling disabled.")
+
+        response.success = True
+        return response
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = BaseControlNode()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    executor.spin()
+    rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

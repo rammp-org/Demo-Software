@@ -1,2 +1,55 @@
+# IDE / Editor
 .vscode/
+.idea/
+
+# Python
 __pycache__/
+*.pyc
+venv/
+.venv/
+
+# macOS
+.DS_Store
+
+# Data logs (runtime output)
+*.csv
+*.log
+
+# Claude Code
+CLAUDE.md
+
+# ROS 2 Build Artifacts
+install/
+build/
+log/
+
+# Python artifacts
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache/
+.pycheck/
+
+# C++ / IDE artifacts
+**/*.swp
+.vscode/
+.idea/
+.vs/
+*.user
+
+# System / OS files
+.DS_Store
+Thumbs.db
+
+# Linter artifacts
+.ruff_cache
+
+# Documentation
+# (Usually you want to keep docs, but skip generated Doxygen output)
+docs/_build/
+doxygen_output/
+
+
+# Navigation Models
+demo_modules/neu_navigation/models/*.pth

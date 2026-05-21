@@ -1,0 +1,8 @@
+# Goal — empty, just triggers the door/button open sequence
+---
+# Result
+bool success
+string message
+---
+# Feedback
+string status

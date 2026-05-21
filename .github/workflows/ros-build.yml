@@ -1,0 +1,40 @@
+name: ROS 2 Build
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    container: ros:humble
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm]
+    env:
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src/Demo-Software
+          submodules: recursive
+
+      - name: Cache gRPC
+        uses: actions/cache@v3
+        with:
+          path: /github/home/.local
+          key: grpc-v1.56.2-${{ matrix.os }}
+
+      - name: Install dependencies
+        shell: bash
+        run: src/Demo-Software/setup.sh
+
+      - name: Build
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          export CMAKE_PREFIX_PATH=/github/home/.local
+          export PATH=/github/home/.local/bin:$PATH
+          colcon build --symlink-install --event-handlers console_cohesion+

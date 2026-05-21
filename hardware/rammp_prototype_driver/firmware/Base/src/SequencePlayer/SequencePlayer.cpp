@@ -91,8 +91,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     }
   }
 
-  // Guarded format: 60 values (targets, active, relative, durations, guards ×
-  // 10)
+  // Guarded format: 60 values
   if (count == SEQ_NUM_MOTORS * 6) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = vals[i];
@@ -105,7 +104,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     return true;
   }
 
-  // Standard format: 40 values (targets, active, relative, durations × 10)
+  // Standard format: 40 values
   if (count == SEQ_NUM_MOTORS * 4) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = vals[i];
@@ -118,7 +117,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     return true;
   }
 
-  // Compact format: 21 values (10 targets, 10 active, one global duration)
+  // Compact format: 21 values
   if (count == SEQ_NUM_MOTORS * 2 + 1) {
     uint32_t global_dur = (uint32_t)vals[SEQ_NUM_MOTORS * 2];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {

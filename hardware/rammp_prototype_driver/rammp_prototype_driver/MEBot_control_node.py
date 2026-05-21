@@ -66,6 +66,8 @@ def _compute_zone(fb: int, lr: int) -> int:
 SEAT_MOVE_DURATION_MS = 1000
 CALIBRATION_PWM = -0.2
 
+# Per-motor deltas for seat commands (motors 0-7 only; ODrive slots 8-9 inactive).
+# Order: RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR, OD_R, OD_L
 SEAT_DELTAS: dict[int, list[float]] = {
     SeatCommand.RAISE: [70.0, 0.0, 40.0, 40.0, 0.0, 0.0, 0.0, 0.0],
     SeatCommand.LOWER: [-70.0, 0.0, -40.0, -40.0, 0.0, 0.0, 0.0, 0.0],
@@ -86,8 +88,10 @@ def _load_keyframes_from_json(json_path: str) -> list[Keyframe]:
 
 def _build_seat_keyframe(deltas: list[float], duration_ms: int, command) -> Keyframe:
     kf = Keyframe()
-    kf.targets = list(deltas)
     kf.duration_ms = duration_ms
+    # Always NUM_MOTORS slots; ODrive indices 8-9 stay None (inactive).
+    for i, d in enumerate(deltas[:NUM_MOTORS]):
+        kf.targets[i] = float(d)
 
     if command == SeatCommand.RESET:
         kf.relative = [False] * NUM_MOTORS
@@ -180,6 +184,11 @@ class MEBotControlNode(Node):
             self.ser = None
 
         self.lock = threading.Lock()
+
+        self.get_logger().info(
+            f"Sequence keyframes use NUM_MOTORS={NUM_MOTORS} "
+            f"(firmware expects 40 CSV fields per keyframe)"
+        )
 
         # diagnostics updater init
         # self.updater = diagnostic_updater.Updater(self)
@@ -391,11 +400,20 @@ class MEBotControlNode(Node):
     def send_sequence(self, keyframes: list[Keyframe], auto_run: bool = True):
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(True))
         for idx, kf in enumerate(keyframes):
-            targets = [t if t is not None else 0.0 for t in kf.targets]
-            active = [t is not None for t in kf.targets]
+            # Always emit NUM_MOTORS fields (firmware rejects 8-motor / 32-value frames).
+            targets = [0.0] * NUM_MOTORS
+            active = [False] * NUM_MOTORS
+            for i in range(NUM_MOTORS):
+                t = kf.targets[i] if i < len(kf.targets) else None
+                if t is not None:
+                    targets[i] = float(t)
+                    active[i] = True
+            relative = list(kf.relative[:NUM_MOTORS])
+            while len(relative) < NUM_MOTORS:
+                relative.append(False)
             durations = [
                 kf.motor_durations[i]
-                if kf.motor_durations[i] is not None
+                if i < len(kf.motor_durations) and kf.motor_durations[i] is not None
                 else kf.duration_ms
                 for i in range(NUM_MOTORS)
             ]
@@ -404,14 +422,21 @@ class MEBotControlNode(Node):
                 targets,
                 active,
                 durations,
-                kf.relative,
+                relative,
                 guard_threshold=kf.guard_threshold,
                 guard_condition=kf.guard_condition,
             )
-            self.get_logger().debug(
-                f"Keyframe {idx}: {len(line.decode().strip().split(':', 1)[1].split(','))} "
-                f"fields (firmware expects {NUM_MOTORS * 4} for standard format)"
+            payload = line.decode().strip().split(":", 1)[1]
+            n_fields = len(payload.split(","))
+            self.get_logger().info(
+                f"Keyframe {idx}: sending {n_fields} fields "
+                f"(standard={NUM_MOTORS * 4}, guarded={NUM_MOTORS * 6})"
             )
+            if n_fields not in (NUM_MOTORS * 4, NUM_MOTORS * 6, NUM_MOTORS * 2 + 1):
+                self.get_logger().error(
+                    f"Keyframe {idx} field count {n_fields} does not match "
+                    f"NUM_MOTORS={NUM_MOTORS}; Teensy will reject with SEQ_ERR"
+                )
             self.write_serial_data(line)
         if auto_run:
             self.write_serial_data(ProtocolEncoder.seq_auto_run(True))

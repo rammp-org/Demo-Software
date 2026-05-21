@@ -399,20 +399,20 @@ class MEBotControlNode(Node):
                 else kf.duration_ms
                 for i in range(NUM_MOTORS)
             ]
-            self.write_serial_data(
-                ProtocolEncoder.send_keyframe(
-                    idx,
-                    targets,
-                    active,
-                    durations,
-                    kf.relative,
-                    guard_threshold=kf.guard_threshold,
-                    guard_condition=kf.guard_condition,
-                    odrive_active=kf.odrive_active,
-                    odrive_relative=kf.odrive_relative,
-                    odrive_targets=kf.odrive_targets,
-                )
+            line = ProtocolEncoder.send_keyframe(
+                idx,
+                targets,
+                active,
+                durations,
+                kf.relative,
+                guard_threshold=kf.guard_threshold,
+                guard_condition=kf.guard_condition,
             )
+            self.get_logger().debug(
+                f"Keyframe {idx}: {len(line.decode().strip().split(':', 1)[1].split(','))} "
+                f"fields (firmware expects {NUM_MOTORS * 4} for standard format)"
+            )
+            self.write_serial_data(line)
         if auto_run:
             self.write_serial_data(ProtocolEncoder.seq_auto_run(True))
         self.write_serial_data(ProtocolEncoder.seq_step_forward())

@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include "SequencePlayer.h"
 #include "../Motor/Motor.h"
-#include "../ODrive/ODrive.h"
 #include "../CommandParser/CommandParser.h"
 
 // ---------------------------------------------------------------------------
@@ -15,7 +14,6 @@ static int seq_current = -1;
 static bool seq_interpolating = false;
 static unsigned long seq_interp_start = 0;
 static float seq_start_pos[SEQ_NUM_MOTORS];
-static float seq_start_pos_odrives[SEQ_NUM_ODRIVES];
 
 // Settling phase: lerp finished, waiting for motors to physically arrive.
 static bool seq_settling = false;
@@ -37,13 +35,6 @@ static inline float finalTarget(const Keyframe &kf, int i) {
   return kf.targets[i];                      // absolute position
 }
 
-// ODrive note: odrive final target function
-static inline float finalTargetOdrive(const Keyframe &kf, int i) {
-  if (kf.odrive_relative[0])
-    return seq_start_pos_odrives[i] + kf.odrive_targets[0]; // relative delta
-  return kf.odrive_targets[0];                              // absolute position
-}
-
 // A "delta-zero" motor is active but has a relative target of 0 — meaning
 // "don't move, just wait."  These motors should not enter position control
 // and should not draw power; only their duration contributes to keyframe
@@ -53,8 +44,7 @@ static inline bool isDeltaZero(const Keyframe &kf, int i) {
 }
 
 // Begin interpolation toward the current keyframe.
-static void beginInterp(Motor *motors[SEQ_NUM_MOTORS],
-                        ODrive *odrives[SEQ_NUM_ODRIVES]) {
+static void beginInterp(Motor *motors[SEQ_NUM_MOTORS]) {
   const Keyframe &kf = seq_keyframes[seq_current];
 
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
@@ -68,20 +58,10 @@ static void beginInterp(Motor *motors[SEQ_NUM_MOTORS],
     } else if (kf.active[i]) {
       // Re-enable active motors that may have been disabled by a previous
       // delta-zero keyframe.  setMode resets PIDs on mode change.
-
       motors[i]->setMode(Motor::POSITION_CONTROL);
       motors[i]->setTargetPosition(motors[i]->current_pos);
     }
   }
-  // ODrive note: Set mode and target and non jumping position for odrive
-  if (kf.odrive_active[0]) {
-    for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
-      seq_start_pos_odrives[i] = odrives[i]->current_pos;
-      odrives[i]->setMode(ODrive::POSITION_CONTROL);
-      odrives[i]->setTargetPosition(odrives[i]->getCurrentPosition());
-    }
-  }
-
   seq_interp_start = millis();
   seq_interpolating = true;
   seq_settling = false;
@@ -96,10 +76,9 @@ static void beginInterp(Motor *motors[SEQ_NUM_MOTORS],
 // ---------------------------------------------------------------------------
 //  Payload parser (supports new 32-value and legacy 17-value formats)
 // ---------------------------------------------------------------------------
-
 bool parseKeyframePayload(const String &payload, Keyframe &kf) {
   // Maximum possible values: 8*6 = 48
-  const int MAX_VALS = SEQ_NUM_MOTORS * 9; // ODrive note: add 3 for odrives
+  const int MAX_VALS = SEQ_NUM_MOTORS * 6;
   float vals[MAX_VALS];
   int count = 0;
   int start = 0;
@@ -112,10 +91,9 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     }
   }
 
-  //-------WITHOUT ODRIVES FORMAT-------
   // New guarded format: 48 values (targets, active, relative, durations,
   // guard_thresholds, guard_conditions)
-  if (count == SEQ_NUM_MOTORS * 6) { // ODrive note: add 3 for odrives
+  if (count == SEQ_NUM_MOTORS * 6) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = vals[i];
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
@@ -128,7 +106,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
   }
 
   // New format: 32 values  (targets, active, relative, durations)
-  if (count == SEQ_NUM_MOTORS * 4) { // ODrive note: add 3 for odrives
+  if (count == SEQ_NUM_MOTORS * 4) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = vals[i];
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
@@ -141,7 +119,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
   }
 
   // Legacy format: 17 values  (targets, active, one global duration)
-  if (count == SEQ_NUM_MOTORS * 2 + 1) { // ODrive note: add 3 for odrives
+  if (count == SEQ_NUM_MOTORS * 2 + 1) {
     uint32_t global_dur = (uint32_t)vals[SEQ_NUM_MOTORS * 2];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = vals[i];
@@ -150,60 +128,6 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
       kf.duration_ms[i] = global_dur;
       kf.guard_threshold[i] = 0.0f;
       kf.guard_condition[i] = GUARD_NONE;
-    }
-    return true;
-  }
-
-  //-------WITH ODRIVES FORMAT-------
-  // New guarded format: 48 values (targets, active, relative, durations,
-  // guard_thresholds, guard_conditions)
-  if (count == SEQ_NUM_MOTORS * 9) { // ODrive note: add 3 for odrives
-    for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      kf.targets[i] = vals[i];
-      kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
-      kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
-      kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
-      kf.guard_threshold[i] = vals[SEQ_NUM_MOTORS * 4 + i];
-      kf.guard_condition[i] = (uint8_t)vals[SEQ_NUM_MOTORS * 5 + i];
-
-      kf.odrive_active[i] = (vals[SEQ_NUM_MOTORS * 6 + i] > 0.5f);
-      kf.odrive_relative[i] = (vals[SEQ_NUM_MOTORS * 7 + i] > 0.5f);
-      kf.odrive_targets[i] = vals[SEQ_NUM_MOTORS * 8 + i];
-    }
-    return true;
-  }
-
-  // New format: 32 values  (targets, active, relative, durations)
-  if (count == SEQ_NUM_MOTORS * 7) { // ODrive note: add 3 for odrives
-    for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      kf.targets[i] = vals[i];
-      kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
-      kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
-      kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
-      kf.guard_threshold[i] = 0.0f;
-      kf.guard_condition[i] = GUARD_NONE;
-
-      kf.odrive_active[i] = (vals[SEQ_NUM_MOTORS * 4 + i] > 0.5f);
-      kf.odrive_relative[i] = (vals[SEQ_NUM_MOTORS * 5 + i] > 0.5f);
-      kf.odrive_targets[i] = vals[SEQ_NUM_MOTORS * 6 + i];
-    }
-    return true;
-  }
-
-  // Legacy format: 17 values  (targets, active, one global duration)
-  if (count == SEQ_NUM_MOTORS * 5 + 1) { // ODrive note: add 3 for odrives
-    uint32_t global_dur = (uint32_t)vals[SEQ_NUM_MOTORS * 2];
-    for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      kf.targets[i] = vals[i];
-      kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
-      kf.relative[i] = false;
-      kf.duration_ms[i] = global_dur;
-      kf.guard_threshold[i] = 0.0f;
-      kf.guard_condition[i] = GUARD_NONE;
-
-      kf.odrive_active[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
-      kf.odrive_relative[i] = (vals[SEQ_NUM_MOTORS * 3 + i] > 0.5f);
-      kf.odrive_targets[i] = vals[SEQ_NUM_MOTORS * 4 + i];
     }
     return true;
   }
@@ -214,9 +138,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
 // ---------------------------------------------------------------------------
 //  Enter / Exit
 // ---------------------------------------------------------------------------
-
-void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
-                   ODrive *odrives[SEQ_NUM_ODRIVES]) {
+void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS]) {
   seq_length = 0;
   seq_current = -1;
   seq_interpolating = false;
@@ -242,26 +164,12 @@ void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
     motors[i]->setTargetPosition(motors[i]->current_pos);
     seq_start_pos[i] = motors[i]->current_pos;
   }
-
-  for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
-    odrives[i]->setMode(ODrive::POSITION_CONTROL);
-    odrives[i]->setTargetPosition(odrives[i]->getCurrentPosition());
-    seq_start_pos_odrives[i] = odrives[i]->getCurrentPosition();
-  }
 }
 
-void sequenceExit(Motor *motors[SEQ_NUM_MOTORS],
-                  ODrive *odrives[SEQ_NUM_ODRIVES]) {
+void sequenceExit(Motor *motors[SEQ_NUM_MOTORS]) {
   // Disable actuators before tearing down state (actuators off first).
-  // float pos = odrives[0]->getCurrentPosition();
-  // Serial.print("ODrive current position in sequenceExit: ");
-  // Serial.println(pos);
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
     motors[i]->disable();
-  }
-
-  for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
-    odrives[i]->disable();
   }
 
   seq_auto_run = false;
@@ -274,7 +182,6 @@ void sequenceExit(Motor *motors[SEQ_NUM_MOTORS],
 // ---------------------------------------------------------------------------
 void sequenceHandleCommand(const RobotCommand &cmd,
                            Motor *motors[SEQ_NUM_MOTORS],
-                           ODrive *odrives[SEQ_NUM_ODRIVES],
                            const String &payload) {
   // ---- Keyframe upload ----
   if (cmd.type == CMD_SEQ_KEYFRAME) {
@@ -299,7 +206,7 @@ void sequenceHandleCommand(const RobotCommand &cmd,
   if (cmd.type == CMD_SEQ_STEP_FWD) {
     if (!seq_interpolating && !seq_settling && seq_current < seq_length - 1) {
       seq_current++;
-      beginInterp(motors, odrives);
+      beginInterp(motors);
     }
     return;
   }
@@ -308,7 +215,7 @@ void sequenceHandleCommand(const RobotCommand &cmd,
   if (cmd.type == CMD_SEQ_STEP_BWD) {
     if (!seq_interpolating && !seq_settling && seq_current > 0) {
       seq_current--;
-      beginInterp(motors, odrives);
+      beginInterp(motors);
     }
     return;
   }
@@ -319,7 +226,7 @@ void sequenceHandleCommand(const RobotCommand &cmd,
     if (!seq_interpolating && !seq_settling && target_step >= 0 &&
         target_step < seq_length) {
       seq_current = target_step;
-      beginInterp(motors, odrives);
+      beginInterp(motors);
     }
     return;
   }
@@ -328,8 +235,7 @@ void sequenceHandleCommand(const RobotCommand &cmd,
 // ---------------------------------------------------------------------------
 //  Update (called every loop iteration while in AUTO_CURB_CLIMBING)
 // ---------------------------------------------------------------------------
-void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
-                    ODrive *odrives[SEQ_NUM_ODRIVES]) {
+void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS]) {
   if (!seq_interpolating || seq_current < 0 || seq_current >= seq_length)
     return;
 
@@ -388,26 +294,6 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
       }
     }
 
-    //---ODRIVES INTERPOLATION LOOP---
-    for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
-      float t_i = (kf.duration_ms[0] == 0)
-                      ? 1.0f
-                      : min(1.0f, (float)elapsed / (float)kf.duration_ms[0]);
-      if (t_i < 1.0f) {
-        all_lerps_done = false;
-      }
-      if (!kf.odrive_active[0])
-        continue;
-      float dest = finalTargetOdrive(kf, i);
-      float pos =
-          seq_start_pos_odrives[i] + t_i * (dest - seq_start_pos_odrives[i]);
-      // Serial.print("ODrive target position in sequenceUpdate: ");
-      // Serial.println(pos);
-      odrives[i]->setTargetPosition(pos);
-    }
-
-    // ODrive note: odrives not included in this debug print (blocking motors
-    // don't track odrives)
     if (elapsed % 500 < 20 && !all_lerps_done) {
       Serial.print("SEQ_LERP,elapsed=");
       Serial.print(elapsed);
@@ -440,14 +326,6 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
           motors[i]->setTargetPosition(final_dest);
         }
       }
-      // ODrive loop
-      for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
-        if (!kf.odrive_active[0])
-          continue;
-        float dest = finalTargetOdrive(kf, i);
-        odrives[i]->setTargetPosition(dest);
-      }
-
       seq_settling = true;
       seq_settle_start = millis();
 
@@ -457,7 +335,6 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
       Serial.print(seq_length);
       Serial.println(",2"); // 2 = settling
     }
-
     return;
   }
 
@@ -490,22 +367,9 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
     }
   }
 
-  // ODrive loop
-  for (int i = 0; i < SEQ_NUM_ODRIVES; i++) {
-    if (!kf.odrive_active[0])
-      continue;
-    float dest = finalTargetOdrive(kf, i);
-    float err = fabs(odrives[i]->getCurrentPosition() - dest);
-    // Serial.print("ODrive error in sequenceUpdate: ");
-    // Serial.println(err);
-    if (err > 0.1f) {
-      all_settled = false;
-    }
-  }
-
   bool timed_out = settle_elapsed > SEQ_COMPLETION_TIMEOUT_MS;
 
-  if (all_settled) { // ODrive note: removed || timeout check for testing odrive
+  if (all_settled || timed_out) {
     // ---- Keyframe complete ----
     seq_settling = false;
 
@@ -515,7 +379,7 @@ void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
     // Auto-run: advance to next keyframe if available.
     if (seq_auto_run && seq_current < seq_length - 1) {
       seq_current++;
-      beginInterp(motors, odrives); // sends SEQ_STATUS ...,1
+      beginInterp(motors); // sends SEQ_STATUS ...,1
     } else {
       seq_interpolating = false;
       Serial.print("SEQ_STATUS,");

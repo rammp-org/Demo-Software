@@ -1,7 +1,8 @@
 """
 Keyframe data model for the Teensy sequence player.
 
-Qt-free copy shared with pid_tuner; used by the ROS driver and tuning GUI.
+This module is Qt-free so it can be imported by both the pid_tuner GUI
+and the ROS driver without pulling in PyQt6.
 
 Motor order: [RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR]
 """
@@ -13,36 +14,6 @@ from typing import List, Optional
 # Number of motors controlled by the sequence player (must match firmware SEQ_NUM_MOTORS)
 NUM_MOTORS = 8
 
-# ODrive columns in the sequence editor map to slots 0 (L) and 1 (R) in odrive_* arrays.
-# Current Teensy SequencePlayer applies odrive_active[0] / odrive_targets[0] to both axes.
-ODRIVE_SLOT_L = 0
-ODRIVE_SLOT_R = 1
-
-
-def odrive_arrays_for_firmware(
-    kf: "Keyframe",
-) -> tuple[list[bool], list[bool], list[float]]:
-    """
-    Build 8-wide odrive_* arrays for J-upload without changing Teensy SequencePlayer.
-
-    The GUI may edit L/R in slots 0/1; firmware motion uses slot 0 for both ODrives.
-    """
-    active = list(kf.odrive_active)
-    relative = list(kf.odrive_relative)
-    targets = list(kf.odrive_targets)
-
-    l_on = active[ODRIVE_SLOT_L]
-    r_on = active[ODRIVE_SLOT_R]
-    active[ODRIVE_SLOT_L] = l_on or r_on
-    if active[ODRIVE_SLOT_L]:
-        if l_on:
-            targets[ODRIVE_SLOT_L] = kf.odrive_targets[ODRIVE_SLOT_L]
-            relative[ODRIVE_SLOT_L] = kf.odrive_relative[ODRIVE_SLOT_L]
-        else:
-            targets[ODRIVE_SLOT_L] = kf.odrive_targets[ODRIVE_SLOT_R]
-            relative[ODRIVE_SLOT_L] = kf.odrive_relative[ODRIVE_SLOT_R]
-    return active, relative, targets
-
 
 class Keyframe:
     def __init__(self):
@@ -53,10 +24,6 @@ class Keyframe:
         self.motor_durations: List[Optional[int]] = [None] * NUM_MOTORS
         self.guard_threshold: List[float] = [0.0] * NUM_MOTORS
         self.guard_condition: List[int] = [0] * NUM_MOTORS
-
-        self.odrive_active: List[bool] = [False] * NUM_MOTORS
-        self.odrive_relative: List[bool] = [False] * NUM_MOTORS
-        self.odrive_targets: List[float] = [0.0] * NUM_MOTORS
 
     def is_active(self, motor_idx: int) -> bool:
         return self.targets[motor_idx] is not None
@@ -72,9 +39,6 @@ class Keyframe:
             ],
             "guard_threshold": list(self.guard_threshold),
             "guard_condition": list(self.guard_condition),
-            "odrive_active": list(self.odrive_active),
-            "odrive_relative": list(self.odrive_relative),
-            "odrive_targets": list(self.odrive_targets),
         }
 
     @classmethod
@@ -108,19 +72,4 @@ class Keyframe:
         while len(raw_guard_condition) < NUM_MOTORS:
             raw_guard_condition.append(0)
         kf.guard_condition = [int(v) for v in raw_guard_condition[:NUM_MOTORS]]
-
-        raw_odrive_active = d.get("odrive_active", [False] * NUM_MOTORS)
-        while len(raw_odrive_active) < NUM_MOTORS:
-            raw_odrive_active.append(False)
-        kf.odrive_active = [bool(v) for v in raw_odrive_active[:NUM_MOTORS]]
-
-        raw_odrive_relative = d.get("odrive_relative", [False] * NUM_MOTORS)
-        while len(raw_odrive_relative) < NUM_MOTORS:
-            raw_odrive_relative.append(False)
-        kf.odrive_relative = [bool(v) for v in raw_odrive_relative[:NUM_MOTORS]]
-
-        raw_odrive_targets = d.get("odrive_targets", [0.0] * NUM_MOTORS)
-        while len(raw_odrive_targets) < NUM_MOTORS:
-            raw_odrive_targets.append(0.0)
-        kf.odrive_targets = [float(v) for v in raw_odrive_targets[:NUM_MOTORS]]
         return kf

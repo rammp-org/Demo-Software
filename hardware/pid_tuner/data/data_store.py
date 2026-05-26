@@ -330,7 +330,7 @@ class DataStore(QObject):
     seq_status_updated = pyqtSignal(int, int, int)
     seq_targets_changed = pyqtSignal()
 
-    NUM_JOINTS = 10
+    NUM_JOINTS = 8
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
     SIMULATION_UPDATE_MS = 20  # 50 Hz simulation rate
     DATA_UPDATE_THROTTLE_MS = 50  # Max 20Hz for data_updated signal
@@ -391,17 +391,9 @@ class DataStore(QObject):
         self._raw_ml_enc_vel: float = 0.0
         self._raw_mr_enc_vel: float = 0.0
 
-        self._odrive_l_pos: float = 0.0
-        self._odrive_r_pos: float = 0.0
-        self._odrive_l_torque_nm: float = 0.0
-        self._odrive_r_torque_nm: float = 0.0
-
-        # Motor directions (RoboClaw joints 1–6 + drive 7–8; unused for ODrive 9–10)
-        self._motor_directions: List[int] = [1] * self.NUM_JOINTS
-        self._encoder_directions: List[int] = [1] * self.NUM_JOINTS
-        # ODrive axes use position mode when selected (no M-command on Teensy)
-        self._control_modes[8] = 2
-        self._control_modes[9] = 2
+        # Motor directions (6 motors)
+        self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1, 1, 1]
+        self._encoder_directions: List[int] = [1, 1, 1, 1, 1, 1, 1, 1]
 
         # PID configurations (dict of joint_id -> ConfigData)
         self._configs: dict = {}
@@ -642,22 +634,6 @@ class DataStore(QObject):
         return self._raw_mr_enc_vel
 
     @property
-    def odrive_l_pos(self) -> float:
-        return self._odrive_l_pos
-
-    @property
-    def odrive_r_pos(self) -> float:
-        return self._odrive_r_pos
-
-    @property
-    def odrive_l_torque_nm(self) -> float:
-        return self._odrive_l_torque_nm
-
-    @property
-    def odrive_r_torque_nm(self) -> float:
-        return self._odrive_r_torque_nm
-
-    @property
     def motor_directions(self) -> List[int]:
         """Get motor directions (1 or -1 for each of 6 motors)."""
         return self._motor_directions
@@ -771,15 +747,6 @@ class DataStore(QObject):
             self._raw_mr_enc_pos = data.raw_mr_enc_pos
             self._raw_ml_enc_vel = data.raw_ml_enc_vel
             self._raw_mr_enc_vel = data.raw_mr_enc_vel
-
-        if hasattr(data, "odrive_l_pos"):
-            self._odrive_l_pos = data.odrive_l_pos
-            self._odrive_r_pos = data.odrive_r_pos
-            self._joints[8].add_sample(data.timestamp_ms, data.odrive_l_pos, 0.0, 0.0)
-            self._joints[9].add_sample(data.timestamp_ms, data.odrive_r_pos, 0.0, 0.0)
-        if hasattr(data, "odrive_l_torque_nm"):
-            self._odrive_l_torque_nm = data.odrive_l_torque_nm
-            self._odrive_r_torque_nm = data.odrive_r_torque_nm
 
         # Feed drive wheel data into JointData for joints 7 (Drive FB) and 8 (Drive LR)
         # so the plotter can display them when selected.

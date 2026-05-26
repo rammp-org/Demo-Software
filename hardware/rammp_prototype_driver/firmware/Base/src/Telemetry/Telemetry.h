@@ -26,8 +26,6 @@ enum SystemState {
 // raw_enc: direction-corrected individual ML/MR encoder readings
 // drive_directions: motor direction for drive_fb/drive_lr
 // drive_enc_directions: encoder direction for drive_fb/drive_lr
-// odrive_l/r position: logical frame (wrapper sign); CSV also appends torque
-// (Nm)
 struct SystemTelemetry {
   SystemState state;
   float positions[6];
@@ -49,8 +47,6 @@ struct SystemTelemetry {
   float raw_enc_velocities[2];
   int drive_directions[2];
   int drive_enc_directions[2];
-  float odrive_l_position;
-  float odrive_r_position;
 };
 
 // Extern declarations for globals accessed by telemetry functions
@@ -58,7 +54,6 @@ struct SystemTelemetry {
 class Motor;
 class IMU_Class;
 class StrainGauge;
-class ODrive;
 
 extern SystemState current_state;
 extern SystemTelemetry telemetry;
@@ -69,8 +64,6 @@ extern float raw_ml_enc_vel, raw_mr_enc_vel;
 extern IMU_Class IMU;
 extern StrainGauge sg_rc, sg_fc, sg_ml, sg_mr;
 extern bool ml_fwd_limit, ml_bwd_limit, mr_fwd_limit, mr_bwd_limit;
-extern ODrive ODriveR;
-extern ODrive ODriveL;
 
 // Update telemetry struct from current sensor/motor state
 void updateTelemetry();

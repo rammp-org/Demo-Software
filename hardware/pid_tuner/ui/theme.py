@@ -95,8 +95,6 @@ JOINT_COLORS = [
     THEME.mauve,  # Joint 6: MR_Carriage
     THEME.teal,  # Joint 7: Drive FB
     THEME.flamingo,  # Joint 8: Drive LR
-    THEME.teal,  # Joint 9: ODrive L
-    THEME.mauve,  # Joint 10: ODrive R
 ]
 
 # State colors

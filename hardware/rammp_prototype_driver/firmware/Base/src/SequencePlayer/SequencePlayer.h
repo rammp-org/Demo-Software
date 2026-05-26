@@ -2,14 +2,12 @@
 #define SEQUENCE_PLAYER_H
 
 #include <Arduino.h>
-// #include "src/ODrive/ODrive.h"
-class ODrive;
+
 class Motor;
 struct RobotCommand;
 
 #define MAX_SEQ_KEYFRAMES 20
 #define SEQ_NUM_MOTORS 8
-#define SEQ_NUM_ODRIVES 2
 #define SEQ_NUM_POS_MOTORS 6
 
 static const float SEQ_COMPLETION_DEADZONE[SEQ_NUM_MOTORS] = {
@@ -41,10 +39,6 @@ struct Keyframe {
   uint32_t duration_ms[SEQ_NUM_MOTORS]; // per-motor interpolation durations
   float guard_threshold[SEQ_NUM_MOTORS];
   uint8_t guard_condition[SEQ_NUM_MOTORS];
-
-  bool odrive_active[SEQ_NUM_MOTORS];
-  bool odrive_relative[SEQ_NUM_MOTORS];
-  float odrive_targets[SEQ_NUM_MOTORS];
 };
 
 // Parse CSV payload into a Keyframe.
@@ -55,23 +49,19 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf);
 
 // Initialize sequence state when entering AUTO_CURB_CLIMBING mode.
 // ALL 8 motors are placed in POSITION_CONTROL for the duration of the sequence.
-void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS],
-                   ODrive *odrives[SEQ_NUM_ODRIVES]);
+void sequenceEnter(Motor *motors[SEQ_NUM_MOTORS]);
 
 // Cleanup on mode exit.  All motors are disabled (zero power, PIDs reset).
 // SAFETY: must be called on ALL exit paths to prevent uncontrolled motion.
-void sequenceExit(Motor *motors[SEQ_NUM_MOTORS],
-                  ODrive *odrives[SEQ_NUM_ODRIVES]);
+void sequenceExit(Motor *motors[SEQ_NUM_MOTORS]);
 
 // Handle incoming sequence commands (keyframe upload, step, goto).
 void sequenceHandleCommand(const RobotCommand &cmd,
                            Motor *motors[SEQ_NUM_MOTORS],
-                           ODrive *odrives[SEQ_NUM_ODRIVES],
                            const String &payload);
 
 // Tick interpolation / settling / auto-run (called every loop).
-void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS],
-                    ODrive *odrives[SEQ_NUM_ODRIVES]);
+void sequenceUpdate(Motor *motors[SEQ_NUM_MOTORS]);
 
 // Auto-run: automatically advance to the next keyframe on completion.
 void sequenceSetAutoRun(bool enable);

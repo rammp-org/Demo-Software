@@ -69,8 +69,3 @@ float64 tilt
 
 #other
 float64 app_time
-
-# ODrive motor torque estimates (axis0.motor.torque_estimate), logical frame
-# Unit: Newton-meters (Nm)
-float32 odrive_l_torque_nm
-float32 odrive_r_torque_nm

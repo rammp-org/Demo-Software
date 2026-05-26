@@ -743,6 +743,11 @@ void loop() {
   } else if (cmd.type == CMD_MANUAL_CONTROL) {
     if (cmd.actuator_id == 1) {
       current_state = MANUAL_CONTROL;
+      MotorBase *joints[] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
+      for (auto *m : joints) {
+        m->setMode(MotorBase::OPEN_LOOP);
+        m->setTargetPWM(0.0f);
+      }
       Serial.println("Entered manual control");
     } else if (cmd.actuator_id == 0) {
       current_state = IDLE;

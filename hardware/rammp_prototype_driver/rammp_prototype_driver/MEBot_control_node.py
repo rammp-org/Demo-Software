@@ -726,7 +726,7 @@ class MEBotControlNode(Node):
             del buttons_array[1:3]
             buttons_array[2], buttons_array[4] = buttons_array[4], buttons_array[2]
             buttons_array[3], buttons_array[5] = buttons_array[5], buttons_array[3]
-            self.get_logger().info(str(buttons_array))
+            # self.get_logger().info(str(buttons_array))
             pwm_scale = 0.20
             lines = []
             for i in range(len(buttons_array)):

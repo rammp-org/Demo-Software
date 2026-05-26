@@ -24,10 +24,6 @@ class Keyframe:
         self.guard_threshold: List[float] = [0.0] * NUM_MOTORS
         self.guard_condition: List[int] = [0] * NUM_MOTORS
 
-        self.odrive_active: List[bool] = [False] * NUM_MOTORS
-        self.odrive_relative: List[bool] = [False] * NUM_MOTORS
-        self.odrive_targets: List[float] = [0.0] * NUM_MOTORS
-
     def is_active(self, motor_idx: int) -> bool:
         return self.targets[motor_idx] is not None
 
@@ -42,9 +38,6 @@ class Keyframe:
             ],
             "guard_threshold": list(self.guard_threshold),
             "guard_condition": list(self.guard_condition),
-            "odrive_active": list(self.odrive_active),
-            "odrive_relative": list(self.odrive_relative),
-            "odrive_targets": list(self.odrive_targets),
         }
 
     @classmethod
@@ -78,19 +71,4 @@ class Keyframe:
         while len(raw_guard_condition) < NUM_MOTORS:
             raw_guard_condition.append(0)
         kf.guard_condition = [int(v) for v in raw_guard_condition[:NUM_MOTORS]]
-
-        raw_odrive_active = d.get("odrive_active", [False] * NUM_MOTORS)
-        while len(raw_odrive_active) < NUM_MOTORS:
-            raw_odrive_active.append(False)
-        kf.odrive_active = [bool(v) for v in raw_odrive_active[:NUM_MOTORS]]
-
-        raw_odrive_relative = d.get("odrive_relative", [False] * NUM_MOTORS)
-        while len(raw_odrive_relative) < NUM_MOTORS:
-            raw_odrive_relative.append(False)
-        kf.odrive_relative = [bool(v) for v in raw_odrive_relative[:NUM_MOTORS]]
-
-        raw_odrive_targets = d.get("odrive_targets", [0.0] * NUM_MOTORS)
-        while len(raw_odrive_targets) < NUM_MOTORS:
-            raw_odrive_targets.append(0.0)
-        kf.odrive_targets = [float(v) for v in raw_odrive_targets[:NUM_MOTORS]]
         return kf

@@ -5,17 +5,25 @@
 
 class EncoderContainer {
 public:
-  // Quadrature encoder pin pairs. Logical indices 1–12 → joints: see
-  // EncoderContainer.cpp (must match motor_map in Base.ino).
+  // Position sensors pin selection
+  // TODO: find out what this does
   float K_sensors = 1;
-  // Encoder Enc2 = Encoder(1, 0);    // RC top — pins repurposed (e.g. ODrive)
-  Encoder Enc3 =
-      Encoder(3, 2); // FC top (3,2) — also feeds motor_map enc 3 (rc)
+  // TODO: Enc9 and Enc10 are switched because MR carriage encoder wasn't
+  // working
+  // TODO: Enc4 and Enc6 were switched because Enc4 connection seems to freeze
+  // loop
+  // TODO: Enc1 and Enc2 are switched because of shock absorber, trying to find
+  // one that drifts less
+  Encoder Enc2 = Encoder(1, 0);    // RC bottom         (1,0)
+  Encoder Enc1 = Encoder(3, 2);    // RC top            (3,2)
+  Encoder Enc3 = Encoder(5, 4);    // FC top            (5,4)
   Encoder Enc6 = Encoder(7, 6);    // FC bottom         (7,6)
   Encoder Enc5 = Encoder(9, 8);    // ML drive wheel    (9,8)
-  Encoder Enc10 = Encoder(11, 10); // MR carriage         (11,10)
+  Encoder Enc4 = Encoder(11, 10);  // ML front          (11,10)
   Encoder Enc7 = Encoder(24, 12);  // ML carriage       (24,12)
   Encoder Enc8 = Encoder(26, 25);  // MR drive wheel    (26,25)
+  Encoder Enc10 = Encoder(28, 27); // MR carriage       (28,27)
+  Encoder Enc9 = Encoder(30, 29);  // MR front          (30,29)
   Encoder Enc11 = Encoder(32, 31); // ML back           (32,31)
   Encoder Enc12 = Encoder(36, 37); // MR back           (36,37)
   signed long encoder[13]; // = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };

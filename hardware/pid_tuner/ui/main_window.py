@@ -210,7 +210,7 @@ class MainWindow(QMainWindow):
         self._outer_splitter.addWidget(main_splitter)
         self._outer_splitter.setChildrenCollapsible(False)
         self._outer_splitter.setHandleWidth(4)
-        self._outer_splitter.setSizes([scaled(320), scaled(500)])
+        self._outer_splitter.setSizes([150, 500])
         self._outer_splitter.setStretchFactor(0, 0)
         self._outer_splitter.setStretchFactor(1, 1)
 

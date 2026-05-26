@@ -2,7 +2,8 @@
 Sequence / Trajectory Editor for AUTO_CURB_CLIMBING mode.
 
 Motor order: [RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR]
-All 8 motors use position interpolation during sequences.
+ODrive columns OD_L / OD_R (turns). Upload uses existing Teensy SequencePlayer
+odrive slot 0 for both axes when either column is active.
 """
 
 from __future__ import annotations
@@ -32,7 +33,14 @@ from PyQt6.QtGui import QColor, QFont, QBrush
 
 from ..data.data_store import DataStore
 from ..serial_driver.serial_handler import SerialHandler
-from ..serial_driver.keyframe import Keyframe, NUM_MOTORS
+from ..serial_driver.keyframe import (
+    Keyframe,
+    NUM_MOTORS,
+    ODRIVE_SLOT_L,
+    ODRIVE_SLOT_R,
+    odrive_arrays_for_firmware,
+)
+from ..data.joint_config import ODRIVE_JOINT_L, ODRIVE_JOINT_R
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
 
@@ -48,7 +56,9 @@ COL_ML_CAR = 5
 COL_MR_CAR = 6
 COL_DRIVE_FB = 7
 COL_DRIVE_LR = 8
-NUM_COLS = 9
+COL_OD_L = 9
+COL_OD_R = 10
+NUM_COLS = 11
 
 INACTIVE_TEXT = "--"
 
@@ -92,6 +102,14 @@ class SequenceEditor(QWidget):
         self._setup_ui()
         self._wire_signals()
         self._update_button_states()
+
+    @staticmethod
+    def _odrive_idx_for_col(col: int) -> Optional[int]:
+        if col == COL_OD_L:
+            return ODRIVE_SLOT_L
+        if col == COL_OD_R:
+            return ODRIVE_SLOT_R
+        return None
 
     # ------------------------------------------------------------------ #
     #  UI construction                                                      #
@@ -230,6 +248,8 @@ class SequenceEditor(QWidget):
             "MR_Car",
             "Drive_FB",
             "Drive_LR",
+            "OD_L",
+            "OD_R",
         ]
         self._table = QTableWidget(0, NUM_COLS)
         self._table.setHorizontalHeaderLabels(headers)
@@ -327,7 +347,7 @@ class SequenceEditor(QWidget):
 
         self._btn_capture = QPushButton("⊙ Capture Current Positions")
         self._btn_capture.setToolTip(
-            "Fill selected row with live motor positions from telemetry"
+            "Fill selected row with live RoboClaw and ODrive positions from telemetry"
         )
         self._btn_capture.setStyleSheet(f"""
             QPushButton {{
@@ -545,6 +565,57 @@ class SequenceEditor(QWidget):
             guard_item.setBackground(QBrush(QColor(THEME.surface0)))
             self._table.setItem(guard_row, col, guard_item)
 
+        for od_idx, col in ((ODRIVE_SLOT_L, COL_OD_L), (ODRIVE_SLOT_R, COL_OD_R)):
+            color_idx = 8 + od_idx
+            if not kf.odrive_active[od_idx]:
+                od_item = QTableWidgetItem(INACTIVE_TEXT)
+                od_item.setForeground(QBrush(QColor(THEME.overlay0)))
+                od_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            else:
+                text = f"{kf.odrive_targets[od_idx]:.2f}"
+                if kf.odrive_relative[od_idx]:
+                    text = f"Δ{text}"
+                od_item = QTableWidgetItem(text)
+                od_item.setForeground(
+                    QBrush(
+                        QColor(
+                            JOINT_COLORS[color_idx]
+                            if color_idx < len(JOINT_COLORS)
+                            else THEME.text
+                        )
+                    )
+                )
+                od_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if kf.odrive_relative[od_idx]:
+                    od_item.setBackground(QBrush(QColor(THEME.surface1)))
+            if col == COL_OD_L:
+                od_item.setToolTip(
+                    "Primary ODrive sequence target (Teensy uses slot 0 for both axes)"
+                )
+            else:
+                od_item.setToolTip(
+                    "Stored in slot 1; current Teensy firmware applies slot 0 to both axes"
+                )
+            self._table.setItem(position_row, col, od_item)
+
+            if od_idx == ODRIVE_SLOT_L:
+                od_dur = QTableWidgetItem(str(kf.duration_ms))
+                od_dur.setToolTip("ODrive move duration (Teensy uses RC duration slot)")
+            else:
+                od_dur = QTableWidgetItem("(shared)")
+                od_dur.setFlags(od_dur.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            od_dur.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            od_dur.setForeground(QBrush(QColor(THEME.subtext0)))
+            od_dur.setBackground(QBrush(QColor(THEME.crust)))
+            self._table.setItem(duration_row, col, od_dur)
+
+            od_guard = QTableWidgetItem(INACTIVE_TEXT)
+            od_guard.setFlags(od_guard.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            od_guard.setForeground(QBrush(QColor(THEME.overlay0)))
+            od_guard.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            od_guard.setBackground(QBrush(QColor(THEME.surface0)))
+            self._table.setItem(guard_row, col, od_guard)
+
         self._table.blockSignals(False)
 
     def _highlight_active_step(self):
@@ -600,13 +671,18 @@ class SequenceEditor(QWidget):
             return
 
         # position row (row % 3 == 0) — check for relative highlight
+        kf_idx = row // 3
         if COL_RC <= col <= COL_DRIVE_LR:
-            kf_idx = row // 3
             motor_idx = col - COL_RC
             if (
                 0 <= kf_idx < len(self._keyframes)
                 and self._keyframes[kf_idx].relative[motor_idx]
             ):
+                item.setBackground(QBrush(QColor(THEME.surface1)))
+                return
+        od_idx = self._odrive_idx_for_col(col)
+        if od_idx is not None and 0 <= kf_idx < len(self._keyframes):
+            if self._keyframes[kf_idx].odrive_relative[od_idx]:
                 item.setBackground(QBrush(QColor(THEME.surface1)))
                 return
         item.setBackground(QBrush())
@@ -650,6 +726,29 @@ class SequenceEditor(QWidget):
                 except ValueError:
                     pass
 
+        elif is_position_row and col in (COL_OD_L, COL_OD_R):
+            od_idx = self._odrive_idx_for_col(col)
+            if od_idx is None:
+                return
+            parse_text = text[1:] if text.startswith("Δ") else text
+            if parse_text == INACTIVE_TEXT or parse_text == "" or parse_text == "-":
+                kf.odrive_active[od_idx] = False
+            else:
+                try:
+                    kf.odrive_active[od_idx] = True
+                    kf.odrive_targets[od_idx] = float(parse_text)
+                except ValueError:
+                    pass
+
+        elif row % 3 == 1 and col == COL_OD_L:
+            if text in {"", "-", INACTIVE_TEXT}:
+                kf.duration_ms = 0
+            else:
+                try:
+                    kf.duration_ms = max(0, int(float(text)))
+                except ValueError:
+                    pass
+
         elif row % 3 == 1 and COL_RC <= col <= COL_DRIVE_LR:
             motor_idx = col - COL_RC
             if text in {"", "-", INACTIVE_TEXT}:
@@ -690,16 +789,23 @@ class SequenceEditor(QWidget):
 
         row = item.row()
         col = item.column()
-        if row % 3 != 0 or not (COL_RC <= col <= COL_DRIVE_LR):
+        if row % 3 != 0:
             return
 
         kf_idx = row // 3
         if kf_idx < 0 or kf_idx >= len(self._keyframes):
             return
 
-        motor_idx = col - COL_RC
         kf = self._keyframes[kf_idx]
-        kf.relative[motor_idx] = not kf.relative[motor_idx]
+        if COL_RC <= col <= COL_DRIVE_LR:
+            motor_idx = col - COL_RC
+            kf.relative[motor_idx] = not kf.relative[motor_idx]
+        elif col in (COL_OD_L, COL_OD_R):
+            od_idx = self._odrive_idx_for_col(col)
+            if od_idx is not None:
+                kf.odrive_relative[od_idx] = not kf.odrive_relative[od_idx]
+        else:
+            return
         self._set_keyframe_rows(kf_idx, kf)
         self._uploaded = False
         self._update_button_states()
@@ -808,6 +914,7 @@ class SequenceEditor(QWidget):
                 else kf.duration_ms
                 for i in range(NUM_MOTORS)
             ]
+            od_active, od_relative, od_targets = odrive_arrays_for_firmware(kf)
             self._serial_handler.send_keyframe(
                 idx,
                 targets,
@@ -816,6 +923,9 @@ class SequenceEditor(QWidget):
                 kf.relative,
                 guard_threshold=kf.guard_threshold,
                 guard_condition=kf.guard_condition,
+                odrive_active=od_active,
+                odrive_relative=od_relative,
+                odrive_targets=od_targets,
             )
 
         # Start a timeout — if not all ACKs arrive within 3s, warn the user
@@ -912,6 +1022,17 @@ class SequenceEditor(QWidget):
                 else:
                     kf.targets[i] = round(joint_data.current_position, 1)
 
+        if kf.odrive_relative[ODRIVE_SLOT_L]:
+            kf.odrive_targets[ODRIVE_SLOT_L] = 0.0
+        else:
+            kf.odrive_targets[ODRIVE_SLOT_L] = round(self._data_store.odrive_l_pos, 2)
+        if kf.odrive_relative[ODRIVE_SLOT_R]:
+            kf.odrive_targets[ODRIVE_SLOT_R] = 0.0
+        else:
+            kf.odrive_targets[ODRIVE_SLOT_R] = round(self._data_store.odrive_r_pos, 2)
+        kf.odrive_active[ODRIVE_SLOT_L] = True
+        kf.odrive_active[ODRIVE_SLOT_R] = True
+
     # ------------------------------------------------------------------ #
     #  Step commands                                                        #
     # ------------------------------------------------------------------ #
@@ -1004,6 +1125,10 @@ class SequenceEditor(QWidget):
             for i in range(NUM_MOTORS):
                 if kf.targets[i] is not None:
                     targets[i + 1] = kf.targets[i]
+            if kf.odrive_active[ODRIVE_SLOT_L]:
+                targets[ODRIVE_JOINT_L] = kf.odrive_targets[ODRIVE_SLOT_L]
+            if kf.odrive_active[ODRIVE_SLOT_R]:
+                targets[ODRIVE_JOINT_R] = kf.odrive_targets[ODRIVE_SLOT_R]
         self._data_store.set_seq_targets(targets)
 
     def _on_upload_timeout(self):

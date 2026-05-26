@@ -31,6 +31,10 @@ PC -> Teensy Protocol:
 
     ESTOP: z\n
     Clear ESTOP: c\n
+
+    ODrive position (TUNER_MODE): o<axis>:<pos> then newline.
+        axis 0 = both L+R same setpoint; 1 = left only; 2 = right only.
+        Example: o0:1.25
 """
 
 from dataclasses import dataclass, field
@@ -105,6 +109,10 @@ class EncoderData:
     drive_lr_dir: int = 1
     drive_fb_enc_dir: int = 1
     drive_lr_enc_dir: int = 1
+    odrive_l_pos: float = 0.0
+    odrive_r_pos: float = 0.0
+    odrive_l_torque_nm: float = 0.0
+    odrive_r_torque_nm: float = 0.0
 
     @property
     def num_joints(self) -> int:
@@ -330,6 +338,12 @@ class ProtocolParser:
                         data.drive_lr_dir = int(values[72])
                         data.drive_fb_enc_dir = int(values[73])
                         data.drive_lr_enc_dir = int(values[74])
+                    if len(values) >= 77:
+                        data.odrive_l_pos = values[75]
+                        data.odrive_r_pos = values[76]
+                    if len(values) >= 79:
+                        data.odrive_l_torque_nm = values[77]
+                        data.odrive_r_torque_nm = values[78]
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:
@@ -567,6 +581,22 @@ class ProtocolEncoder:
         return cmd.encode("ascii")
 
     @staticmethod
+    def set_odrive_position(axis_id: int, position: float) -> bytes:
+        """
+        Set ODrive position in TUNER_MODE (Teensy `o<id>:<pos>`).
+        axis_id 0 = both L and R same setpoint; 1 = left only; 2 = right only.
+        """
+        return f"o{int(axis_id)}:{position:.4f}\n".encode("ascii")
+
+    @staticmethod
+    def set_odrive_velocity(axis_id: int, velocity: float) -> bytes:
+        """
+        Set ODrive velocity in TUNER_MODE (Teensy `y<id>:<vel>`).
+        axis_id 0 = both L and R same setpoint; 1 = left only; 2 = right only.
+        """
+        return f"y{int(axis_id)}:{velocity:.4f}\n".encode("ascii")
+
+    @staticmethod
     def enter_sequence_mode(enable: bool) -> bytes:
         val = 1 if enable else 0
         return f"B1:{val}\n".encode("ascii")
@@ -585,12 +615,21 @@ class ProtocolEncoder:
         relative: Optional[List[bool]] = None,
         guard_threshold: Optional[List[float]] = None,
         guard_condition: Optional[List[int]] = None,
+        odrive_active: Optional[List[bool]] = None,
+        odrive_relative: Optional[List[bool]] = None,
+        odrive_targets: Optional[List[float]] = None,
     ) -> bytes:
         """
         Upload one keyframe.  Sends the new 32-value format:
         targets(8), active(8), relative(8), durations(8).
         duration_ms: single int (broadcast to all motors) or list of 8 ints.
         relative: list of 8 bools (default all False).
+
+        If odrive_* arrays are provided, they are appended as additional blocks:
+        odrive_active(8), odrive_relative(8), odrive_targets(8).
+        This produces:
+          - 56 values (7 blocks) with no guards
+          - 72 values (9 blocks) with guards
         """
         t_str = ",".join(f"{t:.2f}" for t in targets)
         a_str = ",".join(str(int(bool(a))) for a in active)
@@ -603,6 +642,19 @@ class ProtocolEncoder:
             d_str = ",".join(str(int(duration_ms)) for _ in range(8))
         else:
             d_str = ",".join(str(int(d)) for d in duration_ms)
+
+        has_odrive = (
+            odrive_active is not None
+            or odrive_relative is not None
+            or odrive_targets is not None
+        )
+        if has_odrive:
+            _oa = odrive_active if odrive_active is not None else [False] * 8
+            _or = odrive_relative if odrive_relative is not None else [False] * 8
+            _ot = odrive_targets if odrive_targets is not None else [0.0] * 8
+            oa_str = ",".join(str(int(bool(v))) for v in _oa)
+            or_str = ",".join(str(int(bool(v))) for v in _or)
+            ot_str = ",".join(f"{float(v):.2f}" for v in _ot)
 
         _gt = guard_threshold if guard_threshold is not None else [0.0] * 8
         _gc = guard_condition if guard_condition is not None else [0] * 8
@@ -617,6 +669,10 @@ class ProtocolEncoder:
                 )
             )
 
+        if has_odrive:
+            return f"J{index}:{t_str},{a_str},{r_str},{d_str},{oa_str},{or_str},{ot_str}\n".encode(
+                "ascii"
+            )
         return f"J{index}:{t_str},{a_str},{r_str},{d_str}\n".encode("ascii")
 
     @staticmethod

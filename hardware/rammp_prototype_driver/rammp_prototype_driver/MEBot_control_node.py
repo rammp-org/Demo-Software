@@ -705,23 +705,26 @@ class MEBotControlNode(Node):
 
         # Rising edge: toggle manual control
         if start_pressed and not self.prev_start_pressed:
-            if self.state == RAMMPPrototypeState.STATE_MANUAL_CONTROL:
+            if self.state == RAMMPPrototypeState.STATE_TUNER_MODE:
                 self.state = RAMMPPrototypeState.STATE_IDLE
-                self.write_serial_data("M0\n")
+                self.write_serial_data("M1:0\nM2:0\nM3:0\nM4:0\nM5:0\nM6:0\n")
             else:
-                self.state = RAMMPPrototypeState.STATE_MANUAL_CONTROL
-                self.write_serial_data("M1\n")
+                self.state = RAMMPPrototypeState.STATE_TUNER_MODE
+                self.write_serial_data("T1:0\nT2:0\nT3:0\nT4:0\nT5:0\nT6:0\n")
 
         # Always track the raw button state
         self.prev_start_pressed = start_pressed
 
-        if self.state == RAMMPPrototypeState.STATE_MANUAL_CONTROL:
+        if self.state == RAMMPPrototypeState.STATE_TUNER_MODE:
             raw_direction = msg.axes[5]
             if (abs(raw_direction)) < 0.15:
                 direction = 0
             else:
                 direction = 1 if raw_direction > 0 else -1
             buttons_array = list(msg.buttons)
+            is_all_zeros = not any(buttons_array)
+            if is_all_zeros:
+                return
             del buttons_array[8 : len(buttons_array)]
             del buttons_array[1:3]
             buttons_array[2], buttons_array[4] = buttons_array[4], buttons_array[2]

@@ -387,7 +387,11 @@ class MEBotControlNode(Node):
                 elif raw_data == "CAL_DONE":
                     self.cal_complete = True
                 else:
-                    self.get_logger().info(str(raw_data))
+                    # for debuggong, og was just self.get_logger().info(str(raw_data))
+                    if raw_data.startswith("TELEMETRY"):
+                        pass
+                    else:
+                        self.get_logger().info(str(raw_data))
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -533,7 +537,8 @@ class MEBotControlNode(Node):
             conv[n].velocity(raw_vels[n]) if n in raw_vels else 0.0
             for n in BASE_JOINT_ORDER
         ]
-        self.joint_state_publisher.publish(msg)
+        # uncomment after done debugging
+        # self.joint_state_publisher.publish(msg)
 
     def publish_RAMMPPrototypeState(self):
         msg = RAMMPPrototypeState()
@@ -590,7 +595,8 @@ class MEBotControlNode(Node):
         msg.mr_vel = float(self.current_speed_MR)
         # TODO: Add the remaining velocities once they are sent by the Teensy
 
-        self.RAMMPPrototypeState_publisher.publish(msg)
+    # uncomment after done debugging
+    # self.RAMMPPrototypeState_publisher.publish(msg)
 
     def publish_imu_data(self):
         msg = Imu()
@@ -604,7 +610,8 @@ class MEBotControlNode(Node):
         msg.orientation.z = self.imu_qz
         msg.orientation.w = self.imu_qw
 
-        self.imu_publisher.publish(msg)
+    # uncomment after done debugging
+    # self.imu_publisher.publish(msg)
 
     # def check_luci_node(self, stat):
     #     active_nodes = self.get_node_names_and_namespaces()

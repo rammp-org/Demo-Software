@@ -797,6 +797,18 @@ void loop() {
     }
   }
 
+  if (current_state == MANUAL_CONTROL && cmd.type != CMD_NONE &&
+      cmd.type != CMD_GET_CONFIG && cmd.type != CMD_MANUAL_CONTROL) {
+    const MotorEntry *cfg_entry = getMotorEntry(cmd.actuator_id);
+    MotorBase *cfg_m = cfg_entry ? cfg_entry->motor : nullptr;
+    if (cfg_m != nullptr) {
+      CommandContext cfg_ctx = {cfg_m,     (uint8_t)cmd.actuator_id,
+                                cmd.value, parser.last_payload,
+                                EContr,    cfg_entry};
+      dispatchCommand(cmd, cfg_ctx);
+    }
+  }
+
   // Sequence command dispatch (delegated to SequencePlayer module)
   if (current_state == AUTO_CURB_CLIMBING && cmd.type != CMD_NONE) {
     MotorBase

@@ -801,6 +801,24 @@ class MEBotControlNode(Node):
         result.message = f"Calibrated {self.cal_joints_done}/6 joints"
         return result
 
+    # def send_luci_direction(self, direction):
+    #     msg = LuciJoystick()
+    #     if direction == 1: #forward
+    #         msg.forward_back = .2
+    #         msg.joy_stick_zone = _compute_zone(1,0)
+    #     elif direction ==2: #backward
+    #         msg.forward_back =-.2
+    #         msg.joy_stick_zone = _compute_zone(-1,0)
+    #     elif direction ==3: #right
+    #         msg.left_right = .2
+    #         msg.joy_stick_zone = _compute_zone(0,1)
+    #     elif direction == 4: #left
+    #         msg.left_right = -.2
+    #         msg.joy_stick_zone = _compute_zone(0,-1)
+
+    #     msg.joy_stick_zone = _compute_zone(0,1)
+    #     self.luci_js_publisher.publish(msg)
+
     # def _send_joystick(self):
     #     msg = LuciJoystick()
     #     msg.forward_back = self.fb_pwm

@@ -744,12 +744,13 @@ void loop() {
     current_state = TUNER_MODE;
     if (DEBUG_MODE)
       Serial.println("DEBUG: Entering TUNER_MODE");
-  } else if (cmd.type != CMD_NONE && current_state == UNCALIBRATED &&
+  } else
+    else if (cmd.type != CMD_NONE && current_state == UNCALIBRATED &&
              cmd.type != CMD_CALIBRATE && cmd.type != CMD_GET_CONFIG) {
-    // Block motor commands in UNCALIBRATED state — calibration required first
-    if (DEBUG_MODE)
-      Serial.println("DEBUG: Command rejected — calibration required");
-  }
+      // Block motor commands in UNCALIBRATED state — calibration required first
+      if (DEBUG_MODE)
+        Serial.println("DEBUG: Command rejected — calibration required");
+    }
 
   // Config reads are safe during any state (including E-Stop).
   if (cmd.type == CMD_GET_CONFIG && cmd.type != CMD_NONE) {

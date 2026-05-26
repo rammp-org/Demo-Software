@@ -3,7 +3,6 @@ import math
 import threading
 import time
 from enum import IntEnum
-
 import rclpy
 import serial
 from ament_index_python.packages import get_package_share_directory
@@ -14,7 +13,7 @@ from rammp_prototype_interfaces.msg import RAMMPPrototypeState, SeatCommand
 from rclpy.action import ActionServer, CancelResponse
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from sensor_msgs.msg import Imu, JointState
+from sensor_msgs.msg import Imu, JointState, Joy
 from std_msgs.msg import Bool
 from std_srvs.srv import Empty, SetBool
 
@@ -162,6 +161,7 @@ class SystemState(IntEnum):
     AUTO_CURB_CLIMBING = 6
     CALIBRATING = 7
     UNCALIBRATED = 8
+    MANUAL_CONTROL = 9
 
 
 class MEBotControlNode(Node):
@@ -218,7 +218,7 @@ class MEBotControlNode(Node):
         )
 
         self.estop = False
-
+        self.prev_start_pressed = False
         # Fields to store sequence player data
         self.current_seq = 0
         self.seq_length = 0
@@ -330,6 +330,8 @@ class MEBotControlNode(Node):
         self.estop_subscription = self.create_subscription(
             Bool, "estop", self.estop_callback, 10
         )
+
+        self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
 
     def _init_publishers(self):
         # joint state publisher
@@ -689,6 +691,29 @@ class MEBotControlNode(Node):
                 "z\n"
             )  # triggers MotorController function NO_MOVEMENT
             self.write_serial_data("K0\n")
+
+    # For manual control
+    def joy_callback(self, msg):
+        buttons_array = list(msg.buttons)
+        direction = msg.axes[5]
+        buttons_array.insert(0, direction)
+
+        start_pressed = buttons_array[9] == 1
+
+        # Rising edge: toggle manual control
+        if start_pressed and not self.prev_start_pressed:
+            if self.state == RAMMPPrototypeState.MANUAL_CONTROL:
+                self.state = RAMMPPrototypeState.IDLE
+                self.write_serial_data("M0\n")
+            else:
+                self.state = RAMMPPrototypeState.MANUAL_CONTROL
+                self.write_serial_data("M1\n")
+
+        # Always track the raw button state
+        self.prev_start_pressed = start_pressed
+
+        # if self.state==RAMMPPrototypeState.MANUAL_CONTROL:
+        #     self.write_serial_data("Hello from inside joy_callback")
 
     # def send_set_luci(self):
     #     self.get_logger().info(

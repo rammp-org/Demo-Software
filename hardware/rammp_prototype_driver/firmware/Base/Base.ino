@@ -740,17 +740,23 @@ void loop() {
     if (DEBUG_MODE)
       Serial.print("DEBUG: Set target roll: ");
     Serial.println(target_roll);
+  } else if (cmd.type == CMD_MANUAL_CONTROL) {
+    if (cmd.actuator_id == 1) {
+      current_state = MANUAL_CONTROL Serial.println("Entered manual control");
+    } else if (cmd.actuator_id == 0) {
+      current_state = IDLE;
+      Serial.println("Exited manual control");
+    }
   } else if (cmd.type != CMD_NONE && current_state == IDLE) {
     current_state = TUNER_MODE;
     if (DEBUG_MODE)
       Serial.println("DEBUG: Entering TUNER_MODE");
-  } else
-    else if (cmd.type != CMD_NONE && current_state == UNCALIBRATED &&
+  } else if (cmd.type != CMD_NONE && current_state == UNCALIBRATED &&
              cmd.type != CMD_CALIBRATE && cmd.type != CMD_GET_CONFIG) {
-      // Block motor commands in UNCALIBRATED state — calibration required first
-      if (DEBUG_MODE)
-        Serial.println("DEBUG: Command rejected — calibration required");
-    }
+    // Block motor commands in UNCALIBRATED state — calibration required first
+    if (DEBUG_MODE)
+      Serial.println("DEBUG: Command rejected — calibration required");
+  }
 
   // Config reads are safe during any state (including E-Stop).
   if (cmd.type == CMD_GET_CONFIG && cmd.type != CMD_NONE) {

@@ -716,25 +716,28 @@ class MEBotControlNode(Node):
         self.prev_start_pressed = start_pressed
 
         if self.state == RAMMPPrototypeState.STATE_MANUAL_CONTROL:
-            # raw_direction = msg.axes[5]
-            # if (abs(raw_direction)) < 0.15:
-            #     direction = 0
-            # else:
-            #     direction = 1 if raw_direction > 0 else -1
-            # buttons_array.insert(0, direction)
+            raw_direction = msg.axes[5]
+            if (abs(raw_direction)) < 0.15:
+                direction = 0
+            else:
+                direction = 1 if raw_direction > 0 else -1
             buttons_array = list(msg.buttons)
             del buttons_array[8 : len(buttons_array)]
-            del buttons_array[1:2]
+            del buttons_array[1:3]
             buttons_array[2], buttons_array[4] = buttons_array[4], buttons_array[2]
             buttons_array[3], buttons_array[5] = buttons_array[5], buttons_array[3]
             self.get_logger().info(str(buttons_array))
-            # pwm_scale = 0.20
-            # lines = []
-            # for i in range(len(buttons_array)):
-            #     id = i + 1
-            #     pwm = (pwm_scale*direction) if (msg.buttons[i] == 1 and direction != 0.0) else 0.0
-            #     lines.append(f"T{id}:{pwm:.2f}\n")
-            # self.write_serial_data("".join(lines))
+            pwm_scale = 0.20
+            lines = []
+            for i in range(len(buttons_array)):
+                id = i + 1
+                pwm = (
+                    (pwm_scale * direction)
+                    if (buttons_array[i] == 1 and direction != 0.0)
+                    else 0.0
+                )
+                lines.append(f"T{id}:{pwm:.2f}\n")
+            self.write_serial_data("".join(lines))
 
     # def send_set_luci(self):
     #     self.get_logger().info(

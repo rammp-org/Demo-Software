@@ -177,7 +177,7 @@ class MEBotControlNode(Node):
         try:
             self.ser = serial.Serial(
                 port=serial_port,
-                baudrate=115200,
+                baudrate=460800,
                 timeout=1,
             )
         except serial.SerialException:
@@ -702,11 +702,11 @@ class MEBotControlNode(Node):
 
         # Rising edge: toggle manual control
         if start_pressed and not self.prev_start_pressed:
-            if self.state == RAMMPPrototypeState.MANUAL_CONTROL:
-                self.state = RAMMPPrototypeState.IDLE
+            if self.state == RAMMPPrototypeState.STATE_MANUAL_CONTROL:
+                self.state = RAMMPPrototypeState.STATE_IDLE
                 self.write_serial_data("M0\n")
             else:
-                self.state = RAMMPPrototypeState.MANUAL_CONTROL
+                self.state = RAMMPPrototypeState.STATE_MANUAL_CONTROL
                 self.write_serial_data("M1\n")
 
         # Always track the raw button state

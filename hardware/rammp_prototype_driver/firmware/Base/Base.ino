@@ -609,9 +609,9 @@ void loop() {
   mr.updateSensorData(EContr.encoderf[5], dt);
   ml_carriage.updateSensorData(EContr.encoderf[11], dt);
   mr_carriage.updateSensorData(EContr.encoderf[12], dt);
-  ODriveR.updateSensorData(
-      0, dt); // 0s for odrives because they have their own encoders
-  ODriveL.updateSensorData(0, dt);
+  // ODriveR.updateSensorData(
+  //     0, dt); // 0s for odrives because they have their own encoders
+  // ODriveL.updateSensorData(0, dt);
   {
     static float prev_ml = 0, prev_mr = 0;
     float ml_enc = EContr.encoderf[9] * ml_enc_dir;
@@ -742,7 +742,8 @@ void loop() {
     Serial.println(target_roll);
   } else if (cmd.type == CMD_MANUAL_CONTROL) {
     if (cmd.actuator_id == 1) {
-      current_state = MANUAL_CONTROL Serial.println("Entered manual control");
+      current_state = MANUAL_CONTROL;
+      Serial.println("Entered manual control");
     } else if (cmd.actuator_id == 0) {
       current_state = IDLE;
       Serial.println("Exited manual control");
@@ -812,9 +813,9 @@ void loop() {
     ml_carriage.disable();
     mr_carriage.disable();
     drive_fb.disable();
-    drive_lr.disable();
-    ODriveR.disable();
-    ODriveL.disable();
+    // drive_lr.disable();
+    // ODriveR.disable();
+    // ODriveL.disable();
   } else if (current_state == SELF_LEVELING) {
     // Drive wheels are not used during leveling — disable every tick to prevent
     // stale PID output from leaking to the joystick (e.g. if a prior mode left
@@ -906,16 +907,16 @@ void loop() {
 
   roboclaw_carriages.DutyM2(0x80, (int16_t)mrc_pwm);
 
-  if (ODriveR.mode == ODrive::VELOCITY_CONTROL) {
-    odriveR.setVelocity(ODriveR.getTargetVelocity());
-  } else if (ODriveR.mode == ODrive::POSITION_CONTROL) {
-    odriveR.setPosition(ODriveR.getTargetPosition());
-  }
-  if (ODriveL.mode == ODrive::VELOCITY_CONTROL) {
-    odriveL.setVelocity(ODriveL.getTargetVelocity());
-  } else if (ODriveL.mode == ODrive::POSITION_CONTROL) {
-    odriveL.setPosition(ODriveL.getTargetPosition());
-  }
+  // if (ODriveR.mode == ODrive::VELOCITY_CONTROL) {
+  //   odriveR.setVelocity(ODriveR.getTargetVelocity());
+  // } else if (ODriveR.mode == ODrive::POSITION_CONTROL) {
+  //   odriveR.setPosition(ODriveR.getTargetPosition());
+  // }
+  // if (ODriveL.mode == ODrive::VELOCITY_CONTROL) {
+  //   odriveL.setVelocity(ODriveL.getTargetVelocity());
+  // } else if (ODriveL.mode == ODrive::POSITION_CONTROL) {
+  //   odriveL.setPosition(ODriveL.getTargetPosition());
+  // }
 
   // 5. Send Telemetry
   updateTelemetry();

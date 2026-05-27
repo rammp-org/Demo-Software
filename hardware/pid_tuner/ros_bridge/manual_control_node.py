@@ -23,6 +23,7 @@ class ManualControlNode(Node):
         # Local toggle state (do not depend on Teensy telemetry here)
         self.state = self.STATE_IDLE
         self.prev_start_pressed = False
+        self.odrives_active = False
 
         self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
 
@@ -56,11 +57,15 @@ class ManualControlNode(Node):
                 return
 
             # Check for odrive velocity
-            if abs(axes_array[3]) > 0.15:
+            if abs(axes_array[3]) > 0.15 and not self.odrives_active:
+                self.odrives_active = True
                 direction = 1 if axes_array[3] > 0 else -1
                 self.write_serial_data(f"s:{direction * 2:.4f}\n")
-            else:
+            elif abs(axes_array[3]) < 0.15 and self.odrives_active:
+                self.odrives_active = False
                 self.write_serial_data("s:0.0000\n")
+            else:
+                return
 
             del buttons_array[8 : len(buttons_array)]
             del buttons_array[1:3]

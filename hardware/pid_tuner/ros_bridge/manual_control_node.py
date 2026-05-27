@@ -64,8 +64,6 @@ class ManualControlNode(Node):
             elif abs(axes_array[3]) < 0.15 and self.odrives_active:
                 self.odrives_active = False
                 self.write_serial_data("s:0.0000\n")
-            else:
-                return
 
             del buttons_array[8 : len(buttons_array)]
             del buttons_array[1:3]

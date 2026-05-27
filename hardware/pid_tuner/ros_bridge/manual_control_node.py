@@ -24,6 +24,7 @@ class ManualControlNode(Node):
         self.state = self.STATE_IDLE
         self.prev_start_pressed = False
         self.odrives_active = False
+        self.last_pwm_array = [0, 0, 0, 0, 0, 0]
 
         self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
 
@@ -52,8 +53,9 @@ class ManualControlNode(Node):
                 direction = 1 if raw_direction > 0 else -1
             buttons_array = list(msg.buttons)
             axes_array = list(msg.axes)
-            is_all_zeros = not any(buttons_array) and not any(axes_array)
-            if is_all_zeros:
+            buttons_all_zeros = not any(buttons_array)
+            axes_all_zeros = not any(abs(axis) > 0.15 for axis in axes_array)
+            if buttons_all_zeros and axes_all_zeros:
                 return
 
             # Check for odrive velocity
@@ -79,7 +81,10 @@ class ManualControlNode(Node):
                     if (buttons_array[i] == 1 and direction != 0.0)
                     else 0.0
                 )
-                lines.append(f"T{id}:{pwm:.2f}\n")
+                if pwm != self.last_pwm_array[i]:
+                    self.last_pwm_array[i] = pwm
+                    lines.append(f"T{id}:{pwm:.2f}\n")
+
             self.write_serial_data("".join(lines))
 
 

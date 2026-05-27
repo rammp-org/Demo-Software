@@ -121,6 +121,11 @@ class ManualControlNode(Node):
 
         if self.state == self.STATE_TUNER_MODE:
             raw_direction = msg.axes[5]
+
+            if msg.buttons[2] == 1:
+                self.write_serial_data("W0:-0.20\n")
+                return
+
             if (abs(raw_direction)) < 0.15:
                 direction = 0
             else:

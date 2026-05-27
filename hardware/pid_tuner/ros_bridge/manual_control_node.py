@@ -58,7 +58,9 @@ class ManualControlNode(Node):
             # Check for odrive velocity
             if abs(axes_array[3]) > 0.15:
                 direction = 1 if axes_array[3] > 0 else -1
-                self.write_serial_data(f"s:{direction * 3:.4f}\n")
+                self.write_serial_data(f"s:{direction * 2:.4f}\n")
+            else:
+                self.write_serial_data("s:0.0000\n")
 
             del buttons_array[8 : len(buttons_array)]
             del buttons_array[1:3]

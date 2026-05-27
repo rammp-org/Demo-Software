@@ -11,6 +11,29 @@ try:
 except Exception:  # pragma: no cover
     LuciJoystick = None  # type: ignore
 
+INPUT_REMOTE = 1
+DRIVE_WHEEL_JS_THRESHOLD = 0.25
+
+
+def _compute_joystick_zone(fb: int, lr: int) -> int:
+    if fb == 0 and lr == 0:
+        return 8  # origin
+    if fb > 0 and lr == 0:
+        return 0
+    if fb < 0 and lr == 0:
+        return 7
+    if fb == 0 and lr > 0:
+        return 4
+    if fb == 0 and lr < 0:
+        return 3
+    if fb > 0 and lr > 0:
+        return 2
+    if fb > 0 and lr < 0:
+        return 1
+    if fb < 0 and lr > 0:
+        return 6
+    return 5
+
 
 class ManualControlNode(Node):
     """
@@ -48,6 +71,12 @@ class ManualControlNode(Node):
 
         self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
 
+        if not self._luci_available:
+            self.get_logger().warn(
+                "luci_messages not available — drive wheels via LUCI disabled. "
+                "Source the workspace that builds luci_messages."
+            )
+
     def write_serial_data(self, s: str) -> None:
         self._serial_handler.send_command(s.encode("ascii"))
 
@@ -66,10 +95,14 @@ class ManualControlNode(Node):
         if not self._luci_available or self._luci_pub is None:
             return
         self._luci_enable_auto_input()
+        fb = int(max(-100, min(100, fb)))
+        lr = int(max(-100, min(100, lr)))
         msg = LuciJoystick()
-        msg.forward_back = int(max(-100, min(100, fb)))
-        msg.left_right = int(max(-100, min(100, lr)))
-        msg.joystick_zone = 8  # origin (optional)
+        msg.forward_back = fb
+        msg.left_right = lr
+        msg.joystick_zone = _compute_joystick_zone(fb, lr)
+        if hasattr(msg, "input_source"):
+            msg.input_source = INPUT_REMOTE
         self._luci_pub.publish(msg)
 
     def joy_callback(self, msg):
@@ -97,6 +130,12 @@ class ManualControlNode(Node):
             buttons_all_zeros = not any(buttons_array)
             axes_all_zeros = not any(abs(axis) > 0.15 for axis in axes_array)
             if buttons_all_zeros and axes_all_zeros:
+                if self.odrives_active:
+                    self.odrives_active = False
+                    self.write_serial_data("s:0.0000\n")
+                if self.drive_wheel_active:
+                    self.drive_wheel_active = False
+                    self._luci_publish(0, 0)
                 return
 
             # Check for odrive velocity
@@ -109,30 +148,27 @@ class ManualControlNode(Node):
                 self.odrives_active = False
                 self.write_serial_data("s:0.0000\n")
 
-            # check for drive wheel
-            drive_wheel_js_threshold = 0.25
-            if (
-                abs(axes_array[0])
-                or abs(axes_array[1]) > drive_wheel_js_threshold
-                and not self.drive_wheel_active
-            ):
-                self.drive_wheel_active = True
+            # Drive wheels via LUCI (axes 0 = fb, 1 = lr; scaled to -100..100)
+            axis0 = axes_array[0] if len(axes_array) > 0 else 0.0
+            axis1 = axes_array[1] if len(axes_array) > 1 else 0.0
+            above = (
+                abs(axis0) > DRIVE_WHEEL_JS_THRESHOLD
+                or abs(axis1) > DRIVE_WHEEL_JS_THRESHOLD
+            )
+            if above:
                 fb = (
-                    int(max(-100, min(100, axes_array[0] * 100)))
-                    if abs(axes_array[0]) > drive_wheel_js_threshold
+                    int(max(-100, min(100, axis0 * 100)))
+                    if abs(axis0) > DRIVE_WHEEL_JS_THRESHOLD
                     else 0
                 )
                 lr = (
-                    int(max(-100, min(100, axes_array[1] * 100)))
-                    if abs(axes_array[1]) > drive_wheel_js_threshold
+                    int(max(-100, min(100, axis1 * 100)))
+                    if abs(axis1) > DRIVE_WHEEL_JS_THRESHOLD
                     else 0
                 )
+                self.drive_wheel_active = True
                 self._luci_publish(fb, lr)
-            elif (
-                abs(axes_array[0])
-                and abs(axes_array[1]) <= drive_wheel_js_threshold
-                and self.drive_wheel_active
-            ):
+            elif self.drive_wheel_active:
                 self.drive_wheel_active = False
                 self._luci_publish(0, 0)
 

@@ -59,11 +59,12 @@ class ManualControlNode(Node):
                 return
 
             # Check for odrive velocity
-            if abs(axes_array[3]) > 0.15 and not self.odrives_active:
+            odrive_js_threshold = 0.25
+            if abs(axes_array[3]) > odrive_js_threshold and not self.odrives_active:
                 self.odrives_active = True
                 direction = 1 if axes_array[3] > 0 else -1
                 self.write_serial_data(f"s:{direction * 2:.4f}\n")
-            elif abs(axes_array[3]) < 0.15 and self.odrives_active:
+            elif abs(axes_array[3]) < odrive_js_threshold and self.odrives_active:
                 self.odrives_active = False
                 self.write_serial_data("s:0.0000\n")
 
@@ -72,7 +73,7 @@ class ManualControlNode(Node):
             buttons_array[2], buttons_array[4] = buttons_array[4], buttons_array[2]
             buttons_array[3], buttons_array[5] = buttons_array[5], buttons_array[3]
 
-            pwm_scale = 0.20
+            pwm_scale = 0.30
             lines = []
             for i in range(len(buttons_array)):
                 id = i + 1

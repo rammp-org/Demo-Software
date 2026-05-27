@@ -609,9 +609,9 @@ void loop() {
   mr.updateSensorData(EContr.encoderf[5], dt);
   ml_carriage.updateSensorData(EContr.encoderf[11], dt);
   mr_carriage.updateSensorData(EContr.encoderf[12], dt);
-  // ODriveR.updateSensorData(
-  //     0, dt); // 0s for odrives because they have their own encoders
-  // ODriveL.updateSensorData(0, dt);
+  ODriveR.updateSensorData(
+      0, dt); // 0s for odrives because they have their own encoders
+  ODriveL.updateSensorData(0, dt);
   {
     static float prev_ml = 0, prev_mr = 0;
     float ml_enc = EContr.encoderf[9] * ml_enc_dir;
@@ -764,6 +764,18 @@ void loop() {
       Serial.println("DEBUG: Command rejected — calibration required");
   }
 
+  // Both ODrives: same velocity command (s:<turns/s>, robot frame).
+  if (cmd.type == CMD_ODRIVE_VEL && current_state != ESTOP) {
+    ODriveL.setMode(MotorBase::VELOCITY_CONTROL);
+    ODriveR.setMode(MotorBase::VELOCITY_CONTROL);
+    ODriveL.setTargetVelocity(cmd.value);
+    ODriveR.setTargetVelocity(cmd.value);
+    if (DEBUG_MODE) {
+      Serial.print("DEBUG: ODrive L/R velocity set to ");
+      Serial.println(cmd.value, 4);
+    }
+  }
+
   // Config reads are safe during any state (including E-Stop).
   if (cmd.type == CMD_GET_CONFIG && cmd.type != CMD_NONE) {
     const MotorEntry *cfg_entry = getMotorEntry(cmd.actuator_id);
@@ -798,7 +810,8 @@ void loop() {
   }
 
   if (current_state == MANUAL_CONTROL && cmd.type != CMD_NONE &&
-      cmd.type != CMD_GET_CONFIG && cmd.type != CMD_MANUAL_CONTROL) {
+      cmd.type != CMD_GET_CONFIG && cmd.type != CMD_MANUAL_CONTROL &&
+      cmd.type != CMD_ODRIVE_VEL) {
     const MotorEntry *cfg_entry = getMotorEntry(cmd.actuator_id);
     MotorBase *cfg_m = cfg_entry ? cfg_entry->motor : nullptr;
     if (cfg_m != nullptr) {
@@ -831,8 +844,8 @@ void loop() {
     mr_carriage.disable();
     drive_fb.disable();
     // drive_lr.disable();
-    // ODriveR.disable();
-    // ODriveL.disable();
+    ODriveR.disable();
+    ODriveL.disable();
   } else if (current_state == SELF_LEVELING) {
     // Drive wheels are not used during leveling — disable every tick to prevent
     // stale PID output from leaking to the joystick (e.g. if a prior mode left
@@ -924,16 +937,16 @@ void loop() {
 
   roboclaw_carriages.DutyM2(0x80, (int16_t)mrc_pwm);
 
-  // if (ODriveR.mode == ODrive::VELOCITY_CONTROL) {
-  //   odriveR.setVelocity(ODriveR.getTargetVelocity());
-  // } else if (ODriveR.mode == ODrive::POSITION_CONTROL) {
-  //   odriveR.setPosition(ODriveR.getTargetPosition());
-  // }
-  // if (ODriveL.mode == ODrive::VELOCITY_CONTROL) {
-  //   odriveL.setVelocity(ODriveL.getTargetVelocity());
-  // } else if (ODriveL.mode == ODrive::POSITION_CONTROL) {
-  //   odriveL.setPosition(ODriveL.getTargetPosition());
-  // }
+  if (ODriveR.mode == ODrive::VELOCITY_CONTROL) {
+    odriveR.setVelocity(ODriveR.getTargetVelocity());
+  } else if (ODriveR.mode == ODrive::POSITION_CONTROL) {
+    odriveR.setPosition(ODriveR.getTargetPosition());
+  }
+  if (ODriveL.mode == ODrive::VELOCITY_CONTROL) {
+    odriveL.setVelocity(ODriveL.getTargetVelocity());
+  } else if (ODriveL.mode == ODrive::POSITION_CONTROL) {
+    odriveL.setPosition(ODriveL.getTargetPosition());
+  }
 
   // 5. Send Telemetry
   updateTelemetry();

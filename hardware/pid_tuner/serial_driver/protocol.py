@@ -386,6 +386,16 @@ class ProtocolEncoder:
         return cmd.encode("ascii")
 
     @staticmethod
+    def set_odrive_velocity(velocity_turns_per_s: float) -> bytes:
+        """
+        Set the same velocity on both ODrive axes (robot frame, turns/s).
+
+        Wire format: s:<velocity>\\n
+        """
+        cmd = f"s:{velocity_turns_per_s:.4f}\n"
+        return cmd.encode("ascii")
+
+    @staticmethod
     def set_pid(joint_id: int, param: str, value: float) -> bytes:
         """
         Create command to set a PID parameter.

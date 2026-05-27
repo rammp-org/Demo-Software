@@ -20,43 +20,44 @@ The PC sends commands to instruct the Teensy to alter its state, change PID tuni
 
 ### Command Reference
 
-| Command Char | Name          | Example        | Description                                                    |
-| ------------ | ------------- | -------------- | -------------------------------------------------------------- |
-| `T`          | Target        | `T1:1000`      | Set motor target (PWM, Vel, or Pos depending on mode).         |
-| `M`          | Mode          | `M3:2`         | Set motor control mode (0=Open Loop, 1=Velocity, 2=Position).  |
-| `P`          | Pos P Gain    | `P1:5.5`       | Set Position PID Proportional Gain.                            |
-| `I`          | Pos I Gain    | `I1:0.1`       | Set Position PID Integral Gain.                                |
-| `D`          | Pos D Gain    | `D1:0.01`      | Set Position PID Derivative Gain.                              |
-| `F`          | Pos FF Gain   | `F1:1.0`       | Set Position PID Feed-Forward Gain.                            |
-| `p`          | Vel P Gain    | `p1:1.0`       | Set Velocity PID Proportional Gain.                            |
-| `i`          | Vel I Gain    | `i1:0.0`       | Set Velocity PID Integral Gain.                                |
-| `d`          | Vel D Gain    | `d1:0.0`       | Set Velocity PID Derivative Gain.                              |
-| `f`          | Vel FF Gain   | `f1:0.5`       | Set Velocity PID Feed-Forward Gain.                            |
-| `Q`          | Pos LPF       | `Q1:0.8`       | Set Position PID output Low-Pass Filter Alpha (0-1).           |
-| `q`          | Vel LPF       | `q1:0.8`       | Set Velocity PID output Low-Pass Filter Alpha (0-1).           |
-| `U`          | Pos Ramp      | `U1:500.0`     | Set Position PID output max ramp rate (units/s).               |
-| `u`          | Vel Ramp      | `u1:0.1`       | Set Velocity PID output max ramp rate (units/s).               |
-| `l`          | Input LPF     | `l1:0.5`       | Set Motor velocity input Low-Pass Filter Alpha (0-1).          |
-| `n`          | Pos Min Lim   | `n4:-5000`     | Set Joint minimum position limit in ticks.                     |
-| `x`          | Pos Max Lim   | `x4:5000`      | Set Joint maximum position limit in ticks.                     |
-| `R`          | Reset PID     | `R3`           | Reset PID integrators and internal state.                      |
-| `H`          | Home Enc      | `H5`           | Set current encoder position to 0 (Home).                      |
-| `O`          | Set Offset    | `O1:500`       | Set encoder position offset to an arbitrary value.             |
-| `V`          | Invert Motor  | `V2`           | Toggle Motor PWM direction.                                    |
-| `E`          | Invert Enc    | `E2`           | Toggle Encoder read direction.                                 |
-| `K`          | Save Config   | `K1` / `K0`    | Save joint config to EEPROM. `K0` saves all joints.            |
-| `G`          | Get Config    | `G1`           | Request the Teensy to send the config for Joint 1 back.        |
-| `z`          | ESTOP         | `z`            | Immediately disable all motors and enter ESTOP state.          |
-| `c`          | Clear ESTOP   | `c`            | Clear ESTOP state and return to IDLE.                          |
-| `L1`         | Self Level    | `L1:1`         | Enable (1) or disable (0) Auto Self-Leveling mode.             |
-| `A1`         | Level Pitch   | `A1:5.0`       | Set Self-Leveling target pitch in degrees.                     |
-| `A2`         | Level Roll    | `A2:-2.0`      | Set Self-Leveling target roll in degrees.                      |
-| `B1`         | Sequence Mode | `B1:1`         | Enter (1) or exit (0) Auto Curb Climbing sequence mode.        |
-| `B2`         | Seq Auto-Run  | `B2:1`         | Enable (1) or disable (0) auto-advance on keyframe completion. |
-| `J`          | Seq Keyframe  | `J0:<payload>` | Upload keyframe data at index. See Keyframe Format below.      |
-| `>`          | Seq Step Fwd  | `>`            | Step forward to next keyframe.                                 |
-| `<`          | Seq Step Bwd  | `<`            | Step backward to previous keyframe.                            |
-| `@`          | Seq Goto      | `@3`           | Jump directly to keyframe index 3.                             |
+| Command Char | Name          | Example        | Description                                                                           |
+| ------------ | ------------- | -------------- | ------------------------------------------------------------------------------------- |
+| `T`          | Target        | `T1:1000`      | Set motor target (PWM, Vel, or Pos depending on mode).                                |
+| `M`          | Mode          | `M3:2`         | Set motor control mode (0=Open Loop, 1=Velocity, 2=Position).                         |
+| `P`          | Pos P Gain    | `P1:5.5`       | Set Position PID Proportional Gain.                                                   |
+| `I`          | Pos I Gain    | `I1:0.1`       | Set Position PID Integral Gain.                                                       |
+| `D`          | Pos D Gain    | `D1:0.01`      | Set Position PID Derivative Gain.                                                     |
+| `F`          | Pos FF Gain   | `F1:1.0`       | Set Position PID Feed-Forward Gain.                                                   |
+| `p`          | Vel P Gain    | `p1:1.0`       | Set Velocity PID Proportional Gain.                                                   |
+| `i`          | Vel I Gain    | `i1:0.0`       | Set Velocity PID Integral Gain.                                                       |
+| `d`          | Vel D Gain    | `d1:0.0`       | Set Velocity PID Derivative Gain.                                                     |
+| `f`          | Vel FF Gain   | `f1:0.5`       | Set Velocity PID Feed-Forward Gain.                                                   |
+| `Q`          | Pos LPF       | `Q1:0.8`       | Set Position PID output Low-Pass Filter Alpha (0-1).                                  |
+| `q`          | Vel LPF       | `q1:0.8`       | Set Velocity PID output Low-Pass Filter Alpha (0-1).                                  |
+| `U`          | Pos Ramp      | `U1:500.0`     | Set Position PID output max ramp rate (units/s).                                      |
+| `u`          | Vel Ramp      | `u1:0.1`       | Set Velocity PID output max ramp rate (units/s).                                      |
+| `l`          | Input LPF     | `l1:0.5`       | Set Motor velocity input Low-Pass Filter Alpha (0-1).                                 |
+| `n`          | Pos Min Lim   | `n4:-5000`     | Set Joint minimum position limit in ticks.                                            |
+| `x`          | Pos Max Lim   | `x4:5000`      | Set Joint maximum position limit in ticks.                                            |
+| `R`          | Reset PID     | `R3`           | Reset PID integrators and internal state.                                             |
+| `H`          | Home Enc      | `H5`           | Set current encoder position to 0 (Home).                                             |
+| `O`          | Set Offset    | `O1:500`       | Set encoder position offset to an arbitrary value.                                    |
+| `V`          | Invert Motor  | `V2`           | Toggle Motor PWM direction.                                                           |
+| `E`          | Invert Enc    | `E2`           | Toggle Encoder read direction.                                                        |
+| `K`          | Save Config   | `K1` / `K0`    | Save joint config to EEPROM. `K0` saves all joints.                                   |
+| `G`          | Get Config    | `G1`           | Request the Teensy to send the config for Joint 1 back.                               |
+| `z`          | ESTOP         | `z`            | Immediately disable all motors and enter ESTOP state.                                 |
+| `c`          | Clear ESTOP   | `c`            | Clear ESTOP state and return to IDLE.                                                 |
+| `L1`         | Self Level    | `L1:1`         | Enable (1) or disable (0) Auto Self-Leveling mode.                                    |
+| `A1`         | Level Pitch   | `A1:5.0`       | Set Self-Leveling target pitch in degrees.                                            |
+| `A2`         | Level Roll    | `A2:-2.0`      | Set Self-Leveling target roll in degrees.                                             |
+| `B1`         | Sequence Mode | `B1:1`         | Enter (1) or exit (0) Auto Curb Climbing sequence mode.                               |
+| `B2`         | Seq Auto-Run  | `B2:1`         | Enable (1) or disable (0) auto-advance on keyframe completion.                        |
+| `J`          | Seq Keyframe  | `J0:<payload>` | Upload keyframe data at index. See Keyframe Format below.                             |
+| `>`          | Seq Step Fwd  | `>`            | Step forward to next keyframe.                                                        |
+| `<`          | Seq Step Bwd  | `<`            | Step backward to previous keyframe.                                                   |
+| `@`          | Seq Goto      | `@3`           | Jump directly to keyframe index 3.                                                    |
+| `s`          | ODrive Vel    | `s:1.5`        | Set **both** ODrive axes to the same velocity (turns/s, robot frame). No actuator ID. |
 
 ### Keyframe Payload Formats (`J` command)
 

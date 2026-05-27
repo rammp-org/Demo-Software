@@ -53,6 +53,8 @@ class ManualControlNode(Node):
         # Local toggle state (do not depend on Teensy telemetry here)
         self.state = self.STATE_IDLE
         self.prev_start_pressed = False
+        self._prev_cal_pressed = False
+        self._calibrating = False
         self.odrives_active = False
         self.last_pwm_array = [0, 0, 0, 0, 0, 0]
         self.drive_wheel_active = False
@@ -71,11 +73,32 @@ class ManualControlNode(Node):
 
         self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
 
+        # Listen for firmware status lines (e.g. CAL_DONE) coming from the same
+        # SerialHandler used by the GUI. This signal is emitted in the GUI thread.
+        if hasattr(self._serial_handler, "raw_lines_received"):
+            try:
+                self._serial_handler.raw_lines_received.connect(self._on_serial_lines)
+            except Exception:
+                pass
+
         if not self._luci_available:
             self.get_logger().warn(
                 "luci_messages not available — drive wheels via LUCI disabled. "
                 "Source the workspace that builds luci_messages."
             )
+
+    def _on_serial_lines(self, lines) -> None:
+        # Unlock joint commands when calibration completes.
+        # Teensy prints "CAL_DONE" on completion (see Base.ino).
+        try:
+            for line in lines:
+                s = str(line).strip()
+                if s == "CAL_DONE":
+                    self._calibrating = False
+                elif s.startswith("CAL: Aborted"):
+                    self._calibrating = False
+        except Exception:
+            return
 
     def write_serial_data(self, s: str) -> None:
         self._serial_handler.send_command(s.encode("ascii"))
@@ -123,8 +146,13 @@ class ManualControlNode(Node):
         if self.state == self.STATE_TUNER_MODE:
             raw_direction = msg.axes[5]
 
-            if msg.buttons[2] == 1:
-                self.write_serial_data("W0:-0.20\n")
+            # Calibration hotkey (button index 2, if present).
+            # Important: send only on rising edge to avoid flooding / restarting.
+            cal_pressed = msg.buttons[2] == 1
+            if cal_pressed and not self._prev_cal_pressed:
+                self._calibrating = True
+                self.write_serial_data("W0:0.20\n")
+            self._prev_cal_pressed = cal_pressed
 
             if (abs(raw_direction)) < 0.15:
                 direction = 0
@@ -176,6 +204,13 @@ class ManualControlNode(Node):
             elif self.drive_wheel_active:
                 self.drive_wheel_active = False
                 self._luci_publish(0, 0)
+
+            # Lock out joint button commands while calibration is running.
+            # Firmware enters CALIBRATING and ignores normal motor dispatch until
+            # it prints CAL_DONE, so suppressing button spam keeps the serial
+            # queue clean and prevents confusing partial control.
+            if self._calibrating:
+                return
 
             del buttons_array[8 : len(buttons_array)]
             del buttons_array[1:3]

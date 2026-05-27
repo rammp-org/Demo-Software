@@ -3,6 +3,13 @@ from __future__ import annotations
 
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
+from std_srvs.srv import Empty
+
+try:
+    # Optional: only available when luci_messages is built/sourced.
+    from luci_messages.msg import LuciJoystick  # type: ignore
+except Exception:  # pragma: no cover
+    LuciJoystick = None  # type: ignore
 
 
 class ManualControlNode(Node):
@@ -25,11 +32,45 @@ class ManualControlNode(Node):
         self.prev_start_pressed = False
         self.odrives_active = False
         self.last_pwm_array = [0, 0, 0, 0, 0, 0]
+        self.drive_wheel_active = False
+        self._luci_available = LuciJoystick is not None
+        self._luci_enabled = False
+        self._luci_pub = None
+        self._luci_set_auto = None
+
+        if self._luci_available:
+            self._luci_pub = self.create_publisher(
+                LuciJoystick, "luci/remote_joystick", 10
+            )
+            self._luci_set_auto = self.create_client(
+                Empty, "/luci/set_auto_remote_input"
+            )
 
         self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
 
     def write_serial_data(self, s: str) -> None:
         self._serial_handler.send_command(s.encode("ascii"))
+
+    def _luci_enable_auto_input(self) -> None:
+        if not self._luci_available or self._luci_enabled:
+            return
+        if self._luci_set_auto is None or not self._luci_set_auto.service_is_ready():
+            return
+        try:
+            self._luci_set_auto.call_async(Empty.Request())
+            self._luci_enabled = True
+        except Exception:
+            return
+
+    def _luci_publish(self, fb: int, lr: int) -> None:
+        if not self._luci_available or self._luci_pub is None:
+            return
+        self._luci_enable_auto_input()
+        msg = LuciJoystick()
+        msg.forward_back = int(max(-100, min(100, fb)))
+        msg.left_right = int(max(-100, min(100, lr)))
+        msg.joystick_zone = 8  # origin (optional)
+        self._luci_pub.publish(msg)
 
     def joy_callback(self, msg):
         start_pressed = msg.buttons[9] == 1
@@ -67,6 +108,33 @@ class ManualControlNode(Node):
             elif abs(axes_array[3]) < odrive_js_threshold and self.odrives_active:
                 self.odrives_active = False
                 self.write_serial_data("s:0.0000\n")
+
+            # check for drive wheel
+            drive_wheel_js_threshold = 0.25
+            if (
+                abs(axes_array[0])
+                or abs(axes_array[1]) > drive_wheel_js_threshold
+                and not self.drive_wheel_active
+            ):
+                self.drive_wheel_active = True
+                fb = (
+                    int(max(-100, min(100, axes_array[0] * 100)))
+                    if abs(axes_array[0]) > drive_wheel_js_threshold
+                    else 0
+                )
+                lr = (
+                    int(max(-100, min(100, axes_array[1] * 100)))
+                    if abs(axes_array[1]) > drive_wheel_js_threshold
+                    else 0
+                )
+                self._luci_publish(fb, lr)
+            elif (
+                abs(axes_array[0])
+                and abs(axes_array[1]) <= drive_wheel_js_threshold
+                and self.drive_wheel_active
+            ):
+                self.drive_wheel_active = False
+                self._luci_publish(0, 0)
 
             del buttons_array[8 : len(buttons_array)]
             del buttons_array[1:3]

@@ -157,13 +157,13 @@ class ManualControlNode(Node):
             )
             if above:
                 fb = (
-                    int(max(-100, min(100, axis0 * 100)))
-                    if abs(axis0) > DRIVE_WHEEL_JS_THRESHOLD
-                    else 0
-                )
-                lr = (
                     int(max(-100, min(100, axis1 * 100)))
                     if abs(axis1) > DRIVE_WHEEL_JS_THRESHOLD
+                    else 0
+                )
+                lr = -1 * (
+                    int(max(-100, min(100, axis0 * 100)))
+                    if abs(axis0) > DRIVE_WHEEL_JS_THRESHOLD
                     else 0
                 )
                 self.drive_wheel_active = True
@@ -181,11 +181,19 @@ class ManualControlNode(Node):
             lines = []
             for i in range(len(buttons_array)):
                 id = i + 1
-                pwm = (
-                    (pwm_scale * direction)
-                    if (buttons_array[i] == 1 and direction != 0.0)
-                    else 0.0
-                )
+                if i == 4 or 5:
+                    pwm = -1 * (
+                        (pwm_scale * direction)
+                        if (buttons_array[i] == 1 and direction != 0.0)
+                        else 0.0
+                    )
+                else:
+                    pwm = (
+                        (pwm_scale * direction)
+                        if (buttons_array[i] == 1 and direction != 0.0)
+                        else 0.0
+                    )
+
                 if pwm != self.last_pwm_array[i]:
                     self.last_pwm_array[i] = pwm
                     lines.append(f"T{id}:{pwm:.2f}\n")

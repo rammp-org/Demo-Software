@@ -116,6 +116,7 @@ class ManualControlNode(Node):
             else:
                 self.state = self.STATE_TUNER_MODE
                 self.write_serial_data("M1:0\nM2:0\nM3:0\nM4:0\nM5:0\nM6:0\n")
+                self.write_serial_data("T1:0\nT2:0\nT3:0\nT4:0\nT5:0\nT6:0\n")
 
         self.prev_start_pressed = start_pressed
 
@@ -124,7 +125,6 @@ class ManualControlNode(Node):
 
             if msg.buttons[2] == 1:
                 self.write_serial_data("W0:-0.20\n")
-                return
 
             if (abs(raw_direction)) < 0.15:
                 direction = 0
@@ -186,7 +186,7 @@ class ManualControlNode(Node):
             lines = []
             for i in range(len(buttons_array)):
                 id = i + 1
-                if i == 4 or 5:
+                if i == 4 or i == 5:
                     pwm = -1 * (
                         (pwm_scale * direction)
                         if (buttons_array[i] == 1 and direction != 0.0)

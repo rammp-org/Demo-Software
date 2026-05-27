@@ -770,10 +770,10 @@ void loop() {
     ODriveR.setMode(MotorBase::VELOCITY_CONTROL);
     ODriveL.setTargetVelocity(cmd.value);
     ODriveR.setTargetVelocity(cmd.value);
-    if (DEBUG_MODE) {
-      Serial.print("DEBUG: ODrive L/R velocity set to ");
-      Serial.println(cmd.value, 4);
-    }
+    // if (DEBUG_MODE) {
+    //   Serial.print("DEBUG: ODrive L/R velocity set to ");
+    //   Serial.println(cmd.value, 4);
+    // }
   }
 
   // Config reads are safe during any state (including E-Stop).

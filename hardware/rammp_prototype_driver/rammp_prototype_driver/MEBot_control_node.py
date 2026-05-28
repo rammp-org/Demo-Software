@@ -14,7 +14,7 @@ from rclpy.action import ActionServer, CancelResponse
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState, Joy
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, String
 from std_srvs.srv import Empty, SetBool
 
 from .joint_converter import BASE_JOINT_ORDER, JOINT_CONVERSIONS
@@ -350,6 +350,11 @@ class MEBotControlNode(Node):
             self.state_publish_rate, self.publish_RAMMPPrototypeState
         )
 
+        # PID tuner / other nodes can unlock manual control when calibration completes.
+        self.teensy_cal_done_publisher = self.create_publisher(
+            String, "teensy_cal_done", 10
+        )
+
         # self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
         # self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
@@ -386,6 +391,7 @@ class MEBotControlNode(Node):
                     self.cal_joints_done += 1
                 elif raw_data == "CAL_DONE":
                     self.cal_complete = True
+                    self.teensy_cal_done_publisher.publish(String(data="CAL_DONE"))
                 else:
                     # for debuggong, og was just self.get_logger().info(str(raw_data))
                     if raw_data.startswith("TELEMETRY"):

@@ -97,6 +97,8 @@ class ManualControlNode(Node):
                 s = str(line).strip()
                 if s == "CAL_DONE":
                     self._calibrating = False
+                    if self.state == self.STATE_TUNER_MODE:
+                        self.write_serial_data("M1:0\nM2:0\nM3:0\nM4:0\nM5:0\nM6:0\n")
                     self.cal_test_pub.publish(String(data="CAL_DONE"))
                 elif s.startswith("CAL: Aborted"):
                     self._calibrating = False

@@ -409,6 +409,12 @@ float cal_pwm = 0.0f;
 bool cal_done[CAL_NUM_MOTORS] = {};
 
 void startCalibration(float pwm) {
+  // disable odrives before calibration
+  ODriveL.setTargetVelocity(0.0f);
+  ODriveR.setTargetVelocity(0.0f);
+  ODriveL.disable();
+  ODriveR.disable();
+
   cal_start_ms = millis();
   cal_pwm = pwm;
   Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc,          &ml,

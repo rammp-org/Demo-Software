@@ -175,7 +175,7 @@ class ManualControlNode(Node):
                 return
 
             # Check for odrive velocity
-            odrive_js_threshold = 0.25
+            odrive_js_threshold = 0.5
             if abs(axes_array[3]) > odrive_js_threshold and not self.odrives_active:
                 self.odrives_active = True
                 direction = 1 if axes_array[3] > 0 else -1

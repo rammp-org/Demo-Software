@@ -4,6 +4,7 @@ from __future__ import annotations
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_srvs.srv import Empty
+from std_msgs.msg import String
 
 try:
     # Optional: only available when luci_messages is built/sourced.
@@ -50,6 +51,7 @@ class ManualControlNode(Node):
         super().__init__("manual_control_node")
         self._serial_handler = serial_handler
 
+        self.cal_test_pub = self.create_publisher(String, "cal_test", 10)
         # Local toggle state (do not depend on Teensy telemetry here)
         self.state = self.STATE_IDLE
         self.prev_start_pressed = False
@@ -95,6 +97,7 @@ class ManualControlNode(Node):
                 s = str(line).strip()
                 if s == "CAL_DONE":
                     self._calibrating = False
+                    self.cal_test_pub.publish(String(data="CAL_DONE"))
                 elif s.startswith("CAL: Aborted"):
                     self._calibrating = False
         except Exception:

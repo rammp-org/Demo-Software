@@ -349,8 +349,8 @@ class MEBotControlNode(Node):
         self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
         self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
 
-        self.imu_publisher = self.create_publisher(Imu, "imu", 10)
-        self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
+        # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
+        # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
 
     def read_serial_data(self):
         if self.ser is None:

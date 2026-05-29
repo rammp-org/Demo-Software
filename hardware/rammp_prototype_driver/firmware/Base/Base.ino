@@ -28,7 +28,7 @@
 #include <ODriveUART.h>
 #include "ODriveEnums.h"
 #include "src/ODrive/ODrive.h"
-#define DEBUG_MODE 0
+#define DEBUG_MODE 1
 
 // Drive motor position deadzone. When the FB position error is within this
 // many ticks, the target is snapped to current position and both PIDs are
@@ -574,11 +574,10 @@ void setup() {
 
   Serial.println(
       "EEPROM CONFIG LOADED: All motor configs restored from EEPROM.");
-  current_state =
-      IDLE; // TODO: change back to UNCALIBRATED after odrive testing done
-  calibrated = true; // TODO: change back to false after odrive testing done
-  // Serial.println("STATE: UNCALIBRATED — calibration required before
-  // operation");
+  current_state = UNCALIBATED;
+  calibrated = false;
+  Serial.println("STATE: UNCALIBRATED — calibration required before
+  operation");
 }
 
 void loop() {

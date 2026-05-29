@@ -194,7 +194,7 @@ void sequenceHandleCommand(const RobotCommand &cmd,
         Serial.println(idx);
       } else {
         Serial.print("SEQ_ERR,bad_payload,");
-        Serial.print(idx);
+        Serial.println(idx);
       }
     }
     return;

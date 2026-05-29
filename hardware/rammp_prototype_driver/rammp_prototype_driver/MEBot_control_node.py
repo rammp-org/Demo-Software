@@ -678,7 +678,7 @@ class MEBotControlNode(Node):
     def estop_callback(self, msg):
         self.estop = msg.data
         if msg.data:
-            # self.send_remove_luci()  # may be redundent, ensure user has manual control
+            self.send_remove_luci()  # may be redundent, ensure user has manual control
             self.write_serial_data(
                 "z\n"
             )  # triggers MotorController function NO_MOVEMENT
@@ -775,7 +775,7 @@ class MEBotControlNode(Node):
     def curb_traverse_action_callback(self, goal):
         self.send_set_luci()  # enable LUCI control over js
 
-        feedback_msg = CurbTraverse.Feedback()
+        # feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
 
         # call the calibration function before going down curb
@@ -789,7 +789,7 @@ class MEBotControlNode(Node):
         if goal.request.direction == 1:
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/test_odrive.json"
+                + "/config/curb_ascending.json"
             )
         else:
             json_path = (
@@ -825,12 +825,12 @@ class MEBotControlNode(Node):
                 self.write_serial_data("c\n")
                 return result
 
-            feedback_msg.progress = (
-                self.current_seq * 100.0 / float(self.seq_length)
-                if self.seq_length > 0
-                else 0.0
-            )
-            goal.publish_feedback(feedback_msg)
+            # feedback_msg.progress = (
+            #     self.current_seq * 100.0 / float(self.seq_length)
+            #     if self.seq_length > 0
+            #     else 0.0
+            # )
+            # goal.publish_feedback(feedback_msg)
 
             time.sleep(0.05)
 

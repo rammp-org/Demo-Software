@@ -186,11 +186,6 @@ class MEBotControlNode(Node):
 
         self.lock = threading.Lock()
 
-        self.get_logger().info(
-            f"Sequence keyframes use NUM_MOTORS={NUM_MOTORS} "
-            f"(firmware expects 40 CSV fields per keyframe)"
-        )
-
         # diagnostics updater init
         self.updater = diagnostic_updater.Updater(self)
         self.updater.setHardwareID("MEBot")

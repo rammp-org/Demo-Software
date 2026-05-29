@@ -380,8 +380,6 @@ class MEBotControlNode(Node):
                     self.cal_joints_done += 1
                 elif raw_data == "CAL_DONE":
                     self.cal_complete = True
-                else:
-                    self.get_logger().info(str(raw_data))
 
     def write_serial_data(self, data):
         if self.ser is None:

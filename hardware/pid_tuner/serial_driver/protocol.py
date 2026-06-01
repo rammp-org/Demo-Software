@@ -36,6 +36,7 @@ PC -> Teensy Protocol:
 from dataclasses import dataclass, field
 from typing import Optional, List
 import re
+from .keyframe import NUM_MOTORS
 
 
 @dataclass
@@ -593,7 +594,6 @@ class ProtocolEncoder:
         duration_ms: single int (broadcast) or list of 10 ints.
         relative: list of 10 bools (default all False).
         """
-        from .keyframe import NUM_MOTORS
 
         t_str = ",".join(f"{t:.2f}" for t in targets)
         a_str = ",".join(str(int(bool(a))) for a in active)

@@ -593,8 +593,8 @@ class MEBotControlNode(Node):
         # app time
         msg.app_time = float(self.app_time)
 
-        # msg.odrive_l_torque_nm = float(self.odrive_l_torque_nm)
-        # msg.odrive_r_torque_nm = float(self.odrive_r_torque_nm)
+        msg.odrive_l_torque_nm = float(self.odrive_l_torque_nm)
+        msg.odrive_r_torque_nm = float(self.odrive_r_torque_nm)
 
         # velocities
         msg.ml_vel = float(self.current_speed_ML)

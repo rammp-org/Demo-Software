@@ -1,4 +1,5 @@
 from typing import Any, Dict, Tuple
+from ..serial_driver.keyframe import NUM_MOTORS
 
 import pyqtgraph as pg
 from PyQt6.QtWidgets import (
@@ -144,8 +145,6 @@ class SequencePlotter(QWidget):
 
         latest_time = 0
 
-        from ..serial_driver.keyframe import NUM_MOTORS
-
         for i in range(min(NUM_MOTORS, 8)):
             joint_data = self._data_store.get_joint(i + 1)
             if joint_data:
@@ -257,8 +256,6 @@ class SequencePlotter(QWidget):
         self._pause_btn.setText("Resume" if checked else "Pause")
 
     def _on_clear_clicked(self):
-        from ..serial_driver.keyframe import NUM_MOTORS
-
         for i in range(min(NUM_MOTORS, 8)):
             joint_id = i + 1
             self._data_store.clear_joint(joint_id)

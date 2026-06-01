@@ -745,19 +745,6 @@ void loop() {
     if (DEBUG_MODE)
       Serial.print("DEBUG: Set target roll: ");
     Serial.println(target_roll);
-  } else if (cmd.type == CMD_MANUAL_CONTROL) {
-    if (cmd.actuator_id == 1) {
-      current_state = MANUAL_CONTROL;
-      MotorBase *joints[] = {&rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage};
-      for (auto *m : joints) {
-        m->setMode(MotorBase::OPEN_LOOP);
-        m->setTargetPWM(0.0f);
-      }
-      Serial.println("Entered manual control");
-    } else if (cmd.actuator_id == 0) {
-      current_state = IDLE;
-      Serial.println("Exited manual control");
-    }
   } else if (cmd.type != CMD_NONE && current_state == IDLE) {
     current_state = TUNER_MODE;
     if (DEBUG_MODE)
@@ -775,10 +762,6 @@ void loop() {
     ODriveR.setMode(MotorBase::VELOCITY_CONTROL);
     ODriveL.setTargetVelocity(cmd.value);
     ODriveR.setTargetVelocity(cmd.value);
-    // if (DEBUG_MODE) {
-    //   Serial.print("DEBUG: ODrive L/R velocity set to ");
-    //   Serial.println(cmd.value, 4);
-    // }
   }
 
   // Config reads are safe during any state (including E-Stop).
@@ -811,19 +794,6 @@ void loop() {
                               EContr,    entry};
         dispatchCommand(cmd, ctx);
       }
-    }
-  }
-
-  if (current_state == MANUAL_CONTROL && cmd.type != CMD_NONE &&
-      cmd.type != CMD_GET_CONFIG && cmd.type != CMD_MANUAL_CONTROL &&
-      cmd.type != CMD_ODRIVE_VEL) {
-    const MotorEntry *cfg_entry = getMotorEntry(cmd.actuator_id);
-    MotorBase *cfg_m = cfg_entry ? cfg_entry->motor : nullptr;
-    if (cfg_m != nullptr) {
-      CommandContext cfg_ctx = {cfg_m,     (uint8_t)cmd.actuator_id,
-                                cmd.value, parser.last_payload,
-                                EContr,    cfg_entry};
-      dispatchCommand(cmd, cfg_ctx);
     }
   }
 

@@ -61,9 +61,6 @@ RobotCommand CommandParser::parse(Stream &serial) {
           case 'G':
             cmd.type = CMD_GET_CONFIG;
             break;
-          case 'M':
-            cmd.type = CMD_MANUAL_CONTROL;
-            break;
           default:
             cmd.type = CMD_UNKNOWN;
             break;

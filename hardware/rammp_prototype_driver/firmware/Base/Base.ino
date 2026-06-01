@@ -574,7 +574,7 @@ void setup() {
 
   Serial.println(
       "EEPROM CONFIG LOADED: All motor configs restored from EEPROM.");
-  current_state = UNCALIBATED;
+  current_state = UNCALIBRATED;
   calibrated = false;
   Serial.println("STATE: UNCALIBRATED — calibration required before
   operation");
@@ -722,7 +722,7 @@ void loop() {
       mr.disable();
       ml_carriage.disable();
       mr_carriage.disable();
-      // I don't think odrives need to be disabled here?
+
       current_state = calibrated ? IDLE : UNCALIBRATED;
       if (DEBUG_MODE)
         Serial.println(calibrated

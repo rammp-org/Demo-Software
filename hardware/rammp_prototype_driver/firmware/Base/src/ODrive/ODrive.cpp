@@ -14,14 +14,8 @@ void ODrive::updateSensorData(float current_pos, float dt) {
   this->prev_pos = this->current_pos;
 }
 
-// void ODrive::updateEncoderReadings() {
-//   current_pos = this->odrive.getPosition() * this->direction;
-// }
-
 void ODrive::setMode(ControlMode new_mode) {
-  // Serial.println("ODrive setMode called");
   this->mode = new_mode;
-  // Serial.println(new_mode);
   switch (new_mode) {
   case OPEN_LOOP:
   case DISABLED:
@@ -49,7 +43,6 @@ void ODrive::setMode(ControlMode new_mode) {
     }
     break;
   case POSITION_CONTROL:
-    // Serial.println("ODrive setMode POSITION_CONTROL called");
     while (this->odrive.getState() != AXIS_STATE_CLOSED_LOOP_CONTROL) {
       Serial.println("ODrive setMode POSITION_CONTROL still waiting!!");
       this->odrive.clearErrors();
@@ -71,14 +64,7 @@ void ODrive::setMode(ControlMode new_mode) {
 //
 float ODrive::getTargetVelocity() { return target_vel * this->direction; }
 
-void ODrive::disable() {
-  // getCurrentPosition() is robot frame; UART setPosition expects hardware.
-  // const float robot_pos = this->getCurrentPosition();
-  // const float hw_pos = robot_pos / static_cast<float>(direction);
-  // this->setMode(POSITION_CONTROL);
-  // this->odrive.setPosition(hw_pos);
-  this->setMode(DISABLED);
-}
+void ODrive::disable() { this->setMode(DISABLED); }
 
 float ODrive::getTargetPosition() { return target_pos * this->direction; }
 

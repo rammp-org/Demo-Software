@@ -1,6 +1,8 @@
 """
-Encoder overview widget showing all 6 encoder positions in a compact layout,
+Encoder overview widget showing encoder positions in a compact layout,
 with combined motion controls and saved position buttons.
+
+Includes RoboClaw joints 1–8 (JOINTS) and ODrive actuators 9–10.
 """
 
 from PyQt6.QtWidgets import (
@@ -20,7 +22,7 @@ from PyQt6.QtGui import QColor, QPainter, QPen, QBrush
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
 from ..data.data_store import DataStore
-from ..data.joint_config import JOINTS
+from ..data.joint_config import JOINTS, is_odrive_actuator
 from ..serial_driver.serial_handler import SerialHandler
 
 MODE_OPEN_LOOP = 0
@@ -206,8 +208,8 @@ class SavedPositionButton(QPushButton):
 
 class EncoderOverview(QWidget):
     """
-    Widget showing all 6 encoder positions in a compact layout,
-    with combined motion controls and saved position buttons.
+    Widget showing joint and ODrive positions, combined motion controls,
+    and saved position buttons.
     """
 
     joint_selected = pyqtSignal(int)
@@ -251,6 +253,8 @@ class EncoderOverview(QWidget):
                 name=joint.short_name,
                 color=color,
             )
+            if is_odrive_actuator(joint.id):
+                box.set_limits(-50.0, 50.0)
             box.clicked.connect(self._on_box_clicked)
             self._boxes.append(box)
             boxes_layout.addWidget(box)
@@ -286,6 +290,29 @@ class EncoderOverview(QWidget):
 
         root.addLayout(controls_layout)
 
+        odrive_controls = QHBoxLayout()
+        odrive_controls.setSpacing(SIZES["spacing_medium"])
+
+        odrive_controls.addWidget(QLabel("ODrives (9,10) Δ turns:"))
+        self._odrive_spin = QDoubleSpinBox()
+        self._odrive_spin.setRange(-100.0, 100.0)
+        self._odrive_spin.setDecimals(2)
+        self._odrive_spin.setSingleStep(0.1)
+        self._odrive_spin.setValue(0.1)
+        self._odrive_spin.setToolTip(
+            "Relative delta applied to both ODrive R and L (robot-frame turns)"
+        )
+        odrive_controls.addWidget(self._odrive_spin)
+
+        btn_odrive = QPushButton("Go")
+        btn_odrive.setToolTip(
+            "Position mode: target = current position + delta for OD_R and OD_L"
+        )
+        btn_odrive.clicked.connect(self._on_odrive_go)
+        odrive_controls.addWidget(btn_odrive)
+
+        root.addLayout(odrive_controls)
+
         pos_grid = QGridLayout()
         pos_grid.setSpacing(SIZES["spacing_small"])
         for i in range(6):
@@ -303,10 +330,12 @@ class EncoderOverview(QWidget):
         self._update_timer.start(self.UPDATE_INTERVAL_MS)
 
     def _update_values(self):
-        for i, box in enumerate(self._boxes):
-            joint_data = self._data_store.get_joint(JOINTS[i].id)
+        for i, joint in enumerate(JOINTS):
+            if i >= len(self._boxes):
+                break
+            joint_data = self._data_store.get_joint(joint.id)
             if joint_data:
-                box.set_value(joint_data.current_position)
+                self._boxes[i].set_value(joint_data.current_position)
 
     def _on_box_clicked(self, joint_id: int):
         self.set_selected_joint(joint_id)
@@ -326,12 +355,23 @@ class EncoderOverview(QWidget):
             self._serial_handler.set_target(j, val)
             self._data_store.set_target(j, val)
 
+    def _on_odrive_go(self):
+        delta = self._odrive_spin.value()
+        for joint in JOINTS:
+            if not is_odrive_actuator(joint.id):
+                continue
+            joint_data = self._data_store.get_joint(joint.id)
+            current = joint_data.current_position if joint_data else 0.0
+            target = current + delta
+            self._serial_handler.set_mode(joint.id, MODE_POSITION)
+            self._serial_handler.set_target(joint.id, target)
+
     @pyqtSlot(int)
     def set_selected_joint(self, joint_id: int):
         self._selected_joint = joint_id
 
-        for i, box in enumerate(self._boxes):
-            box.set_selected(JOINTS[i].id == joint_id)
+        for box in self._boxes:
+            box.set_selected(box._joint_id == joint_id)
 
     def set_range(self, min_val: float, max_val: float):
         pass
@@ -341,11 +381,12 @@ class EncoderOverview(QWidget):
 
     def _on_config_updated(self, joint_id: int):
         config = self._data_store.get_config(joint_id)
-        if config:
-            for box in self._boxes:
-                if box._joint_id == joint_id:
-                    box.set_limits(config.pos_limit_min, config.pos_limit_max)
-                    break
+        if not config:
+            return
+        for box in self._boxes:
+            if box._joint_id == joint_id:
+                box.set_limits(config.pos_limit_min, config.pos_limit_max)
+                break
 
     def set_mode_for_joint(self, joint_id: int, mode: int):
         pass

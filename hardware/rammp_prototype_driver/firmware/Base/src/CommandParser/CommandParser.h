@@ -35,7 +35,8 @@ enum CommandType {
   CMD_LEVEL_ROLL,   // e.g. A2:<roll>
   CMD_SEQ_MODE,     // e.g. B1:1 (enter sequence mode), B1:0 (exit)
   CMD_SEQ_KEYFRAME, // e.g.
-                    // J<idx>:<t1>,<t2>,<t3>,<t4>,<t5>,<t6>,<a1>,<a2>,<a3>,<a4>,<a5>,<a6>,<dur_ms>
+                    // J<idx>:<t1>..<t10>,<a1>..<a10>,<r1>..<r10>,<d1>..<d10>
+                    // (40 values)
   CMD_SEQ_STEP_FWD, // e.g. > (step forward to next keyframe)
   CMD_SEQ_STEP_BWD, // e.g. < (step backward to previous keyframe)
   CMD_SEQ_GOTO,     // e.g. @<idx> (jump directly to keyframe index)

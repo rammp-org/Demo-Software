@@ -4,7 +4,8 @@ Keyframe data model for the Teensy sequence player.
 This module is Qt-free so it can be imported by both the pid_tuner GUI
 and the ROS driver without pulling in PyQt6.
 
-Motor order: [RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR]
+Motor order: [RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR,
+              ODrive_R, ODrive_L]  (must match firmware SEQ_NUM_MOTORS / seq_motors[])
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 # Number of motors controlled by the sequence player (must match firmware SEQ_NUM_MOTORS)
-NUM_MOTORS = 8
+NUM_MOTORS = 10
 
 
 class Keyframe:

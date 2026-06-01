@@ -2,8 +2,9 @@
 #define MOTOR_MAP_H
 
 #include <Arduino.h>
+#include "../MotorBase/MotorBase.h"
 
-class Motor;
+class MotorBase;
 class RoboClaw;
 
 // Centralized motor-encoder mapping for the RAMMP mobile base firmware.
@@ -23,11 +24,11 @@ class RoboClaw;
 // drive_lr,    enc=10, nullptr,           0,  offset=false, seq=false,
 // "drive_lr"
 
-constexpr uint8_t NUM_MOTORS = 8;
+constexpr uint8_t NUM_MOTORS = 10;
 constexpr uint8_t NUM_SEQ_MOTORS = 6;
 
 struct MotorEntry {
-  Motor *motor; // Pointer to global Motor object (populated at runtime)
+  MotorBase *motor; // Pointer to global Motor object (populated at runtime)
   uint8_t encoder_index; // Encoder array index in EncoderContainer
   RoboClaw *controller;  // RoboClaw instance (nullptr for encoder-only motors)
   uint8_t roboclaw_channel; // 1=M1, 2=M2, 0=no controller
@@ -36,7 +37,7 @@ struct MotorEntry {
   const char *name;         // Human-readable name for debug
 };
 
-extern MotorEntry motor_map[8];
+extern MotorEntry motor_map[10];
 
 inline const MotorEntry *getMotorEntry(uint8_t actuator_id) {
   if (actuator_id < 1 || actuator_id > NUM_MOTORS) {
@@ -50,7 +51,7 @@ inline uint8_t getEncoderIndex(uint8_t actuator_id) {
   return entry ? entry->encoder_index : 0;
 }
 
-inline Motor *getMotor(uint8_t actuator_id) {
+inline MotorBase *getMotor(uint8_t actuator_id) {
   const MotorEntry *entry = getMotorEntry(actuator_id);
   return entry ? entry->motor : nullptr;
 }

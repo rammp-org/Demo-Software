@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "Telemetry.h"
 #include "../Motor/Motor.h"
+#include "../ODrive/ODrive.h"
 #include "../IMU_Class/IMU_Class.h"
 #include "../StrainGauge/StrainGauge.h"
 
@@ -82,10 +83,15 @@ void updateTelemetry() {
   telemetry.drive_directions[1] = drive_lr.getDirection();
   telemetry.drive_enc_directions[0] = drive_fb.getEncoderDirection();
   telemetry.drive_enc_directions[1] = drive_lr.getEncoderDirection();
+
+  telemetry.odrive_positions[0] = ODriveR.current_pos;
+  telemetry.odrive_positions[1] = ODriveL.current_pos;
+  telemetry.odrive_torques[0] = ODriveR.getCurrentTorque();
+  telemetry.odrive_torques[1] = ODriveL.getCurrentTorque();
 }
 
 // Helper to send telemetry — builds the full CSV line into a buffer, single
-// Serial.print Packet format (75 comma-separated values after the header):
+// Serial.print Packet format (79 comma-separated values after the header):
 //   TELEMETRY,<ms>,<state>,
 //   <6 positions>,<6 velocities>,<6 pwms>,
 //   <6 motor dirs>,<6 enc dirs>,<4 limit switches>,
@@ -93,7 +99,8 @@ void updateTelemetry() {
 //   <5 leveling debug>,<4 strain gauges>,<6 control modes>,
 //   <2 drive positions>,<2 drive velocities>,<2 drive pwms>,
 //   <2 drive control modes>,<2 raw enc positions>,<2 raw enc velocities>,
-//   <2 drive directions>,<2 drive enc directions>
+//   <2 drive directions>,<2 drive enc directions>,
+//   <odrive_r_pos>,<odrive_l_pos>,<odrive_r_torque>,<odrive_l_torque>
 void sendTelemetry() {
   char buf[800];
   int n = 0;
@@ -164,6 +171,13 @@ void sendTelemetry() {
   for (int i = 0; i < 2; i++)
     n += snprintf(buf + n, sizeof(buf) - n, ",%d",
                   telemetry.drive_enc_directions[i]);
+
+  n += snprintf(buf + n, sizeof(buf) - n, ",%.4f",
+                telemetry.odrive_positions[0]);
+  n += snprintf(buf + n, sizeof(buf) - n, ",%.4f",
+                telemetry.odrive_positions[1]);
+  n += snprintf(buf + n, sizeof(buf) - n, ",%.4f", telemetry.odrive_torques[0]);
+  n += snprintf(buf + n, sizeof(buf) - n, ",%.4f", telemetry.odrive_torques[1]);
 
   n += snprintf(buf + n, sizeof(buf) - n, "\n");
 

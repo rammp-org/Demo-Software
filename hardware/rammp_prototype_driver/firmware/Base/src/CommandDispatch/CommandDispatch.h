@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include "../CommandParser/CommandParser.h"
 
-class Motor;
+class MotorBase;
 class RoboClaw;
 class EncoderContainer;
 struct MotorEntry;
@@ -13,7 +13,7 @@ struct MotorEntry;
 // NOTE: has const String& member, so no default constructor — always
 // construct with all fields populated.
 struct CommandContext {
-  Motor *motor;          // Target motor (nullptr for global commands like K0)
+  MotorBase *motor;      // Target actuator (Motor or ODrive; nullptr for K0)
   uint8_t actuator_id;   // 1-indexed actuator ID from protocol
   float value;           // Parsed float value from command
   const String &payload; // Raw payload string (for CMD_SEQ_KEYFRAME etc.)

@@ -106,6 +106,9 @@ class EncoderData:
     drive_lr_dir: int = 1
     drive_fb_enc_dir: int = 1
     drive_lr_enc_dir: int = 1
+
+    # Appended at end of telemetry line
+    carriage_return_direction: int = 0
     odrive_l_pos: float = 0.0
     odrive_r_pos: float = 0.0
     odrive_l_torque_nm: float = 0.0
@@ -322,6 +325,8 @@ class ProtocolParser:
                         data.odrive_l_pos = values[76]
                         data.odrive_r_torque_nm = values[77]
                         data.odrive_l_torque_nm = values[78]
+                    if len(values) >= 80:
+                        data.carriage_return_direction = int(values[79])
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:

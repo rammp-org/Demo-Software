@@ -49,6 +49,10 @@ SystemState current_state = INIT;
 SystemTelemetry telemetry;
 bool calibrated = false;
 
+// Appended to the end of the TELEMETRY CSV line.
+// Higher-level behaviors may set this to indicate carriage return direction.
+int carriage_return_direction = 0;
+
 // Sequence player state moved to src/SequencePlayer/
 
 // Self Leveling Targets

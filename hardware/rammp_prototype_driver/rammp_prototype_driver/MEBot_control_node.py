@@ -149,6 +149,7 @@ class SerialField(IntEnum):
     ODRIVE_R_POS = 79
     ODRIVE_L_TORQUE_NM = 80
     ODRIVE_R_TORQUE_NM = 81
+    CARRIAGE_RETURN_DIRECTION = 82
     STATE = 2
     FB_PWM = 66
 

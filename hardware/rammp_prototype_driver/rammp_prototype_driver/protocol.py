@@ -106,6 +106,9 @@ class EncoderData:
     drive_fb_enc_dir: int = 1
     drive_lr_enc_dir: int = 1
 
+    # Appended at end of telemetry line
+    carriage_return_direction: int = 0
+
     @property
     def num_joints(self) -> int:
         return len(self.position_values)
@@ -330,6 +333,8 @@ class ProtocolParser:
                         data.drive_lr_dir = int(values[72])
                         data.drive_fb_enc_dir = int(values[73])
                         data.drive_lr_enc_dir = int(values[74])
+                    if len(values) >= 80:
+                        data.carriage_return_direction = int(values[79])
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:

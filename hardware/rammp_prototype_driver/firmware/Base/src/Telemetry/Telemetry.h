@@ -47,8 +47,10 @@ struct SystemTelemetry {
   float raw_enc_velocities[2];
   int drive_directions[2];
   int drive_enc_directions[2];
-  float odrive_positions[2]; // [R, L] robot frame (turns)
-  float odrive_torques[2];   // [R, L] Nm
+  float odrive_positions[2];     // [R, L] robot frame (turns)
+  float odrive_torques[2];       // [R, L] Nm
+  int carriage_return_direction; // for smooth carriage return during curb
+                                 // traversal
 };
 
 // Extern declarations for globals accessed by telemetry functions
@@ -69,6 +71,8 @@ extern bool ml_fwd_limit, ml_bwd_limit, mr_fwd_limit, mr_bwd_limit;
 
 class ODrive;
 extern ODrive ODriveR, ODriveL;
+
+extern int carriage_return_direction;
 
 // Update telemetry struct from current sensor/motor state
 void updateTelemetry();

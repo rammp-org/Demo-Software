@@ -66,6 +66,16 @@ RobotCommand CommandParser::parse(Stream &serial) {
             break;
           }
         }
+        // Global ODrive velocity: s:<vel> (no actuator id)
+        else if (colon_idx == 1) {
+          last_payload = buffer.substring(colon_idx + 1);
+          cmd.value = last_payload.toFloat();
+          cmd.actuator_id = 0;
+          if (type_char == 's')
+            cmd.type = CMD_ODRIVE_VEL;
+          else
+            cmd.type = CMD_UNKNOWN;
+        }
         // Commands with value (e.g., T1:0.5)
         else if (colon_idx > 1) {
           cmd.actuator_id = buffer.substring(1, colon_idx).toInt();

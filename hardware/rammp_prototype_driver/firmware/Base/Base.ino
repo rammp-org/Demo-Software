@@ -409,6 +409,12 @@ float cal_pwm = 0.0f;
 bool cal_done[CAL_NUM_MOTORS] = {};
 
 void startCalibration(float pwm) {
+  // disable odrives before calibration
+  ODriveL.setTargetVelocity(0.0f);
+  ODriveR.setTargetVelocity(0.0f);
+  ODriveL.disable();
+  ODriveR.disable();
+
   cal_start_ms = millis();
   cal_pwm = pwm;
   Motor *cal_motors[CAL_NUM_MOTORS] = {&rc, &fc,          &ml,
@@ -748,6 +754,14 @@ void loop() {
     // Block motor commands in UNCALIBRATED state — calibration required first
     if (DEBUG_MODE)
       Serial.println("DEBUG: Command rejected — calibration required");
+  }
+
+  // Both ODrives: same velocity command (s:<turns/s>, robot frame).
+  if (cmd.type == CMD_ODRIVE_VEL && current_state != ESTOP) {
+    ODriveL.setMode(MotorBase::VELOCITY_CONTROL);
+    ODriveR.setMode(MotorBase::VELOCITY_CONTROL);
+    ODriveL.setTargetVelocity(cmd.value);
+    ODriveR.setTargetVelocity(cmd.value);
   }
 
   // Config reads are safe during any state (including E-Stop).

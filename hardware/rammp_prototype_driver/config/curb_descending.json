@@ -24,6 +24,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -77,6 +89,18 @@
         true,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         1000,
@@ -132,6 +156,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         3000,
@@ -186,6 +222,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -239,6 +287,18 @@
         false,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         null,
@@ -294,6 +354,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -347,6 +419,18 @@
         false,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         null,
@@ -402,6 +486,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -455,6 +551,18 @@
         false,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         null,
@@ -510,6 +618,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         1000,
@@ -563,6 +683,18 @@
         true,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         null,
@@ -618,6 +750,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         5000,
         3000,
@@ -672,6 +816,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -725,6 +881,18 @@
         true,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         3000,

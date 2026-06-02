@@ -24,6 +24,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -77,6 +89,18 @@
         false,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         3000,
@@ -132,6 +156,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         4000,
         null,
@@ -185,6 +221,18 @@
         false,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         null,
@@ -240,6 +288,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -293,6 +353,18 @@
         false,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         null,
@@ -348,6 +420,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -401,6 +485,18 @@
         false,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         5000,
@@ -456,6 +552,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -509,6 +617,18 @@
         false,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         null,
@@ -564,6 +684,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -617,6 +749,18 @@
         true,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         6000,
@@ -672,6 +816,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -726,6 +882,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,
@@ -779,6 +947,18 @@
         false,
         true,
         true
+      ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
       ],
       "motor_durations": [
         null,

@@ -14,7 +14,7 @@ extern int8_t ml_enc_dir, mr_enc_dir;
 
 // DEBUG_MODE is defined in Base.ino — replicate here for debug prints
 #ifndef DEBUG_MODE
-#define DEBUG_MODE 0 // change back to 1 after debugging
+#define DEBUG_MODE 1
 #endif
 
 // --- Handler implementations (migrated from Base.ino TUNER_MODE switch) ---

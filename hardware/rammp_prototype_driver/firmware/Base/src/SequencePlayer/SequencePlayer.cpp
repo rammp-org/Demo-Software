@@ -3,6 +3,7 @@
 #include "../MotorBase/MotorBase.h"
 #include "../CommandParser/CommandParser.h"
 #include "../CommandDispatch/CommandDispatch.h"
+#include "../Telemetry/Telemetry.h"
 
 // ---------------------------------------------------------------------------
 //  Module-scope state
@@ -47,6 +48,8 @@ static inline bool isDeltaZero(const Keyframe &kf, int i) {
 // Begin interpolation toward the current keyframe.
 static void beginInterp(MotorBase *motors[SEQ_NUM_MOTORS]) {
   const Keyframe &kf = seq_keyframes[seq_current];
+
+  carriage_return_direction = kf.carriage_return[0];
 
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
     seq_start_pos[i] = motors[i]->current_pos;

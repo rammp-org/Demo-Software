@@ -249,6 +249,7 @@ class MEBotControlNode(Node):
         self.odrive_r_pos = 0.0
         self.odrive_l_torque_nm = 0.0
         self.odrive_r_torque_nm = 0.0
+        self.carriage_return_direction = 0
 
         # Loadcells
         self.RC_loadcell = 0.0
@@ -475,6 +476,11 @@ class MEBotControlNode(Node):
         self.FC_loadcell = float(data[SerialField.FC_LOADCELL])
         self.MR_loadcell = float(data[SerialField.MR_LOADCELL])
         self.ML_loadcell = float(data[SerialField.ML_LOADCELL])
+
+        # Carriage return direction
+        self.carriage_return_direction = int(
+            data[SerialField.CARRIAGE_RETURN_DIRECTION]
+        )
 
         # State
         self.state = int(data[SerialField.STATE])
@@ -748,12 +754,20 @@ class MEBotControlNode(Node):
         return result
 
     def _send_joystick(self):
-        msg = LuciJoystick()
-        msg.forward_back = self.fb_pwm
-        msg.left_right = 0
-        msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
-        msg.input_source = INPUT_REMOTE
-        self.luci_js_publisher.publish(msg)
+        if self.carriage_return != 0:
+            msg = LuciJoystick()
+            msg.forward_back = self.carriage_return
+            msg.left_right = 0
+            msg.joystick_zone = _compute_zone(self.carriage_return, 0)
+            msg.input_source = INPUT_REMOTE
+            self.luci_js_publisher.publish(msg)
+        else:
+            msg = LuciJoystick()
+            msg.forward_back = self.fb_pwm
+            msg.left_right = 0
+            msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
+            msg.input_source = INPUT_REMOTE
+            self.luci_js_publisher.publish(msg)
 
         # Warn when publishing non-zero joystick data outside of active drive states
         if self.fb_pwm != 0 and self.state != SystemState.AUTO_CURB_CLIMBING:

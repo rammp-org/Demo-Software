@@ -419,6 +419,7 @@ class MEBotControlNode(Node):
                 active,
                 durations,
                 relative,
+                carriage_return=kf.carriage_return,
                 guard_threshold=kf.guard_threshold,
                 guard_condition=kf.guard_condition,
             )
@@ -754,11 +755,11 @@ class MEBotControlNode(Node):
         return result
 
     def _send_joystick(self):
-        if self.carriage_return != 0:
+        if self.carriage_return_direction != 0:
             msg = LuciJoystick()
-            msg.forward_back = self.carriage_return
+            msg.forward_back = self.carriage_return_direction
             msg.left_right = 0
-            msg.joystick_zone = _compute_zone(self.carriage_return, 0)
+            msg.joystick_zone = _compute_zone(self.carriage_return_direction, 0)
             msg.input_source = INPUT_REMOTE
             self.luci_js_publisher.publish(msg)
         else:

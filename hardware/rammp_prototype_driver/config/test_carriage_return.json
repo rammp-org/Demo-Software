@@ -2,8 +2,84 @@
 {
     "name": "carriage_return_testing",
     "keyframes": [
-      {
-        "label": "test_carriage_return",
+                   {
+        "label": "test_carriage_return   ",
+        "targets": [
+          null,
+          100,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "duration_ms": 2000,
+        "relative": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "carriage_return": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "motor_durations": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "guard_threshold": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "guard_condition": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+             {
+        "label": "test_carriage_return   ",
         "targets": [
           null,
           null,
@@ -24,13 +100,89 @@
           false,
           false,
           false,
-          false,
-          false,
+          true,
+          true,
           true,
           true
         ],
         "carriage_return": [
           -1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "motor_durations": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "guard_threshold": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "guard_condition": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+                   {
+        "label": "test_carriage_return   ",
+        "targets": [
+          null,
+          null,
+          null,
+          null,
+          0,
+          0,
+          null,
+          null,
+          null,
+          null
+        ],
+        "duration_ms": 2000,
+        "relative": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          true,
+          true,
+          true,
+          true
+        ],
+        "carriage_return": [
+          1,
           0,
           0,
           0,

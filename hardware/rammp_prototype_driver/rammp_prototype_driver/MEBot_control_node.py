@@ -504,9 +504,9 @@ class MEBotControlNode(Node):
         if len(data) > SerialField.ODRIVE_R_POS:
             self.odrive_l_pos = float(data[SerialField.ODRIVE_L_POS])
             self.odrive_r_pos = float(data[SerialField.ODRIVE_R_POS])
-        if len(data) > SerialField.ODRIVE_R_TORQUE_NM:
-            self.odrive_l_torque_nm = float(data[SerialField.ODRIVE_L_TORQUE_NM])
-            self.odrive_r_torque_nm = float(data[SerialField.ODRIVE_R_TORQUE_NM])
+        # if len(data) > SerialField.ODRIVE_R_TORQUE_NM:
+        #     self.odrive_l_torque_nm = float(data[SerialField.ODRIVE_L_TORQUE_NM])
+        #     self.odrive_r_torque_nm = float(data[SerialField.ODRIVE_R_TORQUE_NM])
 
     def publish_joint_states(self):
         conv = JOINT_CONVERSIONS
@@ -582,8 +582,8 @@ class MEBotControlNode(Node):
         # app time
         msg.app_time = float(self.app_time)
 
-        msg.odrive_l_torque_nm = float(self.odrive_l_torque_nm)
-        msg.odrive_r_torque_nm = float(self.odrive_r_torque_nm)
+        # msg.odrive_l_torque_nm = float(self.odrive_l_torque_nm)
+        # msg.odrive_r_torque_nm = float(self.odrive_r_torque_nm)
 
         # velocities
         msg.ml_vel = float(self.current_speed_ML)
@@ -758,8 +758,9 @@ class MEBotControlNode(Node):
         if self.carriage_return_direction != 0:
             msg = LuciJoystick()
             msg.forward_back = self.carriage_return_direction
-            msg.left_right = 0
-            msg.joystick_zone = _compute_zone(self.carriage_return_direction, 0)
+            lr_val = -2
+            msg.left_right = lr_val
+            msg.joystick_zone = _compute_zone(self.carriage_return_direction, lr_val)
             msg.input_source = INPUT_REMOTE
             self.luci_js_publisher.publish(msg)
         else:

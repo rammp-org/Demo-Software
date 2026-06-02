@@ -29,6 +29,18 @@
         true,
         true
       ],
+      "carriage_return": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
       "motor_durations": [
         null,
         null,

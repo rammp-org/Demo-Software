@@ -78,7 +78,7 @@ static void beginInterp(MotorBase *motors[SEQ_NUM_MOTORS]) {
 //  Payload parser (SEQ_NUM_MOTORS = 10 only)
 // ---------------------------------------------------------------------------
 bool parseKeyframePayload(const String &payload, Keyframe &kf) {
-  const int MAX_VALS = SEQ_NUM_MOTORS * 6;
+  const int MAX_VALS = SEQ_NUM_MOTORS * 7;
   float vals[MAX_VALS];
   int count = 0;
   int start = 0;
@@ -91,40 +91,47 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     }
   }
 
-  // Guarded format: 60 values
-  if (count == SEQ_NUM_MOTORS * 6) {
+  // Guarded format: 70 values
+  // targets, active, relative, durations, carriage_return, guard_threshold,
+  // guard_condition
+  if (count == SEQ_NUM_MOTORS * 7) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = vals[i];
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
       kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
-      kf.guard_threshold[i] = vals[SEQ_NUM_MOTORS * 4 + i];
-      kf.guard_condition[i] = (uint8_t)vals[SEQ_NUM_MOTORS * 5 + i];
+      kf.carriage_return[i] = (int32_t)vals[SEQ_NUM_MOTORS * 4 + i];
+      kf.guard_threshold[i] = vals[SEQ_NUM_MOTORS * 5 + i];
+      kf.guard_condition[i] = (uint8_t)vals[SEQ_NUM_MOTORS * 6 + i];
     }
     return true;
   }
 
-  // Standard format: 40 values
-  if (count == SEQ_NUM_MOTORS * 4) {
+  // Standard format: 50 values
+  // targets, active, relative, durations, carriage_return
+  if (count == SEQ_NUM_MOTORS * 5) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = vals[i];
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
       kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
+      kf.carriage_return[i] = (int32_t)vals[SEQ_NUM_MOTORS * 4 + i];
       kf.guard_threshold[i] = 0.0f;
       kf.guard_condition[i] = GUARD_NONE;
     }
     return true;
   }
 
-  // Compact format: 21 values
-  if (count == SEQ_NUM_MOTORS * 2 + 1) {
+  // Compact format: 31 values
+  // targets, active, global_duration_ms, carriage_return
+  if (count == SEQ_NUM_MOTORS * 3 + 1) {
     uint32_t global_dur = (uint32_t)vals[SEQ_NUM_MOTORS * 2];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = vals[i];
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = false;
       kf.duration_ms[i] = global_dur;
+      kf.carriage_return[i] = (int32_t)vals[SEQ_NUM_MOTORS * 2 + 1 + i];
       kf.guard_threshold[i] = 0.0f;
       kf.guard_condition[i] = GUARD_NONE;
     }

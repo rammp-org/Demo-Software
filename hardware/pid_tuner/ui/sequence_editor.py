@@ -818,6 +818,7 @@ class SequenceEditor(QWidget):
                 active,
                 durations,
                 kf.relative,
+                carriage_return=kf.carriage_return,
                 guard_threshold=kf.guard_threshold,
                 guard_condition=kf.guard_condition,
             )

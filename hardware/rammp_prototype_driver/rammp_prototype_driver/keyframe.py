@@ -21,6 +21,9 @@ class Keyframe:
         self.targets: List[Optional[float]] = [None] * NUM_MOTORS
         self.duration_ms: int = 1000
         self.relative: List[bool] = [False] * NUM_MOTORS
+        # Per-motor "carriage return" values used by the sequence player.
+        # Wire format: appended as 10 values after durations.
+        self.carriage_return: List[int] = [0] * NUM_MOTORS
         self.motor_durations: List[Optional[int]] = [None] * NUM_MOTORS
         self.guard_threshold: List[float] = [0.0] * NUM_MOTORS
         self.guard_condition: List[int] = [0] * NUM_MOTORS
@@ -34,6 +37,7 @@ class Keyframe:
             "targets": [t if t is not None else None for t in self.targets],
             "duration_ms": self.duration_ms,
             "relative": self.relative,
+            "carriage_return": list(self.carriage_return),
             "motor_durations": [
                 d if d is not None else None for d in self.motor_durations
             ],
@@ -56,6 +60,12 @@ class Keyframe:
         while len(raw_relative) < NUM_MOTORS:
             raw_relative.append(False)
         kf.relative = [bool(r) for r in raw_relative[:NUM_MOTORS]]
+
+        raw_carriage_return = d.get("carriage_return", [0] * NUM_MOTORS)
+        while len(raw_carriage_return) < NUM_MOTORS:
+            raw_carriage_return.append(0)
+        kf.carriage_return = [int(float(v)) for v in raw_carriage_return[:NUM_MOTORS]]
+
         raw_motor_durations = d.get("motor_durations", [None] * NUM_MOTORS)
         while len(raw_motor_durations) < NUM_MOTORS:
             raw_motor_durations.append(None)

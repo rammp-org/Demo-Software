@@ -36,7 +36,7 @@ enum CommandType {
   CMD_SEQ_MODE,     // e.g. B1:1 (enter sequence mode), B1:0 (exit)
   CMD_SEQ_KEYFRAME, // e.g.
                     // J<idx>:<t1>..<t10>,<a1>..<a10>,<r1>..<r10>,<d1>..<d10>
-                    // (40 values)
+                    // ,<cr1>..<cr10>  (50 values standard; 70 guarded)
   CMD_SEQ_STEP_FWD, // e.g. > (step forward to next keyframe)
   CMD_SEQ_STEP_BWD, // e.g. < (step backward to previous keyframe)
   CMD_SEQ_GOTO,     // e.g. @<idx> (jump directly to keyframe index)

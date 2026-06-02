@@ -183,6 +183,7 @@ void sequenceExit(MotorBase *motors[SEQ_NUM_MOTORS]) {
   seq_auto_run = false;
   seq_settling = false;
   seq_interpolating = false;
+  carriage_return_direction = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -390,6 +391,7 @@ void sequenceUpdate(MotorBase *motors[SEQ_NUM_MOTORS]) {
       beginInterp(motors); // sends SEQ_STATUS ...,1
     } else {
       seq_interpolating = false;
+      carriage_return_direction = 0;
       Serial.print("SEQ_STATUS,");
       Serial.print(seq_current);
       Serial.print(",");

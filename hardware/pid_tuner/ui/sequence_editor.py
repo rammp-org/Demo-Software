@@ -1081,7 +1081,6 @@ class SequenceEditor(QWidget):
             kf = self._keyframes[step]
             for i in range(NUM_MOTORS):
                 if kf.targets[i] is not None:
-                    # RoboClaw / drive slots 0–7 → joint ids 1–8; ODrive slots → 9–10
                     targets[i + 1] = kf.targets[i]
         self._data_store.set_seq_targets(targets)
 

@@ -107,8 +107,8 @@ class EncoderData:
     drive_fb_enc_dir: int = 1
     drive_lr_enc_dir: int = 1
 
-    # Appended at end of telemetry line
-    carriage_return_direction: int = 0
+    # Appended at end of 80-value TELEMETRY packet (None if packet was shorter)
+    carriage_return_direction: Optional[int] = None
     odrive_l_pos: float = 0.0
     odrive_r_pos: float = 0.0
     odrive_l_torque_nm: float = 0.0

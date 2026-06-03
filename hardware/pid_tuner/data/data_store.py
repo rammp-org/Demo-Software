@@ -388,6 +388,7 @@ class DataStore(QObject):
         self._drive_lr_vel: float = 0.0
         self._drive_fb_pwm: float = 0.0
         self._drive_lr_pwm: float = 0.0
+        self._carriage_return_direction: int = 0
         self._raw_ml_enc_pos: float = 0.0
         self._raw_mr_enc_pos: float = 0.0
         self._raw_ml_enc_vel: float = 0.0
@@ -634,6 +635,10 @@ class DataStore(QObject):
         return self._drive_lr_pwm
 
     @property
+    def carriage_return_direction(self) -> int:
+        return self._carriage_return_direction
+
+    @property
     def odrive_r_pos(self) -> float:
         return self._odrive_r_pos
 
@@ -790,6 +795,8 @@ class DataStore(QObject):
         if hasattr(data, "drive_fb_pwm"):
             self._drive_fb_pwm = data.drive_fb_pwm
             self._drive_lr_pwm = data.drive_lr_pwm
+        if data.carriage_return_direction is not None:
+            self._carriage_return_direction = int(data.carriage_return_direction)
         if hasattr(data, "raw_ml_enc_pos"):
             self._raw_ml_enc_pos = data.raw_ml_enc_pos
             self._raw_mr_enc_pos = data.raw_mr_enc_pos

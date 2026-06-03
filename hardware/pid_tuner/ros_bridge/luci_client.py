@@ -65,6 +65,16 @@ class LuciClient(QObject):
         self._ready_from_thread.connect(self._finish_connect)
         self._fb = 0
         self._lr = 0
+        self._carriage_return_direction = 0
+
+    @property
+    def carriage_return_direction(self) -> int:
+        """LUCI forward_back from sequence keyframe (0 = inactive)."""
+        return self._carriage_return_direction
+
+    def set_carriage_return_direction(self, value: int) -> None:
+        """Set sequence carriage return; non-zero takes priority over set_drive() in publish."""
+        self._carriage_return_direction = int(value)
 
     @property
     def is_connected(self) -> bool:
@@ -133,6 +143,7 @@ class LuciClient(QObject):
     def stop(self):
         self._fb = 0
         self._lr = 0
+        self._carriage_return_direction = 0
         self._send_joystick(0, 0)
 
     def _send_heartbeat(self):
@@ -142,6 +153,9 @@ class LuciClient(QObject):
         if not self._topic or not self._connected:
             return
         try:
+            if self._carriage_return_direction != 0:
+                fb = self._carriage_return_direction
+                lr = -2
             self._topic.publish(
                 roslibpy.Message(
                     {
@@ -157,6 +171,7 @@ class LuciClient(QObject):
 
     def disconnect(self):
         self._heartbeat_timer.stop()
+        self._carriage_return_direction = 0
         self.stop()
         if self._auto_input_enabled:
             self._disable_auto_input()

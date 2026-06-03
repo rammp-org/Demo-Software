@@ -636,7 +636,7 @@ class DataStore(QObject):
 
     @property
     def carriage_return_direction(self) -> int:
-        """LUCI forward/back from active keyframe (-1, 0, 1). Teensy telemetry field."""
+        """LUCI forward_back from active keyframe (0 = inactive). Teensy telemetry field."""
         return self._carriage_return_direction
 
     @property

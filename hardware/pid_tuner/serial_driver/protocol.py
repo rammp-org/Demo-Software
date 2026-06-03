@@ -599,7 +599,7 @@ class ProtocolEncoder:
         targets(10), active(10), relative(10), durations(10), carriage_return(1).
         duration_ms: single int (broadcast) or list of 10 ints.
         relative: list of 10 bools (default all False).
-        carriage_return: LUCI forward/back for this keyframe (-1, 0, 1).
+        carriage_return: LUCI forward_back for this keyframe (0 = inactive).
         """
 
         t_str = ",".join(f"{t:.2f}" for t in targets)

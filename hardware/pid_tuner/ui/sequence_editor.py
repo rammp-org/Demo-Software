@@ -933,6 +933,7 @@ class SequenceEditor(QWidget):
         self._update_button_states()
 
     def _on_exit_sequence(self):
+        self._data_store.set_sequence_playback_luci(0)
         self._serial_handler.enter_sequence_mode(False)
         self._uploaded = False
         self._robot_step = -1
@@ -1121,13 +1122,20 @@ class SequenceEditor(QWidget):
     def _push_seq_targets(self):
         targets = {}
         step = self._robot_step
+        playback_luci = 0
         if 0 <= step < len(self._keyframes):
             kf = self._keyframes[step]
+            playback_luci = int(kf.carriage_return)
             for i in range(NUM_MOTORS):
                 if kf.targets[i] is not None:
                     # RoboClaw / drive slots 0–7 → joint ids 1–8; ODrive slots → 9–10
                     targets[i + 1] = kf.targets[i]
         self._data_store.set_seq_targets(targets)
+        # While interpolating/settling, drive LUCI from this keyframe if telemetry lags.
+        if self._robot_state in (1, 2):
+            self._data_store.set_sequence_playback_luci(playback_luci)
+        else:
+            self._data_store.set_sequence_playback_luci(0)
 
     def _on_upload_timeout(self):
         if self._upload_pending:

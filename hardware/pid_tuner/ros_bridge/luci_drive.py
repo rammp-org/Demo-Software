@@ -59,10 +59,15 @@ def compute_drive_command(
     if data_store is None:
         return 0, 0
 
+    # Match MEBot_control_node: any non-zero telemetry LUCI wins over sticks/PWM.
+    cr = int(data_store.carriage_return_direction)
+    if cr == 0:
+        cr = int(data_store.sequence_playback_luci)
+    if cr != 0:
+        return cr, -2
+
+    # In sequence mode with no LUCI, hold wheels still (avoid drive_fb_pwm bleed).
     if data_store.current_state == STATE_AUTO_CURB_CLIMBING:
-        cr = int(data_store.carriage_return_direction)
-        if cr != 0:
-            return cr, -2
         return 0, 0
 
     if hasattr(manual, "snapshot"):

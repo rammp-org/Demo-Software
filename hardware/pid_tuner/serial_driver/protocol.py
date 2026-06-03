@@ -590,16 +590,16 @@ class ProtocolEncoder:
         active: list,
         duration_ms,
         relative: Optional[List[bool]] = None,
-        carriage_return: Optional[List[int]] = None,
+        carriage_return: int = 0,
         guard_threshold: Optional[List[float]] = None,
         guard_condition: Optional[List[int]] = None,
     ) -> bytes:
         """
         Upload one keyframe.  Sends the standard keyframe format (NUM_MOTORS=10):
-        targets(10), active(10), relative(10), durations(10), carriage_return(10).
+        targets(10), active(10), relative(10), durations(10), carriage_return(1).
         duration_ms: single int (broadcast) or list of 10 ints.
         relative: list of 10 bools (default all False).
-        carriage_return: list of 10 ints (default all 0).
+        carriage_return: LUCI forward/back for this keyframe (-1, 0, 1).
         """
 
         t_str = ",".join(f"{t:.2f}" for t in targets)
@@ -609,9 +609,7 @@ class ProtocolEncoder:
             relative = [False] * NUM_MOTORS
         r_str = ",".join(str(int(bool(r))) for r in relative)
 
-        if carriage_return is None:
-            carriage_return = [0] * NUM_MOTORS
-        cr_str = ",".join(str(int(v)) for v in carriage_return)
+        cr_str = str(int(carriage_return))
 
         if isinstance(duration_ms, (int, float)):
             d_str = ",".join(str(int(duration_ms)) for _ in range(NUM_MOTORS))

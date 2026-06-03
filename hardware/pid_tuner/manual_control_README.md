@@ -8,15 +8,13 @@ The `manual_control_node` runs inside the PID tuner process (it shares `SerialHa
 
 Run these in separate terminals.
 
-1. **PID tuner** — connect to the Teensy in the GUI, but do **not** use the LUCI connect button while using the gamepad (LUCI is driven by the manual-control node instead).
+1. **PID tuner** — connect to the Teensy in the GUI, then **Connect LUCI** on the Drive Wheels panel (top). One LUCI connection is shared by the gamepad, sequence editor carriage return, and the d-pad.
 
 1. **Joy node**
 
    ```bash
    ros2 run joy joy_node
    ```
-
-1. **LUCI** (required for drive-wheel control)
 
 ## Enabling manual control
 
@@ -45,7 +43,22 @@ RC, FC, carriages, and middle joints are **not** driven by the sticks. To move t
 
 Both the motor button(s) and the D-pad must be held at the same time. You can hold several motor buttons together to move multiple joints in the same direction.
 
-Drive wheels and ODrives are controlled only by the joysticks.
+Drive wheels and ODrives are controlled only by the joysticks (when not running a sequence).
+
+### Drive wheels during sequences (sequence editor)
+
+The wheelchair is **not** driven by the **Drive_FB** / **Drive_LR** target columns. Use the **LUCI** row on each keyframe (`0` = off, any other integer = `forward_back`).
+
+With **Connect LUCI** enabled, carriage return is forwarded from Teensy telemetry while the robot is in `AUTO_CURB` (sequence playing). The Sequences tab shows **LUCI: on** when connected.
+
+Press **Start** for manual mode is **not** required for sequence carriage return.
+
+### LUCI priority (single publisher)
+
+1. Drive Wheels **d-pad** (while held)
+1. Sequence **LUCI** row / `carriage_return_direction` during `AUTO_CURB`
+1. Gamepad **left stick** in manual-control mode
+1. Idle (no drive command)
 
 ## Calibration
 

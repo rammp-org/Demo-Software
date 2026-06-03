@@ -121,10 +121,6 @@ _DPAD_BTN = f"""
 """
 
 
-# Teensy SystemState::AUTO_CURB_CLIMBING — match theme.py / MEBot_control_node
-STATE_AUTO_CURB_CLIMBING = 6
-
-
 class DriveWheelDisplay(QWidget):
     def __init__(
         self,
@@ -139,18 +135,12 @@ class DriveWheelDisplay(QWidget):
         self._luci = luci_client if luci_client is not None else LuciClient(self)
         self._luci.connected_changed.connect(self._on_luci_connection_changed)
         self._luci.error_occurred.connect(self._on_luci_error)
-        self._manual_override = False
 
         self._init_ui()
 
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._update_display)
         self._update_timer.start(100)
-
-        # Match MEBot LUCI heartbeat rate while forwarding carriage return / drive PWM
-        self._luci_timer = QTimer(self)
-        self._luci_timer.setInterval(5)
-        self._luci_timer.timeout.connect(self._update_luci_from_telemetry)
 
     @property
     def luci_client(self) -> LuciClient:
@@ -270,11 +260,6 @@ class DriveWheelDisplay(QWidget):
             btn.setEnabled(connected)
 
         if connected:
-            self._luci_timer.start()
-        else:
-            self._luci_timer.stop()
-
-        if connected:
             self._btn_connect.setText("Disconnect")
             self._luci_status.setText("Connected")
             self._luci_status.setStyleSheet(
@@ -291,40 +276,16 @@ class DriveWheelDisplay(QWidget):
         return
 
     def _dpad_press(self, fb: int, lr: int):
-        self._manual_override = True
-        self._luci.set_drive(fb, lr)
+        self._luci.set_manual_override(True, fb, lr)
 
     def _dpad_release(self):
-        self._manual_override = False
+        self._luci.set_manual_override(False)
         self._luci.stop()
 
     def _update_display(self):
         self.left_arc.set_velocity(self.data_store.raw_ml_enc_vel)
         self.right_arc.set_velocity(self.data_store.raw_mr_enc_vel)
 
-    def _update_luci_from_telemetry(self):
-        """Forward Teensy drive / carriage-return intent to LUCI (same rules as MEBot)."""
-        if not self._luci.is_connected or self._manual_override:
-            return
-
-        if self.data_store.current_state == STATE_AUTO_CURB_CLIMBING:
-            cr = self.data_store.carriage_return_direction
-            if cr != 0:
-                self._luci.set_drive(cr, -2)
-            else:
-                self._luci.set_drive(0, 0)
-            return
-
-        fb_pwm = self.data_store.drive_fb_pwm
-        lr_pwm = self.data_store.drive_lr_pwm
-        if abs(fb_pwm) > 0.001 or abs(lr_pwm) > 0.001:
-            fb = max(-100, min(100, int(fb_pwm * 100.0)))
-            lr = max(-100, min(100, int(lr_pwm * 100.0)))
-            self._luci.set_drive(fb, lr)
-        else:
-            self._luci.set_drive(0, 0)
-
     def shutdown(self):
-        self._luci_timer.stop()
         if self._owns_luci and self._luci.is_connected:
             self._luci.disconnect()

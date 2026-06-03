@@ -32,6 +32,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer
 from PyQt6.QtGui import QColor, QFont, QBrush
 
 from ..data.data_store import DataStore
+from ..ros_bridge.luci_client import LuciClient
 from ..serial_driver.serial_handler import SerialHandler
 from ..serial_driver.keyframe import Keyframe, NUM_MOTORS
 from .theme import THEME, JOINT_COLORS
@@ -93,11 +94,13 @@ class SequenceEditor(QWidget):
         self,
         data_store: DataStore,
         serial_handler: SerialHandler,
+        luci_client: LuciClient | None = None,
         parent=None,
     ):
         super().__init__(parent)
         self._data_store = data_store
         self._serial_handler = serial_handler
+        self._luci = luci_client
         self._keyframes: List[Keyframe] = []
         self._current_file: Optional[str] = None
 
@@ -234,6 +237,15 @@ class SequenceEditor(QWidget):
         layout.addWidget(self._btn_exit_seq)
 
         layout.addStretch()
+
+        self._luci_status = QLabel("LUCI: off")
+        self._luci_status.setToolTip(
+            "Carriage return needs LUCI connected (Connect LUCI on Drive Wheels panel, top)"
+        )
+        self._luci_status.setStyleSheet(
+            f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
+        )
+        layout.addWidget(self._luci_status)
 
         # File name display
         self._file_label = QLabel("No file")
@@ -467,6 +479,9 @@ class SequenceEditor(QWidget):
     def _wire_signals(self):
         self._serial_handler.seq_ack_received.connect(self._on_seq_ack)
         self._serial_handler.seq_status_received.connect(self._on_seq_status)
+        if self._luci is not None:
+            self._luci.connected_changed.connect(self._on_luci_connection_changed)
+            self._on_luci_connection_changed(self._luci.is_connected)
 
     # ------------------------------------------------------------------ #
     #  Table population                                                     #
@@ -849,10 +864,38 @@ class SequenceEditor(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Save Error", f"Failed to save sequence:\n{e}")
 
+    def _on_luci_connection_changed(self, connected: bool):
+        if connected:
+            self._luci_status.setText("LUCI: on")
+            self._luci_status.setStyleSheet(
+                f"color: {THEME.green}; font-size: {SIZES['font_small']}pt;"
+            )
+        else:
+            self._luci_status.setText("LUCI: off")
+            self._luci_status.setStyleSheet(
+                f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
+            )
+
+    def _sequence_uses_carriage_return(self) -> bool:
+        return any(int(kf.carriage_return) != 0 for kf in self._keyframes)
+
     def _on_send_to_robot(self):
         if not self._keyframes:
             QMessageBox.warning(
                 self, "No Sequence", "Add at least one keyframe before sending."
+            )
+            return
+
+        if self._sequence_uses_carriage_return() and (
+            self._luci is None or not self._luci.is_connected
+        ):
+            QMessageBox.warning(
+                self,
+                "LUCI not connected",
+                "This sequence uses carriage return (LUCI row ≠ 0).\n\n"
+                "Connect LUCI on the Drive Wheels panel (top of window), then "
+                "send the sequence again. Without LUCI, the wheelchair will not move "
+                "during carriage-return keyframes.",
             )
             return
 

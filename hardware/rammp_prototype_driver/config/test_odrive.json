@@ -1,4 +1,3 @@
-
 {
   "name": "odrive_testing",
   "keyframes": [
@@ -29,18 +28,7 @@
         true,
         true
       ],
-      "carriage_return": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
+      "carriage_return": 0,
       "motor_durations": [
         null,
         null,

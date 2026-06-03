@@ -427,9 +427,13 @@ class MEBotControlNode(Node):
             n_fields = len(payload.split(","))
             self.get_logger().info(
                 f"Keyframe {idx}: sending {n_fields} fields "
-                f"(standard={NUM_MOTORS * 5}, guarded={NUM_MOTORS * 7})"
+                f"(standard={NUM_MOTORS * 4 + 1}, guarded={NUM_MOTORS * 6 + 1})"
             )
-            if n_fields not in (NUM_MOTORS * 5, NUM_MOTORS * 7, NUM_MOTORS * 3 + 1):
+            if n_fields not in (
+                NUM_MOTORS * 4 + 1,
+                NUM_MOTORS * 6 + 1,
+                NUM_MOTORS * 2 + 2,
+            ):
                 self.get_logger().error(
                     f"Keyframe {idx} field count {n_fields} does not match "
                     f"NUM_MOTORS={NUM_MOTORS}; Teensy will reject with SEQ_ERR"

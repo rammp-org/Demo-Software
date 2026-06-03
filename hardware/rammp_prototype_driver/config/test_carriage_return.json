@@ -28,18 +28,7 @@
         true,
         true
       ],
-      "carriage_return": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
+      "carriage_return": 0,
       "motor_durations": [
         null,
         null,
@@ -104,18 +93,7 @@
         true,
         true
       ],
-      "carriage_return": [
-        -1,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
+      "carriage_return": -1,
       "motor_durations": [
         null,
         null,
@@ -180,18 +158,7 @@
         true,
         true
       ],
-      "carriage_return": [
-        1,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
+      "carriage_return": 1,
       "motor_durations": [
         null,
         null,

@@ -15,15 +15,25 @@ from typing import List, Optional
 NUM_MOTORS = 10
 
 
+def _parse_carriage_return(raw: object) -> int:
+    """JSON/wire: int scalar, or legacy 10-element list (uses index 0)."""
+    if raw is None:
+        return 0
+    if isinstance(raw, (list, tuple)):
+        if not raw:
+            return 0
+        return int(float(raw[0]))
+    return int(float(raw))
+
+
 class Keyframe:
     def __init__(self):
         self.label: str = ""
         self.targets: List[Optional[float]] = [None] * NUM_MOTORS
         self.duration_ms: int = 1000
         self.relative: List[bool] = [False] * NUM_MOTORS
-        # Per-motor "carriage return" values used by the sequence player.
-        # Wire format: appended as 10 values after durations.
-        self.carriage_return: List[int] = [0] * NUM_MOTORS
+        # LUCI forward/back for this keyframe (-1, 0, 1). Single wire field after durations.
+        self.carriage_return: int = 0
         self.motor_durations: List[Optional[int]] = [None] * NUM_MOTORS
         self.guard_threshold: List[float] = [0.0] * NUM_MOTORS
         self.guard_condition: List[int] = [0] * NUM_MOTORS
@@ -37,7 +47,7 @@ class Keyframe:
             "targets": [t if t is not None else None for t in self.targets],
             "duration_ms": self.duration_ms,
             "relative": self.relative,
-            "carriage_return": list(self.carriage_return),
+            "carriage_return": self.carriage_return,
             "motor_durations": [
                 d if d is not None else None for d in self.motor_durations
             ],
@@ -61,10 +71,7 @@ class Keyframe:
             raw_relative.append(False)
         kf.relative = [bool(r) for r in raw_relative[:NUM_MOTORS]]
 
-        raw_carriage_return = d.get("carriage_return", [0] * NUM_MOTORS)
-        while len(raw_carriage_return) < NUM_MOTORS:
-            raw_carriage_return.append(0)
-        kf.carriage_return = [int(float(v)) for v in raw_carriage_return[:NUM_MOTORS]]
+        kf.carriage_return = _parse_carriage_return(d.get("carriage_return", 0))
 
         raw_motor_durations = d.get("motor_durations", [None] * NUM_MOTORS)
         while len(raw_motor_durations) < NUM_MOTORS:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import QObject, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal, pyqtSlot
 
 try:
     import roslibpy
@@ -51,6 +51,8 @@ class LuciClient(QObject):
     connected_changed = pyqtSignal(bool)
     error_occurred = pyqtSignal(str)
     _ready_from_thread = pyqtSignal()
+    # Thread-safe drive updates (e.g. from manual_control_node ROS thread).
+    _drive_command = pyqtSignal(int, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -58,11 +60,15 @@ class LuciClient(QObject):
         self._topic: Optional[roslibpy.Topic] = None
         self._connected = False
         self._auto_input_enabled = False
+        self._manual_override = False
 
         self._heartbeat_timer = QTimer(self)
         self._heartbeat_timer.setInterval(5)
         self._heartbeat_timer.timeout.connect(self._send_heartbeat)
         self._ready_from_thread.connect(self._finish_connect)
+        self._drive_command.connect(
+            self._apply_drive_command, Qt.ConnectionType.QueuedConnection
+        )
         self._fb = 0
         self._lr = 0
         self._carriage_return_direction = 0
@@ -135,6 +141,28 @@ class LuciClient(QObject):
 
     def _on_service_error(self, error):
         self.error_occurred.emit(f"LUCI service error: {error}")
+
+    @property
+    def manual_override_active(self) -> bool:
+        return self._manual_override
+
+    def set_manual_override(
+        self, active: bool, forward_back: int = 0, left_right: int = 0
+    ):
+        """Drive Wheels d-pad hold — highest priority while active."""
+        self._manual_override = active
+        if active and self._connected:
+            self.set_drive(forward_back, left_right)
+
+    def request_drive(self, forward_back: int, left_right: int) -> None:
+        """Thread-safe. No-op until Connect LUCI has succeeded."""
+        self._drive_command.emit(int(forward_back), int(left_right))
+
+    @pyqtSlot(int, int)
+    def _apply_drive_command(self, forward_back: int, left_right: int) -> None:
+        if self._manual_override or not self._connected:
+            return
+        self.set_drive(forward_back, left_right)
 
     def set_drive(self, forward_back: int, left_right: int):
         self._fb = max(-100, min(100, forward_back))

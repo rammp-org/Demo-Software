@@ -32,7 +32,7 @@ class Keyframe:
         self.targets: List[Optional[float]] = [None] * NUM_MOTORS
         self.duration_ms: int = 1000
         self.relative: List[bool] = [False] * NUM_MOTORS
-        # LUCI forward/back for this keyframe (-1, 0, 1). Single wire field after durations.
+        # LUCI forward/back; 0 = inactive, any other int is published as forward_back.
         self.carriage_return: int = 0
         self.motor_durations: List[Optional[int]] = [None] * NUM_MOTORS
         self.guard_threshold: List[float] = [0.0] * NUM_MOTORS

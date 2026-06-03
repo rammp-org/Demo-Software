@@ -42,7 +42,8 @@ struct Keyframe {
   bool active[SEQ_NUM_MOTORS];
   bool relative[SEQ_NUM_MOTORS]; // true  = target is offset from start pos
   uint32_t duration_ms[SEQ_NUM_MOTORS]; // per-motor interpolation durations
-  int32_t carriage_return; // LUCI forward/back for this keyframe (-1, 0, 1)
+  int32_t carriage_return; // LUCI forward/back; 0 = inactive, any other int =
+                           // active
   float guard_threshold[SEQ_NUM_MOTORS];
   uint8_t guard_condition[SEQ_NUM_MOTORS];
 };

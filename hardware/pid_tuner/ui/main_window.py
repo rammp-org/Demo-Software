@@ -38,6 +38,8 @@ from pid_tuner.ui.state_indicator import StateIndicator
 from pid_tuner.ui.encoder_overview import EncoderOverview
 from pid_tuner.ui.drive_wheel_display import DriveWheelDisplay
 from pid_tuner.ui.sequence_editor import SequenceEditor
+from pid_tuner.ros_bridge.luci_client import LuciClient
+from pid_tuner.ros_bridge.luci_drive import ManualDriveInput, compute_drive_command
 from pid_tuner.ui.theme import get_application_stylesheet, THEME
 from pid_tuner.ui.scaling import SIZES, scaled
 
@@ -64,6 +66,12 @@ class MainWindow(QMainWindow):
 
         # Create core components
         self._data_store = DataStore()
+        self._luci_client = LuciClient(self)
+        self._manual_drive = ManualDriveInput()
+        self._luci_sync_timer = QTimer(self)
+        self._luci_sync_timer.setInterval(20)
+        self._luci_sync_timer.timeout.connect(self._sync_luci_drive)
+        self._luci_client.connected_changed.connect(self._on_luci_connected_changed)
         self._serial_handler = SerialHandler()
         self._ros_thread = None
         self._ros_node = None
@@ -103,7 +111,12 @@ class MainWindow(QMainWindow):
         try:
             if not rclpy.ok():
                 rclpy.init()
-            self._ros_node = ManualControlNode(self._serial_handler)
+            self._ros_node = ManualControlNode(
+                self._serial_handler,
+                self._data_store,
+                manual_drive=self._manual_drive,
+                luci_client=self._luci_client,
+            )
             self._ros_thread = threading.Thread(
                 target=rclpy.spin, args=(self._ros_node,), daemon=True
             )
@@ -153,7 +166,7 @@ class MainWindow(QMainWindow):
         overview_layout.addWidget(self._encoder_overview, stretch=1)
 
         self._drive_wheel_display = DriveWheelDisplay(
-            self._data_store, self._serial_handler
+            self._data_store, self._serial_handler, luci_client=self._luci_client
         )
         overview_layout.addWidget(self._drive_wheel_display)
 
@@ -216,7 +229,9 @@ class MainWindow(QMainWindow):
         )
         self._right_tabs.addTab(self._control_panel, "Controls")
 
-        self._sequence_editor = SequenceEditor(self._data_store, self._serial_handler)
+        self._sequence_editor = SequenceEditor(
+            self._data_store, self._serial_handler, luci_client=self._luci_client
+        )
         self._right_tabs.addTab(self._sequence_editor, "Sequences")
 
         self._config_viewer = ConfigViewerWidget(self._data_store, self._serial_handler)
@@ -513,10 +528,31 @@ class MainWindow(QMainWindow):
             return
         self._config_viewer._on_load_all()
 
+    def _on_luci_connected_changed(self, connected: bool) -> None:
+        if connected:
+            self._luci_sync_timer.start()
+        else:
+            self._luci_sync_timer.stop()
+
     def _on_data_received(self, data):
         """Handle incoming encoder data."""
         self._data_store.process_encoder_data(data)
         self._data_count += 1
+
+    def _sync_luci_drive(self) -> None:
+        """Single LUCI path: Connect LUCI enables gamepad, sequences, and d-pad."""
+        if not self._luci_client.is_connected:
+            return
+        if self._luci_client.manual_override_active:
+            return
+        fb, lr = compute_drive_command(
+            self._data_store,
+            self._manual_drive,
+            manual_override=False,
+            override_fb=0,
+            override_lr=0,
+        )
+        self._luci_client.set_drive(fb, lr)
 
     def _on_raw_lines_received(self, lines: list):
         """Handle batched raw serial lines for console display."""
@@ -614,6 +650,8 @@ class MainWindow(QMainWindow):
     def closeEvent(self, a0):
         self._save_settings()
         self._drive_wheel_display.shutdown()
+        if self._luci_client.is_connected:
+            self._luci_client.disconnect()
         self._serial_handler.disconnect_port()
         if a0 is not None:
             a0.accept()

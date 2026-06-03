@@ -123,20 +123,28 @@ _DPAD_BTN = f"""
 
 class DriveWheelDisplay(QWidget):
     def __init__(
-        self, data_store: DataStore, serial_handler: SerialHandler, parent=None
+        self,
+        data_store: DataStore,
+        serial_handler: SerialHandler,
+        luci_client: LuciClient | None = None,
+        parent=None,
     ):
         super().__init__(parent)
         self.data_store = data_store
-        self._luci = LuciClient(self)
+        self._owns_luci = luci_client is None
+        self._luci = luci_client if luci_client is not None else LuciClient(self)
         self._luci.connected_changed.connect(self._on_luci_connection_changed)
         self._luci.error_occurred.connect(self._on_luci_error)
-        self._manual_override = False
 
         self._init_ui()
 
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._update_display)
         self._update_timer.start(100)
+
+    @property
+    def luci_client(self) -> LuciClient:
+        return self._luci
 
     def _init_ui(self):
         root = QVBoxLayout(self)
@@ -273,7 +281,7 @@ class DriveWheelDisplay(QWidget):
         self._luci.set_drive(fb, lr)
 
     def _dpad_release(self):
-        self._manual_override = False
+        self._luci.set_manual_override(False)
         self._luci.stop()
 
     def _update_display(self):
@@ -298,5 +306,5 @@ class DriveWheelDisplay(QWidget):
                 self._luci.set_drive(0, 0)
 
     def shutdown(self):
-        if self._luci.is_connected:
+        if self._owns_luci and self._luci.is_connected:
             self._luci.disconnect()

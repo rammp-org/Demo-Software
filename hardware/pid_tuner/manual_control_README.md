@@ -24,16 +24,17 @@ Press **Start** once to enter manual-control mode; press **Start** again to exit
 
 ## Gamepad layout
 
-| Input               | Function                                                        |
-| ------------------- | --------------------------------------------------------------- |
-| **Right stick (Y)** | ODrive velocity — both ODrives move together; forward/back only |
-| **Left stick**      | Drive wheels (forward, back, strafe left/right via LUCI)        |
-| **X**               | RC                                                              |
-| **Y**               | FC                                                              |
-| **B**               | Calibration                                                     |
-| **LB** / **RB**     | Left carriage / right carriage                                  |
-| **LT** / **RT**     | Middle left / middle right                                      |
-| **D-pad up / down** | Direction for button-controlled motors (see below)              |
+| Input                       | Function                                                                 |
+| --------------------------- | ------------------------------------------------------------------------ |
+| **Button 1** (`buttons[1]`) | **ESTOP** — stops all motors (works anytime, including during sequences) |
+| **Right stick (Y)**         | ODrive velocity — both ODrives move together; forward/back only          |
+| **Left stick**              | Drive wheels (forward, back, strafe left/right via LUCI)                 |
+| **X**                       | RC                                                                       |
+| **Y**                       | FC                                                                       |
+| **B**                       | Calibration                                                              |
+| **LB** / **RB**             | Left carriage / right carriage                                           |
+| **LT** / **RT**             | Middle left / middle right                                               |
+| **D-pad up / down**         | Direction for button-controlled motors (see below)                       |
 
 ### Button-controlled motors
 

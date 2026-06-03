@@ -55,6 +55,7 @@ class ManualControlNode(Node):
         # Local toggle state (do not depend on Teensy telemetry here)
         self.state = self.STATE_IDLE
         self.prev_start_pressed = False
+        self._prev_estop_pressed = False
         self._prev_cal_pressed = False
         self._calibrating = False
         self.odrives_active = False
@@ -133,8 +134,24 @@ class ManualControlNode(Node):
             msg.input_source = INPUT_REMOTE
         self._luci_pub.publish(msg)
 
+    def _trigger_estop(self) -> None:
+        """Same as PID tuner GUI ESTOP — works in any Teensy state (including sequence)."""
+        self._serial_handler.disable_motors()
+        self.odrives_active = False
+        self.drive_wheel_active = False
+        self._calibrating = False
+        self._luci_publish(0, 0)
+
     def joy_callback(self, msg):
-        start_pressed = msg.buttons[9] == 1
+        # Button 1: ESTOP (rising edge). Always handled, even outside tuner mode /
+        # while AUTO_CURB_CLIMBING sequence is running on the Teensy.
+        if len(msg.buttons) > 1:
+            estop_pressed = msg.buttons[1] == 1
+            if estop_pressed and not self._prev_estop_pressed:
+                self._trigger_estop()
+            self._prev_estop_pressed = estop_pressed
+
+        start_pressed = len(msg.buttons) > 9 and msg.buttons[9] == 1
 
         # Rising edge: toggle manual control
         if start_pressed and not self.prev_start_pressed:
@@ -153,7 +170,7 @@ class ManualControlNode(Node):
 
             # Calibration hotkey (button index 2, if present).
             # Important: send only on rising edge to avoid flooding / restarting.
-            cal_pressed = msg.buttons[2] == 1
+            cal_pressed = len(msg.buttons) > 2 and msg.buttons[2] == 1
             if cal_pressed and not self._prev_cal_pressed:
                 self._calibrating = True
                 self.write_serial_data("W0:-0.20\n")

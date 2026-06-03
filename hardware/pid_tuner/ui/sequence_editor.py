@@ -74,7 +74,8 @@ ROW_GUARD = 2
 ROW_CARRIAGE = 3
 
 CARRIAGE_RETURN_TOOLTIP = (
-    "LUCI wheelchair drive during this keyframe: " "0 = none, 1 = forward, -1 = reverse"
+    "LUCI forward_back during this keyframe (integer). "
+    "0 = inactive (no LUCI drive). Any non-zero value is sent to the wheelchair."
 )
 
 
@@ -721,7 +722,7 @@ class SequenceEditor(QWidget):
 
         elif sub_row == ROW_CARRIAGE and col == COL_RC:
             try:
-                kf.carriage_return = max(-1, min(1, int(float(text))))
+                kf.carriage_return = int(float(text))
             except ValueError:
                 pass
 

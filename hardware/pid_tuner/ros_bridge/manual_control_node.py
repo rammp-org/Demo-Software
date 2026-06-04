@@ -29,6 +29,7 @@ class ManualControlNode(Node):
         # Local toggle state (do not depend on Teensy telemetry here)
         self.state = self.STATE_IDLE
         self.prev_start_pressed = False
+        self._prev_estop_pressed = False
         self._prev_cal_pressed = False
         self._calibrating = False
         self.odrives_active = False
@@ -64,7 +65,25 @@ class ManualControlNode(Node):
     def write_serial_data(self, s: str) -> None:
         self._serial_handler.send_command(s.encode("ascii"))
 
+    def _trigger_estop(self) -> None:
+        self.state = self.STATE_IDLE
+        self.odrives_active = False
+        self.drive_wheel_active = False
+        self.last_pwm_array = [0, 0, 0, 0, 0, 0]
+        self._calibrating = False
+        self.write_serial_data("s:0.0000\nT1:0\nT2:0\nT3:0\nT4:0\nT5:0\nT6:0\n")
+        self._luci_client.request_gamepad_drive(0, 0)
+        self._serial_handler.disable_motors()
+
     def joy_callback(self, msg):
+        estop_pressed = len(msg.buttons) > 1 and msg.buttons[1] == 1
+        if estop_pressed and not self._prev_estop_pressed:
+            self._trigger_estop()
+            self._prev_estop_pressed = estop_pressed
+            self.prev_start_pressed = len(msg.buttons) > 9 and msg.buttons[9] == 1
+            return
+        self._prev_estop_pressed = estop_pressed
+
         start_pressed = msg.buttons[9] == 1
 
         # Rising edge: toggle manual control

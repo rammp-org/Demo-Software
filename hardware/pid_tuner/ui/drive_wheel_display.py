@@ -1,3 +1,5 @@
+from typing import Optional
+
 from PyQt6.QtWidgets import (
     QWidget,
     QHBoxLayout,
@@ -123,11 +125,15 @@ _DPAD_BTN = f"""
 
 class DriveWheelDisplay(QWidget):
     def __init__(
-        self, data_store: DataStore, serial_handler: SerialHandler, parent=None
+        self,
+        data_store: DataStore,
+        serial_handler: SerialHandler,
+        luci_client: Optional[LuciClient] = None,
+        parent=None,
     ):
         super().__init__(parent)
         self.data_store = data_store
-        self._luci = LuciClient(self)
+        self._luci = luci_client if luci_client is not None else LuciClient(self)
         self._luci.connected_changed.connect(self._on_luci_connection_changed)
         self._luci.error_occurred.connect(self._on_luci_error)
         self._manual_override = False

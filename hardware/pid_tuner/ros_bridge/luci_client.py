@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import QObject, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot, Qt
 
 try:
     import roslibpy
@@ -51,6 +51,7 @@ class LuciClient(QObject):
     connected_changed = pyqtSignal(bool)
     error_occurred = pyqtSignal(str)
     _ready_from_thread = pyqtSignal()
+    _gamepad_drive_requested = pyqtSignal(int, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -63,8 +64,13 @@ class LuciClient(QObject):
         self._heartbeat_timer.setInterval(5)
         self._heartbeat_timer.timeout.connect(self._send_heartbeat)
         self._ready_from_thread.connect(self._finish_connect)
+        self._gamepad_drive_requested.connect(
+            self._apply_gamepad_drive, Qt.ConnectionType.QueuedConnection
+        )
         self._fb = 0
         self._lr = 0
+        self._gamepad_fb = 0
+        self._gamepad_lr = 0
         self._carriage_return_direction = 0
 
     @property
@@ -75,6 +81,18 @@ class LuciClient(QObject):
     def set_carriage_return_direction(self, value: int) -> None:
         """Set sequence carriage return; non-zero takes priority over set_drive() in publish."""
         self._carriage_return_direction = int(value)
+
+    def request_gamepad_drive(self, fb: int, lr: int) -> None:
+        """Thread-safe entry for /joy (ROS thread) and other non-Qt callers."""
+        self._gamepad_drive_requested.emit(int(fb), int(lr))
+
+    @pyqtSlot(int, int)
+    def _apply_gamepad_drive(self, fb: int, lr: int) -> None:
+        self.set_gamepad_drive(fb, lr)
+
+    def set_gamepad_drive(self, fb: int, lr: int):
+        self._gamepad_fb = max(-100, min(100, fb))
+        self._gamepad_lr = max(-100, min(100, lr))
 
     @property
     def is_connected(self) -> bool:
@@ -137,6 +155,8 @@ class LuciClient(QObject):
         self.error_occurred.emit(f"LUCI service error: {error}")
 
     def set_drive(self, forward_back: int, left_right: int):
+        if self._gamepad_fb != 0 or self._gamepad_lr != 0:
+            return
         self._fb = max(-100, min(100, forward_back))
         self._lr = max(-100, min(100, left_right))
 
@@ -153,6 +173,12 @@ class LuciClient(QObject):
         if not self._topic or not self._connected:
             return
         try:
+            if self._gamepad_fb != 0 or self._gamepad_lr != 0:
+                fb = self._gamepad_fb
+                lr = self._gamepad_lr
+            else:
+                fb = self._fb
+                lr = self._lr
             if self._carriage_return_direction != 0:
                 fb = self._carriage_return_direction
                 lr = -2
@@ -172,6 +198,8 @@ class LuciClient(QObject):
     def disconnect(self):
         self._heartbeat_timer.stop()
         self._carriage_return_direction = 0
+        self._gamepad_fb = 0
+        self._gamepad_lr = 0
         self.stop()
         if self._auto_input_enabled:
             self._disable_auto_input()

@@ -154,17 +154,6 @@ void sequenceEnter(MotorBase *motors[SEQ_NUM_MOTORS]) {
   seq_settling = false;
   seq_auto_run = false;
 
-  // Zero synthetic drive-wheel positions (not ODrive axes — keep real encoder
-  // state).  Prevents float drift on drive_fb / drive_lr virtual encoders.
-  for (int i = SEQ_DRIVE_START; i < SEQ_ODRIVE_START; i++) {
-    motors[i]->current_pos = 0.0f;
-    motors[i]->prev_pos = 0.0f;
-    motors[i]->current_vel = 0.0f;
-    motors[i]->prev_vel = 0.0f;
-    motors[i]->pos_pid.reset();
-    motors[i]->vel_pid.reset();
-  }
-
   // ALL motors — including drive wheels — run position control during
   // sequences.
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {

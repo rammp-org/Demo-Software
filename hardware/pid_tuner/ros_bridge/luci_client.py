@@ -52,6 +52,7 @@ class LuciClient(QObject):
     error_occurred = pyqtSignal(str)
     _ready_from_thread = pyqtSignal()
     _gamepad_drive_requested = pyqtSignal(int, int)
+    _stop_drive_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -66,6 +67,9 @@ class LuciClient(QObject):
         self._ready_from_thread.connect(self._finish_connect)
         self._gamepad_drive_requested.connect(
             self._apply_gamepad_drive, Qt.ConnectionType.QueuedConnection
+        )
+        self._stop_drive_requested.connect(
+            self._apply_stop_drive, Qt.ConnectionType.QueuedConnection
         )
         self._fb = 0
         self._lr = 0
@@ -85,6 +89,10 @@ class LuciClient(QObject):
     def request_gamepad_drive(self, fb: int, lr: int) -> None:
         """Thread-safe entry for /joy (ROS thread) and other non-Qt callers."""
         self._gamepad_drive_requested.emit(int(fb), int(lr))
+
+    def request_stop_drive(self) -> None:
+        """Thread-safe: zero telemetry/gamepad/carriage LUCI drive and publish now."""
+        self._stop_drive_requested.emit()
 
     @pyqtSlot(int, int)
     def _apply_gamepad_drive(self, fb: int, lr: int) -> None:
@@ -160,7 +168,13 @@ class LuciClient(QObject):
         self._fb = max(-100, min(100, forward_back))
         self._lr = max(-100, min(100, left_right))
 
+    @pyqtSlot()
+    def _apply_stop_drive(self) -> None:
+        self.stop()
+
     def stop(self):
+        self._gamepad_fb = 0
+        self._gamepad_lr = 0
         self._fb = 0
         self._lr = 0
         self._carriage_return_direction = 0

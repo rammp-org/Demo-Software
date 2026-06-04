@@ -5,34 +5,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import String
 from pid_tuner.ros_bridge.luci_client import LuciClient
-# try:
-#     # Optional: only available when luci_messages is built/sourced.
-#     from luci_messages.msg import LuciJoystick  # type: ignore
-# except Exception:  # pragma: no cover
-#     LuciJoystick = None  # type: ignore
 
-# INPUT_REMOTE = 1
 DRIVE_WHEEL_JS_THRESHOLD = 0.25
-
-
-# def _compute_joystick_zone(fb: int, lr: int) -> int:
-#     if fb == 0 and lr == 0:
-#         return 8  # origin
-#     if fb > 0 and lr == 0:
-#         return 0
-#     if fb < 0 and lr == 0:
-#         return 7
-#     if fb == 0 and lr > 0:
-#         return 4
-#     if fb == 0 and lr < 0:
-#         return 3
-#     if fb > 0 and lr > 0:
-#         return 2
-#     if fb > 0 and lr < 0:
-#         return 1
-#     if fb < 0 and lr > 0:
-#         return 6
-#     return 5
 
 
 class ManualControlNode(Node):
@@ -60,18 +34,6 @@ class ManualControlNode(Node):
         self.odrives_active = False
         self.last_pwm_array = [0, 0, 0, 0, 0, 0]
         self.drive_wheel_active = False
-        # self._luci_available = LuciJoystick is not None
-        # self._luci_enabled = False
-        # self._luci_pub = None
-        # self._luci_set_auto = None
-
-        # if self._luci_available:
-        #     self._luci_pub = self.create_publisher(
-        #         LuciJoystick, "luci/remote_joystick", 10
-        #     )
-        #     self._luci_set_auto = self.create_client(
-        #         Empty, "/luci/set_auto_remote_input"
-        #     )
 
         self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
 
@@ -82,12 +44,6 @@ class ManualControlNode(Node):
                 self._serial_handler.raw_lines_received.connect(self._on_serial_lines)
             except Exception:
                 pass
-
-        # if not self._luci_available:
-        #     self.get_logger().warn(
-        #         "luci_messages not available — drive wheels via LUCI disabled. "
-        #         "Source the workspace that builds luci_messages."
-        #     )
 
     def _on_serial_lines(self, lines) -> None:
         # Unlock joint commands when calibration completes.
@@ -107,31 +63,6 @@ class ManualControlNode(Node):
 
     def write_serial_data(self, s: str) -> None:
         self._serial_handler.send_command(s.encode("ascii"))
-
-    # def _luci_enable_auto_input(self) -> None:
-    #     if not self._luci_available or self._luci_enabled:
-    #         return
-    #     if self._luci_set_auto is None or not self._luci_set_auto.service_is_ready():
-    #         return
-    #     try:
-    #         self._luci_set_auto.call_async(Empty.Request())
-    #         self._luci_enabled = True
-    #     except Exception:
-    #         return
-
-    # def _luci_publish(self, fb: int, lr: int) -> None:
-    #     if not self._luci_available or self._luci_pub is None:
-    #         return
-    #     self._luci_enable_auto_input()
-    #     fb = int(max(-100, min(100, fb)))
-    #     lr = int(max(-100, min(100, lr)))
-    #     msg = LuciJoystick()
-    #     msg.forward_back = fb
-    #     msg.left_right = lr
-    #     msg.joystick_zone = _compute_joystick_zone(fb, lr)
-    #     if hasattr(msg, "input_source"):
-    #         msg.input_source = INPUT_REMOTE
-    #     self._luci_pub.publish(msg)
 
     def joy_callback(self, msg):
         start_pressed = msg.buttons[9] == 1

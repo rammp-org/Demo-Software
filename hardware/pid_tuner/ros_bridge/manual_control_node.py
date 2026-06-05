@@ -89,16 +89,16 @@ class ManualControlNode(Node):
         # Rising edge: toggle manual control
         entered_manual = False
         if start_pressed and not self.prev_start_pressed:
-            if self.state == self.STATE_TUNER_MODE:
-                self.state = self.STATE_IDLE
-                self.write_serial_data("T1:0\nT2:0\nT3:0\nT4:0\nT5:0\nT6:0\n")
-            else:
+            if self.state == self.STATE_IDLE:
                 self.state = self.STATE_TUNER_MODE
                 self.odrives_active = False
                 self.drive_wheel_active = False
                 self.write_serial_data("M1:0\nM2:0\nM3:0\nM4:0\nM5:0\nM6:0\ns:0.0000\n")
                 self._luci_client.request_stop_drive()
                 entered_manual = True
+            else:
+                self.state = self.STATE_IDLE
+                self.write_serial_data("T1:0\nT2:0\nT3:0\nT4:0\nT5:0\nT6:0\n")
 
         self.prev_start_pressed = start_pressed
 

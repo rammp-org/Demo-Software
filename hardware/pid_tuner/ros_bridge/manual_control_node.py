@@ -99,8 +99,8 @@ class ManualControlNode(Node):
         entered_manual = False
         if start_pressed and not self.prev_start_pressed:
             if self.state == self.STATE_IDLE:
-                self.status_pub.publish(String(data=msg.axes[0]))
-                self.status_pub.publish(String(data=msg.axes[1]))
+                self.status_pub.publish(String(data=f"axis0={msg.axes[0]:.3f}"))
+                self.status_pub.publish(String(data=f"axis1={msg.axes[1]:.3f}"))
                 self.state = self.STATE_TUNER_MODE
                 self.odrives_active = False
                 self.drive_wheel_active = False

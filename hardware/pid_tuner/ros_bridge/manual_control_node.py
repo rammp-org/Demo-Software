@@ -7,6 +7,7 @@ from pid_tuner.ros_bridge.luci_client import LuciClient
 
 DRIVE_WHEEL_JS_THRESHOLD = 2.0
 ODRIVE_JS_THRESHOLD = 2.0
+AXIS_NEUTRAL_THRESHOLD = 0.15
 
 
 class ManualControlNode(Node):
@@ -73,6 +74,16 @@ class ManualControlNode(Node):
     def write_serial_data(self, s: str) -> None:
         self._serial_handler.send_command(s.encode("ascii"))
 
+    def _drive_axes_neutral(self, axes_array: list[float]) -> bool:
+        axis0 = axes_array[0] if len(axes_array) > 0 else 0.0
+        axis1 = axes_array[1] if len(axes_array) > 1 else 0.0
+        axis3 = axes_array[3] if len(axes_array) > 3 else 0.0
+        return (
+            abs(axis0) <= AXIS_NEUTRAL_THRESHOLD
+            and abs(axis1) <= AXIS_NEUTRAL_THRESHOLD
+            and abs(axis3) <= AXIS_NEUTRAL_THRESHOLD
+        )
+
     def _trigger_estop(self) -> None:
         self.state = self.STATE_IDLE
         self.odrives_active = False
@@ -98,20 +109,27 @@ class ManualControlNode(Node):
         entered_manual = False
         if start_pressed and not self.prev_start_pressed:
             if self.state == self.STATE_IDLE:
-                while msg.axes[0] == 1 or msg.axes[1] == 1:
+                axes_array = list(msg.axes)
+                if not self._drive_axes_neutral(axes_array):
                     self.axes_centered = False
-                    self.status_pub.publish(data="Warning: axes not centered!")
-                self.axes_centered = True
-                self.status_pub.publish(String(data=f"axis0={msg.axes[0]:.3f}"))
-                self.status_pub.publish(String(data=f"axis1={msg.axes[1]:.3f}"))
-                self.state = self.STATE_TUNER_MODE
-                self.odrives_active = False
-                self.drive_wheel_active = False
-                self.write_serial_data("M1:0\nM2:0\nM3:0\nM4:0\nM5:0\nM6:0\ns:0.0000\n")
-                self._luci_client.request_stop_drive()
-                entered_manual = True
+                    self.status_pub.publish(
+                        String(
+                            data="Center drive sticks (axes 0/1) and ODrive stick (axis 3), then press Start again"
+                        )
+                    )
+                else:
+                    self.axes_centered = True
+                    self.state = self.STATE_TUNER_MODE
+                    self.odrives_active = False
+                    self.drive_wheel_active = False
+                    self.write_serial_data(
+                        "M1:0\nM2:0\nM3:0\nM4:0\nM5:0\nM6:0\ns:0.0000\n"
+                    )
+                    self._luci_client.request_stop_drive()
+                    entered_manual = True
             else:
                 self.state = self.STATE_IDLE
+                self.axes_centered = False
                 self.write_serial_data("T1:0\nT2:0\nT3:0\nT4:0\nT5:0\nT6:0\n")
 
         self.prev_start_pressed = start_pressed

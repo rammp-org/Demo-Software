@@ -5,8 +5,8 @@ from sensor_msgs.msg import Joy
 from std_msgs.msg import String
 from pid_tuner.ros_bridge.luci_client import LuciClient
 
-DRIVE_WHEEL_JS_THRESHOLD = 2.0
-ODRIVE_JS_THRESHOLD = 2.0
+DRIVE_WHEEL_JS_THRESHOLD = 0.5
+ODRIVE_JS_THRESHOLD = 0.5
 AXIS_NEUTRAL_THRESHOLD = 0.15
 
 

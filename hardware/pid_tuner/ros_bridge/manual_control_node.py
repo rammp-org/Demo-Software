@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-
+import time
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import String
 from pid_tuner.ros_bridge.luci_client import LuciClient
 
-DRIVE_WHEEL_JS_THRESHOLD = 0.25
+DRIVE_WHEEL_JS_THRESHOLD = 2.0
 
 
 class ManualControlNode(Node):
@@ -35,7 +35,11 @@ class ManualControlNode(Node):
         self.odrives_active = False
         self.last_pwm_array = [0, 0, 0, 0, 0, 0]
         self.drive_wheel_active = False
+        self._manual_enter_time: float = 0.0
+        self.SETTLE_DURATION = 0.5  # seconds
 
+        self.status_pub = self.create_publisher(String, "gamepad_status", 10)
+        # self.status_timer = self.create_timer(1.0, self.pub_gamepad)
         self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
 
         # Listen for firmware status lines (e.g. CAL_DONE) coming from the same
@@ -45,6 +49,11 @@ class ManualControlNode(Node):
                 self._serial_handler.raw_lines_received.connect(self._on_serial_lines)
             except Exception:
                 pass
+
+    # def pub_gamepad(self, message):
+    #     msg = String
+    #     msg = String(message)
+    #     self.status_pub.publish(msg)
 
     def _on_serial_lines(self, lines) -> None:
         # Unlock joint commands when calibration completes.
@@ -90,9 +99,12 @@ class ManualControlNode(Node):
         entered_manual = False
         if start_pressed and not self.prev_start_pressed:
             if self.state == self.STATE_IDLE:
+                self.status_pub.publish(String(data=msg.axes[0]))
+                self.status_pub.publish(String(data=msg.axes[1]))
                 self.state = self.STATE_TUNER_MODE
                 self.odrives_active = False
                 self.drive_wheel_active = False
+                self._manual_enter_time = time.monotonic()  # record entry time
                 self.write_serial_data("M1:0\nM2:0\nM3:0\nM4:0\nM5:0\nM6:0\ns:0.0000\n")
                 self._luci_client.request_stop_drive()
                 entered_manual = True
@@ -103,6 +115,8 @@ class ManualControlNode(Node):
         self.prev_start_pressed = start_pressed
 
         if entered_manual:
+            return
+        if (time.monotonic() - self._manual_enter_time) < self.SETTLE_DURATION:
             return
 
         if self.state == self.STATE_TUNER_MODE:
@@ -134,7 +148,7 @@ class ManualControlNode(Node):
                 return
 
             # Check for odrive velocity
-            odrive_js_threshold = 0.5
+            odrive_js_threshold = 2.0
             if abs(axes_array[3]) > odrive_js_threshold and not self.odrives_active:
                 self.odrives_active = True
                 direction = 1 if axes_array[3] > 0 else -1

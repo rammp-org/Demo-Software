@@ -680,6 +680,7 @@ class MEBotControlNode(Node):
         return stat
 
     def user_joystick_callback(self, msg: LuciJoystick):
+        self.get_logger().info(str(msg))
         self.user_fb = msg.forward_back
         self.user_lr = msg.left_right
 

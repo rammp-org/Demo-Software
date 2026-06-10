@@ -746,9 +746,12 @@ class MEBotControlNode(Node):
         result.message = f"Calibrated {self.cal_joints_done}/6 joints"
         return result
 
-    def _send_joystick(self):
+    def _send_joystick(self, fb_pwm=None):
         msg = LuciJoystick()
-        msg.forward_back = self.fb_pwm
+        if fb_pwm is None:
+            msg.forward_back = self.fb_pwm
+        else:
+            msg.forward_back = fb_pwm
         msg.left_right = 0
         msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
         msg.input_source = INPUT_REMOTE
@@ -773,25 +776,59 @@ class MEBotControlNode(Node):
             self._js_warn_count = 0
 
     def curb_traverse_action_callback(self, goal):
-        self.send_set_luci()  # enable LUCI control over js
+        # self.send_set_luci()  # enable LUCI control over js
 
         # feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
 
         # call the calibration function before going down curb
-        self.cal_joints_done = 0
-        self.cal_complete = False
-        self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
+        # self.cal_joints_done = 0
+        # self.cal_complete = False
+        # self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
+        # # delay while calibration runs
+        # time.sleep(6)
 
-        # delay while calibration runs
-        time.sleep(6)
+        # self.self_level_enable_callback(True)
+        # time.sleep(3)
 
         if goal.request.direction == 1:
+            # send first kf to get chair at height to detect curb
+            json_path = (
+                get_package_share_directory("rammp_prototype_driver")
+                + "/config/ascend_approach.json"
+            )
+            keyframes = _load_keyframes_from_json(json_path)
+            self.send_sequence(keyframes, auto_run=True)
+
+            # waiting for user to hit front caster on curb
+            while self.FC_loadcell > 150:
+                continue
+
+            # immediately remove user joystick control and stop drive wheels
+            self.send_set_luci()
+            self._send_joystick(0)
+            time.sleep(3.0)
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
                 + "/config/curb_ascending.json"
             )
         else:
+            # send first kf to get chair at height to detect ground
+            json_path = (
+                get_package_share_directory("rammp_prototype_driver")
+                + "/config/descend_approach.json"
+            )
+            keyframes = _load_keyframes_from_json(json_path)
+            self.send_sequence(keyframes, auto_run=True)
+
+            # waiting for user to get front caster off curb
+            while self.FC_loadcell < 150:
+                continue
+
+            # immediately remove user joystick control and stop drive wheels
+            self.send_set_luci()
+            self._send_joystick(0)
+            time.sleep(3.0)
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
                 + "/config/curb_descending.json"

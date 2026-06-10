@@ -50,11 +50,6 @@ class ManualControlNode(Node):
             except Exception:
                 pass
 
-    # def pub_gamepad(self, message):
-    #     msg = String
-    #     msg = String(message)
-    #     self.status_pub.publish(msg)
-
     def _on_serial_lines(self, lines) -> None:
         # Unlock joint commands when calibration completes.
         # Teensy prints "CAL_DONE" on completion (see Base.ino).

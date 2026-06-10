@@ -357,8 +357,7 @@ class MEBotControlNode(Node):
 
     def pub_fc_loadcell(self):
         msg = Float32()
-        val = Float32(self.FC_loadcell)
-        msg.data = val
+        msg.data = self.FC_loadcell
         self.fc_loadcell_pub.publish(msg)
 
     def read_serial_data(self):

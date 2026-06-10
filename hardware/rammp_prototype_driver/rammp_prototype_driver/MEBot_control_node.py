@@ -217,6 +217,7 @@ class MEBotControlNode(Node):
         self.user_fb = 0
         self.user_lr = 0
         self.user_control_enabled = True
+        self.cap_user_speed = False
 
         # Fields to store sequence player data
         self.current_seq = 0
@@ -363,7 +364,7 @@ class MEBotControlNode(Node):
         self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
         self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
-        self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
+        # self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
 
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
@@ -787,19 +788,14 @@ class MEBotControlNode(Node):
         return result
 
     def _send_joystick(self, fb_pwm=None):
-        self.get_logger().info("INSIDE _send_joystick")
         msg = LuciJoystick()
-        if self.user_control_enabled:
-            self.get_logger().info("User control enabled")
-            self.get_logger().info(f"User fb: {self.user_fb}, User lr: {self.user_lr}")
+        if self.user_control_enabled and not self.cap_user_speed:
             msg.forward_back = self.user_fb
             msg.left_right = self.user_lr
-        # elif self.user_control_enabled and fb_pwm is not None:
-        #     msg.forward_back = fb_pwm
-        #     msg.left_right = 0
+        elif self.user_control_enabled and self.cap_user_speed:
+            msg.forward_back = min(self.user_fb, 20)
+            msg.left_right = self.user_lr
         else:
-            self.get_logger().info("User control disabled")
-            self.get_logger().info(f"FB PWM: {self.fb_pwm}")
             msg.forward_back = self.fb_pwm
             msg.left_right = 0
 
@@ -827,7 +823,7 @@ class MEBotControlNode(Node):
 
     def curb_traverse_action_callback(self, goal):
         # self.send_set_luci()  # enable LUCI control over js
-
+        self.cap_user_speed = True
         # feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
 
@@ -943,6 +939,7 @@ class MEBotControlNode(Node):
         self.seq_mode = 0
 
         self.user_control_enabled = True
+        self.cap_user_speed = False
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
         return result
 

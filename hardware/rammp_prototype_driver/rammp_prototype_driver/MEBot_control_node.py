@@ -34,7 +34,7 @@ JS_BACK_RIGHT = 6
 JS_BACK = 7
 JS_ORIGIN = 8
 
-INPUT_REMOTE = 1
+INPUT_REMOTE = 5
 
 JOYSTICK_TOPIC = "/luci/remote_joystick"
 JOYSTICK_MSG_TYPE = "/luci_messages/msg/LuciJoystick"
@@ -214,6 +214,9 @@ class MEBotControlNode(Node):
         )
 
         self.estop = False
+        self.user_fb = 0
+        self.user_lr = 0
+        self.user_control_enabled = True
 
         # Fields to store sequence player data
         self.current_seq = 0
@@ -283,7 +286,7 @@ class MEBotControlNode(Node):
         self._init_subscribers()
         self._init_publishers()
 
-        self.send_remove_luci()
+        self.enable_remote_input()
 
     def _init_services(self):
         # services
@@ -301,6 +304,12 @@ class MEBotControlNode(Node):
         )
         self.remove_auto_remote_client = self.create_client(
             Empty, "/luci/remove_auto_remote_input"
+        )
+        self.set_remote_input = self.create_client(
+            Empty, "/luci/set_shared_remote_input"
+        )
+        self.remove_remote_input = self.create_client(
+            Empty, "/luci/remove_shared_remote_input"
         )
 
     def _init_actions(self):
@@ -325,6 +334,10 @@ class MEBotControlNode(Node):
 
         self.estop_subscription = self.create_subscription(
             Bool, "estop", self.estop_callback, 10
+        )
+
+        self.user_joystick_subscription = self.create_subscription(
+            LuciJoystick, "luci/joystick_position", self.user_joystick_callback, 10
         )
 
     def _init_publishers(self):
@@ -666,6 +679,10 @@ class MEBotControlNode(Node):
             )
         return stat
 
+    def user_joystick_callback(self, msg: LuciJoystick):
+        self.user_fb = msg.forward_back
+        self.user_lr = msg.left_right
+
     def manual_seat_control_callback(self, msg: SeatCommand):
         self.get_logger().info("Seat command callback has been entered")
         deltas = SEAT_DELTAS.get(msg.command)
@@ -686,11 +703,26 @@ class MEBotControlNode(Node):
     def estop_callback(self, msg):
         self.estop = msg.data
         if msg.data:
-            self.send_remove_luci()  # may be redundent, ensure user has manual control
+            self.user_control_enabled = True
+            # self.send_remove_luci()  # may be redundent, ensure user has manual control
             self.write_serial_data(
                 "z\n"
             )  # triggers MotorController function NO_MOVEMENT
             self.write_serial_data("K0\n")
+
+    def enable_remote_input(self):
+        request = Empty.Request()
+        future = self.set_remote_input.call_async(request)
+        future.add_done_callback(self.luci_req_done)
+        self.get_logger().info("Remote input enabled")
+        return future
+
+    def disable_remote_input(self):
+        request = Empty.Request()
+        future = self.remove_remote_input.call_async(request)
+        future.add_done_callback(self.remote_input_done)
+        self.get_logger().info("Remote input disabled")
+        return future
 
     def send_set_luci(self):
         self.get_logger().info(
@@ -756,12 +788,17 @@ class MEBotControlNode(Node):
 
     def _send_joystick(self, fb_pwm=None):
         msg = LuciJoystick()
-        if fb_pwm is None:
-            msg.forward_back = self.fb_pwm
+        if self.user_control_enabled:
+            msg.forward_back = self.user_fb
+            msg.left_right = self.user_lr
+        # elif self.user_control_enabled and fb_pwm is not None:
+        #     msg.forward_back = fb_pwm
+        #     msg.left_right = 0
         else:
-            msg.forward_back = fb_pwm
-        msg.left_right = 0
-        msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
+            msg.forward_back = self.fb_pwm
+            msg.left_right = 0
+
+        msg.joystick_zone = _compute_zone(msg.forward_back, msg.left_right)
         msg.input_source = INPUT_REMOTE
         self.luci_js_publisher.publish(msg)
 
@@ -906,9 +943,9 @@ class MEBotControlNode(Node):
 
     def drive_enable_callback(self, request, response):
         if request.data:
-            self.send_remove_luci()
+            self.user_control_enabled = True
         else:
-            self.send_set_luci()
+            self.user_control_enabled = False
 
         response.success = True  # just acknowledges request recieved and sent
         return response

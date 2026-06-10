@@ -987,6 +987,7 @@ def main(args=None):
     executor.spin()
 
     rclpy.shutdown()
+    node.disable_remote_input()
 
 
 if __name__ == "__main__":

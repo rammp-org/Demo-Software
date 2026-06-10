@@ -1371,7 +1371,12 @@ class ControlPanel(QWidget):
                 for i in range(NUM_MOTORS)
             ]
             self._serial_handler.send_keyframe(
-                idx, targets, active, durations, kf.relative
+                idx,
+                targets,
+                active,
+                durations,
+                kf.relative,
+                carriage_return=kf.carriage_return,
             )
 
         self._serial_handler.seq_auto_run(True)

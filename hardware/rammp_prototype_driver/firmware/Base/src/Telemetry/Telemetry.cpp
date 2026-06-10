@@ -88,10 +88,13 @@ void updateTelemetry() {
   telemetry.odrive_positions[1] = ODriveL.current_pos;
   telemetry.odrive_torques[0] = ODriveR.getCurrentTorque();
   telemetry.odrive_torques[1] = ODriveL.getCurrentTorque();
+
+  // Optional: populated by other modules; defaults to 0.
+  telemetry.carriage_return_direction = carriage_return_direction;
 }
 
 // Helper to send telemetry — builds the full CSV line into a buffer, single
-// Serial.print Packet format (79 comma-separated values after the header):
+// Serial.print Packet format (80 comma-separated values after the header):
 //   TELEMETRY,<ms>,<state>,
 //   <6 positions>,<6 velocities>,<6 pwms>,
 //   <6 motor dirs>,<6 enc dirs>,<4 limit switches>,
@@ -100,7 +103,8 @@ void updateTelemetry() {
 //   <2 drive positions>,<2 drive velocities>,<2 drive pwms>,
 //   <2 drive control modes>,<2 raw enc positions>,<2 raw enc velocities>,
 //   <2 drive directions>,<2 drive enc directions>,
-//   <odrive_r_pos>,<odrive_l_pos>,<odrive_r_torque>,<odrive_l_torque>
+//   <odrive_r_pos>,<odrive_l_pos>,<odrive_r_torque>,<odrive_l_torque>,
+//   <carriage_return_direction>
 void sendTelemetry() {
   char buf[800];
   int n = 0;
@@ -178,6 +182,9 @@ void sendTelemetry() {
                 telemetry.odrive_positions[1]);
   n += snprintf(buf + n, sizeof(buf) - n, ",%.4f", telemetry.odrive_torques[0]);
   n += snprintf(buf + n, sizeof(buf) - n, ",%.4f", telemetry.odrive_torques[1]);
+
+  n += snprintf(buf + n, sizeof(buf) - n, ",%d",
+                telemetry.carriage_return_direction);
 
   n += snprintf(buf + n, sizeof(buf) - n, "\n");
 

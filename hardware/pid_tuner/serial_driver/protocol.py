@@ -106,6 +106,9 @@ class EncoderData:
     drive_lr_dir: int = 1
     drive_fb_enc_dir: int = 1
     drive_lr_enc_dir: int = 1
+
+    # Appended at end of 80-value TELEMETRY packet (None if packet was shorter)
+    carriage_return_direction: Optional[int] = None
     odrive_l_pos: float = 0.0
     odrive_r_pos: float = 0.0
     odrive_l_torque_nm: float = 0.0
@@ -322,6 +325,8 @@ class ProtocolParser:
                         data.odrive_l_pos = values[76]
                         data.odrive_r_torque_nm = values[77]
                         data.odrive_l_torque_nm = values[78]
+                    if len(values) >= 80:
+                        data.carriage_return_direction = int(values[79])
                     return data
                 # Older format: 34 values (18 original + 6 dirs + 4 limits + 6 imu)
                 elif len(values) == 34:
@@ -585,14 +590,16 @@ class ProtocolEncoder:
         active: list,
         duration_ms,
         relative: Optional[List[bool]] = None,
+        carriage_return: int = 0,
         guard_threshold: Optional[List[float]] = None,
         guard_condition: Optional[List[int]] = None,
     ) -> bytes:
         """
-        Upload one keyframe.  Sends the 40-value format (NUM_MOTORS=10):
-        targets(10), active(10), relative(10), durations(10).
+        Upload one keyframe.  Sends the standard keyframe format (NUM_MOTORS=10):
+        targets(10), active(10), relative(10), durations(10), carriage_return(1).
         duration_ms: single int (broadcast) or list of 10 ints.
         relative: list of 10 bools (default all False).
+        carriage_return: LUCI forward/back for this keyframe (-1, 0, 1).
         """
 
         t_str = ",".join(f"{t:.2f}" for t in targets)
@@ -601,6 +608,8 @@ class ProtocolEncoder:
         if relative is None:
             relative = [False] * NUM_MOTORS
         r_str = ",".join(str(int(bool(r))) for r in relative)
+
+        cr_str = str(int(carriage_return))
 
         if isinstance(duration_ms, (int, float)):
             d_str = ",".join(str(int(duration_ms)) for _ in range(NUM_MOTORS))
@@ -614,13 +623,11 @@ class ProtocolEncoder:
         if has_guard:
             gt_str = ",".join(f"{v:.4f}" for v in _gt)
             gc_str = ",".join(str(int(v)) for v in _gc)
-            return (
-                f"J{index}:{t_str},{a_str},{r_str},{d_str},{gt_str},{gc_str}\n".encode(
-                    "ascii"
-                )
+            return f"J{index}:{t_str},{a_str},{r_str},{d_str},{cr_str},{gt_str},{gc_str}\n".encode(
+                "ascii"
             )
 
-        return f"J{index}:{t_str},{a_str},{r_str},{d_str}\n".encode("ascii")
+        return f"J{index}:{t_str},{a_str},{r_str},{d_str},{cr_str}\n".encode("ascii")
 
     @staticmethod
     def seq_step_forward() -> bytes:

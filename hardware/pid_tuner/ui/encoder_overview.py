@@ -29,6 +29,8 @@ MODE_OPEN_LOOP = 0
 MODE_VELOCITY = 1
 MODE_POSITION = 2
 
+LIMIT_SWITCH_NAMES = ("ML Fwd", "ML Bwd", "MR Fwd", "MR Bwd")
+
 
 class JointBox(QFrame):
     clicked = pyqtSignal(int)
@@ -230,7 +232,7 @@ class EncoderOverview(QWidget):
         self._setup_ui()
         self._setup_timer()
 
-        self._data_store.limits_updated.connect(self._update_limits)
+        self._data_store.limits_updated.connect(self._update_limit_switches)
         self._data_store.config_updated.connect(self._on_config_updated)
 
     def _setup_ui(self):
@@ -290,6 +292,31 @@ class EncoderOverview(QWidget):
 
         root.addLayout(controls_layout)
 
+        limit_row = QHBoxLayout()
+        limit_row.setSpacing(SIZES["spacing_small"])
+        limit_title = QLabel("Limit switches:")
+        limit_title.setStyleSheet(
+            f"color: {THEME.subtext0}; font-size: {SIZES['font_small']}pt;"
+        )
+        limit_row.addWidget(limit_title)
+        self._limit_switch_labels: list[QLabel] = []
+        for name in LIMIT_SWITCH_NAMES:
+            name_lbl = QLabel(f"{name}:")
+            name_lbl.setStyleSheet(
+                f"color: {THEME.subtext1}; font-size: {SIZES['font_small']}pt;"
+            )
+            limit_row.addWidget(name_lbl)
+            val_lbl = QLabel("0")
+            val_lbl.setFixedWidth(scaled(16))
+            val_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            val_lbl.setStyleSheet(
+                f"color: {THEME.text}; font-size: {SIZES['font_small']}pt; font-weight: bold;"
+            )
+            self._limit_switch_labels.append(val_lbl)
+            limit_row.addWidget(val_lbl)
+        limit_row.addStretch()
+        root.addLayout(limit_row)
+
         odrive_controls = QHBoxLayout()
         odrive_controls.setSpacing(SIZES["spacing_medium"])
 
@@ -336,6 +363,17 @@ class EncoderOverview(QWidget):
             joint_data = self._data_store.get_joint(joint.id)
             if joint_data:
                 self._boxes[i].set_value(joint_data.current_position)
+        self._update_limit_switches()
+
+    def _update_limit_switches(self):
+        states = self._data_store.limit_switches
+        for i, lbl in enumerate(self._limit_switch_labels):
+            active = bool(states[i]) if i < len(states) else False
+            lbl.setText("1" if active else "0")
+            color = THEME.red if active else THEME.text
+            lbl.setStyleSheet(
+                f"color: {color}; font-size: {SIZES['font_small']}pt; font-weight: bold;"
+            )
 
     def _on_box_clicked(self, joint_id: int):
         self.set_selected_joint(joint_id)
@@ -377,6 +415,7 @@ class EncoderOverview(QWidget):
         pass
 
     def _update_limits(self):
+        """Reserved for joint position limit config updates."""
         pass
 
     def _on_config_updated(self, joint_id: int):

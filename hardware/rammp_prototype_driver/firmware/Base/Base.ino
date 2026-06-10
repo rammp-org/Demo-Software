@@ -49,6 +49,10 @@ SystemState current_state = INIT;
 SystemTelemetry telemetry;
 bool calibrated = false;
 
+// Appended to the end of the TELEMETRY CSV line.
+// Higher-level behaviors may set this to indicate carriage return direction.
+int carriage_return_direction = 0;
+
 // Sequence player state moved to src/SequencePlayer/
 
 // Self Leveling Targets
@@ -653,6 +657,7 @@ void loop() {
   // 3. Update State Machine
   if (parser.isTimedOut() && current_state != ESTOP) {
     current_state = ESTOP;
+    carriage_return_direction = 0;
     Serial.println("WATCHDOG TIMEOUT -> ESTOP");
     // Auto-save all motor configs on disconnect (fires once per disconnect)
     if (was_connected) {
@@ -663,6 +668,7 @@ void loop() {
   }
 
   if (cmd.type == CMD_Z) {
+    carriage_return_direction = 0;
     if (current_state != ESTOP) {
       current_state = ESTOP;
       if (DEBUG_MODE)

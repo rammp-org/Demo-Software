@@ -42,14 +42,15 @@ struct Keyframe {
   bool active[SEQ_NUM_MOTORS];
   bool relative[SEQ_NUM_MOTORS]; // true  = target is offset from start pos
   uint32_t duration_ms[SEQ_NUM_MOTORS]; // per-motor interpolation durations
+  int32_t carriage_return; // LUCI forward/back for this keyframe (-1, 0, 1)
   float guard_threshold[SEQ_NUM_MOTORS];
   uint8_t guard_condition[SEQ_NUM_MOTORS];
 };
 
 // Parse CSV payload into a Keyframe (SEQ_NUM_MOTORS = 10 only).
-// Standard  (40 values): t1..t10, a1..a10, r1..r10, d1..d10
-// Guarded   (60 values): + guard_threshold + guard_condition per motor
-// Compact   (21 values): t1..t10, a1..a10, global_duration_ms
+// Standard  (41 values): t1..t10, a1..a10, r1..r10, d1..d10, cr
+// Guarded   (61 values): + guard_threshold + guard_condition per motor
+// Compact   (22 values): t1..t10, a1..a10, global_duration_ms, cr
 bool parseKeyframePayload(const String &payload, Keyframe &kf);
 
 // Initialize sequence state when entering AUTO_CURB_CLIMBING mode.

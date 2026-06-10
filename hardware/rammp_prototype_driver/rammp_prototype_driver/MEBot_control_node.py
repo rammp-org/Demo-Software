@@ -149,6 +149,7 @@ class SerialField(IntEnum):
     ODRIVE_R_POS = 79
     ODRIVE_L_TORQUE_NM = 80
     ODRIVE_R_TORQUE_NM = 81
+    CARRIAGE_RETURN_DIRECTION = 82
     STATE = 2
     FB_PWM = 66
 
@@ -252,6 +253,7 @@ class MEBotControlNode(Node):
         self.odrive_r_pos = 0.0
         # self.odrive_l_torque_nm = 0.0
         # self.odrive_r_torque_nm = 0.0
+        self.carriage_return_direction = 0
 
         # Loadcells
         self.RC_loadcell = 0.0
@@ -439,6 +441,7 @@ class MEBotControlNode(Node):
                 active,
                 durations,
                 relative,
+                carriage_return=kf.carriage_return,
                 guard_threshold=kf.guard_threshold,
                 guard_condition=kf.guard_condition,
             )
@@ -446,9 +449,13 @@ class MEBotControlNode(Node):
             n_fields = len(payload.split(","))
             self.get_logger().info(
                 f"Keyframe {idx}: sending {n_fields} fields "
-                f"(standard={NUM_MOTORS * 4}, guarded={NUM_MOTORS * 6})"
+                f"(standard={NUM_MOTORS * 4 + 1}, guarded={NUM_MOTORS * 6 + 1})"
             )
-            if n_fields not in (NUM_MOTORS * 4, NUM_MOTORS * 6, NUM_MOTORS * 2 + 1):
+            if n_fields not in (
+                NUM_MOTORS * 4 + 1,
+                NUM_MOTORS * 6 + 1,
+                NUM_MOTORS * 2 + 2,
+            ):
                 self.get_logger().error(
                     f"Keyframe {idx} field count {n_fields} does not match "
                     f"NUM_MOTORS={NUM_MOTORS}; Teensy will reject with SEQ_ERR"
@@ -496,6 +503,11 @@ class MEBotControlNode(Node):
         self.FC_loadcell = float(data[SerialField.FC_LOADCELL])
         self.MR_loadcell = float(data[SerialField.MR_LOADCELL])
         self.ML_loadcell = float(data[SerialField.ML_LOADCELL])
+
+        # Carriage return direction
+        self.carriage_return_direction = int(
+            data[SerialField.CARRIAGE_RETURN_DIRECTION]
+        )
 
         # State
         self.state = int(data[SerialField.STATE])
@@ -789,7 +801,11 @@ class MEBotControlNode(Node):
 
     def _send_joystick(self, fb_pwm=None):
         msg = LuciJoystick()
-        if self.user_control_enabled and not self.cap_user_speed:
+        if self.carriage_return_direction != 0:
+            msg.forward_back = self.carriage_return_direction
+            lr_val = -2
+            msg.left_right = lr_val
+        elif self.user_control_enabled and not self.cap_user_speed:
             msg.forward_back = self.user_fb
             msg.left_right = self.user_lr
         elif self.user_control_enabled and self.cap_user_speed:

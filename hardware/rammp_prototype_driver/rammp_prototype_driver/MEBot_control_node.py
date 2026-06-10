@@ -680,7 +680,6 @@ class MEBotControlNode(Node):
         return stat
 
     def user_joystick_callback(self, msg: LuciJoystick):
-        self.get_logger().info(str(msg))
         self.user_fb = msg.forward_back
         self.user_lr = msg.left_right
 
@@ -790,12 +789,16 @@ class MEBotControlNode(Node):
     def _send_joystick(self, fb_pwm=None):
         msg = LuciJoystick()
         if self.user_control_enabled:
+            self.get_logger().info("User control enabled")
+            self.get_logger().info(f"User fb: {self.user_fb}, User lr: {self.user_lr}")
             msg.forward_back = self.user_fb
             msg.left_right = self.user_lr
         # elif self.user_control_enabled and fb_pwm is not None:
         #     msg.forward_back = fb_pwm
         #     msg.left_right = 0
         else:
+            self.get_logger().info("User control disabled")
+            self.get_logger().info(f"FB PWM: {self.fb_pwm}")
             msg.forward_back = self.fb_pwm
             msg.left_right = 0
 

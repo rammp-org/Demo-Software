@@ -787,6 +787,7 @@ class MEBotControlNode(Node):
         return result
 
     def _send_joystick(self, fb_pwm=None):
+        self.get_logger().info("INSIDE _send_joystick")
         msg = LuciJoystick()
         if self.user_control_enabled:
             self.get_logger().info("User control enabled")

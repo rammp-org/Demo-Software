@@ -1,0 +1,882 @@
+[1mdiff --git a/hardware/rammp_prototype_driver/config/ascend_approach.json b/hardware/rammp_prototype_driver/config/ascend_approach.json[m
+[1mindex f758c39..36a1f7a 100644[m
+[1m--- a/hardware/rammp_prototype_driver/config/ascend_approach.json[m
+[1m+++ b/hardware/rammp_prototype_driver/config/ascend_approach.json[m
+[36m@@ -5,7 +5,7 @@[m
+         "label": "Raise to curb and let user drive",[m
+         "targets": [[m
+           210.0,[m
+[31m-          45.0,[m
+[32m+[m[32m          90.0,[m
+           250.0,[m
+           210.0,[m
+           0.0,[m
+[1mdiff --git a/hardware/rammp_prototype_driver/config/curb_ascending.json b/hardware/rammp_prototype_driver/config/curb_ascending.json[m
+[1mindex fb3726e..1787753 100644[m
+[1m--- a/hardware/rammp_prototype_driver/config/curb_ascending.json[m
+[1m+++ b/hardware/rammp_prototype_driver/config/curb_ascending.json[m
+[36m@@ -1,70 +1,18 @@[m
+ {[m
+[31m-  "name": "curb_ascending",[m
+[32m+[m[32m  "name": "faster_curb_climb_v2",[m
+   "keyframes": [[m
+     {[m
+[31m-      "label": "Start in Self Leveling",[m
+[32m+[m[32m      "label": "Raise to curb and let user drive",[m
+       "targets": [[m
+[31m-        361.0,[m
+[31m-        21.0,[m
+[31m-        204.0,[m
+[31m-        174.0,[m
+[31m-        101.0,[m
+[31m-        99.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "duration_ms": 3000,[m
+[31m-      "relative": [[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        true,[m
+[31m-        true[m
+[31m-      ],[m
+[31m-      "motor_durations": [[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null[m
+[31m-      ],[m
+[31m-      "guard_threshold": [[m
+[31m-        0.0,[m
+[32m+[m[32m        210.0,[m
+[32m+[m[32m        45.0,[m
+[32m+[m[32m        250.0,[m
+[32m+[m[32m        210.0,[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "guard_condition": [[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0[m
+[31m-      ][m
+[31m-    },[m
+[31m-    {[m
+[31m-      "label": "Raise FC, ML, MR, and RC so FC can reach curb height",[m
+[31m-      "targets": [[m
+[31m-        864.0,[m
+[31m-        105.0,[m
+[31m-        410.0,[m
+[31m-        350.0,[m
+[31m-        204.0,[m
+[31m-        122.0,[m
+[31m-        0.0,[m
+         0.0[m
+       ],[m
+       "duration_ms": 1000,[m
+[36m@@ -76,70 +24,21 @@[m
+         false,[m
+         false,[m
+         true,[m
+[32m+[m[32m        true,[m
+[32m+[m[32m        true,[m
+         true[m
+       ],[m
+[32m+[m[32m      "carriage_return": 0,[m
+       "motor_durations": [[m
+[31m-        3000,[m
+         null,[m
+[31m-        1000,[m
+[31m-        1000,[m
+         null,[m
+         null,[m
+         null,[m
+[31m-        null[m
+[31m-      ],[m
+[31m-      "guard_threshold": [[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "guard_condition": [[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0[m
+[31m-      ][m
+[31m-    },[m
+[31m-    {[m
+[31m-      "label": "Drive to curb",[m
+[31m-      "targets": [[m
+[31m-        861.0,[m
+[31m-        105.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        192.0,[m
+[31m-        127.0,[m
+[31m-        1500.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "duration_ms": 1000,[m
+[31m-      "relative": [[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        true,[m
+[31m-        true,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        true,[m
+[31m-        true[m
+[31m-      ],[m
+[31m-      "motor_durations": [[m
+[31m-        4000,[m
+         null,[m
+         null,[m
+         null,[m
+         null,[m
+         null,[m
+[31m-        500,[m
+         null[m
+       ],[m
+       "guard_threshold": [[m
+[36m@@ -150,6 +49,8 @@[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+[32m+[m[32m        0.0,[m
+[32m+[m[32m        0.0,[m
+         0.0[m
+       ],[m
+       "guard_condition": [[m
+[36m@@ -160,126 +61,22 @@[m
+         0,[m
+         0,[m
+         0,[m
+[31m-        0[m
+[31m-      ][m
+[31m-    },[m
+[31m-    {[m
+[31m-      "label": "Lower FC to curb",[m
+[31m-      "targets": [[m
+[31m-        861.4,[m
+[31m-        400.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        192.0,[m
+[31m-        127.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "duration_ms": 1000,[m
+[31m-      "relative": [[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        true,[m
+[31m-        true,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        true,[m
+[31m-        true[m
+[31m-      ],[m
+[31m-      "motor_durations": [[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null[m
+[31m-      ],[m
+[31m-      "guard_threshold": [[m
+[31m-        0.0,[m
+[31m-        200.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "guard_condition": [[m
+[31m-        0,[m
+[31m-        2,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+         0,[m
+         0,[m
+         0[m
+       ][m
+     },[m
+     {[m
+[31m-      "label": "Move carriages back and lower RC to get on curb",[m
+[32m+[m[32m      "label": "Raise seat and drive wheels up",[m
+       "targets": [[m
+[31m-        860.0,[m
+[31m-        0.0,[m
+[31m-        410.0,[m
+[31m-        350.0,[m
+[31m-        12661.0,[m
+[31m-        12615.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "duration_ms": 1000,[m
+[31m-      "relative": [[m
+[31m-        false,[m
+[31m-        true,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        true,[m
+[31m-        true[m
+[31m-      ],[m
+[31m-      "motor_durations": [[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        2000,[m
+[31m-        2000,[m
+[31m-        null,[m
+[31m-        null[m
+[31m-      ],[m
+[31m-      "guard_threshold": [[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[32m+[m[32m        1000.0,[m
+[32m+[m[32m        300.0,[m
+[32m+[m[32m        20.0,[m
+[32m+[m[32m        20.0,[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "guard_condition": [[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0[m
+[31m-      ][m
+[31m-    },[m
+[31m-    {[m
+[31m-      "label": "Lift drive wheels off ground",[m
+[31m-      "targets": [[m
+[31m-        860.0,[m
+[31m-        105.0,[m
+[31m-        30.0,[m
+[31m-        30.0,[m
+[31m-        12661.0,[m
+[31m-        12615.0,[m
+         0.0,[m
+         0.0[m
+       ],[m
+[36m@@ -289,126 +86,23 @@[m
+         false,[m
+         false,[m
+         false,[m
+[31m-        false,[m
+[31m-        false,[m
+         true,[m
+[31m-        true[m
+[31m-      ],[m
+[31m-      "motor_durations": [[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        1500,[m
+[31m-        1000,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        1000,[m
+[31m-        null[m
+[31m-      ],[m
+[31m-      "guard_threshold": [[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "guard_condition": [[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0[m
+[31m-      ][m
+[31m-    },[m
+[31m-    {[m
+[31m-      "label": "Move carriages forward part way",[m
+[31m-      "targets": [[m
+[31m-        860.0,[m
+[31m-        105.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        10000.0,[m
+[31m-        10000.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "duration_ms": 1000,[m
+[31m-      "relative": [[m
+[31m-        false,[m
+[31m-        false,[m
+         true,[m
+         true,[m
+[31m-        false,[m
+[31m-        false,[m
+[32m+[m[32m        true,[m
+         true,[m
+         true[m
+       ],[m
+[32m+[m[32m      "carriage_return": 0,[m
+       "motor_durations": [[m
+         null,[m
+         null,[m
+[31m-        2000,[m
+[31m-        2000,[m
+[31m-        2000,[m
+[31m-        2000,[m
+         null,[m
+[31m-        null[m
+[31m-      ],[m
+[31m-      "guard_threshold": [[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "guard_condition": [[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0[m
+[31m-      ][m
+[31m-    },[m
+[31m-    {[m
+[31m-      "label": "Move carriages forward while driving",[m
+[31m-      "targets": [[m
+[31m-        860.0,[m
+[31m-        105.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        3000.0,[m
+[31m-        3000.0,[m
+[31m-        2000.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "duration_ms": 1000,[m
+[31m-      "relative": [[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        true,[m
+[31m-        true,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        true,[m
+[31m-        true[m
+[31m-      ],[m
+[31m-      "motor_durations": [[m
+[31m-        5000,[m
+         null,[m
+         null,[m
+         null,[m
+[31m-        1000,[m
+[31m-        1000,[m
+[32m+[m[32m        null,[m
+[32m+[m[32m        null,[m
+         null,[m
+         null[m
+       ],[m
+[36m@@ -420,6 +114,8 @@[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+[32m+[m[32m        0.0,[m
+[32m+[m[32m        0.0,[m
+         0.0[m
+       ],[m
+       "guard_condition": [[m
+[36m@@ -430,65 +126,13 @@[m
+         0,[m
+         0,[m
+         0,[m
+[31m-        0[m
+[31m-      ][m
+[31m-    },[m
+[31m-    {[m
+[31m-      "label": "Move ML and MR down to ground",[m
+[31m-      "targets": [[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        430.0,[m
+[31m-        360.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "duration_ms": 1000,[m
+[31m-      "relative": [[m
+[31m-        true,[m
+[31m-        true,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        true,[m
+[31m-        true,[m
+[31m-        true,[m
+[31m-        true[m
+[31m-      ],[m
+[31m-      "motor_durations": [[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        3000,[m
+[31m-        3000,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        null[m
+[31m-      ],[m
+[31m-      "guard_threshold": [[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        350.0,[m
+[31m-        350.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "guard_condition": [[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        1,[m
+[31m-        1,[m
+[31m-        0,[m
+         0,[m
+         0,[m
+         0[m
+       ][m
+     },[m
+     {[m
+[31m-      "label": "Move carriages back",[m
+[32m+[m[32m      "label": "Drive forward onto curb while moving carriages back",[m
+       "targets": [[m
+         0.0,[m
+         0.0,[m
+[36m@@ -497,7 +141,9 @@[m
+         12600.0,[m
+         12600.0,[m
+         0.0,[m
+[31m-        0.0[m
+[32m+[m[32m        0.0,[m
+[32m+[m[32m        9.0,[m
+[32m+[m[32m        9.0[m
+       ],[m
+       "duration_ms": 1000,[m
+       "relative": [[m
+[36m@@ -508,15 +154,20 @@[m
+         false,[m
+         false,[m
+         true,[m
+[32m+[m[32m        true,[m
+[32m+[m[32m        true,[m
+         true[m
+       ],[m
+[32m+[m[32m      "carriage_return": 1,[m
+       "motor_durations": [[m
+         null,[m
+         null,[m
+         null,[m
+         null,[m
+[31m-        2000,[m
+[31m-        2000,[m
+[32m+[m[32m        100,[m
+[32m+[m[32m        100,[m
+[32m+[m[32m        null,[m
+[32m+[m[32m        null,[m
+         null,[m
+         null[m
+       ],[m
+[36m@@ -528,6 +179,8 @@[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+[32m+[m[32m        0.0,[m
+[32m+[m[32m        0.0,[m
+         0.0[m
+       ],[m
+       "guard_condition": [[m
+[36m@@ -538,18 +191,22 @@[m
+         0,[m
+         0,[m
+         0,[m
+[32m+[m[32m        0,[m
+[32m+[m[32m        0,[m
+         0[m
+       ][m
+     },[m
+     {[m
+[31m-      "label": "Raise ML, MR, and RC",[m
+[32m+[m[32m      "label": "Lift RC",[m
+       "targets": [[m
+[31m-        367.0,[m
+[31m-        105.0,[m
+[32m+[m[32m        377.0,[m
+[32m+[m[32m        340.0,[m
+         199.0,[m
+         175.0,[m
+         0.0,[m
+         0.0,[m
+[32m+[m[32m        2500.0,[m
+[32m+[m[32m        0.0,[m
+         0.0,[m
+         0.0[m
+       ],[m
+[36m@@ -562,64 +219,15 @@[m
+         true,[m
+         true,[m
+         true,[m
+[31m-        true[m
+[31m-      ],[m
+[31m-      "motor_durations": [[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        2000,[m
+[31m-        2000,[m
+[31m-        2000,[m
+[31m-        2000,[m
+[31m-        null,[m
+[31m-        null[m
+[31m-      ],[m
+[31m-      "guard_threshold": [[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "guard_condition": [[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0[m
+[31m-      ][m
+[31m-    },[m
+[31m-    {[m
+[31m-      "label": "Drive forward a little",[m
+[31m-      "targets": [[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        10000.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "duration_ms": 1000,[m
+[31m-      "relative": [[m
+[31m-        true,[m
+[31m-        true,[m
+[31m-        true,[m
+[31m-        true,[m
+[31m-        true,[m
+         true,[m
+         true,[m
+         true[m
+       ],[m
+[32m+[m[32m      "carriage_return": 0,[m
+       "motor_durations": [[m
+[31m-        6000,[m
+[32m+[m[32m        null,[m
+[32m+[m[32m        4000,[m
+[32m+[m[32m        null,[m
+         null,[m
+         null,[m
+         null,[m
+[36m@@ -636,6 +244,8 @@[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+[32m+[m[32m        0.0,[m
+[32m+[m[32m        0.0,[m
+         0.0[m
+       ],[m
+       "guard_condition": [[m
+[36m@@ -646,11 +256,13 @@[m
+         0,[m
+         0,[m
+         0,[m
+[32m+[m[32m        0,[m
+[32m+[m[32m        0,[m
+         0[m
+       ][m
+     },[m
+     {[m
+[31m-      "label": "Move everything down",[m
+[32m+[m[32m      "label": "Carriage Return",[m
+       "targets": [[m
+         0.0,[m
+         0.0,[m
+[36m@@ -659,12 +271,16 @@[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+[32m+[m[32m        0.0,[m
+[32m+[m[32m        0.0,[m
+         0.0[m
+       ],[m
+       "duration_ms": 1000,[m
+       "relative": [[m
+[31m-        false,[m
+[31m-        false,[m
+[32m+[m[32m        true,[m
+[32m+[m[32m        true,[m
+[32m+[m[32m        true,[m
+[32m+[m[32m        true,[m
+         false,[m
+         false,[m
+         true,[m
+[36m@@ -672,6 +288,7 @@[m
+         true,[m
+         true[m
+       ],[m
+[32m+[m[32m      "carriage_return": 4,[m
+       "motor_durations": [[m
+         null,[m
+         null,[m
+[36m@@ -680,6 +297,8 @@[m
+         null,[m
+         null,[m
+         null,[m
+[32m+[m[32m        null,[m
+[32m+[m[32m        null,[m
+         null[m
+       ],[m
+       "guard_threshold": [[m
+[36m@@ -690,6 +309,8 @@[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+[32m+[m[32m        0.0,[m
+[32m+[m[32m        0.0,[m
+         0.0[m
+       ],[m
+       "guard_condition": [[m
+[36m@@ -700,14 +321,18 @@[m
+         0,[m
+         0,[m
+         0,[m
+[32m+[m[32m        0,[m
+[32m+[m[32m        0,[m
+         0[m
+       ][m
+     },[m
+     {[m
+[31m-      "label": "Move carriages forward",[m
+[32m+[m[32m      "label": "Put it back in self-leveling mode",[m
+       "targets": [[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[32m+[m[32m        224.5,[m
+[32m+[m[32m        44.5,[m
+[32m+[m[32m        227.0,[m
+[32m+[m[32m        178.0,[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+[36m@@ -717,70 +342,21 @@[m
+       ],[m
+       "duration_ms": 1000,[m
+       "relative": [[m
+[32m+[m[32m        false,[m
+[32m+[m[32m        false,[m
+[32m+[m[32m        false,[m
+[32m+[m[32m        false,[m
+         true,[m
+         true,[m
+         true,[m
+         true,[m
+[31m-        false,[m
+[31m-        false,[m
+         true,[m
+         true[m
+       ],[m
+[32m+[m[32m      "carriage_return": 0,[m
+       "motor_durations": [[m
+         null,[m
+         null,[m
+[31m-        null,[m
+[31m-        null,[m
+[31m-        1000,[m
+[31m-        1000,[m
+[31m-        1000,[m
+[31m-        null[m
+[31m-      ],[m
+[31m-      "guard_threshold": [[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "guard_condition": [[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0,[m
+[31m-        0[m
+[31m-      ][m
+[31m-    },[m
+[31m-    {[m
+[31m-      "label": "Return to self leveling",[m
+[31m-      "targets": [[m
+[31m-        361.0,[m
+[31m-        21.0,[m
+[31m-        204.0,[m
+[31m-        174.0,[m
+[31m-        101.0,[m
+[31m-        93.0,[m
+[31m-        0.0,[m
+[31m-        0.0[m
+[31m-      ],[m
+[31m-      "duration_ms": 1000,[m
+[31m-      "relative": [[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        false,[m
+[31m-        true,[m
+[31m-        true[m
+[31m-      ],[m
+[31m-      "motor_durations": [[m
+         null,[m
+         null,[m
+         null,[m
+[36m@@ -798,6 +374,8 @@[m
+         0.0,[m
+         0.0,[m
+         0.0,[m
+[32m+[m[32m        0.0,[m
+[32m+[m[32m        0.0,[m
+         0.0[m
+       ],[m
+       "guard_condition": [[m
+[36m@@ -808,8 +386,10 @@[m
+         0,[m
+         0,[m
+         0,[m
+[32m+[m[32m        0,[m
+[32m+[m[32m        0,[m
+         0[m
+       ][m
+     }[m
+   ][m
+[31m-}[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
+[1mdiff --git a/hardware/rammp_prototype_driver/rammp_prototype_driver/MEBot_control_node.py b/hardware/rammp_prototype_driver/rammp_prototype_driver/MEBot_control_node.py[m
+[1mindex 4159d3f..da39f38 100644[m
+[1m--- a/hardware/rammp_prototype_driver/rammp_prototype_driver/MEBot_control_node.py[m
+[1m+++ b/hardware/rammp_prototype_driver/rammp_prototype_driver/MEBot_control_node.py[m
+[36m@@ -363,7 +363,7 @@[m [mclass MEBotControlNode(Node):[m
+         self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)[m
+ [m
+         self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)[m
+[31m-        self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled[m
+[32m+[m[32m        # self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled[m
+ [m
+         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)[m
+         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)[m
+[36m@@ -787,19 +787,19 @@[m [mclass MEBotControlNode(Node):[m
+         return result[m
+ [m
+     def _send_joystick(self, fb_pwm=None):[m
+[31m-        self.get_logger().info("INSIDE _send_joystick")[m
+[32m+[m[32m        # self.get_logger().info("INSIDE _send_joystick")[m
+         msg = LuciJoystick()[m
+         if self.user_control_enabled:[m
+[31m-            self.get_logger().info("User control enabled")[m
+[31m-            self.get_logger().info(f"User fb: {self.user_fb}, User lr: {self.user_lr}")[m
+[31m-            msg.forward_back = self.user_fb[m
+[32m+[m[32m            # self.get_logger().info("User control enabled")[m
+[32m+[m[32m            # self.get_logger().info(f"User fb: {self.user_fb}, User lr: {self.user_lr}")[m
+[32m+[m[32m            msg.forward_back = min(self.user_fb, 20)[m
+             msg.left_right = self.user_lr[m
+         # elif self.user_control_enabled and fb_pwm is not None:[m
+         #     msg.forward_back = fb_pwm[m
+         #     msg.left_right = 0[m
+         else:[m
+[31m-            self.get_logger().info("User control disabled")[m
+[31m-            self.get_logger().info(f"FB PWM: {self.fb_pwm}")[m
+[32m+[m[32m            # self.get_logger().info("User control disabled")[m
+[32m+[m[32m            # self.get_logger().info(f"FB PWM: {self.fb_pwm}")[m
+             msg.forward_back = self.fb_pwm[m
+             msg.left_right = 0[m
+ [m

@@ -891,7 +891,7 @@ class MEBotControlNode(Node):
             time.sleep(3.0)
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/curb_descending.json"
+                + "/config/test_curb_descend.json"
             )
 
         keyframes = _load_keyframes_from_json(json_path)

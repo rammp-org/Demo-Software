@@ -851,10 +851,11 @@ class MEBotControlNode(Node):
             self.send_sequence(keyframes, auto_run=True)
 
             # waiting for user to hit front caster on curb
-            while self.FC_loadcell > 150:
+            while self.FC_loadcell > 200:
                 if goal.is_cancel_requested:
                     goal.canceled()
                     result.success = False
+                    self.user_control_enabled = True
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
@@ -862,8 +863,7 @@ class MEBotControlNode(Node):
                 time.sleep(0.01)
 
             # immediately remove user joystick control and stop drive wheels
-            self.send_set_luci()
-            self._send_joystick(0)
+            self.user_control_enabled = False
             time.sleep(3.0)
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
@@ -883,6 +883,7 @@ class MEBotControlNode(Node):
                 if goal.is_cancel_requested:
                     goal.canceled()
                     result.success = False
+                    self.user_control_enabled = True
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
@@ -890,8 +891,7 @@ class MEBotControlNode(Node):
                 time.sleep(0.01)
 
             # immediately remove user joystick control and stop drive wheels
-            self.send_set_luci()
-            self._send_joystick(0)
+            self.user_control_enabled = False
             time.sleep(3.0)
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
@@ -907,7 +907,7 @@ class MEBotControlNode(Node):
             if goal.is_cancel_requested:
                 goal.canceled()
                 result.success = False
-                self.send_remove_luci()
+                self.user_control_enabled = True
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")
@@ -920,7 +920,7 @@ class MEBotControlNode(Node):
             if goal.is_cancel_requested:
                 goal.canceled()
                 result.success = False
-                self.send_remove_luci()
+                self.user_control_enabled = True
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")
@@ -942,7 +942,7 @@ class MEBotControlNode(Node):
         self.seq_length = 0
         self.seq_mode = 0
 
-        self.send_remove_luci()
+        self.user_control_enabled = True
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
         return result
 

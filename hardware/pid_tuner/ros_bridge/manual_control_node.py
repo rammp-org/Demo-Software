@@ -39,7 +39,6 @@ class ManualControlNode(Node):
         self.axes_centered = False
 
         self.status_pub = self.create_publisher(String, "gamepad_status", 10)
-        # self.status_timer = self.create_timer(1.0, self.pub_gamepad)
         self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
 
         # Listen for firmware status lines (e.g. CAL_DONE) coming from the same

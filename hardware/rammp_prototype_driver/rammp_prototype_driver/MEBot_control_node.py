@@ -810,7 +810,14 @@ class MEBotControlNode(Node):
 
             # waiting for user to hit front caster on curb
             while self.FC_loadcell > 150:
-                continue
+                if goal.is_cancel_requested:
+                    goal.canceled()
+                    result.success = False
+                    self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+                    self.write_serial_data("z\n")
+                    self.write_serial_data("c\n")
+                    return result
+                time.sleep(0.01)
 
             # immediately remove user joystick control and stop drive wheels
             self.send_set_luci()
@@ -831,7 +838,14 @@ class MEBotControlNode(Node):
 
             # waiting for user to get front caster off curb
             while self.FC_loadcell < 150:
-                continue
+                if goal.is_cancel_requested:
+                    goal.canceled()
+                    result.success = False
+                    self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+                    self.write_serial_data("z\n")
+                    self.write_serial_data("c\n")
+                    return result
+                time.sleep(0.01)
 
             # immediately remove user joystick control and stop drive wheels
             self.send_set_luci()

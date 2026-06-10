@@ -149,6 +149,7 @@ class SerialField(IntEnum):
     ODRIVE_R_POS = 79
     ODRIVE_L_TORQUE_NM = 80
     ODRIVE_R_TORQUE_NM = 81
+    CARRIAGE_RETURN_DIRECTION = 82
     STATE = 2
     FB_PWM = 66
 
@@ -248,6 +249,7 @@ class MEBotControlNode(Node):
         self.odrive_r_pos = 0.0
         self.odrive_l_torque_nm = 0.0
         self.odrive_r_torque_nm = 0.0
+        self.carriage_return_direction = 0
 
         # Loadcells
         self.RC_loadcell = 0.0
@@ -417,6 +419,7 @@ class MEBotControlNode(Node):
                 active,
                 durations,
                 relative,
+                carriage_return=kf.carriage_return,
                 guard_threshold=kf.guard_threshold,
                 guard_condition=kf.guard_condition,
             )
@@ -424,9 +427,13 @@ class MEBotControlNode(Node):
             n_fields = len(payload.split(","))
             self.get_logger().info(
                 f"Keyframe {idx}: sending {n_fields} fields "
-                f"(standard={NUM_MOTORS * 4}, guarded={NUM_MOTORS * 6})"
+                f"(standard={NUM_MOTORS * 4 + 1}, guarded={NUM_MOTORS * 6 + 1})"
             )
-            if n_fields not in (NUM_MOTORS * 4, NUM_MOTORS * 6, NUM_MOTORS * 2 + 1):
+            if n_fields not in (
+                NUM_MOTORS * 4 + 1,
+                NUM_MOTORS * 6 + 1,
+                NUM_MOTORS * 2 + 2,
+            ):
                 self.get_logger().error(
                     f"Keyframe {idx} field count {n_fields} does not match "
                     f"NUM_MOTORS={NUM_MOTORS}; Teensy will reject with SEQ_ERR"
@@ -475,6 +482,11 @@ class MEBotControlNode(Node):
         self.MR_loadcell = float(data[SerialField.MR_LOADCELL])
         self.ML_loadcell = float(data[SerialField.ML_LOADCELL])
 
+        # Carriage return direction
+        self.carriage_return_direction = int(
+            data[SerialField.CARRIAGE_RETURN_DIRECTION]
+        )
+
         # State
         self.state = int(data[SerialField.STATE])
 
@@ -496,9 +508,9 @@ class MEBotControlNode(Node):
         if len(data) > SerialField.ODRIVE_R_POS:
             self.odrive_l_pos = float(data[SerialField.ODRIVE_L_POS])
             self.odrive_r_pos = float(data[SerialField.ODRIVE_R_POS])
-        if len(data) > SerialField.ODRIVE_R_TORQUE_NM:
-            self.odrive_l_torque_nm = float(data[SerialField.ODRIVE_L_TORQUE_NM])
-            self.odrive_r_torque_nm = float(data[SerialField.ODRIVE_R_TORQUE_NM])
+        # if len(data) > SerialField.ODRIVE_R_TORQUE_NM:
+        #     self.odrive_l_torque_nm = float(data[SerialField.ODRIVE_L_TORQUE_NM])
+        #     self.odrive_r_torque_nm = float(data[SerialField.ODRIVE_R_TORQUE_NM])
 
     def publish_joint_states(self):
         conv = JOINT_CONVERSIONS
@@ -574,8 +586,8 @@ class MEBotControlNode(Node):
         # app time
         msg.app_time = float(self.app_time)
 
-        msg.odrive_l_torque_nm = float(self.odrive_l_torque_nm)
-        msg.odrive_r_torque_nm = float(self.odrive_r_torque_nm)
+        # msg.odrive_l_torque_nm = float(self.odrive_l_torque_nm)
+        # msg.odrive_r_torque_nm = float(self.odrive_r_torque_nm)
 
         # velocities
         msg.ml_vel = float(self.current_speed_ML)
@@ -747,12 +759,21 @@ class MEBotControlNode(Node):
         return result
 
     def _send_joystick(self):
-        msg = LuciJoystick()
-        msg.forward_back = self.fb_pwm
-        msg.left_right = 0
-        msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
-        msg.input_source = INPUT_REMOTE
-        self.luci_js_publisher.publish(msg)
+        if self.carriage_return_direction != 0:
+            msg = LuciJoystick()
+            msg.forward_back = self.carriage_return_direction
+            lr_val = -2
+            msg.left_right = lr_val
+            msg.joystick_zone = _compute_zone(self.carriage_return_direction, lr_val)
+            msg.input_source = INPUT_REMOTE
+            self.luci_js_publisher.publish(msg)
+        else:
+            msg = LuciJoystick()
+            msg.forward_back = self.fb_pwm
+            msg.left_right = 0
+            msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
+            msg.input_source = INPUT_REMOTE
+            self.luci_js_publisher.publish(msg)
 
         # Warn when publishing non-zero joystick data outside of active drive states
         if self.fb_pwm != 0 and self.state != SystemState.AUTO_CURB_CLIMBING:

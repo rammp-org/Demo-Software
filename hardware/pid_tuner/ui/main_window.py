@@ -45,6 +45,7 @@ import threading
 
 import rclpy
 
+from pid_tuner.ros_bridge.luci_client import LuciClient
 from pid_tuner.ros_bridge.manual_control_node import ManualControlNode
 
 
@@ -65,6 +66,7 @@ class MainWindow(QMainWindow):
         # Create core components
         self._data_store = DataStore()
         self._serial_handler = SerialHandler()
+        self._luci_client = LuciClient(self)
         self._ros_thread = None
         self._ros_node = None
         self._keepalive_timer = QTimer(self)
@@ -103,7 +105,7 @@ class MainWindow(QMainWindow):
         try:
             if not rclpy.ok():
                 rclpy.init()
-            self._ros_node = ManualControlNode(self._serial_handler)
+            self._ros_node = ManualControlNode(self._serial_handler, self._luci_client)
             self._ros_thread = threading.Thread(
                 target=rclpy.spin, args=(self._ros_node,), daemon=True
             )
@@ -153,7 +155,7 @@ class MainWindow(QMainWindow):
         overview_layout.addWidget(self._encoder_overview, stretch=1)
 
         self._drive_wheel_display = DriveWheelDisplay(
-            self._data_store, self._serial_handler
+            self._data_store, self._serial_handler, luci_client=self._luci_client
         )
         overview_layout.addWidget(self._drive_wheel_display)
 

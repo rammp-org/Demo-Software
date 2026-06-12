@@ -65,9 +65,10 @@ void HubMotor::writePWM(float pwm) {
 
 void HubMotor::writeTargetPos() {
   int32_t position = target_pos * pos_scale * 360;
-  uint8_t payload[] = {(uint8_t)(position >> 24), (uint8_t)(position >> 16),
-                       (uint8_t)(position >> 8), (uint8_t)(position)};
-  this->writeMotorCommand(payload, 4);
+  uint8_t payload[] = {0x4A, (uint8_t)(position >> 24),
+                       (uint8_t)(position >> 16), (uint8_t)(position >> 8),
+                       (uint8_t)(position)};
+  this->writeMotorCommand(payload, 5);
 }
 
 void HubMotor::writeZeroCurrent() {
@@ -92,16 +93,16 @@ void HubMotor::setMode(ControlMode mode) {
 
 void HubMotor::updateSensorData(float current_pos, float dt) {
   motor.write(getPos, sizeof(getPos));
-
+  delay(20);
   uint8_t message[10];
   uint8_t len = 0;
 
   // wait for header
-  unsigned long timeout = millis() + 200;
-  while (millis() < timeout) {
+  unsigned long header_timeout = millis() + 100;
+  while (millis() < header_timeout) {
     if (motor.available()) {
       uint8_t b = motor.read();
-      if (b == 0xAA) {
+      if (b == FRAME_HEADER) {
         message[len++] = b;
         break;
       }
@@ -109,8 +110,8 @@ void HubMotor::updateSensorData(float current_pos, float dt) {
   }
 
   // collect rest
-  timeout = millis() + 50;
-  while (millis() < timeout && len < sizeof(message)) {
+  unsigned long timeout = millis() + 20; // short timeout
+  while (millis() < timeout && len > 0 && len < 10) {
     if (motor.available()) {
       message[len++] = motor.read();
     }
@@ -125,6 +126,8 @@ void HubMotor::updateSensorData(float current_pos, float dt) {
     memcpy(&position, &raw, 4);
 
     this->current_pos = position * this->direction;
+    Serial.print("HUB MOTOR POSITION: ");
+    Serial.println(this->current_pos);
     this->prev_pos = this->current_pos;
   }
 }

@@ -503,7 +503,7 @@ void setup() {
   Serial3.begin(460800); // roboclaw 1
   Serial4.begin(460800); // roboclaw 2
   Serial5.begin(460800); // roboclaw 3
-  Serial1.begin(460800); // odrive right
+  Serial1.begin(921600); // odrive right
   Serial7.begin(460800); // odrive left
 
   // set up limit switches
@@ -627,6 +627,9 @@ void loop() {
   ml_carriage.updateSensorData(EContr.encoderf[11], dt);
   mr_carriage.updateSensorData(EContr.encoderf[12], dt);
   hubMotorR.updateSensorData(0, dt);
+  Serial.print("DEBUG MSG: hub_r_position=");
+  Serial.println(hubMotorR.current_pos, 4);
+
   hubMotorL.updateSensorData(0, dt);
   {
     static float prev_ml = 0, prev_mr = 0;

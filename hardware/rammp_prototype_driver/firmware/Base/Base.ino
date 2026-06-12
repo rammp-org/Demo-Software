@@ -25,9 +25,11 @@
 #include "src/PIDController/PIDController.h"
 #include "src/StrainGauge/StrainGauge.h"
 
-#include <ODriveUART.h>
-#include "ODriveEnums.h"
-#include "src/ODrive/ODrive.h"
+// ODrive replaced by HubMotor on Serial1 / Serial7
+// #include <ODriveUART.h>
+// #include "ODriveEnums.h"
+// #include "src/ODrive/ODrive.h"
+#include "src/HubMotor/HubMotor.h"
 #define DEBUG_MODE 1
 
 // Drive motor position deadzone. When the FB position error is within this
@@ -104,19 +106,18 @@ float raw_ml_enc_pos = 0, raw_mr_enc_pos = 0;
 float raw_ml_enc_vel = 0, raw_mr_enc_vel = 0;
 
 // Centralized motor-encoder mapping table (declared extern in MotorMap.h)
-MotorEntry motor_map[10] =
-    {
-        {&rc, 3, &roboclaw_casters, 1, true, true, "rc"},
-        {&fc, 2, &roboclaw_casters, 2, true, true, "fc"},
-        {&ml, 7, &roboclaw_main, 1, true, true, "ml"},
-        {&mr, 5, &roboclaw_main, 2, true, true, "mr"},
-        {&ml_carriage, 11, &roboclaw_carriages, 1, true, true, "ml_carriage"},
-        {&mr_carriage, 12, &roboclaw_carriages, 2, true, true, "mr_carriage"},
-        {&drive_fb, 9, nullptr, 0, false, false, "drive_fb"},
-        {&drive_lr, 10, nullptr, 0, false, false, "drive_lr"},
-        {&hubMotorL, 0, nullptr, 0, false, false, "hub_motor_l"},
-        {&hubMotorR, 0, nullptr, 0, false, false, "hub_motor_r"},
-}
+MotorEntry motor_map[10] = {
+    {&rc, 3, &roboclaw_casters, 1, true, true, "rc"},
+    {&fc, 2, &roboclaw_casters, 2, true, true, "fc"},
+    {&ml, 7, &roboclaw_main, 1, true, true, "ml"},
+    {&mr, 5, &roboclaw_main, 2, true, true, "mr"},
+    {&ml_carriage, 11, &roboclaw_carriages, 1, true, true, "ml_carriage"},
+    {&mr_carriage, 12, &roboclaw_carriages, 2, true, true, "mr_carriage"},
+    {&drive_fb, 9, nullptr, 0, false, false, "drive_fb"},
+    {&drive_lr, 10, nullptr, 0, false, false, "drive_lr"},
+    {&hubMotorL, 0, nullptr, 0, false, false, "hub_motor_l"},
+    {&hubMotorR, 0, nullptr, 0, false, false, "hub_motor_r"},
+};
 
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
 StrainGauge sg_rc(RC_LOADCELL_PIN, 0.8f);
@@ -766,12 +767,12 @@ void loop() {
       Serial.println("DEBUG: Command rejected — calibration required");
   }
 
-  // Both ODrives: same velocity command (s:<turns/s>, robot frame).
+  // Global hub-motor velocity command (s:<vel>, robot frame). Not yet
+  // implemented on HubMotor.
   if (cmd.type == CMD_ODRIVE_VEL && current_state != ESTOP) {
-    ODriveL.setMode(MotorBase::VELOCITY_CONTROL);
-    ODriveR.setMode(MotorBase::VELOCITY_CONTROL);
-    ODriveL.setTargetVelocity(cmd.value);
-    ODriveR.setTargetVelocity(cmd.value);
+    if (DEBUG_MODE)
+      Serial.println(
+          "DEBUG: CMD_ODRIVE_VEL ignored — hub motors have no velocity write");
   }
 
   // Config reads are safe during any state (including E-Stop).

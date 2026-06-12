@@ -67,8 +67,8 @@ extern IMU_Class IMU;
 extern StrainGauge sg_rc, sg_fc, sg_ml, sg_mr;
 extern bool ml_fwd_limit, ml_bwd_limit, mr_fwd_limit, mr_bwd_limit;
 
-class ODrive;
-extern ODrive ODriveR, ODriveL;
+class HubMotor;
+extern HubMotor hubMotorR, hubMotorL;
 
 // Update telemetry struct from current sensor/motor state
 void updateTelemetry();

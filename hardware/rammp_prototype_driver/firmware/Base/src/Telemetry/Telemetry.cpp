@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "Telemetry.h"
 #include "../Motor/Motor.h"
-#include "../ODrive/ODrive.h"
+#include "../HubMotor/HubMotor.h"
 #include "../IMU_Class/IMU_Class.h"
 #include "../StrainGauge/StrainGauge.h"
 
@@ -84,10 +84,12 @@ void updateTelemetry() {
   telemetry.drive_enc_directions[0] = drive_fb.getEncoderDirection();
   telemetry.drive_enc_directions[1] = drive_lr.getEncoderDirection();
 
-  telemetry.odrive_positions[0] = ODriveR.current_pos;
-  telemetry.odrive_positions[1] = ODriveL.current_pos;
-  telemetry.odrive_torques[0] = ODriveR.getCurrentTorque();
-  telemetry.odrive_torques[1] = ODriveL.getCurrentTorque();
+  // Hub motors on former ODrive serial ports; keep telemetry field names for PC
+  // compat
+  telemetry.odrive_positions[0] = hubMotorR.current_pos;
+  telemetry.odrive_positions[1] = hubMotorL.current_pos;
+  telemetry.odrive_torques[0] = 0.0f;
+  telemetry.odrive_torques[1] = 0.0f;
 }
 
 // Helper to send telemetry — builds the full CSV line into a buffer, single

@@ -842,14 +842,10 @@ class MEBotControlNode(Node):
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
         return result
 
-    # def drive_enable_callback(self, request, response):
-    #     if request.data:
-    #         self.send_remove_luci()
-    #     else:
-    #         self.send_set_luci()
-
-    #     response.success = True  # just acknowledges request recieved and sent
-    #     return response
+    def drive_enable_callback(self, request, response):
+        # LUCI joystick handoff not wired yet (send_set/remove_luci commented out)
+        response.success = True
+        return response
 
     def self_level_enable_callback(self, request, response):
         if request.data:

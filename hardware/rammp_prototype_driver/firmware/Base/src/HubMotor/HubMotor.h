@@ -10,10 +10,15 @@
 
 class HubMotor : public MotorBase {
 public:
-  HubMotor(int axis_direction = 1);
+  HubMotor(int axis_direction = 1, HardwareSerial &motor);
   // ---- Frame bytes -------------------------------------------
 #define FRAME_HEADER 0xAA
 #define FRAME_TAIL 0xBB
+  pwm_scale = 100000;
+  vel_scale = 100000;
+  int pos_scale = 1000000;
+  HardwareSerial &motor;
+  uint8_t getPos[] = {0xAA, 0x02, 0x4C, 0x04, 0x08, 0x25, 0xBB};
 
   const unsigned short crc16_tab[] = {
       0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7, 0x8108,
@@ -46,16 +51,17 @@ public:
       0xdf7c, 0xaf9b, 0xbfba, 0x8fd9, 0x9ff8, 0x6e17, 0x7e36, 0x4e55, 0x5e74,
       0x2e93, 0x3eb2, 0x0ed1, 0x1ef0};
 
-  unsigned short
-  crc16(const unsigned char *buf,
-        unsigned int len) void setMode(ControlMode mode) override;
+  unsigned short crc16(const unsigned char *buf, unsigned int len)
+
+      void setMode(ControlMode mode) override;
   void disable() override;
   void updateSensorData(float current_pos, float dt) override;
 
+  void writeMotorCommand(uint8_t paylod, uint8_t payload_len);
+  void writeZeroCurrent();
+  void writePWM(float pwm);
+  void writeTargetPos();
   float getTargetPosition();
-  float getTargetVelocity();
-  float getCurrentPosition();
-  String buildMessage(uint8_t payload, int payload_len);
 };
 
 #endif

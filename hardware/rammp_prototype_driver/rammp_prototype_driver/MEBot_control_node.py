@@ -856,7 +856,13 @@ class MEBotControlNode(Node):
 
     def self_level_enable_callback(self, request, response):
         if request.data:
-            self.write_serial_data("L1:1\n")
+            # self.write_serial_data("L1:1\n")
+            #             M10:0\n    # PWM
+            # T10:0.50\n
+            # M10:2\n    # position
+            # T10:2.00\n
+            self.write_serial_data("M10:2\n")
+            self.write_serial_data("T10:2\n")
         else:
             self.write_serial_data("L1:0\n")
 

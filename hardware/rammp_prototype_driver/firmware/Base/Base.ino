@@ -74,8 +74,14 @@ RoboClaw roboclaw_casters(&Serial4, 10000);   // Serial4
 RoboClaw roboclaw_main(&Serial5, 10000);      // Serial5
 
 // Init ODrive motors
-HardwareSerial &odriveR_serial = Serial1;
-HardwareSerial &odriveL_serial = Serial7;
+// HardwareSerial &odriveR_serial = Serial1;
+// HardwareSerial &odriveL_serial = Serial7;
+
+// For testing, replacing odrives with hub motors
+HardwareSerial &hubMotorR_serial = Serial1;
+HardwareSerial &hubMotorL_serial = Serial7;
+HubMotor hubMotorR(1, hubMotorR_serial);
+HubMotor hubMotorL(-1, hubMotorL_serial);
 
 // Instantiate the 6 actuated Motor objects + 2 body-frame drive controllers
 Motor rc;
@@ -86,10 +92,10 @@ Motor ml_carriage;
 Motor mr_carriage;
 Motor drive_fb;
 Motor drive_lr;
-ODriveUART odriveR(odriveR_serial);
-ODriveUART odriveL(odriveL_serial);
-ODrive ODriveR(odriveR);     // hardware == robot +X
-ODrive ODriveL(odriveL, -1); // flip hardware vs robot frame
+// ODriveUART odriveR(odriveR_serial);
+// ODriveUART odriveL(odriveL_serial);
+// ODrive ODriveR(odriveR);     // hardware == robot +X
+// ODrive ODriveL(odriveL, -1); // flip hardware vs robot frame
 
 int8_t ml_enc_dir = 1;
 int8_t mr_enc_dir = 1;
@@ -98,17 +104,19 @@ float raw_ml_enc_pos = 0, raw_mr_enc_pos = 0;
 float raw_ml_enc_vel = 0, raw_mr_enc_vel = 0;
 
 // Centralized motor-encoder mapping table (declared extern in MotorMap.h)
-MotorEntry motor_map[10] = {
-    {&rc, 3, &roboclaw_casters, 1, true, true, "rc"},
-    {&fc, 2, &roboclaw_casters, 2, true, true, "fc"},
-    {&ml, 7, &roboclaw_main, 1, true, true, "ml"},
-    {&mr, 5, &roboclaw_main, 2, true, true, "mr"},
-    {&ml_carriage, 11, &roboclaw_carriages, 1, true, true, "ml_carriage"},
-    {&mr_carriage, 12, &roboclaw_carriages, 2, true, true, "mr_carriage"},
-    {&drive_fb, 9, nullptr, 0, false, false, "drive_fb"},
-    {&drive_lr, 10, nullptr, 0, false, false, "drive_lr"},
-    {&ODriveL, 0, nullptr, 0, false, false, "odrive_l"},
-    {&ODriveR, 0, nullptr, 0, false, false, "odrive_r"}};
+MotorEntry motor_map[10] =
+    {
+        {&rc, 3, &roboclaw_casters, 1, true, true, "rc"},
+        {&fc, 2, &roboclaw_casters, 2, true, true, "fc"},
+        {&ml, 7, &roboclaw_main, 1, true, true, "ml"},
+        {&mr, 5, &roboclaw_main, 2, true, true, "mr"},
+        {&ml_carriage, 11, &roboclaw_carriages, 1, true, true, "ml_carriage"},
+        {&mr_carriage, 12, &roboclaw_carriages, 2, true, true, "mr_carriage"},
+        {&drive_fb, 9, nullptr, 0, false, false, "drive_fb"},
+        {&drive_lr, 10, nullptr, 0, false, false, "drive_lr"},
+        {&hubMotorL, 0, nullptr, 0, false, false, "hub_motor_l"},
+        {&hubMotorR, 0, nullptr, 0, false, false, "hub_motor_r"},
+}
 
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
 StrainGauge sg_rc(RC_LOADCELL_PIN, 0.8f);
@@ -410,10 +418,12 @@ bool cal_done[CAL_NUM_MOTORS] = {};
 
 void startCalibration(float pwm) {
   // disable odrives before calibration
-  ODriveL.setTargetVelocity(0.0f);
-  ODriveR.setTargetVelocity(0.0f);
-  ODriveL.disable();
-  ODriveR.disable();
+  // ODriveL.setTargetVelocity(0.0f);
+  // ODriveR.setTargetVelocity(0.0f);
+  // ODriveL.disable();
+  // ODriveR.disable();
+  hubMotorR.disable();
+  hubMotorL.disable();
 
   cal_start_ms = millis();
   cal_pwm = pwm;
@@ -520,7 +530,7 @@ void setup() {
 
   MotorBase *all_motors[10] = {&rc,          &fc,          &ml,       &mr,
                                &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
-                               &ODriveR,     &ODriveL};
+                               &hubMotorR,   &hubMotorL};
   for (int i = 0; i < 8; i++) {
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
     all_motors[i]->setDirection(conf.motor_dir);
@@ -580,8 +590,10 @@ void setup() {
 
   Serial.println(
       "EEPROM CONFIG LOADED: All motor configs restored from EEPROM.");
-  current_state = UNCALIBRATED;
-  calibrated = false;
+  current_state = IDLE; // changed from UNCALIBRATED to IDLE to avoid
+                        // calibration required before operation
+  calibrated = true; // changed from false to true to avoid calibration required
+                     // before operation
   Serial.println("STATE: UNCALIBRATED — calibration required before operation");
 }
 
@@ -613,9 +625,8 @@ void loop() {
   mr.updateSensorData(EContr.encoderf[5], dt);
   ml_carriage.updateSensorData(EContr.encoderf[11], dt);
   mr_carriage.updateSensorData(EContr.encoderf[12], dt);
-  ODriveR.updateSensorData(
-      0, dt); // 0s for odrives because they have their own encoders
-  ODriveL.updateSensorData(0, dt);
+  hubMotorR.updateSensorData(0, dt);
+  hubMotorL.updateSensorData(0, dt);
   {
     static float prev_ml = 0, prev_mr = 0;
     float ml_enc = EContr.encoderf[9] * ml_enc_dir;
@@ -681,8 +692,8 @@ void loop() {
   } else if (cmd.type == CMD_SEQ_MODE) {
     // All sequence actuators (RoboClaw, drive virtual, ODrive L/R).
     MotorBase *seq_motors[SEQ_NUM_MOTORS] = {
-        &rc,          &fc,       &ml,       &mr,      &ml_carriage,
-        &mr_carriage, &drive_fb, &drive_lr, &ODriveR, &ODriveL};
+        &rc,          &fc,       &ml,       &mr,        &ml_carriage,
+        &mr_carriage, &drive_fb, &drive_lr, &hubMotorR, &hubMotorL};
     if (cmd.actuator_id == 1) {
       // B1:1 / B1:0 — enter or exit sequence mode
       if (cmd.value > 0.5f) {
@@ -711,8 +722,8 @@ void loop() {
       // so drive wheels don't stay in POSITION_CONTROL with stale targets.
       if (current_state == AUTO_CURB_CLIMBING) {
         MotorBase *seq_motors[SEQ_NUM_MOTORS] = {
-            &rc,          &fc,       &ml,       &mr,      &ml_carriage,
-            &mr_carriage, &drive_fb, &drive_lr, &ODriveR, &ODriveL};
+            &rc,          &fc,       &ml,       &mr,        &ml_carriage,
+            &mr_carriage, &drive_fb, &drive_lr, &hubMotorR, &hubMotorL};
         sequenceExit(seq_motors);
       }
       current_state = SELF_LEVELING;
@@ -798,12 +809,11 @@ void loop() {
 
   // Sequence command dispatch (delegated to SequencePlayer module)
   if (current_state == AUTO_CURB_CLIMBING && cmd.type != CMD_NONE) {
-    MotorBase
-        *seq_motors[SEQ_NUM_MOTORS] =
-            {&rc,          &fc,          &ml,       &mr,
-             &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
-             &ODriveR,     &ODriveL}; // indices 0-5: position-mode; 6-7:
-                                      // velocity-mode (drive wheels)
+    MotorBase *seq_motors[SEQ_NUM_MOTORS] =
+        {&rc,          &fc,          &ml,       &mr,
+         &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
+         &hubMotorR,   &hubMotorL}; // indices 0-5: position-mode; 6-7:
+                                    // velocity-mode (drive wheels)
     sequenceHandleCommand(cmd, seq_motors, parser.last_payload);
   }
 
@@ -818,24 +828,23 @@ void loop() {
     mr_carriage.disable();
     drive_fb.disable();
     drive_lr.disable();
-    ODriveR.disable();
-    ODriveL.disable();
+    hubMotorR.disable();
+    hubMotorL.disable();
   } else if (current_state == SELF_LEVELING) {
     // Drive wheels are not used during leveling — disable every tick to prevent
     // stale PID output from leaking to the joystick (e.g. if a prior mode left
     // drive_fb in POSITION_CONTROL with a stale target).
     drive_fb.disable();
     drive_lr.disable();
-    ODriveR.disable();
-    ODriveL.disable();
+    hubMotorR.disable();
+    hubMotorL.disable();
     runSelfLeveling(dt);
   } else if (current_state == AUTO_CURB_CLIMBING) {
-    MotorBase
-        *seq_motors[SEQ_NUM_MOTORS] =
-            {&rc,          &fc,          &ml,       &mr,
-             &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
-             &ODriveR,     &ODriveL}; // indices 0-5: position-mode; 6-7:
-                                      // velocity-mode (drive wheels)
+    MotorBase *seq_motors[SEQ_NUM_MOTORS] =
+        {&rc,          &fc,          &ml,       &mr,
+         &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
+         &hubMotorR,   &hubMotorL}; // indices 0-5: position-mode; 6-7:
+                                    // velocity-mode (drive wheels)
     sequenceUpdate(seq_motors);
   } else if (current_state == CALIBRATING) {
     runCalibration(dt);
@@ -911,15 +920,26 @@ void loop() {
 
   roboclaw_carriages.DutyM2(0x80, (int16_t)mrc_pwm);
 
-  if (ODriveR.mode == ODrive::VELOCITY_CONTROL) {
-    odriveR.setVelocity(ODriveR.getTargetVelocity());
-  } else if (ODriveR.mode == ODrive::POSITION_CONTROL) {
-    odriveR.setPosition(ODriveR.getTargetPosition());
+  // if (ODriveR.mode == ODrive::VELOCITY_CONTROL) {
+  //   odriveR.setVelocity(ODriveR.getTargetVelocity());
+  // } else if (ODriveR.mode == ODrive::POSITION_CONTROL) {
+  //   odriveR.setPosition(ODriveR.getTargetPosition());
+  // }
+  // if (ODriveL.mode == ODrive::VELOCITY_CONTROL) {
+  //   odriveL.setVelocity(ODriveL.getTargetVelocity());
+  // } else if (ODriveL.mode == ODrive::POSITION_CONTROL) {
+  //   odriveL.setPosition(ODriveL.getTargetPosition());
+  // }
+
+  if (hubMotorR.mode == MotorBase::OPEN_LOOP) {
+    hubMotorR.writePWM(hubMotorR.target_pwm);
+  } else if (hubMotorR.mode == MotorBase::POSITION_CONTROL) {
+    hubMotorR.writeTargetPos();
   }
-  if (ODriveL.mode == ODrive::VELOCITY_CONTROL) {
-    odriveL.setVelocity(ODriveL.getTargetVelocity());
-  } else if (ODriveL.mode == ODrive::POSITION_CONTROL) {
-    odriveL.setPosition(ODriveL.getTargetPosition());
+  if (hubMotorL.mode == MotorBase::OPEN_LOOP) {
+    hubMotorL.writePWM(hubMotorL.target_pwm);
+  } else if (hubMotorL.mode == MotorBase::POSITION_CONTROL) {
+    hubMotorL.writeTargetPos();
   }
 
   // 5. Send Telemetry

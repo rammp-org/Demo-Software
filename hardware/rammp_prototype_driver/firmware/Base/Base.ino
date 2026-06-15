@@ -532,7 +532,7 @@ void setup() {
   MotorBase *all_motors[10] = {&rc,          &fc,          &ml,       &mr,
                                &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
                                &hubMotorR,   &hubMotorL};
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 10; i++) {
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
     all_motors[i]->setDirection(conf.motor_dir);
     all_motors[i]->setEncoderDirection(conf.encoder_dir);
@@ -936,12 +936,12 @@ void loop() {
   // }
 
   if (hubMotorR.mode == MotorBase::OPEN_LOOP) {
-    hubMotorR.writePWM(hubMotorR.target_pwm);
+    hubMotorR.writePWM();
   } else if (hubMotorR.mode == MotorBase::POSITION_CONTROL) {
     hubMotorR.writeTargetPos();
   }
   if (hubMotorL.mode == MotorBase::OPEN_LOOP) {
-    hubMotorL.writePWM(hubMotorL.target_pwm);
+    hubMotorL.writePWM();
   } else if (hubMotorL.mode == MotorBase::POSITION_CONTROL) {
     hubMotorL.writeTargetPos();
   }

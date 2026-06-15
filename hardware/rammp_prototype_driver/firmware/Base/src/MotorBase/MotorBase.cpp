@@ -90,3 +90,5 @@ void MotorBase::updateLimits(int32_t min, int32_t max) {
   pos_limit_max = max;
   limits_enabled = (min != max);
 }
+
+void MotorBase::setOrigin() {}

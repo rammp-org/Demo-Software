@@ -30,9 +30,14 @@ public:
 
   void writeMotorCommand(uint8_t *payload, uint8_t payload_len);
   void writeZeroCurrent();
-  void writePWM(float pwm);
+  void writePWM();
   void writeTargetPos();
   float getTargetPosition();
+  void setOrigin() override;
+
+private:
+  unsigned long last_pos_poll_ms = 0;
+  unsigned long last_pos_sample_ms = 0;
 };
 
 #endif

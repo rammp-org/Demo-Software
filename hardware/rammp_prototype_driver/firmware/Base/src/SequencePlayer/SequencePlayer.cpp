@@ -29,6 +29,10 @@ static float seq_latch_pos[SEQ_NUM_MOTORS];
 //  Helpers
 // ---------------------------------------------------------------------------
 
+static inline float parseTargetValue(int i, float raw) {
+  return (i >= SEQ_HUB_START) ? raw * 360.0f : raw;
+}
+
 // Compute the final target position for motor i in the current keyframe.
 static inline float finalTarget(const Keyframe &kf, int i) {
   if (kf.relative[i])
@@ -94,7 +98,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
   // Guarded format: 60 values
   if (count == SEQ_NUM_MOTORS * 6) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      kf.targets[i] = vals[i];
+      kf.targets[i] = parseTargetValue(i, vals[i]);
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
       kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
@@ -107,7 +111,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
   // Standard format: 40 values
   if (count == SEQ_NUM_MOTORS * 4) {
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      kf.targets[i] = vals[i];
+      kf.targets[i] = parseTargetValue(i, vals[i]);
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
       kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
@@ -121,7 +125,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
   if (count == SEQ_NUM_MOTORS * 2 + 1) {
     uint32_t global_dur = (uint32_t)vals[SEQ_NUM_MOTORS * 2];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      kf.targets[i] = vals[i];
+      kf.targets[i] = parseTargetValue(i, vals[i]);
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = false;
       kf.duration_ms[i] = global_dur;
@@ -144,16 +148,8 @@ void sequenceEnter(MotorBase *motors[SEQ_NUM_MOTORS]) {
   seq_settling = false;
   seq_auto_run = false;
 
-  // Zero synthetic drive-wheel positions (not ODrive axes — keep real encoder
-  // state).  Prevents float drift on drive_fb / drive_lr virtual encoders.
-  for (int i = SEQ_DRIVE_START; i < SEQ_ODRIVE_START; i++) {
-    motors[i]->current_pos = 0.0f;
-    motors[i]->prev_pos = 0.0f;
-    motors[i]->current_vel = 0.0f;
-    motors[i]->prev_vel = 0.0f;
-    motors[i]->pos_pid.reset();
-    motors[i]->vel_pid.reset();
-  }
+  motors[8]->setOrigin();
+  Serial.println("DEBUG MSG: Origin set");
 
   // ALL motors — including drive wheels — run position control during
   // sequences.

@@ -12,6 +12,7 @@ struct RobotCommand;
 #define SEQ_DRIVE_START                                                        \
   6 // drive_fb, drive_lr (synthetic encoder origin zeroed on enter)
 #define SEQ_ODRIVE_START 8 // ODriveR, ODriveL
+#define SEQ_HUB_START 8    // HubMotorR, HubMotorL
 
 static const float SEQ_COMPLETION_DEADZONE[SEQ_NUM_MOTORS] = {
     50.0f,   // 0: RC

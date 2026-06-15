@@ -41,6 +41,7 @@ public:
 
   virtual void setInputLpfAlpha(float alpha);
   virtual void updateLimits(int32_t min, int32_t max);
+  virtual void setOrigin();
 
   // --- State (public for direct access from control loops) ---
   float current_pos = 0.0f;

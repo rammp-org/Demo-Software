@@ -802,16 +802,20 @@ class MEBotControlNode(Node):
     def _send_joystick(self, fb_pwm=None):
         msg = LuciJoystick()
         if self.carriage_return_direction != 0:
+            self.get_logger().info("carriage return")
             msg.forward_back = self.carriage_return_direction
             lr_val = -2
             msg.left_right = lr_val
         elif self.user_control_enabled and not self.cap_user_speed:
+            self.get_logger().info("normal manual control")
             msg.forward_back = self.user_fb
             msg.left_right = self.user_lr
         elif self.user_control_enabled and self.cap_user_speed:
+            self.get_logger().info("slower manual control")
             msg.forward_back = min(self.user_fb, 20)
             msg.left_right = self.user_lr
         else:
+            self.get_logger().info("auto control")
             msg.forward_back = self.fb_pwm
             msg.left_right = 0
 
@@ -890,6 +894,8 @@ class MEBotControlNode(Node):
             keyframes = _load_keyframes_from_json(json_path)
             self.send_sequence(keyframes, auto_run=True)
 
+            time.sleep(3)
+
             # waiting for user to get front caster off curb
             while self.FC_loadcell < 150:
                 if goal.is_cancel_requested:
@@ -907,7 +913,7 @@ class MEBotControlNode(Node):
             time.sleep(3.0)
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
-                + "/config/test_curb_descend.json"
+                + "/config/curb_descending.json"
             )
 
         keyframes = _load_keyframes_from_json(json_path)

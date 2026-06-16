@@ -5,7 +5,7 @@
         "label": "Move base all the way down",
         "targets": [
           0.0,
-          130.0,
+          2000.0,
           0.0,
           0.0,
           0.0,

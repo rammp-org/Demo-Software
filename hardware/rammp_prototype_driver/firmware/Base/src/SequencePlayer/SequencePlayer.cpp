@@ -3,6 +3,7 @@
 #include "../MotorBase/MotorBase.h"
 #include "../CommandParser/CommandParser.h"
 #include "../CommandDispatch/CommandDispatch.h"
+#include "../Telemetry/Telemetry.h"
 
 // ---------------------------------------------------------------------------
 //  Module-scope state
@@ -52,6 +53,8 @@ static inline bool isDeltaZero(const Keyframe &kf, int i) {
 static void beginInterp(MotorBase *motors[SEQ_NUM_MOTORS]) {
   const Keyframe &kf = seq_keyframes[seq_current];
 
+  carriage_return_direction = kf.carriage_return;
+
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
     seq_start_pos[i] = motors[i]->current_pos;
     seq_guard_triggered[i] = false;
@@ -82,7 +85,7 @@ static void beginInterp(MotorBase *motors[SEQ_NUM_MOTORS]) {
 //  Payload parser (SEQ_NUM_MOTORS = 10 only)
 // ---------------------------------------------------------------------------
 bool parseKeyframePayload(const String &payload, Keyframe &kf) {
-  const int MAX_VALS = SEQ_NUM_MOTORS * 6;
+  const int MAX_VALS = SEQ_NUM_MOTORS * 7;
   float vals[MAX_VALS];
   int count = 0;
   int start = 0;
@@ -95,21 +98,26 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     }
   }
 
-  // Guarded format: 60 values
-  if (count == SEQ_NUM_MOTORS * 6) {
+  // Guarded format: 61 values
+  // targets, active, relative, durations, carriage_return, guard_threshold,
+  // guard_condition
+  if (count == SEQ_NUM_MOTORS * 6 + 1) {
+    kf.carriage_return = (int32_t)vals[SEQ_NUM_MOTORS * 4];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = parseTargetValue(i, vals[i]);
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
       kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
-      kf.guard_threshold[i] = vals[SEQ_NUM_MOTORS * 4 + i];
-      kf.guard_condition[i] = (uint8_t)vals[SEQ_NUM_MOTORS * 5 + i];
+      kf.guard_threshold[i] = vals[SEQ_NUM_MOTORS * 5 + i];
+      kf.guard_condition[i] = (uint8_t)vals[SEQ_NUM_MOTORS * 6 + i];
     }
     return true;
   }
 
-  // Standard format: 40 values
-  if (count == SEQ_NUM_MOTORS * 4) {
+  // Standard format: 41 values
+  // targets, active, relative, durations, carriage_return
+  if (count == SEQ_NUM_MOTORS * 4 + 1) {
+    kf.carriage_return = (int32_t)vals[SEQ_NUM_MOTORS * 4];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = parseTargetValue(i, vals[i]);
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
@@ -121,9 +129,11 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     return true;
   }
 
-  // Compact format: 21 values
-  if (count == SEQ_NUM_MOTORS * 2 + 1) {
+  // Compact format: 22 values
+  // targets, active, global_duration_ms, carriage_return
+  if (count == SEQ_NUM_MOTORS * 2 + 2) {
     uint32_t global_dur = (uint32_t)vals[SEQ_NUM_MOTORS * 2];
+    kf.carriage_return = (int32_t)vals[SEQ_NUM_MOTORS * 2 + 1];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
       kf.targets[i] = parseTargetValue(i, vals[i]);
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
@@ -169,6 +179,7 @@ void sequenceExit(MotorBase *motors[SEQ_NUM_MOTORS]) {
   seq_auto_run = false;
   seq_settling = false;
   seq_interpolating = false;
+  carriage_return_direction = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -376,6 +387,7 @@ void sequenceUpdate(MotorBase *motors[SEQ_NUM_MOTORS]) {
       beginInterp(motors); // sends SEQ_STATUS ...,1
     } else {
       seq_interpolating = false;
+      carriage_return_direction = 0;
       Serial.print("SEQ_STATUS,");
       Serial.print(seq_current);
       Serial.print(",");

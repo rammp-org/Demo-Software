@@ -1,3 +1,5 @@
+from typing import Optional
+
 from PyQt6.QtWidgets import (
     QWidget,
     QHBoxLayout,
@@ -123,11 +125,15 @@ _DPAD_BTN = f"""
 
 class DriveWheelDisplay(QWidget):
     def __init__(
-        self, data_store: DataStore, serial_handler: SerialHandler, parent=None
+        self,
+        data_store: DataStore,
+        serial_handler: SerialHandler,
+        luci_client: Optional[LuciClient] = None,
+        parent=None,
     ):
         super().__init__(parent)
         self.data_store = data_store
-        self._luci = LuciClient(self)
+        self._luci = luci_client if luci_client is not None else LuciClient(self)
         self._luci.connected_changed.connect(self._on_luci_connection_changed)
         self._luci.error_occurred.connect(self._on_luci_error)
         self._manual_override = False
@@ -269,6 +275,7 @@ class DriveWheelDisplay(QWidget):
 
     def _dpad_press(self, fb: int, lr: int):
         self._manual_override = True
+        self._luci.set_carriage_return_direction(0)
         self._luci.set_drive(fb, lr)
 
     def _dpad_release(self):
@@ -280,6 +287,10 @@ class DriveWheelDisplay(QWidget):
         self.right_arc.set_velocity(self.data_store.raw_mr_enc_vel)
 
         if self._luci.is_connected and not self._manual_override:
+            self._luci.set_carriage_return_direction(
+                int(self.data_store.carriage_return_direction)
+            )
+
             fb_pwm = self.data_store.drive_fb_pwm
             lr_pwm = self.data_store.drive_lr_pwm
 

@@ -391,6 +391,7 @@ class SerialHandler(QObject):
         active: list,
         duration_ms,
         relative=None,
+        carriage_return=None,
         guard_threshold=None,
         guard_condition=None,
     ):
@@ -401,6 +402,7 @@ class SerialHandler(QObject):
                 active,
                 duration_ms,
                 relative,
+                carriage_return=carriage_return,
                 guard_threshold=guard_threshold,
                 guard_condition=guard_condition,
             )

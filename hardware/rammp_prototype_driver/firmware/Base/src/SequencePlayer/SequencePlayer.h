@@ -23,8 +23,8 @@ static const float SEQ_COMPLETION_DEADZONE[SEQ_NUM_MOTORS] = {
     500.0f,  // 5: MR_Car
     2000.0f, // 6: Drive_FB
     2000.0f, // 7: Drive_LR
-    0.1f,    // 8: ODriveR (turns)
-    0.1f,    // 9: ODriveL (turns)
+    10.0f,   // 8: ODriveR (turns)
+    10.0f,   // 9: ODriveL (turns)
 };
 
 // Safety timeout (ms) for position-based completion.  If motors cannot reach

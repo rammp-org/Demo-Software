@@ -779,9 +779,12 @@ void loop() {
   // Global hub-motor velocity command (s:<vel>, robot frame). Not yet
   // implemented on HubMotor.
   if (cmd.type == CMD_ODRIVE_VEL && current_state != ESTOP) {
-    if (DEBUG_MODE)
-      Serial.println(
-          "DEBUG: CMD_ODRIVE_VEL ignored — hub motors have no velocity write");
+    // if (DEBUG_MODE)
+    //   Serial.println(
+    //       "DEBUG: CMD_ODRIVE_VEL ignored — hub motors have no velocity
+    //       write");
+    hubMotorR.setTargetVelocity(cmd.value);
+    hubMotorL.setTargetVelocity(cmd.value);
   }
 
   // Config reads are safe during any state (including E-Stop).

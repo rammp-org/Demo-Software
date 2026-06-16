@@ -7,6 +7,7 @@
 #define COMM_SET_DUTY 70    // set motor duty cycle
 #define COMM_SET_POS 74     // set motor position
 #define COMM_SET_POS_SPD 60 // motor operates in pos/vel loop mode
+#define COMM_SET_RPM 73     // set motor velocity
 
 class HubMotor : public MotorBase {
 public:
@@ -33,7 +34,9 @@ public:
   void writePWM();
   void writeTargetPos();
   float getTargetPosition();
+  float getTargetVelocity();
   void setOrigin() override;
+  void writeTargetVel();
 
 private:
   unsigned long last_pos_poll_ms = 0;

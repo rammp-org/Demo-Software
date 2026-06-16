@@ -113,6 +113,14 @@ void HubMotor::writeTargetPos() {
   this->writeMotorCommand(spd_payload, sizeof(spd_payload));
 }
 
+void HubMotor::writeTargetVel() {
+  int32_t vel = getTargetVelocity() * vel_scale;
+  uint8_t payload[] = {(uint8_t)COMM_SET_RPM, (uint8_t)(vel >> 24),
+                       (uint8_t)(vel >> 16), (uint8_t)(vel >> 8),
+                       (uint8_t)(vel)};
+  this->writeMotorCommand(payload, sizeof(payload));
+}
+
 void HubMotor::writeZeroCurrent() {
 
   int32_t current = 0;
@@ -233,6 +241,8 @@ void HubMotor::disable() {
 }
 
 float HubMotor::getTargetPosition() { return target_pos * this->direction; }
+
+float HubMotor::getTargetVelocity() { return target_vel * this->direction; }
 
 void HubMotor::setOrigin() {
 

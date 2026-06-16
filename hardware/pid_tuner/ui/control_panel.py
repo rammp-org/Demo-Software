@@ -26,7 +26,7 @@ import os
 import numpy as np
 
 from ..data.data_store import DataStore
-from ..data.joint_config import is_odrive_actuator
+from ..data.joint_config import is_hub_motor_actuator
 from ..serial_driver.serial_handler import SerialHandler
 from .theme import THEME
 from .scaling import SIZES, scaled
@@ -61,7 +61,8 @@ MODE_COLORS = {
     MODE_POSITION: THEME.blue,
 }
 
-ODRIVE_MODE_UNITS = {
+HUB_MOTOR_MODE_UNITS = {
+    MODE_OPEN_LOOP: "PWM",
     MODE_VELOCITY: "turns/s",
     MODE_POSITION: "turns",
 }
@@ -461,7 +462,7 @@ class ControlPanel(QWidget):
         layout.addWidget(self._velocity_label, 2, 1)
         layout.addWidget(QLabel("units/s"), 2, 2)
 
-        # PWM / torque (ODrive shows Nm in this row)
+        # PWM (hub motors use a -1..1 fraction, not RoboClaw counts)
         self._pwm_row_label = QLabel("PWM:")
         layout.addWidget(self._pwm_row_label, 3, 0)
         self._pwm_label = QLabel("---")
@@ -1504,39 +1505,32 @@ class ControlPanel(QWidget):
         self._serial_handler.seq_step_forward()
 
     def _mode_units_for_joint(self, joint_id: int, mode: int) -> str:
-        if is_odrive_actuator(joint_id):
-            return ODRIVE_MODE_UNITS.get(mode, "turns")
+        if is_hub_motor_actuator(joint_id):
+            return HUB_MOTOR_MODE_UNITS.get(mode, "turns")
         return MODE_UNITS.get(mode, "")
 
     def _sync_joint_ui_constraints(self, joint_id: int):
-        """Show/hide controls that do not apply to ODrive axes."""
+        """Show/hide controls that do not apply to hub motor axes."""
         if joint_id == self._last_ui_joint_id:
             return
         self._last_ui_joint_id = joint_id
-        is_odrive = is_odrive_actuator(joint_id)
+        is_hub = is_hub_motor_actuator(joint_id)
 
-        self._open_loop_btn.setVisible(not is_odrive)
-        self._clear_pid_btn.setVisible(not is_odrive)
-        self._quick_jog_group.setVisible(not is_odrive)
-
+        self._clear_pid_btn.setVisible(not is_hub)
         for widget in self._eeprom_config_widgets:
-            widget.setVisible(not is_odrive)
+            widget.setVisible(not is_hub)
         for row in self._target_roboclaw_only_rows:
-            row.setVisible(not is_odrive)
+            row.setVisible(not is_hub)
 
-        self._home_btn.setVisible(not is_odrive)
-        self._pwm_row_label.setText("Torque:" if is_odrive else "PWM:")
-        self._pwm_percent_label.setVisible(not is_odrive)
+        self._home_btn.setVisible(not is_hub)
+        self._pwm_row_label.setText("PWM:")
+        self._pwm_percent_label.setVisible(True)
 
-        if is_odrive:
+        if is_hub:
             mode = self._data_store._control_modes[joint_id - 1]
-            if mode == MODE_OPEN_LOOP:
-                mode = MODE_POSITION
-                self._data_store._control_modes[joint_id - 1] = mode
             self._current_mode = mode
             self._data_store.control_mode = mode
-            self._apply_odrive_unit_labels(mode)
-            self._on_mode_confirmed(mode)
+            self._apply_hub_motor_unit_labels(mode)
         else:
             self._position_unit_label.setText("ticks")
             mode = self._data_store.control_mode
@@ -1547,8 +1541,8 @@ class ControlPanel(QWidget):
             self._step_unit_label.setText(unit)
             self._sine_amplitude_unit_label.setText(unit)
 
-    def _apply_odrive_unit_labels(self, mode: int):
-        unit = ODRIVE_MODE_UNITS.get(mode, "turns")
+    def _apply_hub_motor_unit_labels(self, mode: int):
+        unit = HUB_MOTOR_MODE_UNITS.get(mode, "turns")
         self._position_unit_label.setText("turns")
         self._target_unit_label.setText(unit)
         self._target_input_unit_label.setText(unit)
@@ -1558,6 +1552,8 @@ class ControlPanel(QWidget):
             self._error_unit_label.setText("turns")
         elif mode == MODE_VELOCITY:
             self._error_unit_label.setText("turns/s")
+        elif mode == MODE_OPEN_LOOP:
+            self._error_unit_label.setText("PWM")
         else:
             self._error_unit_label.setText("")
 
@@ -1583,18 +1579,19 @@ class ControlPanel(QWidget):
         # Update labels
         self._position_label.setText(f"{position:.4f}")
         self._velocity_label.setText(f"{velocity:.4f}")
-        self._pwm_label.setText(f"{pwm:.3f}")
-        if is_odrive_actuator(joint_id):
-            self._pwm_percent_label.setText("Nm")
+        if is_hub_motor_actuator(joint_id):
+            self._pwm_label.setText("---")
+            self._pwm_percent_label.setText("")
         else:
+            self._pwm_label.setText(f"{pwm:.3f}")
             self._pwm_percent_label.setText(f"({abs(pwm) / 32767 * 100:.1f}%)")
         self._target_label.setText(f"{target:.4f}")
         self._error_label.setText(f"{error:.4f}")
 
         # Color the error label based on magnitude
         value_font_size = SIZES["font_medium"]
-        err_ok = 0.05 if is_odrive_actuator(joint_id) else 10
-        err_warn = 0.2 if is_odrive_actuator(joint_id) else 100
+        err_ok = 0.05 if is_hub_motor_actuator(joint_id) else 10
+        err_warn = 0.2 if is_hub_motor_actuator(joint_id) else 100
         if abs(error) < err_ok:
             self._error_label.setStyleSheet(
                 f"font-weight: bold; font-size: {value_font_size}pt; color: green;"
@@ -1678,7 +1675,7 @@ class ControlPanel(QWidget):
     def _on_clear_pid(self):
         """Send reset PID command to clear integrator windup."""
         joint_id = self._data_store.selected_joint
-        if is_odrive_actuator(joint_id):
+        if is_hub_motor_actuator(joint_id):
             return
         self._serial_handler.reset_pid(joint_id)
 
@@ -1793,10 +1790,10 @@ class ControlPanel(QWidget):
         self._step_unit_label.setText(unit)
         self._sine_amplitude_unit_label.setText(unit)
         self._mode_indicator_label.setText(MODE_NAMES.get(mode, "Unknown"))
-        if is_odrive_actuator(joint_id):
-            self._apply_odrive_unit_labels(mode)
+        if is_hub_motor_actuator(joint_id):
+            self._apply_hub_motor_unit_labels(mode)
             self._data_store.control_mode = mode
-            self._on_mode_confirmed(mode)
+            self._set_mode_banner_pending(mode)
         else:
             if mode == MODE_POSITION:
                 self._error_unit_label.setText("ticks")

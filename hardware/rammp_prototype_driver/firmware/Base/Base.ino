@@ -779,10 +779,8 @@ void loop() {
   // Global hub-motor velocity command (s:<vel>, robot frame). Not yet
   // implemented on HubMotor.
   if (cmd.type == CMD_ODRIVE_VEL && current_state != ESTOP) {
-    // if (DEBUG_MODE)
-    //   Serial.println(
-    //       "DEBUG: CMD_ODRIVE_VEL ignored — hub motors have no velocity
-    //       write");
+    hubMotorR.setMode(MotorBase::VELOCITY_CONTROL);
+    hubMotorL.setMode(MotorBase::VELOCITY_CONTROL);
     hubMotorR.setTargetVelocity(cmd.value);
     hubMotorL.setTargetVelocity(cmd.value);
   }
@@ -946,11 +944,15 @@ void loop() {
 
   if (hubMotorR.mode == MotorBase::OPEN_LOOP) {
     hubMotorR.writePWM();
+  } else if (hubMotorR.mode == MotorBase::VELOCITY_CONTROL) {
+    hubMotorR.writeTargetVel();
   } else if (hubMotorR.mode == MotorBase::POSITION_CONTROL) {
     hubMotorR.writeTargetPos();
   }
   if (hubMotorL.mode == MotorBase::OPEN_LOOP) {
     hubMotorL.writePWM();
+  } else if (hubMotorL.mode == MotorBase::VELOCITY_CONTROL) {
+    hubMotorL.writeTargetVel();
   } else if (hubMotorL.mode == MotorBase::POSITION_CONTROL) {
     hubMotorL.writeTargetPos();
   }

@@ -346,8 +346,8 @@ class DataStore(QObject):
         self._control_modes: List[int] = [0] * 8 + [
             2,
             2,
-        ]  # RoboClaw from telemetry; ODrive default CL position
-        self._odrive_prev_sample: dict = {}  # joint_id -> (pos, timestamp_ms)
+        ]  # RoboClaw from telemetry; hub motor default position
+        self._hub_motor_prev_sample: dict = {}  # joint_id -> (pos, timestamp_ms)
         self._simulation_mode: bool = False
         self._current_state: int = 0
         self._seq_targets: dict = {}
@@ -394,11 +394,9 @@ class DataStore(QObject):
         self._raw_ml_enc_vel: float = 0.0
         self._raw_mr_enc_vel: float = 0.0
 
-        # ODrive axes (actuator ids 9=R, 10=L; robot-frame turns / Nm)
-        self._odrive_r_pos: float = 0.0
-        self._odrive_l_pos: float = 0.0
-        self._odrive_r_torque_nm: float = 0.0
-        self._odrive_l_torque_nm: float = 0.0
+        # Hub motor axes (actuator ids 9=L, 10=R; robot-frame turns)
+        self._hub_motor_r_pos: float = 0.0
+        self._hub_motor_l_pos: float = 0.0
 
         # Motor directions (6 motors)
         self._motor_directions: List[int] = [1, 1, 1, 1, 1, 1, 1, 1]
@@ -639,20 +637,28 @@ class DataStore(QObject):
         return self._carriage_return_direction
 
     @property
+    def hub_motor_r_pos(self) -> float:
+        return self._hub_motor_r_pos
+
+    @property
+    def hub_motor_l_pos(self) -> float:
+        return self._hub_motor_l_pos
+
+    @property
     def odrive_r_pos(self) -> float:
-        return self._odrive_r_pos
+        return self.hub_motor_r_pos
 
     @property
     def odrive_l_pos(self) -> float:
-        return self._odrive_l_pos
+        return self.hub_motor_l_pos
 
     @property
     def odrive_r_torque_nm(self) -> float:
-        return self._odrive_r_torque_nm
+        return 0.0
 
     @property
     def odrive_l_torque_nm(self) -> float:
-        return self._odrive_l_torque_nm
+        return 0.0
 
     @property
     def raw_ml_enc_vel(self) -> float:
@@ -701,27 +707,25 @@ class DataStore(QObject):
         """Get JointData for the currently selected joint."""
         return self._joints[self._selected_joint - 1]
 
-    def _feed_odrive_joint(
+    def _feed_hub_motor_joint(
         self,
         joint_id: int,
         timestamp_ms: int,
         position: float,
-        torque_nm: float,
+        pwm: float,
     ):
-        """Update JointData for an ODrive axis (joint ids 9–10)."""
+        """Update JointData for a hub motor axis (joint ids 9–10)."""
         if joint_id < 9 or joint_id > self.NUM_JOINTS:
             return
-        prev = self._odrive_prev_sample.get(joint_id)
+        prev = self._hub_motor_prev_sample.get(joint_id)
         velocity = 0.0
         if prev is not None:
             prev_pos, prev_ts = prev
             dt_s = (timestamp_ms - prev_ts) / 1000.0
             if dt_s > 0:
                 velocity = (position - prev_pos) / dt_s
-        self._odrive_prev_sample[joint_id] = (position, timestamp_ms)
-        self._joints[joint_id - 1].add_sample(
-            timestamp_ms, position, velocity, torque_nm
-        )
+        self._hub_motor_prev_sample[joint_id] = (position, timestamp_ms)
+        self._joints[joint_id - 1].add_sample(timestamp_ms, position, velocity, pwm)
         if joint_id == self._selected_joint:
             self._throttled_data_updated(joint_id)
 
@@ -803,16 +807,12 @@ class DataStore(QObject):
             self._raw_ml_enc_vel = data.raw_ml_enc_vel
             self._raw_mr_enc_vel = data.raw_mr_enc_vel
 
-        if hasattr(data, "odrive_r_pos"):
-            self._odrive_r_pos = data.odrive_r_pos
-            self._odrive_l_pos = data.odrive_l_pos
-            self._odrive_r_torque_nm = data.odrive_r_torque_nm
-            self._odrive_l_torque_nm = data.odrive_l_torque_nm
-            self._feed_odrive_joint(
-                9, data.timestamp_ms, self._odrive_l_pos, self._odrive_l_torque_nm
-            )
-            self._feed_odrive_joint(
-                10, data.timestamp_ms, self._odrive_r_pos, self._odrive_r_torque_nm
+        if hasattr(data, "hub_motor_r_pos"):
+            self._hub_motor_r_pos = data.hub_motor_r_pos
+            self._hub_motor_l_pos = data.hub_motor_l_pos
+            self._feed_hub_motor_joint(9, data.timestamp_ms, self._hub_motor_l_pos, 0.0)
+            self._feed_hub_motor_joint(
+                10, data.timestamp_ms, self._hub_motor_r_pos, 0.0
             )
 
         # Feed drive wheel data into JointData for joints 7 (Drive FB) and 8 (Drive LR)

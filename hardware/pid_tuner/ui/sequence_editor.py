@@ -2,7 +2,7 @@
 Sequence / Trajectory Editor for AUTO_CURB_CLIMBING mode.
 
 Motor order: [RC, FC, ML, MR, ML_Carriage, MR_Carriage, Drive_FB, Drive_LR,
-              ODrive_R, ODrive_L]  (matches firmware SEQ_NUM_MOTORS)
+              HubMotor_R, HubMotor_L]  (matches firmware SEQ_NUM_MOTORS)
 All sequence slots use position interpolation during AUTO_CURB_CLIMBING.
 """
 
@@ -984,12 +984,12 @@ class SequenceEditor(QWidget):
                 if kf.relative[i]:
                     kf.targets[i] = 0.0
                 else:
-                    kf.targets[i] = round(self._data_store.odrive_r_pos, 2)
+                    kf.targets[i] = round(self._data_store.hub_motor_r_pos, 2)
             elif i == 9:
                 if kf.relative[i]:
                     kf.targets[i] = 0.0
                 else:
-                    kf.targets[i] = round(self._data_store.odrive_l_pos, 2)
+                    kf.targets[i] = round(self._data_store.hub_motor_l_pos, 2)
 
     # ------------------------------------------------------------------ #
     #  Step commands                                                        #

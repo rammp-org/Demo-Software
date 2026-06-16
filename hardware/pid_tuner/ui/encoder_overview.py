@@ -2,7 +2,7 @@
 Encoder overview widget showing encoder positions in a compact layout,
 with combined motion controls and saved position buttons.
 
-Includes RoboClaw joints 1–8 (JOINTS) and ODrive actuators 9–10.
+Includes RoboClaw joints 1–8 (JOINTS) and hub motor actuators 9–10.
 """
 
 from PyQt6.QtWidgets import (
@@ -22,7 +22,7 @@ from PyQt6.QtGui import QColor, QPainter, QPen, QBrush
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
 from ..data.data_store import DataStore
-from ..data.joint_config import JOINTS, is_odrive_actuator
+from ..data.joint_config import JOINTS, is_hub_motor_actuator
 from ..serial_driver.serial_handler import SerialHandler
 
 MODE_OPEN_LOOP = 0
@@ -210,7 +210,7 @@ class SavedPositionButton(QPushButton):
 
 class EncoderOverview(QWidget):
     """
-    Widget showing joint and ODrive positions, combined motion controls,
+    Widget showing joint and hub motor positions, combined motion controls,
     and saved position buttons.
     """
 
@@ -255,7 +255,7 @@ class EncoderOverview(QWidget):
                 name=joint.short_name,
                 color=color,
             )
-            if is_odrive_actuator(joint.id):
+            if is_hub_motor_actuator(joint.id):
                 box.set_limits(-50.0, 50.0)
             box.clicked.connect(self._on_box_clicked)
             self._boxes.append(box)
@@ -317,28 +317,28 @@ class EncoderOverview(QWidget):
         limit_row.addStretch()
         root.addLayout(limit_row)
 
-        odrive_controls = QHBoxLayout()
-        odrive_controls.setSpacing(SIZES["spacing_medium"])
+        hub_controls = QHBoxLayout()
+        hub_controls.setSpacing(SIZES["spacing_medium"])
 
-        odrive_controls.addWidget(QLabel("ODrives (9,10) Δ turns:"))
-        self._odrive_spin = QDoubleSpinBox()
-        self._odrive_spin.setRange(-100.0, 100.0)
-        self._odrive_spin.setDecimals(2)
-        self._odrive_spin.setSingleStep(0.1)
-        self._odrive_spin.setValue(0.1)
-        self._odrive_spin.setToolTip(
-            "Relative delta applied to both ODrive R and L (robot-frame turns)"
+        hub_controls.addWidget(QLabel("Hub motors (9,10) Δ turns:"))
+        self._hub_motor_spin = QDoubleSpinBox()
+        self._hub_motor_spin.setRange(-100.0, 100.0)
+        self._hub_motor_spin.setDecimals(2)
+        self._hub_motor_spin.setSingleStep(0.1)
+        self._hub_motor_spin.setValue(0.1)
+        self._hub_motor_spin.setToolTip(
+            "Relative delta applied to both hub motor R and L (robot-frame turns)"
         )
-        odrive_controls.addWidget(self._odrive_spin)
+        hub_controls.addWidget(self._hub_motor_spin)
 
-        btn_odrive = QPushButton("Go")
-        btn_odrive.setToolTip(
-            "Position mode: target = current position + delta for OD_R and OD_L"
+        btn_hub = QPushButton("Go")
+        btn_hub.setToolTip(
+            "Position mode: target = current position + delta for HM_R and HM_L"
         )
-        btn_odrive.clicked.connect(self._on_odrive_go)
-        odrive_controls.addWidget(btn_odrive)
+        btn_hub.clicked.connect(self._on_hub_motor_go)
+        hub_controls.addWidget(btn_hub)
 
-        root.addLayout(odrive_controls)
+        root.addLayout(hub_controls)
 
         pos_grid = QGridLayout()
         pos_grid.setSpacing(SIZES["spacing_small"])
@@ -393,10 +393,10 @@ class EncoderOverview(QWidget):
             self._serial_handler.set_target(j, val)
             self._data_store.set_target(j, val)
 
-    def _on_odrive_go(self):
-        delta = self._odrive_spin.value()
+    def _on_hub_motor_go(self):
+        delta = self._hub_motor_spin.value()
         for joint in JOINTS:
-            if not is_odrive_actuator(joint.id):
+            if not is_hub_motor_actuator(joint.id):
                 continue
             joint_data = self._data_store.get_joint(joint.id)
             current = joint_data.current_position if joint_data else 0.0

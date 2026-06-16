@@ -6,7 +6,7 @@ from std_msgs.msg import String
 from pid_tuner.ros_bridge.luci_client import LuciClient
 
 DRIVE_WHEEL_JS_THRESHOLD = 0.5
-ODRIVE_JS_THRESHOLD = 0.5
+HUB_MOTOR_JS_THRESHOLD = 0.5
 AXIS_NEUTRAL_THRESHOLD = 0.15
 
 
@@ -33,7 +33,7 @@ class ManualControlNode(Node):
         self._prev_estop_pressed = False
         self._prev_cal_pressed = False
         self._calibrating = False
-        self.odrives_active = False
+        self.hub_motors_active = False
         self.last_pwm_array = [0, 0, 0, 0, 0, 0]
         self.drive_wheel_active = False
         self.axes_centered = False
@@ -80,7 +80,7 @@ class ManualControlNode(Node):
 
     def _trigger_estop(self) -> None:
         self.state = self.STATE_IDLE
-        self.odrives_active = False
+        self.hub_motors_active = False
         self.drive_wheel_active = False
         self.last_pwm_array = [0, 0, 0, 0, 0, 0]
         self._calibrating = False
@@ -108,13 +108,13 @@ class ManualControlNode(Node):
                     self.axes_centered = False
                     self.status_pub.publish(
                         String(
-                            data="Center drive sticks (axes 0/1) and ODrive stick (axis 3), then press Start again"
+                            data="Center drive sticks (axes 0/1) and hub motor stick (axis 3), then press Start again"
                         )
                     )
                 else:
                     self.axes_centered = True
                     self.state = self.STATE_TUNER_MODE
-                    self.odrives_active = False
+                    self.hub_motors_active = False
                     self.drive_wheel_active = False
                     self.write_serial_data(
                         "M1:0\nM2:0\nM3:0\nM4:0\nM5:0\nM6:0\ns:0.0000\n"
@@ -151,23 +151,26 @@ class ManualControlNode(Node):
             buttons_all_zeros = not any(buttons_array)
             axes_all_zeros = not any(abs(axis) > 0.15 for axis in axes_array)
             if buttons_all_zeros and axes_all_zeros:
-                if self.odrives_active:
-                    self.odrives_active = False
-                    self.write_serial_data("T9:0.00\nT10:0.00\n")
+                if self.hub_motors_active:
+                    self.hub_motors_active = False
+                    self.write_serial_data("s:0.0000\n")
                 if self.drive_wheel_active:
                     self.drive_wheel_active = False
                     self._luci_client.request_gamepad_drive(0, 0)
                 return
 
-            # Check for odrive velocity
+            # Matched hub motor velocity (axis 3 -> s:<vel> on both motors)
 
-            if abs(axes_array[3]) > ODRIVE_JS_THRESHOLD and not self.odrives_active:
-                self.odrives_active = True
+            if (
+                abs(axes_array[3]) > HUB_MOTOR_JS_THRESHOLD
+                and not self.hub_motors_active
+            ):
+                self.hub_motors_active = True
                 direction = 1 if axes_array[3] > 0 else -1
                 pwm = 0.2 * direction
                 self.write_serial_data(f"M9:0\nM10:0\nT9:{pwm:.2f}\nT10:{pwm:.2f}\n")
-            elif abs(axes_array[3]) < ODRIVE_JS_THRESHOLD and self.odrives_active:
-                self.odrives_active = False
+            elif abs(axes_array[3]) < HUB_MOTOR_JS_THRESHOLD and self.hub_motors_active:
+                self.hub_motors_active = False
                 self.write_serial_data("T9:0.00\nT10:0.00\n")
 
             # Drive wheels via LUCI (axes 0 = fb, 1 = lr; scaled to -100..100)

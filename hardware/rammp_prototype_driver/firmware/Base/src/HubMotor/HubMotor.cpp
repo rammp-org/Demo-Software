@@ -116,8 +116,11 @@ void HubMotor::setMode(ControlMode mode) {
     vel_pid.reset();
   }
 
-  this->mode = mode switch (mode) {
+  this->mode = mode;
+  switch (mode) {
   case OPEN_LOOP:
+    break;
+  case VELOCITY_CONTROL:
     break;
   case DISABLED:
     this->writeZeroCurrent();

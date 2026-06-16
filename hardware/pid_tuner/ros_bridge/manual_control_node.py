@@ -153,7 +153,7 @@ class ManualControlNode(Node):
             if buttons_all_zeros and axes_all_zeros:
                 if self.odrives_active:
                     self.odrives_active = False
-                    self.write_serial_data("s:0.0000\n")
+                    self.write_serial_data("T9:0.00\nT10:0.00\n")
                 if self.drive_wheel_active:
                     self.drive_wheel_active = False
                     self._luci_client.request_gamepad_drive(0, 0)
@@ -164,10 +164,11 @@ class ManualControlNode(Node):
             if abs(axes_array[3]) > ODRIVE_JS_THRESHOLD and not self.odrives_active:
                 self.odrives_active = True
                 direction = 1 if axes_array[3] > 0 else -1
-                self.write_serial_data(f"s:{direction * 2:.4f}\n")
+                pwm = 0.2 * direction
+                self.write_serial_data(f"M9:0\nM10:0\nT9:{pwm:.2f}\nT10:{pwm:.2f}\n")
             elif abs(axes_array[3]) < ODRIVE_JS_THRESHOLD and self.odrives_active:
                 self.odrives_active = False
-                self.write_serial_data("s:0.0000\n")
+                self.write_serial_data("T9:0.00\nT10:0.00\n")
 
             # Drive wheels via LUCI (axes 0 = fb, 1 = lr; scaled to -100..100)
             axis0 = axes_array[0] if len(axes_array) > 0 else 0.0

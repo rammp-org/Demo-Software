@@ -33,8 +33,6 @@ public:
   void writeZeroCurrent();
   void writePWM();
   void writeTargetPos();
-  float getTargetPosition();
-  float getTargetVelocity();
   void setOrigin() override;
   void writeTargetVel();
 

@@ -85,11 +85,11 @@ void updateTelemetry() {
   telemetry.drive_enc_directions[1] = drive_lr.getEncoderDirection();
 
   // Hub motors on former ODrive serial ports; keep telemetry field names for PC
-  // compat
-  telemetry.odrive_positions[0] = hubMotorR.current_pos;
-  telemetry.odrive_positions[1] = hubMotorL.current_pos;
-  // telemetry.odrive_torques[0] = 0.0f;
-  // telemetry.odrive_torques[1] = 0.0f;
+  // compat.  HubMotor::current_pos is degrees; wire format stays turns (rev).
+  telemetry.odrive_positions[0] = hubMotorR.current_pos / 360.0f;
+  telemetry.odrive_positions[1] = hubMotorL.current_pos / 360.0f;
+  telemetry.odrive_torques[0] = 0.0f;
+  telemetry.odrive_torques[1] = 0.0f;
   // telemetry.odrive_positions[0] = ODriveR.current_pos;
   // telemetry.odrive_positions[1] = ODriveL.current_pos;
   // telemetry.odrive_torques[0] = ODriveR.getCurrentTorque();

@@ -47,8 +47,8 @@ struct SystemTelemetry {
   float raw_enc_velocities[2];
   int drive_directions[2];
   int drive_enc_directions[2];
-  float odrive_positions[2];     // [R, L] robot frame (turns)
-  float odrive_torques[2];       // [R, L] Nm
+  float odrive_positions[2]; // [R, L] turns (hub feedback is deg internally)
+  float odrive_torques[2];   // [R, L] Nm (unused for hub motors; always 0)
   int carriage_return_direction; // for smooth carriage return during curb
                                  // traversal
 };

@@ -194,5 +194,5 @@ void sendTelemetry() {
 
   n += snprintf(buf + n, sizeof(buf) - n, "\n");
 
-  // Serial.print(buf);
+  Serial.print(buf);
 }

@@ -30,7 +30,7 @@
 #include "ODriveEnums.h"
 #include "src/ODrive/ODrive.h"
 #include "src/HubMotor/HubMotor.h"
-#define DEBUG_MODE 1
+#define DEBUG_MODE 0
 #define fc_motor_id 2 // 1 for odrives, 2 for hub motors
 // Drive motor position deadzone. When the FB position error is within this
 // many ticks, the target is snapped to current position and both PIDs are
@@ -664,8 +664,8 @@ void loop() {
   hubMotorL.updateSensorData(0, dt);
 #endif
 
-  Serial.print("DEBUG MSG: hub_r_position=");
-  Serial.println(hubMotorR.current_pos, 4);
+  // Serial.print("DEBUG MSG: hub_r_position=");
+  // Serial.println(hubMotorR.current_pos, 4);
 
   {
     static float prev_ml = 0, prev_mr = 0;
@@ -1030,6 +1030,8 @@ void loop() {
   } else if (hubMotorR.mode == MotorBase::VELOCITY_CONTROL) {
     hubMotorR.writeTargetVel();
   } else if (hubMotorR.mode == MotorBase::POSITION_CONTROL) {
+    Serial.print("DEBUG MSG: hub motor target position: ");
+    Serial.println(hubMotorR.target_pos);
     hubMotorR.writeTargetPos();
   }
   if (hubMotorL.mode == MotorBase::OPEN_LOOP) {

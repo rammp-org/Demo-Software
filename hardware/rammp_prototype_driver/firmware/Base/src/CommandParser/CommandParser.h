@@ -41,7 +41,7 @@ enum CommandType {
   CMD_SEQ_STEP_BWD, // e.g. < (step backward to previous keyframe)
   CMD_SEQ_GOTO,     // e.g. @<idx> (jump directly to keyframe index)
   CMD_CALIBRATE,    // e.g. W0:<pwm> (start open-loop calibration), W0:0 (abort)
-  CMD_ODRIVE_VEL,   // e.g. s:<vel> — same velocity (turns/s) on ODrive L + R
+  CMD_FC_VEL,       // e.g. s:<vel> — same velocity (turns/s) on FC L + R
   CMD_UNKNOWN,
   CMD_NONE
 };

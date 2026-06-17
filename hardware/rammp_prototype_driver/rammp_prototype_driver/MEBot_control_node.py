@@ -884,10 +884,11 @@ class MEBotControlNode(Node):
             # T10:0.50\n
             # M10:2\n    # position
             # T10:2.00\n
-            self.write_serial_data("M10:2\n")
-            self.write_serial_data("T10:2\n")
+            self.write_serial_data("s:0.5\n")
+            # self.write_serial_data("T10:.2\n")
         else:
-            self.write_serial_data("L1:0\n")
+            self.write_serial_data("M10:0\n")
+            self.write_serial_data("T10:0\n")
 
         response.success = True  # just acknowledges request recieved and sent
         return response

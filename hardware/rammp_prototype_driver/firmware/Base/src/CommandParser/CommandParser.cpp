@@ -72,7 +72,7 @@ RobotCommand CommandParser::parse(Stream &serial) {
           cmd.value = last_payload.toFloat();
           cmd.actuator_id = 0;
           if (type_char == 's')
-            cmd.type = CMD_ODRIVE_VEL;
+            cmd.type = CMD_FC_VEL;
           else
             cmd.type = CMD_UNKNOWN;
         }

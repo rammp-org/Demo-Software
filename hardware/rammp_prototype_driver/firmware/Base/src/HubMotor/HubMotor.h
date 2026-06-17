@@ -19,7 +19,7 @@ public:
 
   int pwm_scale = 100000;
   int vel_scale = 100000;
-  int pos_scale = 1000000;
+  int pos_scale = 1000;
   HardwareSerial &motor;
   uint8_t getPos[GET_POS_CMD_LEN] = {0xAA, 0x02, 0x4C, 0x04, 0x08, 0x25, 0xBB};
 

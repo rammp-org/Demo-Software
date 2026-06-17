@@ -71,8 +71,8 @@ void HubMotor::writeTargetPos() {
   int32_t pos = direction * this->target_pos * pos_scale;
   int32_t spd = 20000;   // ERPM
   int32_t accel = 60000; // ERPM/s
-  Serial.print("DEBUG MSG: hub motor target position: ");
-  Serial.println(pos);
+  // Serial.print("DEBUG MSG: hub motor target position: ");
+  // Serial.println(pos);
   uint32_t raw;
 
   uint8_t spd_payload[13];

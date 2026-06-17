@@ -1,75 +1,73 @@
 # CMU Door Opener — Unified Documentation
 
-______________________________________________________________________
+---
 
 ## Package Overview
 
 The `cmu_door_opener` package contains two ROS 2 nodes that work together to detect and press a door-opener button. The `cmu_door_opener_interfaces` package defines the custom message and action types they use.
 
 **Nodes:**
-
 1. `button_detector` — perception only (YOLO + depth + filtering)
-1. `button_push_controller` — motion execution (push + force monitor + retract)
+2. `button_push_controller` — motion execution (push + force monitor + retract)
 
 **Launch:** `ros2 launch cmu_door_opener cmu_door_opener.launch.py`
 
-______________________________________________________________________
+---
 
 ## File Inventory
 
-| File                                        | Purpose                                    |
-| ------------------------------------------- | ------------------------------------------ |
-| `cmu_door_opener/button_detector.py`        | Detector node source                       |
-| `cmu_door_opener/button_push_controller.py` | Push controller node source                |
-| `cmu_door_opener/reachability_checker.py`   | PyBullet-based IK reachability checker     |
-| `cmu_door_opener/button_yolo_weights.pt`    | YOLO segmentation model (6.5 MB)           |
-| `launch/cmu_door_opener.launch.py`          | Launch file for both nodes                 |
-| `package.xml`                               | ROS 2 package manifest                     |
-| `setup.py`                                  | Python package build config & entry points |
-| *interfaces:* `msg/ButtonInfo.msg`          | Custom message for detected button data    |
-| *interfaces:* `action/DoorOpen.action`      | Custom action for the push sequence        |
+| File | Purpose |
+|---|---|
+| `cmu_door_opener/button_detector.py` | Detector node source |
+| `cmu_door_opener/button_push_controller.py` | Push controller node source |
+| `cmu_door_opener/reachability_checker.py` | PyBullet-based IK reachability checker |
+| `cmu_door_opener/button_yolo_weights.pt` | YOLO segmentation model (6.5 MB) |
+| `launch/cmu_door_opener.launch.py` | Launch file for both nodes |
+| `package.xml` | ROS 2 package manifest |
+| `setup.py` | Python package build config & entry points |
+| *interfaces:* `msg/ButtonInfo.msg` | Custom message for detected button data |
+| *interfaces:* `action/DoorOpen.action` | Custom action for the push sequence |
 
-______________________________________________________________________
+---
 
 ## Custom Interfaces (`cmu_door_opener_interfaces`)
 
 ### `ButtonInfo.msg`
 
-| Field               | Type                | Description                                                                                                                                             |
-| ------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                | `uint8`             | Button identifier (currently always 0)                                                                                                                  |
-| `segmentation_mask` | `sensor_msgs/Image` | Single-channel (mono8) mask, 255 = button pixel                                                                                                         |
-| `bounding_box`      | `int32[4]`          | Pixel coords `[x_min, y_min, x_max, y_max]` from YOLO                                                                                                   |
-| `confidence`        | `float32`           | YOLO detection confidence `[0.0 - 1.0]`                                                                                                                 |
-| `pose_xyzrpy`       | `float64[6]`        | `[x, y, z, roll, pitch, yaw]` in `base_link` frame. Position in meters, orientation in radians (xyz euler).                                             |
-| `is_pressable`      | `bool`              | Whether the arm can reach this button (IK solvable via PyBullet). Falls back to `true` if the URDF has not yet been received from `/robot_description`. |
+| Field | Type | Description |
+|---|---|---|
+| `id` | `uint8` | Button identifier (currently always 0) |
+| `segmentation_mask` | `sensor_msgs/Image` | Single-channel (mono8) mask, 255 = button pixel |
+| `bounding_box` | `int32[4]` | Pixel coords `[x_min, y_min, x_max, y_max]` from YOLO |
+| `confidence` | `float32` | YOLO detection confidence `[0.0 - 1.0]` |
+| `pose_xyzrpy` | `float64[6]` | `[x, y, z, roll, pitch, yaw]` in `base_link` frame. Position in meters, orientation in radians (xyz euler). |
+| `is_pressable` | `bool` | Whether the arm can reach this button (IK solvable via PyBullet). Falls back to `true` if the URDF has not yet been received from `/robot_description`. |
 
 ### ButtonInfo States
 
 The message is published every detection cycle (~5 Hz). It can be in one of three states:
 
-| State                          | When                                                                 | `confidence` | `segmentation_mask` | `bounding_box` | `pose_xyzrpy` | `is_pressable` |
-| ------------------------------ | -------------------------------------------------------------------- | ------------ | ------------------- | -------------- | ------------- | -------------- |
-| **1. No button found**         | YOLO finds nothing, camera not ready                                 | `0.0`        | 1x1 black           | `[0,0,0,0]`    | all `-1.0`    | `false`        |
-| **2. Detected, not pressable** | YOLO found button but depth/TF/filter failed, too far, IK unsolvable | real `> 0`   | real mask           | real bbox      | all `-1.0`    | `false`        |
-| **3. Detected and pressable**  | Full pipeline succeeded, filtered pose ready                         | real `> 0`   | real mask           | real bbox      | real values   | `true`         |
+| State | When | `confidence` | `segmentation_mask` | `bounding_box` | `pose_xyzrpy` | `is_pressable` |
+|---|---|---|---|---|---|---|
+| **1. No button found** | YOLO finds nothing, camera not ready | `0.0` | 1x1 black | `[0,0,0,0]` | all `-1.0` | `false` |
+| **2. Detected, not pressable** | YOLO found button but depth/TF/filter failed, too far, IK unsolvable | real `> 0` | real mask | real bbox | all `-1.0` | `false` |
+| **3. Detected and pressable** | Full pipeline succeeded, filtered pose ready | real `> 0` | real mask | real bbox | real values | `true` |
 
 **How consumers distinguish states:**
-
 - `confidence == 0.0` → state 1 (no button)
 - `confidence > 0.0` and `pose_xyzrpy` all `-1.0` → state 2 (detected, not pressable)
 - `confidence > 0.0` and `pose_xyzrpy` valid and `is_pressable == true` → state 3 (ready to push)
 
 ### `DoorOpen.action`
 
-| Section      | Field                | Type      | Description                                                                  |
-| ------------ | -------------------- | --------- | ---------------------------------------------------------------------------- |
-| **Goal**     | *(empty)*            |           | Triggers the push sequence, no parameters                                    |
-| **Result**   | `success`            | `bool`    | Whether the full sequence completed                                          |
-|              | `message`            | `string`  | Human-readable status/error                                                  |
+| Section | Field | Type | Description |
+|---|---|---|---|
+| **Goal** | *(empty)* | | Triggers the push sequence, no parameters |
+| **Result** | `success` | `bool` | Whether the full sequence completed |
+| | `message` | `string` | Human-readable status/error |
 | **Feedback** | `distance_to_button` | `float32` | Approximate meters remaining to button contact (published during push phase) |
 
-______________________________________________________________________
+---
 
 ## Node 1: `button_detector`
 
@@ -134,40 +132,40 @@ process_once() returns immediately again (detection disabled)
 
 ### YOLO Model Load / Unload
 
-| Event                    | Action                                                                                                               |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| Node launch (`__init__`) | `self.yolo = None`. Model is **not loaded**. GPU memory is free.                                                     |
-| `enable(True)`           | `_load_yolo()`: Loads `button_yolo_weights.pt` via `YOLO(path)`, moves to `cuda:0`. Falls back to CPU if CUDA fails. |
-| `enable(False)`          | `_unload_yolo()`: `del self.yolo`, `self.yolo = None`, `torch.cuda.empty_cache()`. GPU memory freed.                 |
-| Re-enable after disable  | `_load_yolo()` loads the model again from disk.                                                                      |
+| Event | Action |
+|---|---|
+| Node launch (`__init__`) | `self.yolo = None`. Model is **not loaded**. GPU memory is free. |
+| `enable(True)` | `_load_yolo()`: Loads `button_yolo_weights.pt` via `YOLO(path)`, moves to `cuda:0`. Falls back to CPU if CUDA fails. |
+| `enable(False)` | `_unload_yolo()`: `del self.yolo`, `self.yolo = None`, `torch.cuda.empty_cache()`. GPU memory freed. |
+| Re-enable after disable | `_load_yolo()` loads the model again from disk. |
 
 ### Subscribers (always active, even when detection is disabled)
 
-| Topic                                     | Type                                | QoS                                | Callback                | What it stores                                                                          |
-| ----------------------------------------- | ----------------------------------- | ---------------------------------- | ----------------------- | --------------------------------------------------------------------------------------- |
-| `/camera/wrist/color/image_raw`           | `sensor_msgs/Image`                 | `SENSOR_DATA` (best-effort)        | `cb_rgb`                | Converts to BGR8 via CvBridge → `self.latest_rgb`. Records timestamp.                   |
-| `/camera/wrist/depth/image_rect_raw`      | `sensor_msgs/Image`                 | `SENSOR_DATA` (best-effort)        | `cb_depth`              | Converts via CvBridge → `depth_to_meters()` → `self.latest_depth_m`. Records timestamp. |
-| `/camera/wrist/color/camera_info`         | `sensor_msgs/CameraInfo`            | Reliable, depth=10                 | `cb_color_info`         | Stores as `self.color_info`. Extracts `header.frame_id` → `self.color_frame_id`.        |
-| `/camera/wrist/depth/camera_info`         | `sensor_msgs/CameraInfo`            | Reliable, depth=10                 | `cb_depth_info`         | Stores as `self.depth_info` (depth intrinsics).                                         |
-| `/camera/wrist/extrinsics/depth_to_color` | `realsense2_camera_msgs/Extrinsics` | Reliable, TRANSIENT_LOCAL, depth=1 | `cb_extrinsics`         | Stores rotation (3x3) + translation (3x1) → `self.depth_to_color_extr`.                 |
-| `/robot_description`                      | `std_msgs/String`                   | Reliable, TRANSIENT_LOCAL, depth=1 | `_cb_robot_description` | URDF XML string. Used once to initialise the `ReachabilityChecker` for `is_pressable`.  |
+| Topic | Type | QoS | Callback | What it stores |
+|---|---|---|---|---|
+| `/camera/wrist/color/image_raw` | `sensor_msgs/Image` | `SENSOR_DATA` (best-effort) | `cb_rgb` | Converts to BGR8 via CvBridge → `self.latest_rgb`. Records timestamp. |
+| `/camera/wrist/depth/image_rect_raw` | `sensor_msgs/Image` | `SENSOR_DATA` (best-effort) | `cb_depth` | Converts via CvBridge → `depth_to_meters()` → `self.latest_depth_m`. Records timestamp. |
+| `/camera/wrist/color/camera_info` | `sensor_msgs/CameraInfo` | Reliable, depth=10 | `cb_color_info` | Stores as `self.color_info`. Extracts `header.frame_id` → `self.color_frame_id`. |
+| `/camera/wrist/depth/camera_info` | `sensor_msgs/CameraInfo` | Reliable, depth=10 | `cb_depth_info` | Stores as `self.depth_info` (depth intrinsics). |
+| `/camera/wrist/extrinsics/depth_to_color` | `realsense2_camera_msgs/Extrinsics` | Reliable, TRANSIENT_LOCAL, depth=1 | `cb_extrinsics` | Stores rotation (3x3) + translation (3x1) → `self.depth_to_color_extr`. |
+| `/robot_description` | `std_msgs/String` | Reliable, TRANSIENT_LOCAL, depth=1 | `_cb_robot_description` | URDF XML string. Used once to initialise the `ReachabilityChecker` for `is_pressable`. |
 
 These are always subscribed so that data is buffered and ready the instant detection is enabled — no startup delay.
 
 ### Service Servers
 
-| Topic                        | Type               | Callback                | Behavior                                                                                                                                                       |
-| ---------------------------- | ------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Topic | Type | Callback | Behavior |
+|---|---|---|---|
 | `/arm/door/detection/enable` | `std_srvs/SetBool` | `_srv_detection_enable` | `True`: load YOLO, reset filter, start pipeline. `False`: stop pipeline, reset filter, unload YOLO, free GPU. Returns `success=False` only if YOLO load fails. |
 
 ### Publishers
 
-| Topic                        | Type                         | Rate  | Condition                                                              | What it publishes                                                             |
-| ---------------------------- | ---------------------------- | ----- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `/arm/door/button_info`      | `ButtonInfo`                 | ~5 Hz | **Every cycle when detection enabled** — real data OR failure defaults | ButtonInfo with filtered pose (or -1 on failure)                              |
-| `/button/debug_point_camera` | `geometry_msgs/PointStamped` | ~5 Hz | Only on successful 3D computation                                      | Raw (unfiltered) button centroid in camera optical frame                      |
-| `/button/debug_point_base`   | `geometry_msgs/PointStamped` | ~5 Hz | Only on successful TF transform                                        | Raw (unfiltered) button centroid in `base_link` frame                         |
-| `/button/normal_marker`      | `visualization_msgs/Marker`  | ~5 Hz | Only on successful normal estimation                                   | Red arrow from centroid along surface normal, 0.1m, in `base_link`. For RViz. |
+| Topic | Type | Rate | Condition | What it publishes |
+|---|---|---|---|---|
+| `/arm/door/button_info` | `ButtonInfo` | ~5 Hz | **Every cycle when detection enabled** — real data OR failure defaults | ButtonInfo with filtered pose (or -1 on failure) |
+| `/button/debug_point_camera` | `geometry_msgs/PointStamped` | ~5 Hz | Only on successful 3D computation | Raw (unfiltered) button centroid in camera optical frame |
+| `/button/debug_point_base` | `geometry_msgs/PointStamped` | ~5 Hz | Only on successful TF transform | Raw (unfiltered) button centroid in `base_link` frame |
+| `/button/normal_marker` | `visualization_msgs/Marker` | ~5 Hz | Only on successful normal estimation | Red arrow from centroid along surface normal, 0.1m, in `base_link`. For RViz. |
 
 ### Processing Pipeline (each timer tick, when detection enabled)
 
@@ -228,42 +226,41 @@ process_once()
 
 ### Parameters
 
-| Parameter               | Type       | Default                                   | Description                                         |
-| ----------------------- | ---------- | ----------------------------------------- | --------------------------------------------------- |
-| `rgb_topic`             | str        | `/camera/wrist/color/image_raw`           | RGB image topic                                     |
-| `color_info_topic`      | str        | `/camera/wrist/color/camera_info`         | RGB camera info topic                               |
-| `depth_topic`           | str        | `/camera/wrist/depth/image_rect_raw`      | Depth image topic                                   |
-| `depth_info_topic`      | str        | `/camera/wrist/depth/camera_info`         | Depth camera info topic                             |
-| `extrinsics_topic`      | str        | `/camera/wrist/extrinsics/depth_to_color` | RealSense depth→color extrinsics                    |
-| `color_optical_frame`   | str        | `camera_color_optical_frame`              | Fallback TF frame (overridden by CameraInfo header) |
-| `base_frame`            | str        | `base_link`                               | Target TF frame for all output                      |
-| `yolo_model`            | str        | `<package>/button_yolo_weights.pt`        | Path to YOLO .pt weights                            |
-| `detection_confidence`  | float      | `0.5`                                     | Minimum YOLO confidence to accept                   |
-| `target_class`          | str        | `""`                                      | Filter by class name (empty = any)                  |
-| `yolo_use_fp16`         | bool       | `True`                                    | FP16 on CUDA (ignored on CPU)                       |
-| `yolo_imgsz`            | int        | `640`                                     | YOLO input size                                     |
-| `depth_stride`          | int        | `4`                                       | Sample every Nth depth pixel                        |
-| `min_depth_m`           | float      | `0.10`                                    | Minimum valid depth (m)                             |
-| `max_depth_m`           | float      | `3.00`                                    | Maximum valid depth (m)                             |
-| `min_projected_points`  | int        | `30`                                      | Min 3D points for valid centroid                    |
-| `mask_core_min_dist_px` | float      | `6.0`                                     | Distance transform threshold for mask interior      |
-| `mask_core_min_points`  | int        | `40`                                      | Min interior points for mask core                   |
-| `bbox_center_radius_px` | int        | `18`                                      | Radius around bbox center for depth collection      |
-| `normal_radius`         | float      | `0.05`                                    | Open3D normal search radius (m)                     |
-| `normal_max_nn`         | int        | `30`                                      | Max neighbors for normal search                     |
-| `press_offset`          | float      | `0.0`                                     | Offset along normal before press (m)                |
-| `fixed_pose_quat`       | float\[4\] | `[0.5, 0.5, 0.5, 0.5]`                    | Fallback quaternion \[x,y,z,w\]                     |
-| `filter_alpha`          | float      | `0.3`                                     | EMA responsiveness (0=frozen, 1=no smoothing)       |
-| `filter_min_samples`    | int        | `3`                                       | Samples before filter is "stable"                   |
-| `show_opencv_windows`   | bool       | `True`                                    | Show debug visualization window                     |
-| `window_scale`          | float      | `1.0`                                     | Visualization window scale factor                   |
-| `process_rate_hz`       | float      | `5.0`                                     | Timer frequency                                     |
-| `tf_timeout_s`          | float      | `0.5`                                     | TF2 lookup timeout (s)                              |
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `rgb_topic` | str | `/camera/wrist/color/image_raw` | RGB image topic |
+| `color_info_topic` | str | `/camera/wrist/color/camera_info` | RGB camera info topic |
+| `depth_topic` | str | `/camera/wrist/depth/image_rect_raw` | Depth image topic |
+| `depth_info_topic` | str | `/camera/wrist/depth/camera_info` | Depth camera info topic |
+| `extrinsics_topic` | str | `/camera/wrist/extrinsics/depth_to_color` | RealSense depth→color extrinsics |
+| `color_optical_frame` | str | `camera_color_optical_frame` | Fallback TF frame (overridden by CameraInfo header) |
+| `base_frame` | str | `base_link` | Target TF frame for all output |
+| `yolo_model` | str | `<package>/button_yolo_weights.pt` | Path to YOLO .pt weights |
+| `detection_confidence` | float | `0.5` | Minimum YOLO confidence to accept |
+| `target_class` | str | `""` | Filter by class name (empty = any) |
+| `yolo_use_fp16` | bool | `True` | FP16 on CUDA (ignored on CPU) |
+| `yolo_imgsz` | int | `640` | YOLO input size |
+| `depth_stride` | int | `4` | Sample every Nth depth pixel |
+| `min_depth_m` | float | `0.10` | Minimum valid depth (m) |
+| `max_depth_m` | float | `3.00` | Maximum valid depth (m) |
+| `min_projected_points` | int | `30` | Min 3D points for valid centroid |
+| `mask_core_min_dist_px` | float | `6.0` | Distance transform threshold for mask interior |
+| `mask_core_min_points` | int | `40` | Min interior points for mask core |
+| `bbox_center_radius_px` | int | `18` | Radius around bbox center for depth collection |
+| `normal_radius` | float | `0.05` | Open3D normal search radius (m) |
+| `normal_max_nn` | int | `30` | Max neighbors for normal search |
+| `press_offset` | float | `0.0` | Offset along normal before press (m) |
+| `fixed_pose_quat` | float[4] | `[0.5, 0.5, 0.5, 0.5]` | Fallback quaternion [x,y,z,w] |
+| `filter_alpha` | float | `0.3` | EMA responsiveness (0=frozen, 1=no smoothing) |
+| `filter_min_samples` | int | `3` | Samples before filter is "stable" |
+| `show_opencv_windows` | bool | `True` | Show debug visualization window |
+| `window_scale` | float | `1.0` | Visualization window scale factor |
+| `process_rate_hz` | float | `5.0` | Timer frequency |
+| `tf_timeout_s` | float | `0.5` | TF2 lookup timeout (s) |
 
 ### OpenCV Visualization Window
 
 Shows side-by-side view (`button_viz`):
-
 - **Left:** Raw RGB feed with detection status (`Det=ON/OFF`), YOLO load status, FPS, image age.
 - **Right:** YOLO overlay — bbox, mask, class+confidence. Centroid pixel marker. Camera and base frame xyz.
 
@@ -271,21 +268,19 @@ Press `q` to shut down the node.
 
 ### Internal Classes
 
-**`PoseFilter`** — EMA over `xyz` (float64\[3\]) and `rpy` (float64\[3\]).
-
+**`PoseFilter`** — EMA over `xyz` (float64[3]) and `rpy` (float64[3]).
 - `update(xyz, rpy)`: First call seeds. Subsequent: `new = alpha * raw + (1-alpha) * prev`.
 - `is_stable`: True when `count >= min_samples`.
 - `reset()`: Called on enable/disable. Zeroes state and count.
 
 **`ReachabilityChecker`** (`reachability_checker.py`) — Headless PyBullet IK solver for reachability queries.
-
 - Initialised lazily when the URDF string arrives on `/robot_description`.
 - Loads the URDF into a `p.DIRECT` (headless) physics server — no GUI, no rendering overhead.
 - `is_reachable(target_pos, target_orn=None, n_seeds=5)`: Attempts IK from `n_seeds` random joint configs. For each seed, iteratively calls `p.calculateInverseKinematics`, applies the result, and validates with FK (`p.getLinkState`). Returns `True` if any seed converges within `pos_tol` (default 1 cm).
 - ~5 ms per query (5 seeds × 50 max iters). Fast enough for the 5 Hz detection loop.
 - `destroy()`: Disconnects PyBullet and removes the temp URDF file.
 
-______________________________________________________________________
+---
 
 ## Node 2: `button_push_controller`
 
@@ -319,28 +314,28 @@ This node is passive. It just buffers the latest `ButtonInfo` from the detector.
 
 ### Subscribers
 
-| Topic                   | Type                    | QoS                | Callback          | What it stores                                                            |
-| ----------------------- | ----------------------- | ------------------ | ----------------- | ------------------------------------------------------------------------- |
-| `/arm/door/button_info` | `ButtonInfo`            | Reliable, depth=10 | `_cb_button_info` | Stores entire msg as `self.latest_button_info`. Overwrites every message. |
-| `/arm/ee_force`         | `geometry_msgs/Vector3` | Reliable, depth=10 | `_cb_ee_force`    | Converts to `np.array([x, y, z])` → `self.latest_ee_force`.               |
+| Topic | Type | QoS | Callback | What it stores |
+|---|---|---|---|---|
+| `/arm/door/button_info` | `ButtonInfo` | Reliable, depth=10 | `_cb_button_info` | Stores entire msg as `self.latest_button_info`. Overwrites every message. |
+| `/arm/ee_force` | `geometry_msgs/Vector3` | Reliable, depth=10 | `_cb_ee_force` | Converts to `np.array([x, y, z])` → `self.latest_ee_force`. |
 
 ### Publishers
 
-| Topic                     | Type                        | When                           | What                                                                |
-| ------------------------- | --------------------------- | ------------------------------ | ------------------------------------------------------------------- |
-| `/arm/cmu/cartesian_pose` | `geometry_msgs/PoseStamped` | Once per action (step 2)       | Push pose = button pose + PUSH_EXTRA overshoot. Frame: `base_link`. |
-| `/arm/cmu/twist`          | `geometry_msgs/Twist`       | On contact or timeout (step 3) | All-zero Twist to stop arm.                                         |
+| Topic | Type | When | What |
+|---|---|---|---|
+| `/arm/cmu/cartesian_pose` | `geometry_msgs/PoseStamped` | Once per action (step 2) | Push pose = button pose + PUSH_EXTRA overshoot. Frame: `base_link`. |
+| `/arm/cmu/twist` | `geometry_msgs/Twist` | On contact or timeout (step 3) | All-zero Twist to stop arm. |
 
 ### Action Servers
 
-| Topic            | Type       | Callback             |
-| ---------------- | ---------- | -------------------- |
+| Topic | Type | Callback |
+|---|---|---|
 | `/arm/door/open` | `DoorOpen` | `_execute_open_door` |
 
 ### Action Clients
 
-| Topic               | Type                         | When used                                           |
-| ------------------- | ---------------------------- | --------------------------------------------------- |
+| Topic | Type | When used |
+|---|---|---|
 | `/arm/reach_preset` | `arm_interfaces/ReachPreset` | Step 4 (retract). Sends `PRESET_RETRACT` (value 1). |
 
 ### Action Execution: `_execute_open_door`
@@ -382,36 +377,36 @@ This node is passive. It just buffers the latest `ButtonInfo` from the detector.
 
 ### Constants
 
-| Name               | Value    | Description                   |
-| ------------------ | -------- | ----------------------------- |
-| `PUSH_EXTRA`       | `0.02` m | Overshoot past button surface |
-| `FORCE_THRESHOLD`  | `20.0` N | Contact detection threshold   |
-| `PUSH_TIMEOUT`     | `10.0` s | Max wait for contact          |
-| `FORCE_CHECK_RATE` | `0.02` s | Force check interval (50 Hz)  |
+| Name | Value | Description |
+|---|---|---|
+| `PUSH_EXTRA` | `0.02` m | Overshoot past button surface |
+| `FORCE_THRESHOLD` | `20.0` N | Contact detection threshold |
+| `PUSH_TIMEOUT` | `10.0` s | Max wait for contact |
+| `FORCE_CHECK_RATE` | `0.02` s | Force check interval (50 Hz) |
 
 ### Abort Conditions
 
 1. No ButtonInfo received (`latest_button_info is None`) — detector not running
-1. **State 1**: `confidence == 0.0` and pose all -1 — no button detected
-1. **State 2**: `confidence > 0.0` but pose all -1 — button detected but not pressable (depth/TF/filter failed, too far)
-1. `is_pressable == False` — button detected, pose valid, but IK not solvable
-1. `/arm/reach_preset` server unavailable (5s timeout)
-1. Retract goal rejected
+2. **State 1**: `confidence == 0.0` and pose all -1 — no button detected
+3. **State 2**: `confidence > 0.0` but pose all -1 — button detected but not pressable (depth/TF/filter failed, too far)
+4. `is_pressable == False` — button detected, pose valid, but IK not solvable
+5. `/arm/reach_preset` server unavailable (5s timeout)
+6. Retract goal rejected
 
 Push timeout does NOT abort — proceeds to retract and returns success.
 
-______________________________________________________________________
+---
 
 ## Launch File
 
 `launch/cmu_door_opener.launch.py` starts both nodes:
 
-| Node                     | Parameters overridden                                                                              |
-| ------------------------ | -------------------------------------------------------------------------------------------------- |
-| `button_detector`        | `show_opencv_windows: False`, `process_rate_hz: 5.0`, `filter_alpha: 0.3`, `filter_min_samples: 3` |
-| `button_push_controller` | *(none)*                                                                                           |
+| Node | Parameters overridden |
+|---|---|
+| `button_detector` | `show_opencv_windows: False`, `process_rate_hz: 5.0`, `filter_alpha: 0.3`, `filter_min_samples: 3` |
+| `button_push_controller` | *(none)* |
 
-______________________________________________________________________
+---
 
 ## End-to-End Sequence
 
@@ -468,57 +463,57 @@ ______________________________________________________________________
                       │                            │ _unload_yolo() → GPU freed │                       │
 ```
 
-______________________________________________________________________
+---
 
 ## Full Topic / Service / Action Reference
 
 ### Topics Published
 
-| Topic                        | Type           | Publisher              | Rate                             | Description                                  |
-| ---------------------------- | -------------- | ---------------------- | -------------------------------- | -------------------------------------------- |
-| `/arm/door/button_info`      | `ButtonInfo`   | button_detector        | ~5 Hz (every cycle when enabled) | Detection result — real data or failure (-1) |
-| `/button/debug_point_camera` | `PointStamped` | button_detector        | ~5 Hz                            | Raw centroid in camera frame (debug)         |
-| `/button/debug_point_base`   | `PointStamped` | button_detector        | ~5 Hz                            | Raw centroid in base_link (debug)            |
-| `/button/normal_marker`      | `Marker`       | button_detector        | ~5 Hz                            | Surface normal arrow for RViz (debug)        |
-| `/arm/cmu/cartesian_pose`    | `PoseStamped`  | button_push_controller | Once per action                  | Push pose command to arm_driver              |
-| `/arm/cmu/twist`             | `Twist`        | button_push_controller | Once per action                  | Zero twist to stop arm                       |
+| Topic | Type | Publisher | Rate | Description |
+|---|---|---|---|---|
+| `/arm/door/button_info` | `ButtonInfo` | button_detector | ~5 Hz (every cycle when enabled) | Detection result — real data or failure (-1) |
+| `/button/debug_point_camera` | `PointStamped` | button_detector | ~5 Hz | Raw centroid in camera frame (debug) |
+| `/button/debug_point_base` | `PointStamped` | button_detector | ~5 Hz | Raw centroid in base_link (debug) |
+| `/button/normal_marker` | `Marker` | button_detector | ~5 Hz | Surface normal arrow for RViz (debug) |
+| `/arm/cmu/cartesian_pose` | `PoseStamped` | button_push_controller | Once per action | Push pose command to arm_driver |
+| `/arm/cmu/twist` | `Twist` | button_push_controller | Once per action | Zero twist to stop arm |
 
 ### Topics Subscribed
 
-| Topic                                     | Type         | Subscriber             | QoS                      | Description                      |
-| ----------------------------------------- | ------------ | ---------------------- | ------------------------ | -------------------------------- |
-| `/camera/wrist/color/image_raw`           | `Image`      | button_detector        | SENSOR_DATA              | RGB from wrist camera            |
-| `/camera/wrist/depth/image_rect_raw`      | `Image`      | button_detector        | SENSOR_DATA              | Depth from wrist camera          |
-| `/camera/wrist/color/camera_info`         | `CameraInfo` | button_detector        | Reliable                 | RGB intrinsics                   |
-| `/camera/wrist/depth/camera_info`         | `CameraInfo` | button_detector        | Reliable                 | Depth intrinsics                 |
-| `/camera/wrist/extrinsics/depth_to_color` | `Extrinsics` | button_detector        | Reliable+TRANSIENT_LOCAL | Depth→color registration         |
-| `/robot_description`                      | `String`     | button_detector        | Reliable+TRANSIENT_LOCAL | URDF for IK reachability checker |
-| `/arm/door/button_info`                   | `ButtonInfo` | button_push_controller | Reliable                 | From detector                    |
-| `/arm/ee_force`                           | `Vector3`    | button_push_controller | Reliable                 | From arm_driver                  |
+| Topic | Type | Subscriber | QoS | Description |
+|---|---|---|---|---|
+| `/camera/wrist/color/image_raw` | `Image` | button_detector | SENSOR_DATA | RGB from wrist camera |
+| `/camera/wrist/depth/image_rect_raw` | `Image` | button_detector | SENSOR_DATA | Depth from wrist camera |
+| `/camera/wrist/color/camera_info` | `CameraInfo` | button_detector | Reliable | RGB intrinsics |
+| `/camera/wrist/depth/camera_info` | `CameraInfo` | button_detector | Reliable | Depth intrinsics |
+| `/camera/wrist/extrinsics/depth_to_color` | `Extrinsics` | button_detector | Reliable+TRANSIENT_LOCAL | Depth→color registration |
+| `/robot_description` | `String` | button_detector | Reliable+TRANSIENT_LOCAL | URDF for IK reachability checker |
+| `/arm/door/button_info` | `ButtonInfo` | button_push_controller | Reliable | From detector |
+| `/arm/ee_force` | `Vector3` | button_push_controller | Reliable | From arm_driver |
 
 ### Services
 
-| Topic                        | Type               | Server          | Description                                                      |
-| ---------------------------- | ------------------ | --------------- | ---------------------------------------------------------------- |
+| Topic | Type | Server | Description |
+|---|---|---|---|
 | `/arm/door/detection/enable` | `std_srvs/SetBool` | button_detector | `True`=load YOLO + start. `False`=stop + unload YOLO + free GPU. |
 
 ### Actions
 
-| Topic               | Type          | Server                 | Client                   | Description                    |
-| ------------------- | ------------- | ---------------------- | ------------------------ | ------------------------------ |
-| `/arm/door/open`    | `DoorOpen`    | button_push_controller | External (behavior tree) | Full push sequence             |
-| `/arm/reach_preset` | `ReachPreset` | arm_driver             | button_push_controller   | Retract arm (PRESET_RETRACT=1) |
+| Topic | Type | Server | Client | Description |
+|---|---|---|---|---|
+| `/arm/door/open` | `DoorOpen` | button_push_controller | External (behavior tree) | Full push sequence |
+| `/arm/reach_preset` | `ReachPreset` | arm_driver | button_push_controller | Retract arm (PRESET_RETRACT=1) |
 
-______________________________________________________________________
+---
 
 ## TF Frames Used
 
-| Frame                                                                                       | Used by                                 | Purpose                                           |
-| ------------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------- |
-| Camera optical frame (from CameraInfo header, fallback: `camera_color_optical_frame` param) | button_detector                         | Source frame for 3D computations                  |
-| `base_link`                                                                                 | button_detector, button_push_controller | Target frame for all poses, arm's reference frame |
+| Frame | Used by | Purpose |
+|---|---|---|
+| Camera optical frame (from CameraInfo header, fallback: `camera_color_optical_frame` param) | button_detector | Source frame for 3D computations |
+| `base_link` | button_detector, button_push_controller | Target frame for all poses, arm's reference frame |
 
-______________________________________________________________________
+---
 
 ## TODO
 

@@ -4,7 +4,7 @@
 
 The door opening pipeline runs on two ROS 2 nodes (`button_detector` and `button_push_controller`) that work sequentially: detect the button, present it to the user, and push on confirmation.
 
-______________________________________________________________________
+---
 
 ## Flow
 
@@ -18,14 +18,14 @@ A `/arm/door/detection/enable` service call loads the YOLO segmentation model on
 
 ### 3. Detection Pipeline (each cycle)
 
-| Step                      | Description                                                                                                                                                                |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| YOLO segmentation         | Run on the latest RGB frame. Produces a segmentation mask and bounding box in **image frame**.                                                                             |
-| 3D projection             | Project depth pixels near the bounding box center into 3D using depth intrinsics + depth-to-color extrinsics. Compute the median centroid in the **camera optical frame**. |
-| TF transform              | Transform the centroid from camera frame to **`base_link`** via TF.                                                                                                        |
-| Surface normal estimation | Estimate the button surface normal from the 3D point cloud (Open3D), transform it to `base_link`. This determines the push direction.                                      |
-| EMA filtering             | Apply exponential moving average on xyz and rpy to stabilize the pose across frames.                                                                                       |
-| Reachability check        | Flag `is_pressable = true` if the button is within the arm's 2D reach from `base_link`.                                                                                    |
+| Step | Description |
+| --- | --- |
+| YOLO segmentation | Run on the latest RGB frame. Produces a segmentation mask and bounding box in **image frame**. |
+| 3D projection | Project depth pixels near the bounding box center into 3D using depth intrinsics + depth-to-color extrinsics. Compute the median centroid in the **camera optical frame**. |
+| TF transform | Transform the centroid from camera frame to **`base_link`** via TF. |
+| Surface normal estimation | Estimate the button surface normal from the 3D point cloud (Open3D), transform it to `base_link`. This determines the push direction. |
+| EMA filtering | Apply exponential moving average on xyz and rpy to stabilize the pose across frames. |
+| Reachability check | Flag `is_pressable = true` if the button is within the arm's 2D reach from `base_link`. |
 
 The output is a `ButtonInfo` message containing:
 
@@ -59,14 +59,14 @@ After the push, the arm retracts to a preset position via the `/arm/reach_preset
 
 ### 7. Result
 
-| Outcome                                                       | Result                                                  | Arm State                     |
-| ------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------- |
-| Button pressed (force threshold reached) and retract succeeds | `success = true`, "Button push complete, arm retracted" | Retracted to preset           |
-| Push timed out (no force contact) but retract succeeds        | `success = true`, "Button push complete, arm retracted" | Retracted to preset           |
-| Force exceeded during approach (Phase 1)                      | `success = false`, force exceeded error                 | Stopped in place (no retract) |
-| No valid detection / not pressable                            | `success = false`, detection error                      | Did not move                  |
-| Arm not in `OPEN_DOOR` mode                                   | `success = false`, wrong mode error                     | Did not move                  |
-| Retract service unavailable or rejected                       | `success = false`, retract error                        | Stopped at push position      |
+| Outcome | Result | Arm State |
+| --- | --- | --- |
+| Button pressed (force threshold reached) and retract succeeds | `success = true`, "Button push complete, arm retracted" | Retracted to preset |
+| Push timed out (no force contact) but retract succeeds | `success = true`, "Button push complete, arm retracted" | Retracted to preset |
+| Force exceeded during approach (Phase 1) | `success = false`, force exceeded error | Stopped in place (no retract) |
+| No valid detection / not pressable | `success = false`, detection error | Did not move |
+| Arm not in `OPEN_DOOR` mode | `success = false`, wrong mode error | Did not move |
+| Retract service unavailable or rejected | `success = false`, retract error | Stopped at push position |
 
 ### 8. Disable Detection
 

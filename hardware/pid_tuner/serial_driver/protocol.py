@@ -110,6 +110,7 @@ class EncoderData:
     # Appended at end of 80-value TELEMETRY packet (None if packet was shorter)
     carriage_return_direction: Optional[int] = None
     # Hub motors (wire format keeps legacy odrive_* field order in telemetry)
+    has_hub_motor_data: bool = False  # True only when firmware sent the 79-field packet
     hub_motor_l_pos: float = 0.0
     hub_motor_r_pos: float = 0.0
     # Legacy torque slots (unused for hub motors; wire format unchanged)
@@ -323,6 +324,7 @@ class ProtocolParser:
                         data.drive_fb_enc_dir = int(values[73])
                         data.drive_lr_enc_dir = int(values[74])
                     if len(values) >= 79:
+                        data.has_hub_motor_data = True
                         data.hub_motor_r_pos = values[75]
                         data.hub_motor_l_pos = values[76]
                         data.odrive_r_torque_nm = values[77]

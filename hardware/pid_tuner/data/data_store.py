@@ -807,7 +807,7 @@ class DataStore(QObject):
             self._raw_ml_enc_vel = data.raw_ml_enc_vel
             self._raw_mr_enc_vel = data.raw_mr_enc_vel
 
-        if hasattr(data, "hub_motor_r_pos"):
+        if getattr(data, "has_hub_motor_data", False):
             self._hub_motor_r_pos = data.hub_motor_r_pos
             self._hub_motor_l_pos = data.hub_motor_l_pos
             self._feed_hub_motor_joint(9, data.timestamp_ms, self._hub_motor_l_pos, 0.0)

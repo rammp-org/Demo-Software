@@ -395,14 +395,18 @@ class EncoderOverview(QWidget):
 
     def _on_hub_motor_go(self):
         delta = self._hub_motor_spin.value()
-        for joint in JOINTS:
-            if not is_hub_motor_actuator(joint.id):
-                continue
-            joint_data = self._data_store.get_joint(joint.id)
-            current = joint_data.current_position if joint_data else 0.0
-            target = current + delta
-            self._serial_handler.set_mode(joint.id, MODE_POSITION)
-            self._serial_handler.set_target(joint.id, target)
+        self._serial_handler.clear_estop()
+        hub_targets = {
+            9: self._data_store.hub_motor_l_pos + delta,
+            10: self._data_store.hub_motor_r_pos + delta,
+        }
+        lines = []
+        for joint_id in (9, 10):
+            target = hub_targets[joint_id]
+            lines.append(f"M{joint_id}:2")
+            lines.append(f"T{joint_id}:{target:.4f}")
+            self._data_store.set_target(joint_id, target)
+        self._serial_handler.send_raw("\n".join(lines) + "\n")
 
     @pyqtSlot(int)
     def set_selected_joint(self, joint_id: int):

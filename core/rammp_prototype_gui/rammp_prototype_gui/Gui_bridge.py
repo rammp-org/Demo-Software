@@ -14,7 +14,7 @@ from gui_interfaces.srv import UserInputs
 
 # from realsense2_camera_msgs.msg import Extrinsics
 from neu_navigation_interfaces.msg import CurbInfo
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -239,6 +239,11 @@ class GuiBridge(Node):
             .string_value
         )
 
+        self.declare_parameter("streaming_rate", 15.0)
+        self.streaming_rate = (
+            self.get_parameter("streaming_rate").get_parameter_value().double_value
+        )
+
         self._trim_prefixes = {
             self.wrist_camera_tf_frame: "wrist",
             self.nav_camera_1_tf_frame: "nav1",
@@ -289,7 +294,7 @@ class GuiBridge(Node):
             preset=self.ue_preset,
             user_input_callback=self.user_input_callback,
         )
-        self.stream_sender = StreamSender(host=self.host, port=30030, queue_size=10)
+        self.stream_sender = StreamSender(host=self.host, port=30030, queue_size=15)
         self.stream_check_timer = self.create_timer(1.0, self.check_streamer_connection)
         self.update_ue_timer = self.create_timer(0.1, self.ue_update)
 
@@ -321,6 +326,20 @@ class GuiBridge(Node):
 
         # self.test_ue_counter = 0
         # self.test_ue_timer = self.create_timer(1.0, self.test_ue)
+
+        streaming_rate = self.streaming_rate
+        if streaming_rate <= 0:
+            self.get_logger().error(
+                f"Invalid streaming_rate '{streaming_rate}' provided; expected a value > 0. "
+                "Falling back to 1.0 Hz."
+            )
+            streaming_rate = 1.0
+
+        self.streaming_timer = self.create_timer(
+            1.0 / streaming_rate,
+            self.publish_stream,
+            callback_group=MutuallyExclusiveCallbackGroup(),
+        )
 
     def init_service(self):
         # make service client for user input, request should be string
@@ -428,6 +447,10 @@ class GuiBridge(Node):
         self.rear_camera_extrinsics = Extrinsics(
             location=Vector(0, 0, 0), rotation=Vector(0, 0, 0), scale=Vector(1, 1, 1)
         )
+
+        self.curb_mask = None
+        self.cup_mask = None
+        self.button_mask = None
         # wrist camera:
         self.wrist_camera_image_info_sub = self.create_subscription(
             CameraInfo,
@@ -588,25 +611,40 @@ class GuiBridge(Node):
 
     def cup_info_callback(self, msg: CupInfo):
         self.update_cup_info(msg)
+        self.cup_mask = msg.segmentation_mask
+
+    def send_cup_mask(self):
+        mask = self.cup_mask
+        self.cup_mask = None
         self.send_mask(
-            msg.segmentation_mask,
+            mask,
             self.wrist_camera_namespace,
             channel=self.mask_channel,
             num_seg_ids=3.0,
-        )  # for now just send the segmentation mask of the cup, can also send cup pose to UE if needed
+        )
 
     def door_button_info_callback(self, msg: ButtonInfo):
         self.update_button_info(msg)
+        self.button_mask = msg.segmentation_mask
+
+    def send_button_mask(self):
+        mask = self.button_mask
+        self.button_mask = None
         self.send_mask(
-            msg.segmentation_mask,
+            mask,
             self.wrist_camera_namespace,
             channel=self.mask_channel,
             num_seg_ids=2.0,
         )
 
     def curb_mask_callback(self, msg: Image):
+        self.curb_mask = msg
+
+    def send_curb_mask(self):
+        mask = self.curb_mask
+        self.curb_mask = None
         self.send_mask(
-            msg,
+            mask,
             self.nav_camera_namespace_1,
             channel=self.mask_channel + 1,
             num_seg_ids=4.0,
@@ -614,6 +652,30 @@ class GuiBridge(Node):
 
     def curb_info_callback(self, msg: CurbInfo):
         self.update_curb_info(msg, marker=self._curb_marker)
+
+    def publish_stream(self):
+        self.wrist_camera_extrinsics = self._lookup_camera_extrinsics(
+            self.wrist_camera_tf_frame
+        )
+        self.send_wrist_camera_image()
+        self.send_wrist_camera_depth()
+
+        self.nav_camera_1_extrinsics = self._lookup_camera_extrinsics(
+            self.nav_camera_1_tf_frame
+        )
+        self.send_nav_camera_1_image()
+        self.send_nav_camera_1_depth()
+
+        self.nav_camera_2_extrinsics = self._lookup_camera_extrinsics(
+            self.nav_camera_2_tf_frame
+        )
+        self.send_nav_camera_2_image()
+        self.send_nav_camera_2_depth()
+
+        # send masks
+        self.send_cup_mask()
+        self.send_button_mask()
+        self.send_curb_mask()
 
     # camera subscription callbacks
     def wrist_camera_image_info_callback(self, msg: CameraInfo):
@@ -624,17 +686,9 @@ class GuiBridge(Node):
 
     def wrist_camera_image_callback(self, msg: Image):
         self.wrist_camera_image = msg
-        self.wrist_camera_extrinsics = self._lookup_camera_extrinsics(
-            self.wrist_camera_tf_frame
-        )
-        self.send_wrist_camera_image()
 
     def wrist_camera_depth_callback(self, msg: Image):
         self.wrist_camera_depth = msg
-        self.wrist_camera_extrinsics = self._lookup_camera_extrinsics(
-            self.wrist_camera_tf_frame
-        )
-        self.send_wrist_camera_depth()
 
     def nav_camera_1_image_info_callback(self, msg: CameraInfo):
         self.nav_camera_1_image_info = msg
@@ -644,17 +698,9 @@ class GuiBridge(Node):
 
     def nav_camera_1_image_callback(self, msg: Image):
         self.nav_camera_1_image = msg
-        self.nav_camera_1_extrinsics = self._lookup_camera_extrinsics(
-            self.nav_camera_1_tf_frame
-        )
-        self.send_nav_camera_1_image()
 
     def nav_camera_1_depth_callback(self, msg: Image):
         self.nav_camera_1_depth = msg
-        self.nav_camera_1_extrinsics = self._lookup_camera_extrinsics(
-            self.nav_camera_1_tf_frame
-        )
-        self.send_nav_camera_1_depth()
 
     def nav_camera_2_image_info_callback(self, msg: CameraInfo):
         self.nav_camera_2_image_info = msg
@@ -664,17 +710,9 @@ class GuiBridge(Node):
 
     def nav_camera_2_image_callback(self, msg: Image):
         self.nav_camera_2_image = msg
-        self.nav_camera_2_extrinsics = self._lookup_camera_extrinsics(
-            self.nav_camera_2_tf_frame
-        )
-        self.send_nav_camera_2_image()
 
     def nav_camera_2_depth_callback(self, msg: Image):
         self.nav_camera_2_depth = msg
-        self.nav_camera_2_extrinsics = self._lookup_camera_extrinsics(
-            self.nav_camera_2_tf_frame
-        )
-        self.send_nav_camera_2_depth()
 
     def rear_camera_image_info_callback(self, msg: CameraInfo):
         self.rear_camera_image_info = msg
@@ -684,11 +722,11 @@ class GuiBridge(Node):
 
     def rear_camera_image_callback(self, msg: Image):
         self.rear_camera_image = msg
-        self.send_rear_camera_image()
+        # self.send_rear_camera_image()
 
     def rear_camera_depth_callback(self, msg: Image):
         self.rear_camera_depth = msg
-        self.send_rear_camera_depth()
+        # self.send_rear_camera_depth()
 
     def _lookup_camera_extrinsics(self, camera_tf_frame: str) -> Extrinsics:
         try:
@@ -885,72 +923,102 @@ class GuiBridge(Node):
                     self.get_logger().warn(f"Failed to send {source} mask image: {e}")
 
     def send_wrist_camera_image(self):
+        # Snapshot shared state first so we send a stable frame and avoid duplicate sends.
+        image = self.wrist_camera_image
+        info = self.wrist_camera_image_info
+        self.wrist_camera_image = None
         self.send_image(
-            image=self.wrist_camera_image,
-            image_info=self.wrist_camera_image_info,
+            image=image,
+            image_info=info,
             source=self.wrist_camera_namespace,
             extrinsics=self.wrist_camera_extrinsics,
             channel=self.image_channel,
         )
 
     def send_wrist_camera_depth(self):
+        depth = self.wrist_camera_depth
+        self.wrist_camera_depth = None
+        depth_info = self.wrist_camera_depth_info
         self.send_depth(
-            depth=self.wrist_camera_depth,
-            depth_info=self.wrist_camera_depth_info,
+            depth=depth,
+            depth_info=depth_info,
             extrinsics=self.wrist_camera_extrinsics,
             source=self.wrist_camera_namespace,
             channel=self.depth_channel,
         )
 
     def send_nav_camera_1_image(self):
+        image = self.nav_camera_1_image
+        image_info = self.nav_camera_1_image_info
+        self.nav_camera_1_image = None
         self.send_image(
-            image=self.nav_camera_1_image,
-            image_info=self.nav_camera_1_image_info,
+            image=image,
+            image_info=image_info,
             source=self.nav_camera_namespace_1,
             extrinsics=self.nav_camera_1_extrinsics,
             channel=self.image_channel + 1,
         )
 
     def send_nav_camera_1_depth(self):
+        depth = self.nav_camera_1_depth
+        depth_info = self.nav_camera_1_depth_info
+        self.nav_camera_1_depth = None
+
         self.send_depth(
-            depth=self.nav_camera_1_depth,
-            depth_info=self.nav_camera_1_depth_info,
+            depth=depth,
+            depth_info=depth_info,
             extrinsics=self.nav_camera_1_extrinsics,
             source=self.nav_camera_namespace_1,
             channel=self.depth_channel + 1,
         )
 
     def send_nav_camera_2_image(self):
+        image = self.nav_camera_2_image
+        image_info = self.nav_camera_2_image_info
+        self.nav_camera_2_image = None
+
         self.send_image(
-            image=self.nav_camera_2_image,
-            image_info=self.nav_camera_2_image_info,
+            image=image,
+            image_info=image_info,
             source=self.nav_camera_namespace_2,
             extrinsics=self.nav_camera_2_extrinsics,
             channel=self.image_channel + 2,
         )
 
     def send_nav_camera_2_depth(self):
+        depth = self.nav_camera_2_depth
+        depth_info = self.nav_camera_2_depth_info
+        self.nav_camera_2_depth = None
+
         self.send_depth(
-            depth=self.nav_camera_2_depth,
-            depth_info=self.nav_camera_2_depth_info,
+            depth=depth,
+            depth_info=depth_info,
             extrinsics=self.nav_camera_2_extrinsics,
             source=self.nav_camera_namespace_2,
             channel=self.depth_channel + 2,
         )
 
     def send_rear_camera_image(self):
+        image = self.rear_camera_image
+        image_info = self.rear_camera_image_info
+        self.rear_camera_image = None
+
         self.send_image(
-            image=self.rear_camera_image,
-            image_info=self.rear_camera_image_info,
+            image=image,
+            image_info=image_info,
             source=self.rear_camera_namespace,
             extrinsics=self.rear_camera_extrinsics,
             channel=self.image_channel + 3,
         )
 
     def send_rear_camera_depth(self):
+        depth = self.rear_camera_depth
+        depth_info = self.rear_camera_depth_info
+        self.rear_camera_depth = None
+
         self.send_depth(
-            depth=self.rear_camera_depth,
-            depth_info=self.rear_camera_depth_info,
+            depth=depth,
+            depth_info=depth_info,
             extrinsics=self.rear_camera_extrinsics,
             source=self.rear_camera_namespace,
             channel=self.depth_channel + 3,

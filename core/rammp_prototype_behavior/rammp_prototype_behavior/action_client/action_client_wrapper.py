@@ -8,6 +8,7 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.action.client import ClientGoalHandle
 from rclpy.task import Future
+from rclpy.callback_groups import ReentrantCallbackGroup
 
 ActionClientCallback = Callable[[bool], None]  # (success, result) -> None
 ActionFeedbackCallback = Callable[[Any], None]  # (feedback_msg) -> None
@@ -35,7 +36,6 @@ class ActionClientWrapper:
         self._node = node
         self._action_name = name
         self._action_type = goal_type
-        self._action_cb_group = self._node._cb_group
         self._qos_profile_services_goal = rclpy.qos.QoSProfile(depth=10)
         self._qos_profile_services_goal.reliability = (
             rclpy.qos.ReliabilityPolicy.RELIABLE
@@ -45,7 +45,7 @@ class ActionClientWrapper:
             self._node,
             goal_type,
             self._action_name,
-            callback_group=self._action_cb_group,
+            callback_group=ReentrantCallbackGroup(),
             goal_service_qos_profile=self._qos_profile_services_goal,
         )
         self._goal_callback = goal_callback

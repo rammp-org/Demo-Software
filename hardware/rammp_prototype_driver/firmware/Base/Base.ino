@@ -559,9 +559,17 @@ void setup() {
     return (isnan(v) || isinf(v)) ? 0.0f : v;
   };
 
-  MotorBase *all_motors[10] = {&rc,          &fc,          &ml,       &mr,
-                               &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
-                               &hubMotorR,   &hubMotorL};
+  MotorBase *all_motors[10];
+#if (fc_motor_id == 1)
+  MotorBase *motors[10] = {&rc,          &fc,          &ml,       &mr,
+                           &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
+                           &ODriveR,     &ODriveL};
+#elif (fc_motor_id == 2)
+  MotorBase *motors[10] = {&rc,          &fc,          &ml,       &mr,
+                           &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
+                           &hubMotorR,   &hubMotorL};
+#endif
+  memcpy(all_motors, motors, sizeof(motors));
   for (int i = 0; i < 10; i++) {
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
     all_motors[i]->setDirection(conf.motor_dir);

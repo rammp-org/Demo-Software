@@ -1030,8 +1030,8 @@ void loop() {
   } else if (hubMotorR.mode == MotorBase::VELOCITY_CONTROL) {
     hubMotorR.writeTargetVel();
   } else if (hubMotorR.mode == MotorBase::POSITION_CONTROL) {
-    Serial.print("DEBUG MSG: hub motor target position: ");
-    Serial.println(hubMotorR.target_pos);
+    // Serial.print("DEBUG MSG: hub motor target position: ");
+    // Serial.println(hubMotorR.target_pos);
     hubMotorR.writeTargetPos();
   }
   if (hubMotorL.mode == MotorBase::OPEN_LOOP) {

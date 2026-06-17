@@ -368,7 +368,7 @@ class EncoderOverview(QWidget):
             info = get_joint_info(joint_id, backend)
             if joint_id - 1 < len(self._boxes):
                 self._boxes[joint_id - 1].set_name(info.short_name)
-        if self._data_store.uses_hub_motors():
+        if self._data_store.uses_hub_motors:
             self._fc_motor_delta_label.setText("Hub motors (9,10) Δ turns:")
         else:
             self._fc_motor_delta_label.setText("ODrives (9,10) Δ turns:")

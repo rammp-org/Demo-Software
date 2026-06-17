@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include "SequencePlayer.h"
+#include "src/FcMotorConfig/FcMotorConfig.h"
+#include "src/FcMotorConfig/FcMotors.h"
 #include "../MotorBase/MotorBase.h"
 #include "../CommandParser/CommandParser.h"
 #include "../CommandDispatch/CommandDispatch.h"
@@ -31,7 +33,13 @@ static float seq_latch_pos[SEQ_NUM_MOTORS];
 // ---------------------------------------------------------------------------
 
 static inline float parseTargetValue(int i, float raw) {
-  return (i >= SEQ_HUB_START) ? raw * 360.0f : raw;
+#if (fc_motor_id == 2)
+  // JSON keyframe values are turns; hub motors store degrees internally.
+  return (i >= SEQ_FC_START) ? raw * 360.0f : raw;
+#else
+  (void)i;
+  return raw;
+#endif
 }
 
 // Compute the final target position for motor i in the current keyframe.
@@ -158,7 +166,10 @@ void sequenceEnter(MotorBase *motors[SEQ_NUM_MOTORS]) {
   seq_settling = false;
   seq_auto_run = false;
 
+#if (fc_motor_id == 2)
   motors[8]->setOrigin();
+  motors[9]->setOrigin();
+#endif
   Serial.println("DEBUG MSG: Origin set");
 
   // ALL motors — including drive wheels — run position control during

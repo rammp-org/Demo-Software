@@ -2,6 +2,7 @@
 #define TELEMETRY_H
 
 #include <Arduino.h>
+#include "src/FcMotorConfig/FcMotorConfig.h"
 
 // Phase 4: State Machine
 enum SystemState {
@@ -69,8 +70,15 @@ extern IMU_Class IMU;
 extern StrainGauge sg_rc, sg_fc, sg_ml, sg_mr;
 extern bool ml_fwd_limit, ml_bwd_limit, mr_fwd_limit, mr_bwd_limit;
 
+#if (fc_motor_id == 1)
+class ODrive;
+extern ODrive ODriveR, ODriveL;
+#elif (fc_motor_id == 2)
 class HubMotor;
 extern HubMotor hubMotorR, hubMotorL;
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
 
 extern int carriage_return_direction;
 

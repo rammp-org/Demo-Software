@@ -1,9 +1,14 @@
 #include <Arduino.h>
 #include "Telemetry.h"
+#include "src/FcMotorConfig/FcMotorConfig.h"
 #include "../Motor/Motor.h"
-#include "../HubMotor/HubMotor.h"
 #include "../IMU_Class/IMU_Class.h"
 #include "../StrainGauge/StrainGauge.h"
+#if (fc_motor_id == 1)
+#include "../ODrive/ODrive.h"
+#elif (fc_motor_id == 2)
+#include "../HubMotor/HubMotor.h"
+#endif
 
 // Map firmware ControlMode enum to GUI mode integers (0=Open Loop, 1=Velocity,
 // 2=Position)
@@ -84,18 +89,22 @@ void updateTelemetry() {
   telemetry.drive_enc_directions[0] = drive_fb.getEncoderDirection();
   telemetry.drive_enc_directions[1] = drive_lr.getEncoderDirection();
 
-  // Hub motors on former ODrive serial ports; keep telemetry field names for PC
-  // compat.  HubMotor::current_pos is degrees; wire format stays turns (rev).
+  // Front casters (actuators 9/10); wire field names kept for PC compat.
+#if (fc_motor_id == 1)
+  telemetry.odrive_positions[0] = ODriveR.current_pos;
+  telemetry.odrive_positions[1] = ODriveL.current_pos;
+  telemetry.odrive_torques[0] = ODriveR.getCurrentTorque();
+  telemetry.odrive_torques[1] = ODriveL.getCurrentTorque();
+#elif (fc_motor_id == 2)
+  // HubMotor::current_pos is degrees; wire format is turns (rev).
   telemetry.odrive_positions[0] = hubMotorR.current_pos / 360.0f;
   telemetry.odrive_positions[1] = hubMotorL.current_pos / 360.0f;
   telemetry.odrive_torques[0] = 0.0f;
   telemetry.odrive_torques[1] = 0.0f;
-  // telemetry.odrive_positions[0] = ODriveR.current_pos;
-  // telemetry.odrive_positions[1] = ODriveL.current_pos;
-  // telemetry.odrive_torques[0] = ODriveR.getCurrentTorque();
-  // telemetry.odrive_torques[1] = ODriveL.getCurrentTorque();
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
 
-  // Optional: populated by other modules; defaults to 0.
   telemetry.carriage_return_direction = carriage_return_direction;
 }
 

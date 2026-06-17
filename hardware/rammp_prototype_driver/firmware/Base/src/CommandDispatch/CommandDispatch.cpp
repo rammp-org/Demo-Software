@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "CommandDispatch.h"
+#include "src/FcMotorConfig/FcMotorConfig.h"
 #include "../CommandParser/CommandParser.h"
 #include "../MotorMap/MotorMap.h"
 #include "../MotorBase/MotorBase.h"
@@ -15,11 +16,6 @@ extern int8_t ml_enc_dir, mr_enc_dir;
 // DEBUG_MODE is defined in Base.ino — replicate here for debug prints
 #ifndef DEBUG_MODE
 #define DEBUG_MODE 1
-#endif
-
-// Must match Base.ino (1 = ODrive FC, 2 = hub motors on actuators 9/10).
-#ifndef fc_motor_id
-#define fc_motor_id 2
 #endif
 
 // --- Handler implementations (migrated from Base.ino TUNER_MODE switch) ---

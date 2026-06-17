@@ -11,8 +11,8 @@ struct RobotCommand;
 #define SEQ_NUM_POS_MOTORS 6
 #define SEQ_DRIVE_START                                                        \
   6 // drive_fb, drive_lr (synthetic encoder origin zeroed on enter)
-#define SEQ_ODRIVE_START 8 // ODriveR, ODriveL
-#define SEQ_HUB_START 8    // HubMotorR, HubMotorL
+#include "src/FcMotorConfig/FcMotors.h"
+// SEQ_FC_START (8): sequence slots for front-caster R then L (ODrive or hub)
 
 static const float SEQ_COMPLETION_DEADZONE[SEQ_NUM_MOTORS] = {
     50.0f,   // 0: RC
@@ -23,8 +23,8 @@ static const float SEQ_COMPLETION_DEADZONE[SEQ_NUM_MOTORS] = {
     500.0f,  // 5: MR_Car
     2000.0f, // 6: Drive_FB
     2000.0f, // 7: Drive_LR
-    10.0f,   // 8: ODriveR (turns)
-    10.0f,   // 9: ODriveL (turns)
+    10.0f,   // 8: FC_R (turns; ODrive or hub)
+    10.0f,   // 9: FC_L (turns; ODrive or hub)
 };
 
 // Safety timeout (ms) for position-based completion.  If motors cannot reach

@@ -66,7 +66,7 @@ RobotCommand CommandParser::parse(Stream &serial) {
             break;
           }
         }
-        // Global ODrive velocity: s:<vel> (no actuator id)
+        // Global front-caster velocity: s:<vel> (no actuator id)
         else if (colon_idx == 1) {
           last_payload = buffer.substring(colon_idx + 1);
           cmd.value = last_payload.toFloat();

@@ -10,6 +10,11 @@ import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 
 from ..serial_driver.protocol import EncoderData
+from .joint_config import (
+    FC_MOTOR_BACKEND_HUB,
+    FC_MOTOR_BACKEND_ODRIVE,
+    is_fc_motor_actuator,
+)
 
 
 @dataclass
@@ -329,6 +334,7 @@ class DataStore(QObject):
     strain_gauge_updated = pyqtSignal()  # Emitted when strain gauge values are updated
     seq_status_updated = pyqtSignal(int, int, int)
     seq_targets_changed = pyqtSignal()
+    fc_motor_backend_changed = pyqtSignal(str)  # "hub" or "odrive"
 
     NUM_JOINTS = 10
     DEFAULT_MAX_SAMPLES = 2000  # ~10 seconds at 200Hz
@@ -394,7 +400,8 @@ class DataStore(QObject):
         self._raw_ml_enc_vel: float = 0.0
         self._raw_mr_enc_vel: float = 0.0
 
-        # Hub motor axes (actuator ids 9=L, 10=R; robot-frame turns)
+        # Front caster axes (actuator ids 9=L, 10=R; robot-frame turns)
+        self._fc_motor_backend: str = FC_MOTOR_BACKEND_HUB
         self._hub_motor_r_pos: float = 0.0
         self._hub_motor_l_pos: float = 0.0
 
@@ -645,20 +652,48 @@ class DataStore(QObject):
         return self._hub_motor_l_pos
 
     @property
+    def fc_caster_l_pos(self) -> float:
+        """Active front-caster left position (turns), hub or ODrive."""
+        return self._hub_motor_l_pos
+
+    @property
+    def fc_caster_r_pos(self) -> float:
+        """Active front-caster right position (turns), hub or ODrive."""
+        return self._hub_motor_r_pos
+
+    @property
+    def fc_motor_backend(self) -> str:
+        return self._fc_motor_backend
+
+    @fc_motor_backend.setter
+    def fc_motor_backend(self, backend: str) -> None:
+        if backend not in (FC_MOTOR_BACKEND_HUB, FC_MOTOR_BACKEND_ODRIVE):
+            return
+        if backend == self._fc_motor_backend:
+            return
+        self._fc_motor_backend = backend
+        self.clear_joint(9)
+        self.clear_joint(10)
+        self.fc_motor_backend_changed.emit(backend)
+
+    @property
+    def uses_hub_motors(self) -> bool:
+        return self._fc_motor_backend == FC_MOTOR_BACKEND_HUB
+
+    @property
+    def uses_odrive(self) -> bool:
+        return self._fc_motor_backend == FC_MOTOR_BACKEND_ODRIVE
+
+    def is_fc_motor_joint(self, joint_id: int) -> bool:
+        return is_fc_motor_actuator(joint_id)
+
+    @property
     def odrive_r_pos(self) -> float:
         return self.hub_motor_r_pos
 
     @property
     def odrive_l_pos(self) -> float:
         return self.hub_motor_l_pos
-
-    @property
-    def odrive_r_torque_nm(self) -> float:
-        return 0.0
-
-    @property
-    def odrive_l_torque_nm(self) -> float:
-        return 0.0
 
     @property
     def raw_ml_enc_vel(self) -> float:

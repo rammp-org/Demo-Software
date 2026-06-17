@@ -27,6 +27,8 @@ from pid_tuner.data.joint_config import (
     get_joint_names,
     get_joint_id_from_index,
     get_joint_info,
+    FC_MOTOR_BACKEND_HUB,
+    FC_MOTOR_BACKEND_ODRIVE,
 )
 from pid_tuner.serial_driver.serial_handler import SerialHandler
 from pid_tuner.ui.plot_widget import PlotWidget
@@ -152,6 +154,9 @@ class MainWindow(QMainWindow):
 
         self._encoder_overview = EncoderOverview(self._data_store, self._serial_handler)
         self._encoder_overview.joint_selected.connect(self._on_encoder_bar_clicked)
+        self._data_store.fc_motor_backend_changed.connect(
+            self._encoder_overview.on_fc_motor_backend_changed
+        )
         overview_layout.addWidget(self._encoder_overview, stretch=1)
 
         self._drive_wheel_display = DriveWheelDisplay(
@@ -408,6 +413,23 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(serial_group)
 
+        # Front caster backend (hub motors vs ODrives on actuators 9/10)
+        fc_group = QGroupBox("Front Casters")
+        fc_layout = QHBoxLayout(fc_group)
+        fc_layout.setSpacing(SIZES["spacing_small"])
+        fc_layout.addWidget(QLabel("Type:"))
+        self._fc_backend_combo = QComboBox()
+        self._fc_backend_combo.addItem("Hub Motors", FC_MOTOR_BACKEND_HUB)
+        self._fc_backend_combo.addItem("ODrive", FC_MOTOR_BACKEND_ODRIVE)
+        self._fc_backend_combo.setToolTip(
+            "Select which front-caster hardware is installed and flashed on the "
+            "Teensy (actuators 9/10). Must match firmware fc_motor_id."
+        )
+        self._fc_backend_combo.currentIndexChanged.connect(self._on_fc_backend_changed)
+        self._fc_backend_combo.setMinimumWidth(scaled(100))
+        fc_layout.addWidget(self._fc_backend_combo)
+        layout.addWidget(fc_group)
+
         # Joint selection group
         joint_group = QGroupBox("Joint Selection")
         joint_layout = QHBoxLayout(joint_group)
@@ -415,7 +437,7 @@ class MainWindow(QMainWindow):
 
         joint_layout.addWidget(QLabel("Joint:"))
         self._joint_combo = QComboBox()
-        for name in get_joint_names():
+        for name in get_joint_names(self._data_store.fc_motor_backend):
             self._joint_combo.addItem(name)
         self._joint_combo.currentIndexChanged.connect(self._on_joint_changed)
         self._joint_combo.setMinimumWidth(scaled(120))
@@ -528,6 +550,25 @@ class MainWindow(QMainWindow):
         """Handle serial error."""
         self._status_bar.showMessage(f"Error: {error_msg}", 5000)
 
+    def _on_fc_backend_changed(self, index: int):
+        backend = self._fc_backend_combo.itemData(index)
+        if backend:
+            self._data_store.fc_motor_backend = backend
+        self._refresh_joint_combo()
+
+    def _refresh_joint_combo(self):
+        current_id = get_joint_id_from_index(self._joint_combo.currentIndex())
+        backend = self._data_store.fc_motor_backend
+        self._joint_combo.blockSignals(True)
+        self._joint_combo.clear()
+        for name in get_joint_names(backend):
+            self._joint_combo.addItem(name)
+        idx = current_id - 1
+        if 0 <= idx < self._joint_combo.count():
+            self._joint_combo.setCurrentIndex(idx)
+        self._joint_combo.blockSignals(False)
+        self._update_joint_description()
+
     def _on_joint_changed(self, index: int):
         """Handle joint selection change."""
         joint_id = get_joint_id_from_index(index)
@@ -548,7 +589,7 @@ class MainWindow(QMainWindow):
     def _update_joint_description(self):
         """Update the joint description label."""
         joint_id = get_joint_id_from_index(self._joint_combo.currentIndex())
-        joint_info = get_joint_info(joint_id)
+        joint_info = get_joint_info(joint_id, self._data_store.fc_motor_backend)
         self._joint_desc_label.setText(joint_info.description)
 
     def _update_data_rate(self):
@@ -598,6 +639,16 @@ class MainWindow(QMainWindow):
         last_baud = self._settings.value("last_baud", "115200")
         self._baud_combo.setCurrentText(str(last_baud))
 
+        # Front caster backend (before joint combo refresh)
+        last_fc_backend = self._settings.value("fc_motor_backend", FC_MOTOR_BACKEND_HUB)
+        self._fc_backend_combo.blockSignals(True)
+        fc_index = self._fc_backend_combo.findData(last_fc_backend)
+        if fc_index >= 0:
+            self._fc_backend_combo.setCurrentIndex(fc_index)
+        self._fc_backend_combo.blockSignals(False)
+        self._data_store.fc_motor_backend = self._fc_backend_combo.currentData()
+        self._refresh_joint_combo()
+
         # Last joint selection
         last_joint = self._settings.value("last_joint", 0, type=int)
         if 0 <= last_joint < self._joint_combo.count():
@@ -611,6 +662,7 @@ class MainWindow(QMainWindow):
         self._settings.setValue("top_splitter", self._top_splitter.sizes())
         self._settings.setValue("last_port", self._port_combo.currentText())
         self._settings.setValue("last_baud", self._baud_combo.currentText())
+        self._settings.setValue("fc_motor_backend", self._data_store.fc_motor_backend)
         self._settings.setValue("last_joint", self._joint_combo.currentIndex())
 
     def closeEvent(self, a0):

@@ -3,7 +3,7 @@ Joint configuration and naming for the MEBot/RAMMP system.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 
 @dataclass
@@ -21,6 +21,11 @@ class JointInfo:
     def display_name(self) -> str:
         return f"Joint {self.id}: {self.name}"
 
+
+# Front-caster backends share actuator ids 9 (L) and 10 (R) on the wire.
+FC_MOTOR_BACKEND_HUB = "hub"
+FC_MOTOR_BACKEND_ODRIVE = "odrive"
+FC_MOTOR_BACKENDS = (FC_MOTOR_BACKEND_HUB, FC_MOTOR_BACKEND_ODRIVE)
 
 # Joint configurations based on EncoderContainer.h mapping
 JOINTS: List[JointInfo] = [
@@ -76,21 +81,72 @@ JOINTS: List[JointInfo] = [
     ),
 ]
 
-# Actuator ids 9–10 (motor_map): 9=hubMotorL, 10=hubMotorR
-HUB_MOTOR_ACTUATOR_IDS = (9, 10)
+# Actuator ids 9–10: hub motors or ODrives depending on firmware / GUI selection.
+FC_MOTOR_ACTUATOR_IDS = (9, 10)
+HUB_MOTOR_ACTUATOR_IDS = FC_MOTOR_ACTUATOR_IDS  # backward compat
+
+FC_MOTOR_JOINT_LABELS: Dict[str, Dict[int, Tuple[str, str, str]]] = {
+    FC_MOTOR_BACKEND_HUB: {
+        9: (
+            "Hub Motor L",
+            "HM_L",
+            "Left hub motor (actuator 9, robot-frame turns)",
+        ),
+        10: (
+            "Hub Motor R",
+            "HM_R",
+            "Right hub motor (actuator 10, robot-frame turns)",
+        ),
+    },
+    FC_MOTOR_BACKEND_ODRIVE: {
+        9: (
+            "ODrive L",
+            "ODR_L",
+            "Left ODrive front caster (actuator 9, robot-frame turns)",
+        ),
+        10: (
+            "ODrive R",
+            "ODR_R",
+            "Right ODrive front caster (actuator 10, robot-frame turns)",
+        ),
+    },
+}
+
+FC_MOTOR_SEQUENCE_NAMES: Dict[str, Tuple[str, str]] = {
+    FC_MOTOR_BACKEND_HUB: ("HM_R", "HM_L"),
+    FC_MOTOR_BACKEND_ODRIVE: ("OD_R", "OD_L"),
+}
 
 # Create lookup dictionary by ID
 JOINT_BY_ID: Dict[int, JointInfo] = {joint.id: joint for joint in JOINTS}
 
 
-def get_joint_info(joint_id: int) -> JointInfo:
-    """Get joint info by ID (1-indexed)."""
+def _normalize_fc_backend(fc_backend: str) -> str:
+    if fc_backend in FC_MOTOR_BACKENDS:
+        return fc_backend
+    return FC_MOTOR_BACKEND_HUB
+
+
+def get_joint_info(joint_id: int, fc_backend: str = FC_MOTOR_BACKEND_HUB) -> JointInfo:
+    """Get joint info by ID (1-indexed), with FC motor labels for joints 9–10."""
+    backend = _normalize_fc_backend(fc_backend)
+    if joint_id in FC_MOTOR_JOINT_LABELS.get(backend, {}):
+        name, short, desc = FC_MOTOR_JOINT_LABELS[backend][joint_id]
+        return JointInfo(id=joint_id, name=name, short_name=short, description=desc)
     return JOINT_BY_ID.get(joint_id, JOINTS[0])
 
 
-def get_joint_names() -> List[str]:
+def get_joint_names(fc_backend: str = FC_MOTOR_BACKEND_HUB) -> List[str]:
     """Get list of joint display names for dropdown."""
-    return [joint.display_name() for joint in JOINTS]
+    backend = _normalize_fc_backend(fc_backend)
+    names: List[str] = []
+    for joint in JOINTS:
+        if joint.id in FC_MOTOR_JOINT_LABELS.get(backend, {}):
+            info = get_joint_info(joint.id, backend)
+            names.append(info.display_name())
+        else:
+            names.append(joint.display_name())
+    return names
 
 
 def get_joint_id_from_index(index: int) -> int:
@@ -98,11 +154,24 @@ def get_joint_id_from_index(index: int) -> int:
     return index + 1
 
 
+def is_fc_motor_actuator(joint_id: int) -> bool:
+    """True for front-caster actuators 9 and 10 (hub or ODrive)."""
+    return joint_id in FC_MOTOR_ACTUATOR_IDS
+
+
 def is_hub_motor_actuator(joint_id: int) -> bool:
-    """True for hub motor axes (actuator ids 9 and 10)."""
-    return joint_id in HUB_MOTOR_ACTUATOR_IDS
+    """True when joint_id is a front-caster actuator (hub or ODrive)."""
+    return is_fc_motor_actuator(joint_id)
 
 
 def is_odrive_actuator(joint_id: int) -> bool:
-    """Deprecated alias for is_hub_motor_actuator."""
-    return is_hub_motor_actuator(joint_id)
+    """True when joint_id is a front-caster actuator (hub or ODrive)."""
+    return is_fc_motor_actuator(joint_id)
+
+
+def get_fc_motor_sequence_names(
+    fc_backend: str = FC_MOTOR_BACKEND_HUB,
+) -> Tuple[str, str]:
+    """Sequence table column labels for motors 9 and 10 (R, L order)."""
+    backend = _normalize_fc_backend(fc_backend)
+    return FC_MOTOR_SEQUENCE_NAMES[backend]

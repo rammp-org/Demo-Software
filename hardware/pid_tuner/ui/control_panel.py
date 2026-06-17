@@ -26,7 +26,6 @@ import os
 import numpy as np
 
 from ..data.data_store import DataStore
-from ..data.joint_config import is_hub_motor_actuator
 from ..serial_driver.serial_handler import SerialHandler
 from .theme import THEME
 from .scaling import SIZES, scaled
@@ -127,6 +126,9 @@ class ControlPanel(QWidget):
         # Connect mode banner to data store — only updates when data_store.control_mode
         # is explicitly set from a confirmed source (not the send path)
         self._data_store.mode_changed.connect(self._on_mode_confirmed)
+        self._data_store.fc_motor_backend_changed.connect(
+            self.on_fc_motor_backend_changed
+        )
 
     def _setup_ui(self):
         """Set up the control panel layout with scroll area."""
@@ -1504,29 +1506,33 @@ class ControlPanel(QWidget):
         self._serial_handler.seq_auto_run(True)
         self._serial_handler.seq_step_forward()
 
+    def on_fc_motor_backend_changed(self, _backend: str = ""):
+        self._last_ui_joint_id = None
+        self._sync_joint_ui_constraints(self._data_store.selected_joint)
+
     def _mode_units_for_joint(self, joint_id: int, mode: int) -> str:
-        if is_hub_motor_actuator(joint_id):
+        if self._data_store.is_fc_motor_joint(joint_id):
             return HUB_MOTOR_MODE_UNITS.get(mode, "turns")
         return MODE_UNITS.get(mode, "")
 
     def _sync_joint_ui_constraints(self, joint_id: int):
-        """Show/hide controls that do not apply to hub motor axes."""
+        """Show/hide controls that do not apply to front-caster axes (hub or ODrive)."""
         if joint_id == self._last_ui_joint_id:
             return
         self._last_ui_joint_id = joint_id
-        is_hub = is_hub_motor_actuator(joint_id)
+        is_fc = self._data_store.is_fc_motor_joint(joint_id)
 
-        self._clear_pid_btn.setVisible(not is_hub)
+        self._clear_pid_btn.setVisible(not is_fc)
         for widget in self._eeprom_config_widgets:
-            widget.setVisible(not is_hub)
+            widget.setVisible(not is_fc)
         for row in self._target_roboclaw_only_rows:
-            row.setVisible(not is_hub)
+            row.setVisible(not is_fc)
 
-        self._home_btn.setVisible(not is_hub)
+        self._home_btn.setVisible(not is_fc)
         self._pwm_row_label.setText("PWM:")
         self._pwm_percent_label.setVisible(True)
 
-        if is_hub:
+        if is_fc:
             mode = self._data_store._control_modes[joint_id - 1]
             self._current_mode = mode
             self._data_store.control_mode = mode
@@ -1579,7 +1585,7 @@ class ControlPanel(QWidget):
         # Update labels
         self._position_label.setText(f"{position:.4f}")
         self._velocity_label.setText(f"{velocity:.4f}")
-        if is_hub_motor_actuator(joint_id):
+        if self._data_store.is_fc_motor_joint(joint_id):
             self._pwm_label.setText("---")
             self._pwm_percent_label.setText("")
         else:
@@ -1590,8 +1596,8 @@ class ControlPanel(QWidget):
 
         # Color the error label based on magnitude
         value_font_size = SIZES["font_medium"]
-        err_ok = 0.05 if is_hub_motor_actuator(joint_id) else 10
-        err_warn = 0.2 if is_hub_motor_actuator(joint_id) else 100
+        err_ok = 0.05 if self._data_store.is_fc_motor_joint(joint_id) else 10
+        err_warn = 0.2 if self._data_store.is_fc_motor_joint(joint_id) else 100
         if abs(error) < err_ok:
             self._error_label.setStyleSheet(
                 f"font-weight: bold; font-size: {value_font_size}pt; color: green;"
@@ -1675,7 +1681,7 @@ class ControlPanel(QWidget):
     def _on_clear_pid(self):
         """Send reset PID command to clear integrator windup."""
         joint_id = self._data_store.selected_joint
-        if is_hub_motor_actuator(joint_id):
+        if self._data_store.is_fc_motor_joint(joint_id):
             return
         self._serial_handler.reset_pid(joint_id)
 
@@ -1790,7 +1796,7 @@ class ControlPanel(QWidget):
         self._step_unit_label.setText(unit)
         self._sine_amplitude_unit_label.setText(unit)
         self._mode_indicator_label.setText(MODE_NAMES.get(mode, "Unknown"))
-        if is_hub_motor_actuator(joint_id):
+        if self._data_store.is_fc_motor_joint(joint_id):
             self._apply_hub_motor_unit_labels(mode)
             self._data_store.control_mode = mode
             self._set_mode_banner_pending(mode)

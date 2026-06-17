@@ -22,7 +22,7 @@ from PyQt6.QtGui import QColor, QPainter, QPen, QBrush
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
 from ..data.data_store import DataStore
-from ..data.joint_config import JOINTS, is_hub_motor_actuator
+from ..data.joint_config import JOINTS, get_joint_info, is_fc_motor_actuator
 from ..serial_driver.serial_handler import SerialHandler
 
 MODE_OPEN_LOOP = 0
@@ -62,6 +62,10 @@ class JointBox(QFrame):
 
     def set_selected(self, selected: bool):
         self._selected = selected
+        self.update()
+
+    def set_name(self, name: str):
+        self._name = name
         self.update()
 
     def paintEvent(self, a0):
@@ -255,7 +259,7 @@ class EncoderOverview(QWidget):
                 name=joint.short_name,
                 color=color,
             )
-            if is_hub_motor_actuator(joint.id):
+            if is_fc_motor_actuator(joint.id):
                 box.set_limits(-50.0, 50.0)
             box.clicked.connect(self._on_box_clicked)
             self._boxes.append(box)
@@ -320,20 +324,21 @@ class EncoderOverview(QWidget):
         hub_controls = QHBoxLayout()
         hub_controls.setSpacing(SIZES["spacing_medium"])
 
-        hub_controls.addWidget(QLabel("Hub motors (9,10) Δ turns:"))
+        self._fc_motor_delta_label = QLabel("Hub motors (9,10) Δ turns:")
+        hub_controls.addWidget(self._fc_motor_delta_label)
         self._hub_motor_spin = QDoubleSpinBox()
         self._hub_motor_spin.setRange(-100.0, 100.0)
         self._hub_motor_spin.setDecimals(2)
         self._hub_motor_spin.setSingleStep(0.1)
         self._hub_motor_spin.setValue(0.1)
         self._hub_motor_spin.setToolTip(
-            "Relative delta applied to both hub motor R and L (robot-frame turns)"
+            "Relative delta applied to both front-caster R and L (robot-frame turns)"
         )
         hub_controls.addWidget(self._hub_motor_spin)
 
         btn_hub = QPushButton("Go")
         btn_hub.setToolTip(
-            "Position mode: target = current position + delta for HM_R and HM_L"
+            "Position mode: target = current position + delta for FC_R and FC_L"
         )
         btn_hub.clicked.connect(self._on_hub_motor_go)
         hub_controls.addWidget(btn_hub)
@@ -350,6 +355,23 @@ class EncoderOverview(QWidget):
 
         if self._boxes:
             self._boxes[0].set_selected(True)
+
+        self._update_fc_motor_labels()
+
+    @pyqtSlot(str)
+    def on_fc_motor_backend_changed(self, _backend: str):
+        self._update_fc_motor_labels()
+
+    def _update_fc_motor_labels(self):
+        backend = self._data_store.fc_motor_backend
+        for joint_id in (9, 10):
+            info = get_joint_info(joint_id, backend)
+            if joint_id - 1 < len(self._boxes):
+                self._boxes[joint_id - 1].set_name(info.short_name)
+        if self._data_store.uses_hub_motors():
+            self._fc_motor_delta_label.setText("Hub motors (9,10) Δ turns:")
+        else:
+            self._fc_motor_delta_label.setText("ODrives (9,10) Δ turns:")
 
     def _setup_timer(self):
         self._update_timer = QTimer(self)
@@ -397,8 +419,8 @@ class EncoderOverview(QWidget):
         delta = self._hub_motor_spin.value()
         self._serial_handler.clear_estop()
         hub_current = {
-            9: self._data_store.hub_motor_l_pos,
-            10: self._data_store.hub_motor_r_pos,
+            9: self._data_store.fc_caster_l_pos,
+            10: self._data_store.fc_caster_r_pos,
         }
         for joint_id in (9, 10):
             target = hub_current[joint_id] + delta

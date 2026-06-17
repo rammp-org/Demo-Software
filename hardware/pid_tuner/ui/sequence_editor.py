@@ -32,13 +32,14 @@ from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer
 from PyQt6.QtGui import QColor, QFont, QBrush
 
 from ..data.data_store import DataStore
+from ..data.joint_config import get_fc_motor_sequence_names
 from ..serial_driver.serial_handler import SerialHandler
 from ..serial_driver.keyframe import Keyframe, NUM_MOTORS
 from .theme import THEME, JOINT_COLORS
 from .scaling import SIZES, scaled
 
 
-MOTOR_NAMES = [
+MOTOR_NAMES_BASE = [
     "RC",
     "FC",
     "ML",
@@ -47,8 +48,6 @@ MOTOR_NAMES = [
     "MR_Car",
     "Drive_FB",
     "Drive_LR",
-    "OD_R",
-    "OD_L",
 ]
 
 COL_LABEL = 0
@@ -246,9 +245,8 @@ class SequenceEditor(QWidget):
         return bar
 
     def _build_table(self) -> QTableWidget:
-        headers = ["Label"] + MOTOR_NAMES
         self._table = QTableWidget(0, NUM_COLS)
-        self._table.setHorizontalHeaderLabels(headers)
+        self._update_fc_motor_table_headers()
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._table.setAlternatingRowColors(True)
@@ -468,6 +466,17 @@ class SequenceEditor(QWidget):
     def _wire_signals(self):
         self._serial_handler.seq_ack_received.connect(self._on_seq_ack)
         self._serial_handler.seq_status_received.connect(self._on_seq_status)
+        self._data_store.fc_motor_backend_changed.connect(
+            self._update_fc_motor_table_headers
+        )
+
+    def _motor_names(self) -> List[str]:
+        fc_r, fc_l = get_fc_motor_sequence_names(self._data_store.fc_motor_backend)
+        return MOTOR_NAMES_BASE + [fc_r, fc_l]
+
+    def _update_fc_motor_table_headers(self, _backend: str = ""):
+        headers = ["Label"] + self._motor_names()
+        self._table.setHorizontalHeaderLabels(headers)
 
     # ------------------------------------------------------------------ #
     #  Table population                                                     #
@@ -984,12 +993,12 @@ class SequenceEditor(QWidget):
                 if kf.relative[i]:
                     kf.targets[i] = 0.0
                 else:
-                    kf.targets[i] = round(self._data_store.hub_motor_r_pos, 2)
+                    kf.targets[i] = round(self._data_store.fc_caster_r_pos, 2)
             elif i == 9:
                 if kf.relative[i]:
                     kf.targets[i] = 0.0
                 else:
-                    kf.targets[i] = round(self._data_store.hub_motor_l_pos, 2)
+                    kf.targets[i] = round(self._data_store.fc_caster_l_pos, 2)
 
     # ------------------------------------------------------------------ #
     #  Step commands                                                        #

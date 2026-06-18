@@ -27,12 +27,19 @@
     memcpy((dst), _src, sizeof(_src));                                         \
   } while (0)
 
+// Actuator ids 9–10: L then R (matches motor_map / EEPROM indices 8–9).
 #define FILL_ALL_MOTORS(dst, rc_, fc_, ml_, mr_, mlc_, mrc_, dfb_, dlr_,       \
-                        fc_r_, fc_l_)                                          \
+                        fc_l_, fc_r_)                                          \
   do {                                                                         \
     MotorBase *_src[10] = {(rc_),  (fc_),  (ml_),  (mr_),   (mlc_),            \
-                           (mrc_), (dfb_), (dlr_), (fc_r_), (fc_l_)};          \
+                           (mrc_), (dfb_), (dlr_), (fc_l_), (fc_r_)};          \
     memcpy((dst), _src, sizeof(_src));                                         \
   } while (0)
+
+static inline void applyFcMotorAxisDirections(MotorBase *fc_l,
+                                              MotorBase *fc_r) {
+  fc_l->setDirection(FC_MOTOR_L_AXIS_DIR);
+  fc_r->setDirection(FC_MOTOR_R_AXIS_DIR);
+}
 
 #endif // FC_MOTORS_H

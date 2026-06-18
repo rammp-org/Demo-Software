@@ -92,14 +92,14 @@ HardwareSerial &odriveR_serial = Serial1;
 HardwareSerial &odriveL_serial = Serial7;
 ODriveUART odriveR(odriveR_serial);
 ODriveUART odriveL(odriveL_serial);
-ODrive ODriveR(odriveR);     // hardware == robot +X
-ODrive ODriveL(odriveL, -1); // flip hardware vs robot frame
+ODrive ODriveR(odriveR, FC_MOTOR_R_AXIS_DIR);
+ODrive ODriveL(odriveL, FC_MOTOR_L_AXIS_DIR);
 // hub motor init
 #elif (fc_motor_id == 2)
 HardwareSerial &hubMotorR_serial = Serial1;
 HardwareSerial &hubMotorL_serial = Serial7;
-HubMotor hubMotorR(1, hubMotorR_serial);
-HubMotor hubMotorL(-1, hubMotorL_serial);
+HubMotor hubMotorR(FC_MOTOR_R_AXIS_DIR, hubMotorR_serial);
+HubMotor hubMotorL(FC_MOTOR_L_AXIS_DIR, hubMotorL_serial);
 #else
 #error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
 #endif
@@ -579,10 +579,13 @@ void setup() {
 
   MotorBase *all_motors[10];
   FILL_ALL_MOTORS(all_motors, &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
-                  &drive_fb, &drive_lr, FC_MOTOR_R, FC_MOTOR_L);
+                  &drive_fb, &drive_lr, FC_MOTOR_L, FC_MOTOR_R);
   for (int i = 0; i < 10; i++) {
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
-    all_motors[i]->setDirection(conf.motor_dir);
+    // FC actuators 9–10: axis sign comes from FcMotorConfig.h, not EEPROM.
+    if (i < 8) {
+      all_motors[i]->setDirection(conf.motor_dir);
+    }
     all_motors[i]->setEncoderDirection(conf.encoder_dir);
     // Restore drive wheel kinematics encoder direction from EEPROM.
     // ml_enc_dir/mr_enc_dir are the runtime source of truth for drive wheel
@@ -625,6 +628,8 @@ void setup() {
           (signed long)(conf.saved_position / (float)conf.encoder_dir);
     }
   }
+
+  applyFcMotorAxisDirections(FC_MOTOR_L, FC_MOTOR_R);
 
   rc.attachStrainGauge(&sg_rc);
   fc.attachStrainGauge(&sg_fc);

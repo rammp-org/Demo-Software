@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "CommandDispatch.h"
-#include "src/FcMotorConfig/FcMotorConfig.h"
+#include "../FcMotorConfig/FcMotorConfig.h"
 #include "../CommandParser/CommandParser.h"
 #include "../MotorMap/MotorMap.h"
 #include "../MotorBase/MotorBase.h"

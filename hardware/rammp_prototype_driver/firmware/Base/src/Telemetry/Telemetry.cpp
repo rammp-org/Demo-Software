@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include "Telemetry.h"
-#include "src/FcMotorConfig/FcMotorConfig.h"
 #include "../Motor/Motor.h"
 #include "../IMU_Class/IMU_Class.h"
 #include "../StrainGauge/StrainGauge.h"

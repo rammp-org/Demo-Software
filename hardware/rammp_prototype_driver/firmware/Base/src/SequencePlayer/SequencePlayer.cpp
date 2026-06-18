@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "SequencePlayer.h"
-#include "src/FcMotorConfig/FcMotorConfig.h"
+#include "../FcMotorConfig/FcMotorConfig.h"
 #include "../MotorBase/MotorBase.h"
 #include "../CommandParser/CommandParser.h"
 #include "../CommandDispatch/CommandDispatch.h"

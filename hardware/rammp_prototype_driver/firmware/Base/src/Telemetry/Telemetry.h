@@ -2,7 +2,7 @@
 #define TELEMETRY_H
 
 #include <Arduino.h>
-#include "src/FcMotorConfig/FcMotorConfig.h"
+#include "../FcMotorConfig/FcMotorConfig.h"
 
 // Phase 4: State Machine
 enum SystemState {

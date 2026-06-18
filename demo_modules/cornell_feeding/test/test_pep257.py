@@ -19,5 +19,6 @@ import pytest
 @pytest.mark.linter
 @pytest.mark.pep257
 def test_pep257():
-    rc = main(argv=[".", "test"])
+    # Exclude the vendored upstream `rammp` tree; lint only first-party code.
+    rc = main(argv=[".", "test", "--exclude", "rammp"])
     assert rc == 0, "Found code style errors / warnings"

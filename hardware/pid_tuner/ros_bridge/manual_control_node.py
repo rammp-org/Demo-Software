@@ -3,10 +3,9 @@ from __future__ import annotations
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import String
-from pid_tuner.ros_bridge.luci_client import LuciClient
 
 DRIVE_WHEEL_JS_THRESHOLD = 0.5
-HUB_MOTOR_JS_THRESHOLD = 0.5
+FC_MOTOR_JS_THRESHOLD = 0.5
 AXIS_NEUTRAL_THRESHOLD = 0.15
 
 
@@ -21,10 +20,11 @@ class ManualControlNode(Node):
     STATE_IDLE = 1
     STATE_TUNER_MODE = 2
 
-    def __init__(self, serial_handler, luci_client: LuciClient):
+    def __init__(self, serial_handler, luci_client, data_store):
         super().__init__("manual_control_node")
         self._serial_handler = serial_handler
         self._luci_client = luci_client
+        self._data_store = data_store
 
         self.cal_test_pub = self.create_publisher(String, "cal_test", 10)
         # Local toggle state (do not depend on Teensy telemetry here)
@@ -33,7 +33,7 @@ class ManualControlNode(Node):
         self._prev_estop_pressed = False
         self._prev_cal_pressed = False
         self._calibrating = False
-        self.hub_motors_active = False
+        self.fc_motors_active = False
         self.last_pwm_array = [0, 0, 0, 0, 0, 0]
         self.drive_wheel_active = False
         self.axes_centered = False
@@ -78,13 +78,28 @@ class ManualControlNode(Node):
             and abs(axis3) <= AXIS_NEUTRAL_THRESHOLD
         )
 
+    def _stop_fc_motors(self) -> None:
+        if self._data_store.uses_odrive:
+            self.write_serial_data("s:0.0000\n")
+        else:
+            self.write_serial_data("T9:0.00\nT10:0.00\n")
+
+    def _start_fc_motors(self, direction: int) -> None:
+        if self._data_store.uses_odrive:
+            self.write_serial_data(f"s:{direction * 2:.4f}\n")
+        else:
+            pwm = 0.2 * direction
+            self.write_serial_data(f"M9:0\nM10:0\nT9:{pwm:.2f}\nT10:{pwm:.2f}\n")
+
     def _trigger_estop(self) -> None:
         self.state = self.STATE_IDLE
-        self.hub_motors_active = False
+        self.fc_motors_active = False
         self.drive_wheel_active = False
         self.last_pwm_array = [0, 0, 0, 0, 0, 0]
         self._calibrating = False
-        self.write_serial_data("s:0.0000\nT1:0\nT2:0\nT3:0\nT4:0\nT5:0\nT6:0\n")
+        self.write_serial_data(
+            "s:0.0000\nT9:0.00\nT10:0.00\nT1:0\nT2:0\nT3:0\nT4:0\nT5:0\nT6:0\n"
+        )
         self._luci_client.request_stop_drive()
         self._serial_handler.disable_motors()
 
@@ -108,16 +123,20 @@ class ManualControlNode(Node):
                     self.axes_centered = False
                     self.status_pub.publish(
                         String(
-                            data="Center drive sticks (axes 0/1) and hub motor stick (axis 3), then press Start again"
+                            data=(
+                                "Center drive sticks (axes 0/1/3), "
+                                "then press Start again"
+                            )
                         )
                     )
                 else:
                     self.axes_centered = True
                     self.state = self.STATE_TUNER_MODE
-                    self.hub_motors_active = False
+                    self.fc_motors_active = False
                     self.drive_wheel_active = False
                     self.write_serial_data(
-                        "M1:0\nM2:0\nM3:0\nM4:0\nM5:0\nM6:0\ns:0.0000\n"
+                        "M1:0\nM2:0\nM3:0\nM4:0\nM5:0\nM6:0\n"
+                        "s:0.0000\nT9:0.00\nT10:0.00\n"
                     )
                     self._luci_client.request_stop_drive()
                     entered_manual = True
@@ -151,27 +170,21 @@ class ManualControlNode(Node):
             buttons_all_zeros = not any(buttons_array)
             axes_all_zeros = not any(abs(axis) > 0.15 for axis in axes_array)
             if buttons_all_zeros and axes_all_zeros:
-                if self.hub_motors_active:
-                    self.hub_motors_active = False
-                    self.write_serial_data("s:0.0000\n")
+                if self.fc_motors_active:
+                    self.fc_motors_active = False
+                    self._stop_fc_motors()
                 if self.drive_wheel_active:
                     self.drive_wheel_active = False
                     self._luci_client.request_gamepad_drive(0, 0)
                 return
 
-            # Matched hub motor velocity (axis 3 -> s:<vel> on both motors)
-
-            if (
-                abs(axes_array[3]) > HUB_MOTOR_JS_THRESHOLD
-                and not self.hub_motors_active
-            ):
-                self.hub_motors_active = True
-                direction = 1 if axes_array[3] > 0 else -1
-                pwm = 0.2 * direction
-                self.write_serial_data(f"M9:0\nM10:0\nT9:{pwm:.2f}\nT10:{pwm:.2f}\n")
-            elif abs(axes_array[3]) < HUB_MOTOR_JS_THRESHOLD and self.hub_motors_active:
-                self.hub_motors_active = False
-                self.write_serial_data("T9:0.00\nT10:0.00\n")
+            if abs(axes_array[3]) > FC_MOTOR_JS_THRESHOLD and not self.fc_motors_active:
+                self.fc_motors_active = True
+                fc_direction = 1 if axes_array[3] > 0 else -1
+                self._start_fc_motors(fc_direction)
+            elif abs(axes_array[3]) < FC_MOTOR_JS_THRESHOLD and self.fc_motors_active:
+                self.fc_motors_active = False
+                self._stop_fc_motors()
 
             # Drive wheels via LUCI (axes 0 = fb, 1 = lr; scaled to -100..100)
             axis0 = axes_array[0] if len(axes_array) > 0 else 0.0

@@ -107,7 +107,9 @@ class MainWindow(QMainWindow):
         try:
             if not rclpy.ok():
                 rclpy.init()
-            self._ros_node = ManualControlNode(self._serial_handler, self._luci_client)
+            self._ros_node = ManualControlNode(
+                self._serial_handler, self._luci_client, self._data_store
+            )
             self._ros_thread = threading.Thread(
                 target=rclpy.spin, args=(self._ros_node,), daemon=True
             )

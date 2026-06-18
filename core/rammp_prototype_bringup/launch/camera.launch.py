@@ -122,19 +122,28 @@ def generate_launch_description():
                 TimerAction(
                     period=8.0,
                     actions=[
+                        # camera_namespace=camera + camera_name=wrist => topics under
+                        # /camera/wrist/* (what Gui_bridge, cornell_feeding perception and
+                        # the ROS spec subscribe to). The realsense wrapper already applies
+                        # camera_namespace as the node namespace, so do NOT also wrap this
+                        # in PushRosNamespace (that double-namespaces to /camera/camera/...).
                         IncludeLaunchDescription(
                             PythonLaunchDescriptionSource(realsense_launch),
                             launch_arguments={
+                                "camera_namespace": "camera",
                                 "camera_name": wrist_camera_name,
                                 "serial_no": wrist_serial,
                                 "base_frame_id": wrist_base_frame,
                                 "rgb_camera.color_profile": "640x480x15",
                                 "depth_module.depth_profile": "640x480x15",
                                 "align_depth.enable": "true",
+                                # Power-cycle the device on start; helps with the
+                                # D435i "Depth stream start failure" on Jetson.
+                                "initial_reset": "true",
                                 "enable_gyro": "true",
                                 "enable_accel": "true",
                                 # unite_imu_method=2: linear interpolation merges
-                                # gyro + accel into a single /wrist/imu topic
+                                # gyro + accel into a single imu topic
                                 "unite_imu_method": "2",
                                 "pointcloud.enable": "false",
                                 "log_level": "warn",

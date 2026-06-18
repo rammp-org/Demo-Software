@@ -12,3 +12,30 @@ python3-scipy:
   ubuntu:
     pip:
       packages: []
+
+# --- cornell_feeding: PRPL planning stack (git-hosted, no public rosdep key) ---
+python3-pybullet-helpers-pip:
+  ubuntu:
+    pip:
+      packages: ["pybullet_helpers@git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git#subdirectory=pybullet-helpers"]
+
+python3-relational-structs-pip:
+  ubuntu:
+    pip:
+      packages: ["relational_structs@git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git#subdirectory=relational-structs"]
+
+python3-prpl-utils-pip:
+  ubuntu:
+    pip:
+      packages: ["prpl-utils@git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git#subdirectory=prpl-utils"]
+
+python3-tomsutils-pip:
+  ubuntu:
+    pip:
+      packages: ["tomsutils@git+https://github.com/tomsilver/toms-utils.git"]
+
+# cornell_feeding: mediapipe needs protobuf>=4.25.3,<5 (apt python3-protobuf is too old).
+python3-protobuf-pip:
+  ubuntu:
+    pip:
+      packages: ["protobuf>=4.25.3,<5"]

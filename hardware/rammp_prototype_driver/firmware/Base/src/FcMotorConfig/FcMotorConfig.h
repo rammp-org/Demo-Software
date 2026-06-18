@@ -10,4 +10,8 @@
 #error "fc_motor_id must be 1 (ODrive) or 2 (hub motors)"
 #endif
 
+// Sequence table slots 8–9: front-caster R then L (matches motor list in
+// Base.ino).
+#define SEQ_FC_START 8
+
 #endif // FC_MOTOR_CONFIG_H

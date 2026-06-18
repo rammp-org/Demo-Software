@@ -9,9 +9,6 @@
 #define SEQ_NUM_MOTORS 10
 #endif
 
-// Sequence table slots 8–9: R then L (matches motor list in Base.ino).
-#define SEQ_FC_START 8
-
 #if (fc_motor_id == 1)
 #define FC_MOTOR_SERIAL_BAUD 460800
 #elif (fc_motor_id == 2)

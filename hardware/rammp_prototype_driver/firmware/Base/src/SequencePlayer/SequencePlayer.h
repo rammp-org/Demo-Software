@@ -11,8 +11,8 @@ struct RobotCommand;
 #define SEQ_NUM_POS_MOTORS 6
 #define SEQ_DRIVE_START                                                        \
   6 // drive_fb, drive_lr (synthetic encoder origin zeroed on enter)
-#include "src/FcMotorConfig/FcMotors.h"
-// SEQ_FC_START (8): sequence slots for front-caster R then L (ODrive or hub)
+// SEQ_FC_START (8): sequence slots for front-caster R then L — see
+// FcMotorConfig.h
 
 static const float SEQ_COMPLETION_DEADZONE[SEQ_NUM_MOTORS] = {
     50.0f,   // 0: RC

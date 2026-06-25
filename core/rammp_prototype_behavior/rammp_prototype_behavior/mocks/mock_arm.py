@@ -126,6 +126,11 @@ class KinovaArm:
         self.gripper_position = 1.0
         self._gripper_position_command(1, blocking)
 
+    def set_gripper_position(self, value, blocking=True):
+        value = min(max(float(value), 0.0), 1.0)
+        self.gripper_position = value
+        self._gripper_position_command(value, blocking)
+
     def choose_from_speed_presets(self, speed_preset: SpeedPreset):
         if not isinstance(speed_preset, SpeedPreset) or speed_preset in [
             SpeedPreset.DEFAULT,

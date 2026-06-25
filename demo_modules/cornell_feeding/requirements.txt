@@ -1,0 +1,14 @@
+numpy==1.26.4
+scipy==1.15.3
+PyYAML
+opencv-python
+defusedxml
+imageio
+mediapipe
+open3d
+pybullet
+protobuf>=4.25.3,<5
+pybullet_helpers @ git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git#subdirectory=pybullet-helpers
+relational_structs @ git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git#subdirectory=relational-structs
+prpl-utils @ git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git#subdirectory=prpl-utils
+tomsutils @ git+https://github.com/tomsilver/toms-utils.git

@@ -1,0 +1,12 @@
+# MEBot 4-key keypad (SayoDevice 1x4P, USB 8089:000c).
+#
+# The pad exposes several input event nodes. The W/E/R/T presses are delivered
+# only on USB interface 0 (its event-kbd node); the interface-1 keyboard/mouse
+# collections advertise the keys but never emit them. Match interface 0 so the
+# symlink points at the one node that actually fires.
+#
+# Install:
+#   sudo cp 99-mebot-keypad.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload && sudo udevadm trigger
+# Then /dev/mebot_keypad -> the emitting event node (stable across reboots).
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="8089", ATTRS{idProduct}=="000c", ENV{ID_USB_INTERFACE_NUM}=="00", ENV{ID_INPUT_KEYBOARD}=="1", SYMLINK+="mebot_keypad", MODE="0660", GROUP="input"

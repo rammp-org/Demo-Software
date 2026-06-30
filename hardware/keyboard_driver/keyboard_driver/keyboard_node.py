@@ -53,11 +53,13 @@ class KeyboardNode(Node):
             try:
                 return [self._finalize_device(InputDevice(self.device_path))]
             except (OSError, PermissionError) as e:
-                self.get_logger().error(
-                    f"Failed to open {self.device_path}: {e}. "
-                    "Is the user in the 'input' group?"
+                # Don't hard-fail: the udev symlink may not be installed on this
+                # machine. Warn and fall through to capability-based auto-select.
+                self.get_logger().warn(
+                    f"Could not open device_path '{self.device_path}' ({e}); "
+                    "falling back to auto-select. (Is the udev rule installed and "
+                    "the user in the 'input' group?)"
                 )
-                return []
 
         # A composite keypad exposes several event nodes, and more than one may
         # *advertise* the target keys while only one actually emits them. Rather

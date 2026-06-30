@@ -12,10 +12,10 @@ def generate_launch_description():
                 output="screen",
                 parameters=[
                     {
-                        # Empty device_path => auto-select the node that advertises
-                        # the target keys. Set an explicit /dev/input/eventX to pin
-                        # it. device_name is only a fallback substring filter.
-                        "device_path": "",
+                        # Stable symlink from udev/99-mebot-keypad.rules. If it's
+                        # not installed, the node warns and falls back to
+                        # auto-selecting the node(s) that advertise the target keys.
+                        "device_path": "/dev/mebot_keypad",
                         "device_name": "",
                         "grab_device": False,
                     }

@@ -1,5 +1,6 @@
 import threading
 import time
+from select import select
 
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -37,69 +38,67 @@ class KeyboardNode(Node):
         # Phase 1 plumbing output: publish the action label per keypress.
         self.event_pub = self.create_publisher(String, "/keyboard/event", 10)
 
-        # evdev's read_loop() blocks, so run it in a daemon thread alongside the
-        # rclpy executor. The thread also handles (re)opening the device.
-        self._device = None
+        # evdev reads block, so run them in a daemon thread alongside the rclpy
+        # executor. The thread also handles (re)opening the devices.
+        self._devices = []
         self._read_thread = threading.Thread(target=self._read_loop, daemon=True)
         self._read_thread.start()
 
         self.get_logger().info("keyboard_node initialized...")
 
-    def _open_device(self):
+    def _open_devices(self):
         from evdev import InputDevice, ecodes, list_devices
 
-        try:
-            if self.device_path:
-                return self._finalize_device(InputDevice(self.device_path))
-
-            # Auto-select by capability: prefer the node that actually advertises
-            # our target keys. Composite keypads expose several event nodes, and
-            # the one whose *name* contains "keyboard" is often NOT the one that
-            # delivers the keypresses (it's a sibling HID collection).
-            target_codes = {
-                ecodes.ecodes[name] for name in KEY_TO_ACTION if name in ecodes.ecodes
-            }
-            best = None  # (rank_tuple, dev)
-            available = []
-            for path in list_devices():
-                try:
-                    dev = InputDevice(path)
-                except OSError:
-                    continue
-                keys = set(dev.capabilities().get(ecodes.EV_KEY, []))
-                has_all = target_codes.issubset(keys)
-                has_any = bool(target_codes & keys)
-                name_match = bool(
-                    self.device_name and self.device_name.lower() in dev.name.lower()
-                )
-                available.append(
-                    f"{path} -> {dev.name} "
-                    f"[has_all={has_all}, has_any={has_any}, name_match={name_match}]"
-                )
-                rank = (has_all, has_any, name_match)
-                if any(rank) and (best is None or rank > best[0]):
-                    best = (rank, dev)
-            self.get_logger().info(
-                "Candidate input devices:\n  " + "\n  ".join(available)
-            )
-            if best is None:
+        if self.device_path:
+            try:
+                return [self._finalize_device(InputDevice(self.device_path))]
+            except (OSError, PermissionError) as e:
                 self.get_logger().error(
-                    "No input device advertises the target keys "
-                    f"({sorted(KEY_TO_ACTION)}) or matches "
-                    f"device_name='{self.device_name}'."
+                    f"Failed to open {self.device_path}: {e}. "
+                    "Is the user in the 'input' group?"
                 )
-                return None
-            return self._finalize_device(best[1])
-        except (OSError, PermissionError) as e:
-            self.get_logger().error(
-                f"Failed to open input device: {e}. Is the user in the 'input' group?"
+                return []
+
+        # A composite keypad exposes several event nodes, and more than one may
+        # *advertise* the target keys while only one actually emits them. Rather
+        # than guess, open every candidate (any node that advertises a target key,
+        # or matches device_name) and read them all — the phantom nodes simply
+        # never fire.
+        target_codes = {
+            ecodes.ecodes[name] for name in KEY_TO_ACTION if name in ecodes.ecodes
+        }
+        chosen = []
+        available = []
+        for path in list_devices():
+            try:
+                dev = InputDevice(path)
+            except OSError:
+                continue
+            keys = set(dev.capabilities().get(ecodes.EV_KEY, []))
+            has_any = bool(target_codes & keys)
+            name_match = bool(
+                self.device_name and self.device_name.lower() in dev.name.lower()
             )
-            return None
+            selected = has_any or name_match
+            available.append(
+                f"{path} -> {dev.name} "
+                f"[has_any={has_any}, name_match={name_match}, selected={selected}]"
+            )
+            if selected:
+                chosen.append(self._finalize_device(dev))
+        self.get_logger().info("Candidate input devices:\n  " + "\n  ".join(available))
+        if not chosen:
+            self.get_logger().error(
+                "No input device advertises the target keys "
+                f"({sorted(KEY_TO_ACTION)}) or matches "
+                f"device_name='{self.device_name}'."
+            )
+        return chosen
 
     def _finalize_device(self, dev):
         if self.grab_device:
             dev.grab()
-        self.get_logger().info(f"Using keyboard device: {dev.path} ({dev.name})")
+        self.get_logger().info(f"Listening on input device: {dev.path} ({dev.name})")
         return dev
 
     def _read_loop(self):
@@ -107,31 +106,35 @@ class KeyboardNode(Node):
 
         backoff = 1.0
         while rclpy.ok():
-            if self._device is None:
-                self._device = self._open_device()
-                if self._device is None:
+            if not self._devices:
+                self._devices = self._open_devices()
+                if not self._devices:
                     time.sleep(backoff)
                 continue
             try:
-                for event in self._device.read_loop():
-                    # Only act on key-down (value 1); ignore autorepeat (2) and key-up (0).
-                    if event.type != ecodes.EV_KEY or event.value != 1:
-                        continue
-                    key_name = ecodes.KEY[event.code]
-                    if isinstance(key_name, (list, tuple)):
-                        key_name = next(
-                            (k for k in key_name if k in KEY_TO_ACTION), key_name[0]
-                        )
-                    action = KEY_TO_ACTION.get(key_name)
-                    if action is None:
-                        self.get_logger().debug(f"Ignoring key {key_name}")
-                        continue
-                    self._handle_action(key_name, action)
+                # 0.5 s timeout so the loop periodically re-checks rclpy.ok().
+                ready, _, _ = select(self._devices, [], [], 0.5)
+                for dev in ready:
+                    for event in dev.read():
+                        self._handle_event(ecodes, event)
             except OSError as e:
                 self.get_logger().warn(
                     f"Keyboard device read error ({e}); will attempt to reconnect."
                 )
-                self._device = None
+                self._devices = []
+
+    def _handle_event(self, ecodes, event):
+        # Only act on key-down (value 1); ignore autorepeat (2) and key-up (0).
+        if event.type != ecodes.EV_KEY or event.value != 1:
+            return
+        key_name = ecodes.KEY[event.code]
+        if isinstance(key_name, (list, tuple)):
+            key_name = next((k for k in key_name if k in KEY_TO_ACTION), key_name[0])
+        action = KEY_TO_ACTION.get(key_name)
+        if action is None:
+            self.get_logger().debug(f"Ignoring key {key_name}")
+            return
+        self._handle_action(key_name, action)
 
     def _handle_action(self, key_name, action):
         self.get_logger().info(f"Key {key_name} -> action '{action}'")

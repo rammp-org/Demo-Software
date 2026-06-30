@@ -12,10 +12,11 @@ def generate_launch_description():
                 output="screen",
                 parameters=[
                     {
-                        # Leave device_path empty to auto-match by name; or set an
-                        # explicit /dev/input/eventX path.
+                        # Empty device_path => auto-select the node that advertises
+                        # the target keys. Set an explicit /dev/input/eventX to pin
+                        # it. device_name is only a fallback substring filter.
                         "device_path": "",
-                        "device_name": "keyboard",
+                        "device_name": "",
                         "grab_device": False,
                     }
                 ],

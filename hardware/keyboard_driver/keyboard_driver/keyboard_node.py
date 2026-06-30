@@ -19,8 +19,9 @@ class KeyboardNode(Node):
             self.get_parameter("device_path").get_parameter_value().string_value
         )
 
-        # Otherwise, pick the first device whose name contains this substring.
-        self.declare_parameter("device_name", "keyboard")
+        # Optional name-substring fallback used only if capability-based
+        # selection can't single out a device. Leave empty for pure auto-select.
+        self.declare_parameter("device_name", "")
         self.device_name = (
             self.get_parameter("device_name").get_parameter_value().string_value
         )
@@ -45,35 +46,61 @@ class KeyboardNode(Node):
         self.get_logger().info("keyboard_node initialized...")
 
     def _open_device(self):
-        from evdev import InputDevice, list_devices
+        from evdev import InputDevice, ecodes, list_devices
 
         try:
             if self.device_path:
-                dev = InputDevice(self.device_path)
-            else:
-                dev = None
-                available = []
-                for path in list_devices():
-                    candidate = InputDevice(path)
-                    available.append(f"{path} -> {candidate.name}")
-                    if self.device_name.lower() in candidate.name.lower():
-                        dev = candidate
-                        break
-                if dev is None:
-                    self.get_logger().error(
-                        f"No input device matching name '{self.device_name}'. "
-                        f"Available devices: {available}"
-                    )
-                    return None
-            if self.grab_device:
-                dev.grab()
-            self.get_logger().info(f"Opened keyboard device: {dev.path} ({dev.name})")
-            return dev
+                return self._finalize_device(InputDevice(self.device_path))
+
+            # Auto-select by capability: prefer the node that actually advertises
+            # our target keys. Composite keypads expose several event nodes, and
+            # the one whose *name* contains "keyboard" is often NOT the one that
+            # delivers the keypresses (it's a sibling HID collection).
+            target_codes = {
+                ecodes.ecodes[name] for name in KEY_TO_ACTION if name in ecodes.ecodes
+            }
+            best = None  # (rank_tuple, dev)
+            available = []
+            for path in list_devices():
+                try:
+                    dev = InputDevice(path)
+                except OSError:
+                    continue
+                keys = set(dev.capabilities().get(ecodes.EV_KEY, []))
+                has_all = target_codes.issubset(keys)
+                has_any = bool(target_codes & keys)
+                name_match = bool(
+                    self.device_name and self.device_name.lower() in dev.name.lower()
+                )
+                available.append(
+                    f"{path} -> {dev.name} "
+                    f"[has_all={has_all}, has_any={has_any}, name_match={name_match}]"
+                )
+                rank = (has_all, has_any, name_match)
+                if any(rank) and (best is None or rank > best[0]):
+                    best = (rank, dev)
+            self.get_logger().info(
+                "Candidate input devices:\n  " + "\n  ".join(available)
+            )
+            if best is None:
+                self.get_logger().error(
+                    "No input device advertises the target keys "
+                    f"({sorted(KEY_TO_ACTION)}) or matches "
+                    f"device_name='{self.device_name}'."
+                )
+                return None
+            return self._finalize_device(best[1])
         except (OSError, PermissionError) as e:
             self.get_logger().error(
                 f"Failed to open input device: {e}. Is the user in the 'input' group?"
             )
             return None
+
+    def _finalize_device(self, dev):
+        if self.grab_device:
+            dev.grab()
+        self.get_logger().info(f"Using keyboard device: {dev.path} ({dev.name})")
+        return dev
 
     def _read_loop(self):
         from evdev import ecodes

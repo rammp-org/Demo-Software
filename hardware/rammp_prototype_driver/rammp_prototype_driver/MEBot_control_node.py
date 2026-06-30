@@ -571,7 +571,9 @@ class MEBotControlNode(Node):
         msg.linear_acceleration.x = self.accel_x
         msg.linear_acceleration.y = self.accel_y
         msg.linear_acceleration.z = self.accel_z
-
+        msg.roll = self.imu_roll
+        msg.pitch = self.imu_pitch
+        msg.yaw = self.imu_yaw
         # TODO: add angular velocity
         try:
             msg.tilt = math.acos(

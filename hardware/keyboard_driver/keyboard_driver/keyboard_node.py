@@ -3,11 +3,23 @@ import time
 from select import select
 
 import rclpy
+from gui_interfaces.msg import SystemState
+from gui_interfaces.srv import UserInputs
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from std_msgs.msg import String
 
-from keyboard_driver.key_map import KEY_TO_ACTION
+from keyboard_driver import key_map
+
+# Map symbolic actions from key_map.resolve_action() to UserInputs.Request
+# strings. Kept here (not in key_map) so key_map stays ROS-free / host-testable.
+ACTION_TO_USERINPUT = {
+    key_map.ASCEND: UserInputs.Request.CHAIR_CURB_ASCEND,
+    key_map.DESCEND: UserInputs.Request.CHAIR_CURB_DESCEND,
+    key_map.CONFIRM: UserInputs.Request.CONFIRM,
+    key_map.SELFLEVEL_ON: UserInputs.Request.CHAIR_SELFLEVELING_ON,
+    key_map.CANCEL: UserInputs.Request.CANCEL,
+}
 
 
 class KeyboardNode(Node):
@@ -35,7 +47,24 @@ class KeyboardNode(Node):
 
         self._cb_group = ReentrantCallbackGroup()
 
-        # Phase 1 plumbing output: publish the action label per keypress.
+        # Inject commands into the state machine like the GUI/gamepad do.
+        self.user_input_service_client = self.create_client(
+            UserInputs, "/GuiBridge/user_input", callback_group=self._cb_group
+        )
+
+        # Track the authoritative system state so a key resolves to the right
+        # command (e.g. W -> arm vs W -> confirm). Set in the executor thread,
+        # read in the evdev thread; a plain string assignment is atomic enough.
+        self._current_state = ""
+        self.system_state_sub = self.create_subscription(
+            SystemState,
+            "/system/state",
+            self._system_state_callback,
+            10,
+            callback_group=self._cb_group,
+        )
+
+        # Debug echo of the command actually sent, for `ros2 topic echo`.
         self.event_pub = self.create_publisher(String, "/keyboard/event", 10)
 
         # evdev reads block, so run them in a daemon thread alongside the rclpy
@@ -45,6 +74,9 @@ class KeyboardNode(Node):
         self._read_thread.start()
 
         self.get_logger().info("keyboard_node initialized...")
+
+    def _system_state_callback(self, msg):
+        self._current_state = msg.state
 
     def _open_devices(self):
         from evdev import InputDevice, ecodes, list_devices
@@ -67,7 +99,7 @@ class KeyboardNode(Node):
         # or matches device_name) and read them all — the phantom nodes simply
         # never fire.
         target_codes = {
-            ecodes.ecodes[name] for name in KEY_TO_ACTION if name in ecodes.ecodes
+            ecodes.ecodes[name] for name in key_map.TARGET_KEYS if name in ecodes.ecodes
         }
         chosen = []
         available = []
@@ -92,7 +124,7 @@ class KeyboardNode(Node):
         if not chosen:
             self.get_logger().error(
                 "No input device advertises the target keys "
-                f"({sorted(KEY_TO_ACTION)}) or matches "
+                f"({list(key_map.TARGET_KEYS)}) or matches "
                 f"device_name='{self.device_name}'."
             )
         return chosen
@@ -131,18 +163,51 @@ class KeyboardNode(Node):
             return
         key_name = ecodes.KEY[event.code]
         if isinstance(key_name, (list, tuple)):
-            key_name = next((k for k in key_name if k in KEY_TO_ACTION), key_name[0])
-        action = KEY_TO_ACTION.get(key_name)
+            key_name = next(
+                (k for k in key_name if key_map.resolve_action(k, "") is not None),
+                key_name[0],
+            )
+        self._handle_key(key_name)
+
+    def _handle_key(self, key_name):
+        action = key_map.resolve_action(key_name, self._current_state)
         if action is None:
             self.get_logger().debug(f"Ignoring key {key_name}")
             return
-        self._handle_action(key_name, action)
-
-    def _handle_action(self, key_name, action):
-        self.get_logger().info(f"Key {key_name} -> action '{action}'")
+        command = ACTION_TO_USERINPUT[action]
+        self.get_logger().info(
+            f"Key {key_name} (state={self._current_state or 'unknown'}) "
+            f"-> {action} -> '{command}'"
+        )
+        ok = self.send_user_input(command)
+        # Debug echo for `ros2 topic echo /keyboard/event`.
         msg = String()
-        msg.data = action
+        msg.data = command if ok else f"rejected:{command}"
         self.event_pub.publish(msg)
+
+    def send_user_input(self, command):
+        if not self.user_input_service_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().error("/GuiBridge/user_input service is not available.")
+            return False
+        request = UserInputs.Request()
+        request.input = command
+        future = self.user_input_service_client.call_async(request)
+        done = threading.Event()
+        future.add_done_callback(lambda _: done.set())
+        done.wait(timeout=5.0)
+        if not future.done():
+            self.get_logger().error("User input service call timed out.")
+            return False
+        result = future.result()
+        if result is None:
+            self.get_logger().error("User input service call failed.")
+            return False
+        if not result.success:
+            self.get_logger().warn(
+                f"State machine rejected '{command}' in state "
+                f"'{self._current_state or 'unknown'}': {result.message}"
+            )
+        return result.success
 
 
 def main(args=None):

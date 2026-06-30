@@ -64,9 +64,18 @@ Build incrementally, verifying the ROS plumbing before wiring any real behavior.
   action name as a `std_msgs/String` on a dummy topic `/keyboard/event`. Goal: prove
   the device read + ROS node + build/launch all work end-to-end, observable with
   `ros2 topic echo /keyboard/event`. No `UserInputs` service client yet.
-- **Phase 2 (later): hook to the state machine.** Replace the dummy publish with the
-  `send_user_input()` service-client call to `/GuiBridge/user_input` (the verified
-  design below), mapping keys to `UserInputs.Request` constants.
+- **Phase 2 (done): state-aware hook to the state machine.** The node calls
+  `/GuiBridge/user_input` (gamepad's `send_user_input()` pattern) and subscribes to
+  `/system/state` so each key resolves to the right command for the current state:
+  - W: `chair/curb/ascend` from `Nav_SLOff`/`Nav_SLOn`, else `system/confirm` when in
+    `Nav_ascendDetecting` (two-step "arm then confirm", mirroring the GUI confirm button).
+  - E: `chair/curb/descend` / `system/confirm` (gated on `Nav_descendDetecting`).
+  - R: `chair/selfLeveling/on`. T: `system/cancel` (valid in SL-on, detecting, traversing).
+  - Routing logic lives in `key_map.resolve_action(key, state)` (ROS-free, host-tested);
+    `keyboard_node.ACTION_TO_USERINPUT` maps symbolic actions to `UserInputs.Request`.
+  - Entering curb mode (`chair/curb/navigation`) and reset-from-`Nav_paused`
+    (`system/reset`) stay on the GUI. The mock auto-confirm in `system_control.py` is not
+    run in the demo, so the two-step gating is real.
 
 The package scaffolding (package.xml/setup.py/launch/tests) is created in Phase 1 and
 carries forward; only the per-key action changes in Phase 2.

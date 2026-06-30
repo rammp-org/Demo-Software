@@ -4,9 +4,27 @@ ROS 2 node that maps a small **W / E / R / T** keypad to MEBot high-level
 state-machine commands. Built for the SayoDevice 1x4P macropad but works with
 any keyboard that emits `KEY_W/E/R/T`.
 
-Phase 1 (current) publishes the action label per keypress on `/keyboard/event`
-(`std_msgs/String`) for plumbing verification. Phase 2 will call the
-`/GuiBridge/user_input` service instead. See [SPEC.md](SPEC.md).
+Each press calls the `/GuiBridge/user_input` service (like the GUI and gamepad),
+so the state machine validates it and the UI stays in sync. The node subscribes
+to `/system/state` so a key resolves to the right command for the current state.
+See [SPEC.md](SPEC.md).
+
+## Key behavior
+
+| Key   | In `Nav_SLOff`/`Nav_SLOn` | In matching `*Detecting` | Anytime         |
+| ----- | ------------------------- | ------------------------ | --------------- |
+| **W** | `chair/curb/ascend`       | `system/confirm`         |                 |
+| **E** | `chair/curb/descend`      | `system/confirm`         |                 |
+| **R** | `chair/selfLeveling/on`   |                          |                 |
+| **T** |                           |                          | `system/cancel` |
+
+Curb commands are two-step (mirrors the GUI "curb climb -> confirm"): press
+**W** once to arm detection, again to start the climb; same for **E**. **T**
+stops/aborts at any point. Entering curb mode (`chair/curb/navigation`) and
+recovering from a cancel (`system/reset`) are done from the GUI.
+
+Commands invalid in the current state are rejected by the state machine
+(logged; echoed on `/keyboard/event` as `rejected:<command>`).
 
 ## Dependencies
 

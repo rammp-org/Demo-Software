@@ -95,18 +95,18 @@ else
     echo "then re-run setup.sh to install udev rules."
 fi
 
-echo "=== Installing MEBot keypad udev rules ==="
-# Stable /dev/mebot_keypad symlink for the SayoDevice 1x4P keypad (keyboard_driver).
+echo "=== Installing RAMMP keypad udev rules ==="
+# Stable /dev/rammp_keyboard symlink for the SayoDevice 1x4P keypad (keyboard_driver).
 # Points at the one event node (USB interface 0) that emits the W/E/R/T presses;
 # the sibling nodes advertise the keys but never fire.
-KEYPAD_UDEV_RULES="${REPO_ROOT}/hardware/keyboard_driver/udev/99-mebot-keypad.rules"
+KEYPAD_UDEV_RULES="${REPO_ROOT}/hardware/keyboard_driver/udev/99-rammp-keyboard.rules"
 if [ -f "${KEYPAD_UDEV_RULES}" ]; then
     $SUDO cp "${KEYPAD_UDEV_RULES}" /etc/udev/rules.d/
     $SUDO udevadm control --reload-rules
     $SUDO udevadm trigger
-    echo "MEBot keypad udev rules installed from: ${KEYPAD_UDEV_RULES}"
+    echo "RAMMP keypad udev rules installed from: ${KEYPAD_UDEV_RULES}"
 else
-    echo "WARNING: MEBot keypad udev rules not found at ${KEYPAD_UDEV_RULES}."
+    echo "WARNING: RAMMP keypad udev rules not found at ${KEYPAD_UDEV_RULES}."
 fi
 
 echo "=== Configuring Jetson max performance mode ==="

@@ -12,10 +12,10 @@ def generate_launch_description():
                 output="screen",
                 parameters=[
                     {
-                        # Stable symlink from udev/99-mebot-keypad.rules. If it's
+                        # Stable symlink from udev/99-rammp-keyboard.rules. If it's
                         # not installed, the node warns and falls back to
                         # auto-selecting the node(s) that advertise the target keys.
-                        "device_path": "/dev/mebot_keypad",
+                        "device_path": "/dev/rammp_keyboard",
                         "device_name": "",
                         "grab_device": False,
                     }

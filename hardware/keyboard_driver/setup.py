@@ -17,7 +17,7 @@ setup(
     zip_safe=True,
     maintainer="root",
     maintainer_email="root@todo.todo",
-    description="Keyboard W/E/R/T input node for MEBot state-machine commands.",
+    description="Keyboard W/E/R/T input node for RAMMP state-machine commands.",
     license="TODO: License declaration",
     extras_require={
         "test": [

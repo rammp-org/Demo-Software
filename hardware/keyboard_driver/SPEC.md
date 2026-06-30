@@ -1,8 +1,8 @@
-# Plan: Keyboard Input Node for MEBot State Machine
+# Plan: Keyboard Input Node for RAMMP State Machine
 
 ## Context
 
-We want a physical 4-key keyboard (W / E / R / T) to drive the MEBot's high-level
+We want a physical 4-key keyboard (W / E / R / T) to drive the RAMMP's high-level
 state-machine actions: curb climb, curb descend, self-leveling, and cancel. This gives
 operators a cheap, tactile control surface alongside the existing GUI and gamepad.
 

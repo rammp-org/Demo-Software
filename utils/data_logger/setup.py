@@ -22,6 +22,8 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "ros_bag_node = data_logger.ros_bag_node:main",
+        ],
     },
 )

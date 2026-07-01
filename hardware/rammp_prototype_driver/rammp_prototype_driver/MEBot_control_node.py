@@ -18,8 +18,6 @@ from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Bool
 from std_srvs.srv import Empty, SetBool
-import rosbag2_py
-from rclpy.serialization import serialize_message
 
 from .joint_converter import BASE_JOINT_ORDER, JOINT_CONVERSIONS
 from .keyframe import NUM_MOTORS, Keyframe
@@ -189,21 +187,6 @@ class MEBotControlNode(Node):
 
         self.lock = threading.Lock()
 
-        # ros bag init
-        self.rosbag_writer = rosbag2_py.SequentialWriter()
-        storage_options = rosbag2_py.StorageOptions(
-            uri="rammp_prototype_state_bag", storage_id="sqlite3"
-        )
-        converter_options = rosbag2_py.ConverterOptions("", "")
-        self.rosbag_writer.open(storage_options, converter_options)
-
-        topic_info = rosbag2_py.TopicMetadata(
-            name="rammp_prototype_state",
-            type="rammp_prototype_interfaces/msg/RAMMPPrototypeState",
-            serialization_format="cdr",
-        )
-        self.rosbag_writer.create_topic(topic_info)
-
         # diagnostics updater init
         self.updater = diagnostic_updater.Updater(self)
         self.updater.setHardwareID("MEBot")
@@ -344,10 +327,6 @@ class MEBotControlNode(Node):
 
         self.estop_subscription = self.create_subscription(
             Bool, "estop", self.estop_callback, 10
-        )
-
-        self.rosbag_subscription = self.create_subscription(
-            RAMMPPrototypeState, "rammp_prototype_state", self.rosbag_callback, 10
         )
 
     def _init_publishers(self):
@@ -618,13 +597,6 @@ class MEBotControlNode(Node):
         # TODO: Add the remaining velocities once they are sent by the Teensy
 
         self.RAMMPPrototypeState_publisher.publish(msg)
-
-    def rosbag_callback(self, msg: RAMMPPrototypeState):
-        self.rosbag_writer.write(
-            "rammp_prototype_state",
-            serialize_message(msg),
-            self.get_clock().now().nanoseconds,
-        )
 
     def publish_imu_data(self):
         msg = Imu()

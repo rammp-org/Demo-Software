@@ -97,7 +97,7 @@ ODrive ODriveL(odriveL, FC_MOTOR_L_AXIS_DIR);
 // hub motor init
 #elif (fc_motor_id == 2)
 HardwareSerial &hubMotorR_serial = Serial1;
-HardwareSerial &hubMotorL_serial = Serial7;
+HardwareSerial &hubMotorL_serial = Serial8;
 HubMotor hubMotorR(FC_MOTOR_R_AXIS_DIR, hubMotorR_serial);
 HubMotor hubMotorL(FC_MOTOR_L_AXIS_DIR, hubMotorL_serial);
 #else
@@ -553,6 +553,7 @@ void setup() {
   Serial5.begin(460800); // roboclaw 3
   Serial1.begin(FC_MOTOR_SERIAL_BAUD);
   Serial7.begin(FC_MOTOR_SERIAL_BAUD);
+  Serial8.begin(FC_MOTOR_SERIAL_BAUD);
 
   // set up limit switches
   pinMode(CARRIAGE_SW1_PIN, INPUT_PULLDOWN);

@@ -11,6 +11,8 @@
   <depend>rammp_prototype_interfaces</depend>
   <depend>gui_interfaces</depend>
   <exec_depend>rosbag2_py</exec_depend>
+  <exec_depend>rclpy.serialization</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

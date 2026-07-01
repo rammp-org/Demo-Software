@@ -5,6 +5,7 @@ import rosbag2_py
 from rclpy.serialization import serialize_message
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
 from gui_interfaces.msg import SystemState
+from std_msgs import Bool
 
 NAV_ASCEND_DETECTING = "Nav_ascendDetecting"
 NAV_DESCEND_DETECTING = "Nav_descendDetecting"
@@ -35,6 +36,8 @@ class RosBagNode(Node):
     def __init__(self):
         super().__init__("ros_bag_node")
 
+        self.estop_publisher = self.create_publisher(Bool, "/base/estop", 10)
+
         self.rammp_prototype_state_subscription = self.create_subscription(
             RAMMPPrototypeState,
             "rammp_prototype_state",
@@ -52,6 +55,11 @@ class RosBagNode(Node):
             self.system_state_callback,
             10,
         )
+
+    def trigger_estop(self):
+        msg = Bool()
+        msg.data = True
+        self.estop_publisher.publish(msg)
 
     def start_recording(self, bag_prefix: str):
         if self.writer is not None:
@@ -74,6 +82,7 @@ class RosBagNode(Node):
             )
             self.writer.create_topic(topic_info)
         except Exception as e:
+            self.trigger_estop()
             self.get_logger().error(f"Error starting recording: {e}")
             return
         self.get_logger().info(f"Started recording bag: {bag_uri}")

@@ -14,7 +14,7 @@ extern RoboClaw roboclaw_carriages;
 #define RC_LOADCELL_PIN A16
 
 #define CARRIAGE_SW1_PIN 23 // ML carriage forward limit switch
-#define CARRIAGE_SW2_PIN 4  // ML carriage backward limit switch
+#define CARRIAGE_SW2_PIN 22 // ML carriage backward limit switch
 #define CARRIAGE_SW3_PIN 13 // MR carriage forward limit switch
 #define CARRIAGE_SW4_PIN 33 // MR carriage backward limit switch
 

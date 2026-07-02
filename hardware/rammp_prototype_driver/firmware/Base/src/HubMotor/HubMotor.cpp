@@ -170,7 +170,7 @@ void HubMotor::updateSensorData(float current_pos, float dt) {
     float position;
     memcpy(&position, &raw, 4);
 
-    this->current_pos = position;
+    this->current_pos = position * direction;
     this->prev_pos = this->current_pos;
   }
 }

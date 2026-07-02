@@ -69,8 +69,8 @@ void HubMotor::writePWM() {
 
 void HubMotor::writeTargetPos() {
   int32_t pos = direction * this->target_pos * pos_scale;
-  int32_t spd = 3000;   // was 20000
-  int32_t accel = 5000; // was 60000
+  int32_t spd = 10000;   // was 20000
+  int32_t accel = 30000; // was 60000
   // Serial.print("DEBUG MSG: hub motor target position: ");
   // Serial.println(pos);
   uint32_t raw;

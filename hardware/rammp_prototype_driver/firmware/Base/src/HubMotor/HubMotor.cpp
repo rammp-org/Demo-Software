@@ -68,29 +68,36 @@ void HubMotor::writePWM() {
 }
 
 void HubMotor::writeTargetPos() {
-  int32_t pos = direction * this->target_pos * pos_scale;
-  int32_t spd = 10000;   // was 20000
-  int32_t accel = 30000; // was 60000
-  // Serial.print("DEBUG MSG: hub motor target position: ");
-  // Serial.println(pos);
-  uint32_t raw;
+  // int32_t pos = direction * this->target_pos * pos_scale;
+  // int32_t spd = 10000;   // was 20000
+  // int32_t accel = 30000; // was 60000
+  // // Serial.print("DEBUG MSG: hub motor target position: ");
+  // // Serial.println(pos);
+  // uint32_t raw;
 
-  uint8_t spd_payload[13];
-  spd_payload[0] = 0x3C;
-  spd_payload[1] = (uint8_t)(pos >> 24);
-  spd_payload[2] = (uint8_t)(pos >> 16);
-  spd_payload[3] = (uint8_t)(pos >> 8);
-  spd_payload[4] = (uint8_t)(pos);
-  spd_payload[5] = (uint8_t)(spd >> 24);
-  spd_payload[6] = (uint8_t)(spd >> 16);
-  spd_payload[7] = (uint8_t)(spd >> 8);
-  spd_payload[8] = (uint8_t)(spd);
-  spd_payload[9] = (uint8_t)(accel >> 24);
-  spd_payload[10] = (uint8_t)(accel >> 16);
-  spd_payload[11] = (uint8_t)(accel >> 8);
-  spd_payload[12] = (uint8_t)(accel);
+  // uint8_t spd_payload[13];
+  // spd_payload[0] = 0x3C;
+  // spd_payload[1] = (uint8_t)(pos >> 24);
+  // spd_payload[2] = (uint8_t)(pos >> 16);
+  // spd_payload[3] = (uint8_t)(pos >> 8);
+  // spd_payload[4] = (uint8_t)(pos);
+  // spd_payload[5] = (uint8_t)(spd >> 24);
+  // spd_payload[6] = (uint8_t)(spd >> 16);
+  // spd_payload[7] = (uint8_t)(spd >> 8);
+  // spd_payload[8] = (uint8_t)(spd);
+  // spd_payload[9] = (uint8_t)(accel >> 24);
+  // spd_payload[10] = (uint8_t)(accel >> 16);
+  // spd_payload[11] = (uint8_t)(accel >> 8);
+  // spd_payload[12] = (uint8_t)(accel);
 
-  this->writeMotorCommand(spd_payload, sizeof(spd_payload));
+  // Set position
+  int64_t pos = 360 * 6 * pos_scaling;
+  // uint32_t pos;
+  // memcpy(&pos, &position, 4);
+  uint8_t pos_payload[] = {0x4A, (uint8_t)(pos >> 24), (uint8_t)(pos >> 16),
+                           (uint8_t)(pos >> 8), (uint8_t)(pos)};
+
+  this->writeMotorCommand(pos_payload, sizeof(pos_payload));
 }
 
 void HubMotor::writeTargetVel() {

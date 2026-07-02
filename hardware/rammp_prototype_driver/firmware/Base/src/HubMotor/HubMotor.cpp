@@ -91,7 +91,7 @@ void HubMotor::writeTargetPos() {
   // spd_payload[12] = (uint8_t)(accel);
 
   // Set position
-  int64_t pos = 360 * this->target_pos * pos_scaling;
+  int64_t pos = 360 * this->target_pos * pos_scaling * this->direction;
   // uint32_t pos;
   // memcpy(&pos, &position, 4);
   uint8_t pos_payload[] = {0x4A, (uint8_t)(pos >> 24), (uint8_t)(pos >> 16),

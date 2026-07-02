@@ -5,7 +5,8 @@ import rosbag2_py
 from rclpy.serialization import serialize_message
 from rammp_prototype_interfaces.msg import RAMMPPrototypeState
 from gui_interfaces.msg import SystemState
-from std_msgs import Bool
+from std_msgs.msg import Bool
+import time
 
 NAV_ASCEND_DETECTING = "Nav_ascendDetecting"
 NAV_DESCEND_DETECTING = "Nav_descendDetecting"
@@ -36,7 +37,7 @@ class RosBagNode(Node):
     def __init__(self):
         super().__init__("ros_bag_node")
 
-        self.estop_publisher = self.create_publisher(Bool, "/base/estop", 10)
+        self.estop_publisher = self.create_publisher(Bool, "/estop", 10)
 
         self.rammp_prototype_state_subscription = self.create_subscription(
             RAMMPPrototypeState,
@@ -46,7 +47,6 @@ class RosBagNode(Node):
         )
 
         self.writer = None
-        self.bag_id = 0
         self.current_state = None
 
         self.system_state_subscription = self.create_subscription(
@@ -64,9 +64,8 @@ class RosBagNode(Node):
     def start_recording(self, bag_prefix: str):
         if self.writer is not None:
             return
-
-        self.bag_id += 1
-        bag_uri = f"{bag_prefix}_{self.bag_id}"
+        ms_timestamp = time.time_ns() // 1_000_000
+        bag_uri = f"{bag_prefix}_{ms_timestamp}"
 
         try:
             self.writer = rosbag2_py.SequentialWriter()
@@ -96,33 +95,36 @@ class RosBagNode(Node):
         self.get_logger().info("Stopped recording bag")
 
     def system_state_callback(self, msg: SystemState):
-        previous_state = self.current_state
         new_state = msg.state
+        if (
+            new_state == self.current_state
+        ):  # /system/state is a 10 Hz timer; ignore repeats
+            return
         self.current_state = new_state
 
-        if new_state == previous_state:
-            return
-
         if new_state in BAG_START_STATES:
+            # entering a maneuver -> open a fresh bag for it
             self.stop_recording()
             self.start_recording(BAG_START_STATES[new_state])
-        elif (
-            previous_state in ACTIVE_RECORDING_STATES
-            and new_state not in ACTIVE_RECORDING_STATES
-        ):
+        elif new_state not in ACTIVE_RECORDING_STATES:
+            # left the maneuver -> close the bag (no-op if none open)
             self.stop_recording()
+        # else: still mid-maneuver (detecting -> ascending -> canceling ...) -> keep the bag open
 
     def rammp_prototype_state_callback(self, msg: RAMMPPrototypeState):
         if self.writer is None:
             return
         if self.current_state not in RECORDING_WRITE_STATES:
             return
-
-        self.writer.write(
-            "rammp_prototype_state",
-            serialize_message(msg),
-            self.get_clock().now().nanoseconds,
-        )
+        try:
+            self.writer.write(
+                "rammp_prototype_state",
+                serialize_message(msg),
+                self.get_clock().now().nanoseconds,
+            )
+        except Exception as e:
+            self.get_logger().error(f"Error writing to bag: {e}")
+            return
 
 
 def main(args=None):

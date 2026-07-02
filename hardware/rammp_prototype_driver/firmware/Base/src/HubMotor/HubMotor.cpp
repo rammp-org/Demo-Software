@@ -69,7 +69,7 @@ void HubMotor::writePWM() {
 
 void HubMotor::writeTargetPos() {
   // Set position
-  int64_t pos = 360 * this->target_pos * pos_scale * this->direction;
+  int64_t pos = this->target_pos * pos_scale * this->direction;
   uint8_t pos_payload[] = {0x4A, (uint8_t)(pos >> 24), (uint8_t)(pos >> 16),
                            (uint8_t)(pos >> 8), (uint8_t)(pos)};
 

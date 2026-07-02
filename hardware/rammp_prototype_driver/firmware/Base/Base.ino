@@ -100,6 +100,8 @@ HardwareSerial &hubMotorR_serial = Serial1;
 HardwareSerial &hubMotorL_serial = Serial8;
 HubMotor hubMotorR(FC_MOTOR_R_AXIS_DIR, hubMotorR_serial);
 HubMotor hubMotorL(FC_MOTOR_L_AXIS_DIR, hubMotorL_serial);
+float hub_r_last_sent_pos = NAN;
+float hub_l_last_sent_pos = NAN;
 #else
 #error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
 #endif
@@ -1020,20 +1022,33 @@ void loop() {
 
 #elif (fc_motor_id == 2)
   if (hubMotorR.mode == MotorBase::OPEN_LOOP) {
+    hub_r_last_sent_pos = NAN;
     hubMotorR.writePWM();
   } else if (hubMotorR.mode == MotorBase::VELOCITY_CONTROL) {
+    hub_r_last_sent_pos = NAN;
     hubMotorR.writeTargetVel();
   } else if (hubMotorR.mode == MotorBase::POSITION_CONTROL) {
-    // Serial.print("DEBUG MSG: hub motor target position: ");
-    // Serial.println(hubMotorR.target_pos);
-    hubMotorR.writeTargetPos();
+    if (hubMotorR.target_pos != hub_r_last_sent_pos) {
+      hubMotorR.writeTargetPos();
+      hub_r_last_sent_pos = hubMotorR.target_pos;
+    }
+  } else {
+    hub_r_last_sent_pos = NAN;
   }
+
   if (hubMotorL.mode == MotorBase::OPEN_LOOP) {
+    hub_l_last_sent_pos = NAN;
     hubMotorL.writePWM();
   } else if (hubMotorL.mode == MotorBase::VELOCITY_CONTROL) {
+    hub_l_last_sent_pos = NAN;
     hubMotorL.writeTargetVel();
   } else if (hubMotorL.mode == MotorBase::POSITION_CONTROL) {
-    hubMotorL.writeTargetPos();
+    if (hubMotorL.target_pos != hub_l_last_sent_pos) {
+      hubMotorL.writeTargetPos();
+      hub_l_last_sent_pos = hubMotorL.target_pos;
+    }
+  } else {
+    hub_l_last_sent_pos = NAN;
   }
 #else
 #error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"

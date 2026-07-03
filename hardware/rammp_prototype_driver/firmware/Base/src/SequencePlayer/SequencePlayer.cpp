@@ -169,7 +169,6 @@ void sequenceEnter(MotorBase *motors[SEQ_NUM_MOTORS]) {
   motors[8]->setOrigin();
   motors[9]->setOrigin();
 #endif
-  Serial.println("DEBUG MSG: Origin set");
 
   // ALL motors — including drive wheels — run position control during
   // sequences.

@@ -26,7 +26,7 @@
 #include "src/PIDController/PIDController.h"
 #include "src/StrainGauge/StrainGauge.h"
 
-// Front casters: ODrive or hub motors on Serial1 / Serial7 (see
+// Front casters: ODrive or hub motors on Serial1 / Serial8 (see
 // FcMotorConfig.h).
 #if (fc_motor_id == 1)
 #include <ODriveUART.h>

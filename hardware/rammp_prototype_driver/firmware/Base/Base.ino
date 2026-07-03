@@ -647,10 +647,8 @@ void setup() {
 
   Serial.println(
       "EEPROM CONFIG LOADED: All motor configs restored from EEPROM.");
-  current_state = IDLE; // changed from UNCALIBRATED to IDLE to avoid
-                        // calibration required before operation
-  calibrated = true; // changed from false to true to avoid calibration required
-                     // before operation
+  current_state = UNCALIBRATED;
+  calibrated = false;
   Serial.println("STATE: UNCALIBRATED — calibration required before operation");
 }
 

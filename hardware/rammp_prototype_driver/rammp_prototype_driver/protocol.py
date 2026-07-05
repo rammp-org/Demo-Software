@@ -400,9 +400,9 @@ class ProtocolEncoder:
         return cmd.encode("ascii")
 
     @staticmethod
-    def set_odrive_velocity(velocity_turns_per_s: float) -> bytes:
+    def set_fc_velocity(velocity_turns_per_s: float) -> bytes:
         """
-        Set the same velocity on both ODrive axes (robot frame, turns/s).
+        Set the same velocity on both FC axes (robot frame, turns/s).
 
         Wire format: s:<velocity>\\n
         """

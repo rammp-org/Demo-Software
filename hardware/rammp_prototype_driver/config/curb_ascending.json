@@ -69,7 +69,7 @@
     {
       "label": "Raise seat and drive wheels up",
       "targets": [
-        1000.0,
+        850.0,
         300.0,
         20.0,
         20.0,

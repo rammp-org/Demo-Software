@@ -285,7 +285,7 @@ class MEBotControlNode(Node):
         self._init_subscribers()
         self._init_publishers()
 
-        # self.send_remove_luci()
+        self.send_remove_luci()
 
     def _init_services(self):
         # services
@@ -690,7 +690,7 @@ class MEBotControlNode(Node):
     def estop_callback(self, msg):
         self.estop = msg.data
         if msg.data:
-            # self.send_remove_luci()  # may be redundent, ensure user has manual control
+            self.send_remove_luci()  # may be redundent, ensure user has manual control
             self.write_serial_data(
                 "z\n"
             )  # triggers MotorController function NO_MOVEMENT
@@ -757,14 +757,6 @@ class MEBotControlNode(Node):
         result.success = True
         result.message = f"Calibrated {self.cal_joints_done}/6 joints"
         return result
-
-    def _send_joystick(self):
-        msg = LuciJoystick()
-        msg.forward_back = self.fb_pwm
-        msg.left_right = 0
-        msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
-        msg.input_source = INPUT_REMOTE
-        self.luci_js_publisher.publish(msg)
 
     def _send_joystick(self):
         if self.carriage_return_direction != 0:

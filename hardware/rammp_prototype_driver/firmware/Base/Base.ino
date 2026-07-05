@@ -554,7 +554,7 @@ void setup() {
   Serial4.begin(460800); // roboclaw 2
   Serial5.begin(460800); // roboclaw 3
   Serial1.begin(FC_MOTOR_SERIAL_BAUD);
-  Serial7.begin(FC_MOTOR_SERIAL_BAUD);
+  // Serial7.begin(FC_MOTOR_SERIAL_BAUD);
   Serial8.begin(FC_MOTOR_SERIAL_BAUD);
 
   // set up limit switches

@@ -12,7 +12,7 @@ public:
   Encoder Enc3 =
       Encoder(3, 2); // FC top (3,2) — also feeds motor_map enc 3 (rc)
   Encoder Enc6 = Encoder(7, 6);    // FC bottom         (7,6)
-  Encoder Enc5 = Encoder(9, 8);    // ML drive wheel    (9,8)
+  Encoder Enc5 = Encoder(28, 27);  // ML drive wheel    (9,8)
   Encoder Enc10 = Encoder(11, 10); // MR carriage         (11,10)
   Encoder Enc7 = Encoder(24, 12);  // ML carriage       (24,12)
   Encoder Enc8 = Encoder(26, 25);  // MR drive wheel    (26,25)

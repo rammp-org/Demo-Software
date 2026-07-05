@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "CommandDispatch.h"
+#include "../FcMotorConfig/FcMotorConfig.h"
 #include "../CommandParser/CommandParser.h"
 #include "../MotorMap/MotorMap.h"
 #include "../MotorBase/MotorBase.h"
@@ -33,15 +34,26 @@ void handleSetMode(CommandContext &ctx) {
 }
 
 void handleSetTarget(CommandContext &ctx) {
+  float value = ctx.value;
+#if (fc_motor_id == 2)
+  // Wire T9/T10 use robot-frame turns; HubMotor stores degrees (see Telemetry).
+  if (ctx.actuator_id == 9 || ctx.actuator_id == 10)
+    value *= 360.0f;
+#endif
+
+  // T after ESTOP/disable: hub motors stay DISABLED until mode is set.
+  if (ctx.motor->mode == MotorBase::DISABLED)
+    ctx.motor->setMode(MotorBase::POSITION_CONTROL);
+
   if (ctx.motor->mode == MotorBase::OPEN_LOOP)
     ctx.motor->setTargetPWM(ctx.value);
   else if (ctx.motor->mode == MotorBase::VELOCITY_CONTROL)
     ctx.motor->setTargetVelocity(ctx.value);
   else if (ctx.motor->mode == MotorBase::POSITION_CONTROL)
-    ctx.motor->setTargetPosition(ctx.value);
+    ctx.motor->setTargetPosition(value);
   if (DEBUG_MODE) {
     Serial.print("DEBUG: Set Target to ");
-    Serial.println(ctx.value, 4);
+    Serial.println(value, 4);
   }
 }
 

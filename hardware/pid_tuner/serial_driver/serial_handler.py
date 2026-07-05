@@ -175,6 +175,11 @@ class SerialHandler(QObject):
         cmd = ProtocolEncoder.set_mode(joint_id, mode)
         self.send_command(cmd)
 
+    def set_hub_motor_velocity(self, velocity_turns_per_s: float):
+        """Set matched velocity on both hub motors (robot frame, turns/s)."""
+        cmd = ProtocolEncoder.set_hub_motor_velocity(velocity_turns_per_s)
+        self.send_command(cmd)
+
     def set_pid(self, joint_id: int, param: str, value: float):
         """Set PID parameter ('P', 'I', 'D', 'p', 'i', 'd')."""
         cmd = ProtocolEncoder.set_pid(joint_id, param, value)

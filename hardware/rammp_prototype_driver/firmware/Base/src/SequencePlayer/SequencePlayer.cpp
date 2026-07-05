@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "SequencePlayer.h"
+#include "../FcMotorConfig/FcMotorConfig.h"
 #include "../MotorBase/MotorBase.h"
 #include "../CommandParser/CommandParser.h"
 #include "../CommandDispatch/CommandDispatch.h"
@@ -29,6 +30,16 @@ static float seq_latch_pos[SEQ_NUM_MOTORS];
 // ---------------------------------------------------------------------------
 //  Helpers
 // ---------------------------------------------------------------------------
+
+static inline float parseTargetValue(int i, float raw) {
+#if (fc_motor_id == 2)
+  // JSON keyframe values are turns; hub motors store degrees internally.
+  return (i >= SEQ_FC_START) ? raw * 360.0f : raw;
+#else
+  (void)i;
+  return raw;
+#endif
+}
 
 // Compute the final target position for motor i in the current keyframe.
 static inline float finalTarget(const Keyframe &kf, int i) {
@@ -100,7 +111,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
   if (count == SEQ_NUM_MOTORS * 6 + 1) {
     kf.carriage_return = (int32_t)vals[SEQ_NUM_MOTORS * 4];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      kf.targets[i] = vals[i];
+      kf.targets[i] = parseTargetValue(i, vals[i]);
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
       kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
@@ -115,7 +126,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
   if (count == SEQ_NUM_MOTORS * 4 + 1) {
     kf.carriage_return = (int32_t)vals[SEQ_NUM_MOTORS * 4];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      kf.targets[i] = vals[i];
+      kf.targets[i] = parseTargetValue(i, vals[i]);
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = (vals[SEQ_NUM_MOTORS * 2 + i] > 0.5f);
       kf.duration_ms[i] = (uint32_t)vals[SEQ_NUM_MOTORS * 3 + i];
@@ -131,7 +142,7 @@ bool parseKeyframePayload(const String &payload, Keyframe &kf) {
     uint32_t global_dur = (uint32_t)vals[SEQ_NUM_MOTORS * 2];
     kf.carriage_return = (int32_t)vals[SEQ_NUM_MOTORS * 2 + 1];
     for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-      kf.targets[i] = vals[i];
+      kf.targets[i] = parseTargetValue(i, vals[i]);
       kf.active[i] = (vals[SEQ_NUM_MOTORS + i] > 0.5f);
       kf.relative[i] = false;
       kf.duration_ms[i] = global_dur;
@@ -153,6 +164,11 @@ void sequenceEnter(MotorBase *motors[SEQ_NUM_MOTORS]) {
   seq_interpolating = false;
   seq_settling = false;
   seq_auto_run = false;
+
+#if (fc_motor_id == 2)
+  motors[8]->setOrigin();
+  motors[9]->setOrigin();
+#endif
 
   // ALL motors — including drive wheels — run position control during
   // sequences.

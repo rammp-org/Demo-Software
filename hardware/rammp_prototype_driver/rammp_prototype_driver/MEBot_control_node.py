@@ -384,9 +384,7 @@ class MEBotControlNode(Node):
             if line:
                 raw_data = line.decode("utf-8", errors="replace").strip()
                 if raw_data.startswith("TELEMETRY"):
-                    # self.get_logger().info(raw_data)
                     data = raw_data.split(",")  # All values are str
-                    # self.get_logger().info(str(data))
                     self.update_data(data)  # Update variables with new data
                 if raw_data.startswith(
                     "SEQ_STATUS"
@@ -717,7 +715,6 @@ class MEBotControlNode(Node):
         self.estop = msg.data
         if msg.data:
             self.user_control_enabled = True
-            # self.send_remove_luci()  # may be redundent, ensure user has manual control
             self.write_serial_data(
                 "z\n"
             )  # triggers MotorController function NO_MOVEMENT
@@ -735,28 +732,6 @@ class MEBotControlNode(Node):
         future = self.remove_remote_input.call_async(request)
         future.add_done_callback(self.remote_input_done)
         self.get_logger().info("Remote input disabled")
-        return future
-
-    def send_set_luci(self):
-        self.get_logger().info(
-            f"JoystickDebug: setting LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
-        )
-        request = Empty.Request()
-        future = self.set_auto_remote_client.call_async(request)
-        future.add_done_callback(self.luci_req_done)
-
-        self.luci_heartbeat_timer.reset()
-        return future
-
-    def send_remove_luci(self):
-        self.get_logger().info(
-            f"JoystickDebug: removing LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
-        )
-        request = Empty.Request()
-        future = self.remove_auto_remote_client.call_async(request)
-        future.add_done_callback(self.luci_req_done)
-
-        self.luci_heartbeat_timer.cancel()
         return future
 
     def luci_req_done(self, future):
@@ -842,20 +817,9 @@ class MEBotControlNode(Node):
             self._js_warn_count = 0
 
     def curb_traverse_action_callback(self, goal):
-        # self.send_set_luci()  # enable LUCI control over js
         self.cap_user_speed = True
         # feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
-
-        # call the calibration function before going down curb
-        # self.cal_joints_done = 0
-        # self.cal_complete = False
-        # self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
-        # # delay while calibration runs
-        # time.sleep(6)
-
-        # self.self_level_enable_callback(True)
-        # time.sleep(3)
 
         if goal.request.direction == 1:
             # send first kf to get chair at height to detect curb

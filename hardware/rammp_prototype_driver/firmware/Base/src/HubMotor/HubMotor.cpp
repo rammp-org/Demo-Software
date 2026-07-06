@@ -103,10 +103,16 @@ void HubMotor::writeTargetVel() {
 }
 
 void HubMotor::writeZeroCurrent() {
-  int32_t current = 0;
-  uint8_t payload[] = {0x47, (uint8_t)(current >> 24), (uint8_t)(current >> 16),
-                       (uint8_t)(current >> 8), (uint8_t)(current)};
+  // int32_t current = 0;
+  // uint8_t payload[] = {0x47, (uint8_t)(current >> 24), (uint8_t)(current >>
+  // 16),
+  //                      (uint8_t)(current >> 8), (uint8_t)(current)};
 
+  // this->writeMotorCommand(payload, 5);
+  float pwm = 0;
+  int32_t duty = pwm;
+  uint8_t payload[] = {0x46, (uint8_t)(duty >> 24), (uint8_t)(duty >> 16),
+                       (uint8_t)(duty >> 8), (uint8_t)(duty)};
   this->writeMotorCommand(payload, 5);
 }
 

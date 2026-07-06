@@ -56,6 +56,31 @@ static inline bool isDeltaZero(const Keyframe &kf, int i) {
   return kf.active[i] && kf.relative[i] && kf.targets[i] == 0.0f;
 }
 
+#if (fc_motor_id == 2)
+// Hub motors (slots 8–9): target 0 means coast/disabled, not hold at zero.
+static inline bool isHubMotorIdleTarget(const Keyframe &kf, int i) {
+  return (i >= SEQ_FC_START) && kf.targets[i] == 0.0f;
+}
+
+static inline void updateHubMotorEnable(MotorBase *motor, float target) {
+  if (target == 0.0f) {
+    motor->disable();
+  } else if (motor->mode != MotorBase::POSITION_CONTROL) {
+    motor->setMode(MotorBase::POSITION_CONTROL);
+  }
+}
+#endif
+
+static inline bool skipMotorPosition(const Keyframe &kf, int i) {
+  if (isDeltaZero(kf, i))
+    return true;
+#if (fc_motor_id == 2)
+  if (isHubMotorIdleTarget(kf, i))
+    return true;
+#endif
+  return false;
+}
+
 // Begin interpolation toward the current keyframe.
 static void beginInterp(MotorBase *motors[SEQ_NUM_MOTORS]) {
   const Keyframe &kf = seq_keyframes[seq_current];
@@ -66,14 +91,19 @@ static void beginInterp(MotorBase *motors[SEQ_NUM_MOTORS]) {
     seq_start_pos[i] = motors[i]->current_pos;
     seq_guard_triggered[i] = false;
 
-    if (isDeltaZero(kf, i)) {
-      // Delta-zero motors: disable so they draw no power and don't fight
+    if (skipMotorPosition(kf, i)) {
+      // Idle motors: disable so they draw no power and don't fight
       // external forces.  Their duration still counts for keyframe timing.
       motors[i]->disable();
     } else if (kf.active[i]) {
       // Re-enable active motors that may have been disabled by a previous
-      // delta-zero keyframe.  setMode resets PIDs on mode change.
-      motors[i]->setMode(MotorBase::POSITION_CONTROL);
+      // idle keyframe.  setMode resets PIDs on mode change.
+#if (fc_motor_id == 2)
+      if (i >= SEQ_FC_START)
+        updateHubMotorEnable(motors[i], kf.targets[i]);
+      else
+#endif
+        motors[i]->setMode(MotorBase::POSITION_CONTROL);
       motors[i]->setTargetPosition(motors[i]->current_pos);
     }
   }
@@ -266,9 +296,14 @@ void sequenceUpdate(MotorBase *motors[SEQ_NUM_MOTORS]) {
       if (!kf.active[i])
         continue;
 
-      // Delta-zero motors: no position control, but their duration still
-      // contributes to keyframe timing so we track t_i below.
-      bool delta_zero = isDeltaZero(kf, i);
+#if (fc_motor_id == 2)
+      if (i >= SEQ_FC_START)
+        updateHubMotorEnable(motors[i], kf.targets[i]);
+#endif
+
+      // Delta-zero / hub-idle motors: no position control, but their duration
+      // still contributes to keyframe timing so we track t_i below.
+      bool delta_zero = skipMotorPosition(kf, i);
 
       if (!delta_zero && kf.guard_condition[i] != GUARD_NONE &&
           !seq_guard_triggered[i]) {
@@ -334,7 +369,7 @@ void sequenceUpdate(MotorBase *motors[SEQ_NUM_MOTORS]) {
       // Ensure every motor's PID is chasing the exact final target.
       // Delta-zero motors are disabled and have no target to snap to.
       for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-        if (kf.active[i] && !isDeltaZero(kf, i)) {
+        if (kf.active[i] && !skipMotorPosition(kf, i)) {
           float final_dest =
               seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
           motors[i]->setTargetPosition(final_dest);
@@ -357,8 +392,13 @@ void sequenceUpdate(MotorBase *motors[SEQ_NUM_MOTORS]) {
   unsigned long settle_elapsed = millis() - seq_settle_start;
 
   for (int i = 0; i < SEQ_NUM_MOTORS; i++) {
-    if (!kf.active[i] || isDeltaZero(kf, i))
+    if (!kf.active[i] || skipMotorPosition(kf, i))
       continue;
+
+#if (fc_motor_id == 2)
+    if (i >= SEQ_FC_START)
+      updateHubMotorEnable(motors[i], kf.targets[i]);
+#endif
 
     float dest = seq_guard_triggered[i] ? seq_latch_pos[i] : finalTarget(kf, i);
     motors[i]->setTargetPosition(dest);

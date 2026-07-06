@@ -44,6 +44,7 @@ class SerialHandler(QObject):
     error_occurred = pyqtSignal(str)
     seq_ack_received = pyqtSignal(int)  # step_idx
     seq_status_received = pyqtSignal(int, int, int)
+    sequence_mode_changed = pyqtSignal(bool)
 
     DEFAULT_BAUD_RATE = 115200
     DEFAULT_TIMEOUT = 0.1  # 100ms read timeout
@@ -388,6 +389,7 @@ class SerialHandler(QObject):
     def enter_sequence_mode(self, enable: bool):
         """Enter or exit AUTO_CURB_CLIMBING sequence mode."""
         self.send_command(ProtocolEncoder.enter_sequence_mode(enable))
+        self.sequence_mode_changed.emit(enable)
 
     def send_keyframe(
         self,

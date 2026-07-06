@@ -86,6 +86,9 @@ class MainWindow(QMainWindow):
         self._serial_handler.seq_status_received.connect(
             self._data_store.seq_status_updated
         )
+        self._serial_handler.sequence_mode_changed.connect(
+            self._on_sequence_mode_changed
+        )
 
         # Apply Catppuccin theme
         self.setStyleSheet(get_application_stylesheet())
@@ -533,6 +536,15 @@ class MainWindow(QMainWindow):
         else:
             self._connection_label.setText("Disconnected")
             self._connection_label.setStyleSheet("color: red;")
+
+    def _on_sequence_mode_changed(self, active: bool) -> None:
+        self._drive_wheel_display.set_sequence_drive_active(active)
+        if not self._luci_client.is_connected:
+            return
+        if active:
+            self._luci_client.take_remote_drive_control()
+        else:
+            self._luci_client.restore_user_joystick()
 
     def _autoload_config(self):
         if not self._serial_handler.is_connected:

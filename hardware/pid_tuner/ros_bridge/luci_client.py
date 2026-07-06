@@ -25,6 +25,7 @@ JOYSTICK_TOPIC = "luci/remote_joystick"
 JOYSTICK_MSG_TYPE = "luci_messages/msg/LuciJoystick"
 SET_AUTO_SERVICE = "/luci/set_auto_remote_input"
 REMOVE_AUTO_SERVICE = "/luci/remove_auto_remote_input"
+SET_SHARED_SERVICE = "/luci/set_shared_remote_input"
 
 
 def _compute_zone(fb: int, lr: int) -> int:
@@ -158,6 +159,25 @@ class LuciClient(QObject):
             roslibpy.ServiceRequest(), callback=lambda _: None, errback=lambda e: None
         )
         self._auto_input_enabled = False
+
+    def _enable_shared_input(self):
+        if not self._ros or not self._ros.is_connected:
+            return
+        svc = roslibpy.Service(self._ros, SET_SHARED_SERVICE, "std_srvs/srv/Empty")
+        svc.call(
+            roslibpy.ServiceRequest(), callback=lambda _: None, errback=lambda e: None
+        )
+
+    def take_remote_drive_control(self):
+        """Disable physical joystick so pid_tuner can drive via LUCI."""
+        if self._connected and not self._auto_input_enabled:
+            self._enable_auto_input()
+
+    def restore_user_joystick(self):
+        """Return LUCI drive control to the physical user joystick."""
+        self.stop()
+        self._disable_auto_input()
+        self._enable_shared_input()
 
     def _on_service_error(self, error):
         self.error_occurred.emit(f"LUCI service error: {error}")

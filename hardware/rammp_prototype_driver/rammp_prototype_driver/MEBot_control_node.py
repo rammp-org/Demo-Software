@@ -779,7 +779,7 @@ class MEBotControlNode(Node):
         if self.carriage_return_direction != 0:
             self.get_logger().info("carriage return")
             msg.forward_back = self.carriage_return_direction
-            lr_val = -2
+            lr_val = -8
             msg.left_right = lr_val
         elif self.user_control_enabled and not self.cap_user_speed:
             self.get_logger().info("normal manual control")
@@ -787,8 +787,8 @@ class MEBotControlNode(Node):
             msg.left_right = self.user_lr
         elif self.user_control_enabled and self.cap_user_speed:
             self.get_logger().info("slower manual control")
-            msg.forward_back = min(self.user_fb, 20)
-            msg.left_right = self.user_lr
+            msg.forward_back = min(self.user_fb, 15)
+            msg.left_right = 0
         else:
             self.get_logger().info("auto control")
             msg.forward_back = self.fb_pwm
@@ -817,6 +817,8 @@ class MEBotControlNode(Node):
             self._js_warn_count = 0
 
     def curb_traverse_action_callback(self, goal):
+        self.enable_remote_input()
+
         self.cap_user_speed = True
         # feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
@@ -829,7 +831,7 @@ class MEBotControlNode(Node):
             )
             keyframes = _load_keyframes_from_json(json_path)
             self.send_sequence(keyframes, auto_run=True)
-
+            self.write_serial_data("s:0.2000\n")
             # waiting for user to hit front caster on curb
             while self.FC_loadcell > 200:
                 if goal.is_cancel_requested:
@@ -839,12 +841,16 @@ class MEBotControlNode(Node):
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
+                    self.disable_remote_input()
                     return result
                 time.sleep(0.01)
 
+            time.sleep(0.5)
+
             # immediately remove user joystick control and stop drive wheels
+            self.write_serial_data("s:0.000\n")
             self.user_control_enabled = False
-            time.sleep(3.0)
+
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
                 + "/config/curb_ascending.json"
@@ -869,12 +875,13 @@ class MEBotControlNode(Node):
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
+                    self.disable_remote_input()
                     return result
                 time.sleep(0.01)
 
             # immediately remove user joystick control and stop drive wheels
             self.user_control_enabled = False
-            time.sleep(3.0)
+
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
                 + "/config/curb_descending.json"
@@ -893,6 +900,7 @@ class MEBotControlNode(Node):
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")
+                self.disable_remote_input()
                 return result
             time.sleep(0.01)
 
@@ -906,6 +914,7 @@ class MEBotControlNode(Node):
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")
+                self.disable_remote_input()
                 return result
 
             # feedback_msg.progress = (

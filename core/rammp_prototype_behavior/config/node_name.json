@@ -26,6 +26,9 @@
     },
     {
       "name": "/button_detector"
+    },
+    {
+      "name": "/ros_bag_node"
     }
   ]
 }

@@ -137,7 +137,6 @@ class DriveWheelDisplay(QWidget):
         self._luci.connected_changed.connect(self._on_luci_connection_changed)
         self._luci.error_occurred.connect(self._on_luci_error)
         self._manual_override = False
-        self._sequence_drive_active = False
 
         self._init_ui()
 
@@ -274,14 +273,6 @@ class DriveWheelDisplay(QWidget):
     def _on_luci_error(self, _msg: str):
         return
 
-    def set_sequence_drive_active(self, active: bool) -> None:
-        """Gate telemetry/carriage LUCI forwarding while a sequence is playing."""
-        self._sequence_drive_active = active
-        if not active:
-            self._manual_override = False
-            if self._luci.is_connected:
-                self._luci.set_carriage_return_direction(0)
-
     def _dpad_press(self, fb: int, lr: int):
         self._manual_override = True
         self._luci.set_carriage_return_direction(0)
@@ -295,11 +286,7 @@ class DriveWheelDisplay(QWidget):
         self.left_arc.set_velocity(self.data_store.raw_ml_enc_vel)
         self.right_arc.set_velocity(self.data_store.raw_mr_enc_vel)
 
-        if (
-            self._luci.is_connected
-            and not self._manual_override
-            and self._sequence_drive_active
-        ):
+        if self._luci.is_connected and not self._manual_override:
             self._luci.set_carriage_return_direction(
                 int(self.data_store.carriage_return_direction)
             )

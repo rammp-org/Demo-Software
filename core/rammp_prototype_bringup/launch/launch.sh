@@ -108,7 +108,7 @@ echo ""
 
 # Window 1: GUI — must start first
 tmux new-session -d -s "$SESSION" -n "gui" \
-    "bash -c 'cd $HOME && export DISPLAY=:1 && ./launch_ui.sh; echo \"[gui] exited.\"; read'"
+    "bash -c 'cd $HOME && ./launch_ui.sh; echo \"[gui] exited.\"; read'"
 
 sleep 2   # give the GUI a moment before launching nodes
 

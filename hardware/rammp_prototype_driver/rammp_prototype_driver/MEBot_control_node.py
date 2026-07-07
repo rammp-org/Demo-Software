@@ -16,7 +16,7 @@ from rclpy.action import ActionServer, CancelResponse
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
-from std_msgs.msg import Bool, Float32
+from std_msgs.msg import Bool
 from std_srvs.srv import Empty, SetBool
 
 from .joint_converter import BASE_JOINT_ORDER, JOINT_CONVERSIONS
@@ -344,9 +344,6 @@ class MEBotControlNode(Node):
         )
 
     def _init_publishers(self):
-        # FC loadcell publisher
-        self.fc_loadcell_pub = self.create_publisher(Float32, "fc_loadcell", 10)
-        self.fc_loadcell_timer = self.create_timer(1.0, self.pub_fc_loadcell)
         # joint state publisher
         self.joint_state_publisher = self.create_publisher(
             JointState, "joint_states", 10
@@ -370,11 +367,6 @@ class MEBotControlNode(Node):
 
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
-
-    def pub_fc_loadcell(self):
-        msg = Float32()
-        msg.data = self.FC_loadcell
-        self.fc_loadcell_pub.publish(msg)
 
     def read_serial_data(self):
         if self.ser is None:

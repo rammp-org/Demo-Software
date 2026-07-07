@@ -7,6 +7,7 @@ from rammp_prototype_interfaces.msg import RAMMPPrototypeState
 from gui_interfaces.msg import SystemState
 from std_msgs.msg import Bool
 import time
+import os
 
 NAV_ASCEND_DETECTING = "Nav_ascendDetecting"
 NAV_DESCEND_DETECTING = "Nav_descendDetecting"
@@ -36,12 +37,17 @@ ACTIVE_RECORDING_STATES = frozenset(BAG_START_STATES) | RECORDING_WRITE_STATES
 class RosBagNode(Node):
     def __init__(self):
         super().__init__("ros_bag_node")
+        self.declare_parameter("bag_directory", "bags")
+        self.bag_directory = (
+            self.get_parameter("bag_directory").get_parameter_value().string_value
+        )
+        os.makedirs(self.bag_directory, exist_ok=True)
 
         self.estop_publisher = self.create_publisher(Bool, "/estop", 10)
 
         self.rammp_prototype_state_subscription = self.create_subscription(
             RAMMPPrototypeState,
-            "rammp_prototype_state",
+            "/rammp_prototype_state",
             self.rammp_prototype_state_callback,
             10,
         )
@@ -65,7 +71,8 @@ class RosBagNode(Node):
         if self.writer is not None:
             return
         ms_timestamp = time.time_ns() // 1_000_000
-        bag_uri = f"{bag_prefix}_{ms_timestamp}"
+        bag_name = f"{bag_prefix}_{ms_timestamp}"
+        bag_uri = os.path.join(self.bag_directory, bag_name)
 
         try:
             self.writer = rosbag2_py.SequentialWriter()

@@ -43,12 +43,7 @@ from pid_tuner.ui.sequence_editor import SequenceEditor
 from pid_tuner.ui.theme import get_application_stylesheet, THEME
 from pid_tuner.ui.scaling import SIZES, scaled
 
-import threading
-
-import rclpy
-
 from pid_tuner.ros_bridge.luci_client import LuciClient
-from pid_tuner.ros_bridge.manual_control_node import ManualControlNode
 
 
 class MainWindow(QMainWindow):
@@ -69,8 +64,6 @@ class MainWindow(QMainWindow):
         self._data_store = DataStore()
         self._serial_handler = SerialHandler()
         self._luci_client = LuciClient(self)
-        self._ros_thread = None
-        self._ros_node = None
         self._keepalive_timer = QTimer(self)
         self._keepalive_timer.setInterval(400)
         self._keepalive_timer.timeout.connect(self._on_keepalive_tick)
@@ -98,27 +91,6 @@ class MainWindow(QMainWindow):
 
         # Refresh ports on startup
         self._refresh_ports()
-
-        # Start ROS /joy bridge (runs in background thread)
-        self._start_ros_manual_control()
-
-    def _start_ros_manual_control(self):
-        # Avoid crashing the GUI if ROS isn't installed/sourced on this machine.
-        try:
-            if not rclpy.ok():
-                rclpy.init()
-            self._ros_node = ManualControlNode(
-                self._serial_handler, self._luci_client, self._data_store
-            )
-            self._ros_thread = threading.Thread(
-                target=rclpy.spin, args=(self._ros_node,), daemon=True
-            )
-            self._ros_thread.start()
-        except Exception as exc:
-            # Keep PID tuner usable even without ROS.
-            self._ros_node = None
-            self._ros_thread = None
-            self._on_error(f"ROS manual control disabled: {exc}")
 
     def _setup_ui(self):
         """Set up the main window UI."""

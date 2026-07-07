@@ -4,30 +4,27 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import String
 
-DRIVE_WHEEL_JS_THRESHOLD = 0.5
 FC_MOTOR_JS_THRESHOLD = 0.5
 AXIS_NEUTRAL_THRESHOLD = 0.15
 
 
 class ManualControlNode(Node):
     """
-    Minimal /joy -> Teensy serial forwarder that uses pid_tuner's SerialHandler.
+    Minimal /joy -> Teensy serial forwarder.
 
-    This must run in the same process as the PID tuner GUI so SerialHandler owns
-    the port and we only enqueue commands via SerialHandler.send_command().
+    Forwards gamepad input for joint motors and front casters over serial.
+    Drive wheels are not controlled here.
     """
 
     STATE_IDLE = 1
     STATE_TUNER_MODE = 2
 
-    def __init__(self, serial_handler, luci_client, data_store):
+    def __init__(self, serial_handler, data_store):
         super().__init__("manual_control_node")
         self._serial_handler = serial_handler
-        self._luci_client = luci_client
         self._data_store = data_store
 
         self.cal_test_pub = self.create_publisher(String, "cal_test", 10)
-        # Local toggle state (do not depend on Teensy telemetry here)
         self.state = self.STATE_IDLE
         self.prev_start_pressed = False
         self._prev_estop_pressed = False
@@ -35,14 +32,11 @@ class ManualControlNode(Node):
         self._calibrating = False
         self.fc_motors_active = False
         self.last_pwm_array = [0, 0, 0, 0, 0, 0]
-        self.drive_wheel_active = False
         self.axes_centered = False
 
         self.status_pub = self.create_publisher(String, "gamepad_status", 10)
         self.joy_sub = self.create_subscription(Joy, "/joy", self.joy_callback, 10)
 
-        # Listen for firmware status lines (e.g. CAL_DONE) coming from the same
-        # SerialHandler used by the GUI. This signal is emitted in the GUI thread.
         if hasattr(self._serial_handler, "raw_lines_received"):
             try:
                 self._serial_handler.raw_lines_received.connect(self._on_serial_lines)
@@ -50,8 +44,6 @@ class ManualControlNode(Node):
                 pass
 
     def _on_serial_lines(self, lines) -> None:
-        # Unlock joint commands when calibration completes.
-        # Teensy prints "CAL_DONE" on completion (see Base.ino).
         try:
             for line in lines:
                 s = str(line).strip()
@@ -68,15 +60,9 @@ class ManualControlNode(Node):
     def write_serial_data(self, s: str) -> None:
         self._serial_handler.send_command(s.encode("ascii"))
 
-    def _drive_axes_neutral(self, axes_array: list[float]) -> bool:
-        axis0 = axes_array[0] if len(axes_array) > 0 else 0.0
-        axis1 = axes_array[1] if len(axes_array) > 1 else 0.0
+    def _fc_axis_neutral(self, axes_array: list[float]) -> bool:
         axis3 = axes_array[3] if len(axes_array) > 3 else 0.0
-        return (
-            abs(axis0) <= AXIS_NEUTRAL_THRESHOLD
-            and abs(axis1) <= AXIS_NEUTRAL_THRESHOLD
-            and abs(axis3) <= AXIS_NEUTRAL_THRESHOLD
-        )
+        return abs(axis3) <= AXIS_NEUTRAL_THRESHOLD
 
     def _stop_fc_motors(self) -> None:
         if self._data_store.uses_odrive:
@@ -94,13 +80,11 @@ class ManualControlNode(Node):
     def _trigger_estop(self) -> None:
         self.state = self.STATE_IDLE
         self.fc_motors_active = False
-        self.drive_wheel_active = False
         self.last_pwm_array = [0, 0, 0, 0, 0, 0]
         self._calibrating = False
         self.write_serial_data(
             "s:0.0000\nT9:0.00\nT10:0.00\nT1:0\nT2:0\nT3:0\nT4:0\nT5:0\nT6:0\n"
         )
-        self._luci_client.request_stop_drive()
         self._serial_handler.disable_motors()
 
     def joy_callback(self, msg):
@@ -114,31 +98,25 @@ class ManualControlNode(Node):
 
         start_pressed = msg.buttons[9] == 1
 
-        # Rising edge: toggle manual control
         entered_manual = False
         if start_pressed and not self.prev_start_pressed:
             if self.state == self.STATE_IDLE:
                 axes_array = list(msg.axes)
-                if not self._drive_axes_neutral(axes_array):
+                if not self._fc_axis_neutral(axes_array):
                     self.axes_centered = False
                     self.status_pub.publish(
                         String(
-                            data=(
-                                "Center drive sticks (axes 0/1/3), "
-                                "then press Start again"
-                            )
+                            data=("Center FC stick (axis 3), then press Start again")
                         )
                     )
                 else:
                     self.axes_centered = True
                     self.state = self.STATE_TUNER_MODE
                     self.fc_motors_active = False
-                    self.drive_wheel_active = False
                     self.write_serial_data(
                         "M1:0\nM2:0\nM3:0\nM4:0\nM5:0\nM6:0\n"
                         "s:0.0000\nT9:0.00\nT10:0.00\n"
                     )
-                    self._luci_client.request_stop_drive()
                     entered_manual = True
             else:
                 self.state = self.STATE_IDLE
@@ -153,8 +131,6 @@ class ManualControlNode(Node):
         if self.state == self.STATE_TUNER_MODE:
             raw_direction = msg.axes[5]
 
-            # Calibration hotkey (button index 2, if present).
-            # Important: send only on rising edge to avoid flooding / restarting.
             cal_pressed = msg.buttons[2] == 1
             if cal_pressed and not self._prev_cal_pressed:
                 self._calibrating = True
@@ -173,9 +149,6 @@ class ManualControlNode(Node):
                 if self.fc_motors_active:
                     self.fc_motors_active = False
                     self._stop_fc_motors()
-                if self.drive_wheel_active:
-                    self.drive_wheel_active = False
-                    self._luci_client.request_gamepad_drive(0, 0)
                 return
 
             if abs(axes_array[3]) > FC_MOTOR_JS_THRESHOLD and not self.fc_motors_active:
@@ -186,34 +159,6 @@ class ManualControlNode(Node):
                 self.fc_motors_active = False
                 self._stop_fc_motors()
 
-            # Drive wheels via LUCI (axes 0 = fb, 1 = lr; scaled to -100..100)
-            axis0 = axes_array[0] if len(axes_array) > 0 else 0.0
-            axis1 = axes_array[1] if len(axes_array) > 1 else 0.0
-            above = (
-                abs(axis0) > DRIVE_WHEEL_JS_THRESHOLD
-                or abs(axis1) > DRIVE_WHEEL_JS_THRESHOLD
-            )
-            if above:
-                fb = (
-                    int(max(-100, min(100, axis1 * 100)))
-                    if abs(axis1) > DRIVE_WHEEL_JS_THRESHOLD
-                    else 0
-                )
-                lr = -1 * (
-                    int(max(-100, min(100, axis0 * 100)))
-                    if abs(axis0) > DRIVE_WHEEL_JS_THRESHOLD
-                    else 0
-                )
-                self.drive_wheel_active = True
-                self._luci_client.request_gamepad_drive(fb, lr)
-            elif self.drive_wheel_active:
-                self.drive_wheel_active = False
-                self._luci_client.request_gamepad_drive(0, 0)
-
-            # Lock out joint button commands while calibration is running.
-            # Firmware enters CALIBRATING and ignores normal motor dispatch until
-            # it prints CAL_DONE, so suppressing button spam keeps the serial
-            # queue clean and prevents confusing partial control.
             if self._calibrating:
                 return
 

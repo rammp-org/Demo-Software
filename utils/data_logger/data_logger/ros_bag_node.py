@@ -37,7 +37,7 @@ class RosBagNode(Node):
     def __init__(self):
         super().__init__("ros_bag_node")
         self.declare_parameter("bag_directory", "bags")
-        self.bag_directory = (
+        self.bag_directory = os.path.expanduser(
             self.get_parameter("bag_directory").get_parameter_value().string_value
         )
         os.makedirs(self.bag_directory, exist_ok=True)

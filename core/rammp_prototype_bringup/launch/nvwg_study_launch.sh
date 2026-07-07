@@ -110,7 +110,7 @@ tmux new-window -t "$SESSION" -n "jetson_mocks" \
 tmux new-window -t "$SESSION" -n "jetson" \
     "zsh -c 'source $ROS_SETUP && \
             source $JETSON_WS/install/setup.zsh && \
-            ros2 launch rammp_prototype_bringup full.launch.py $ARGS_STR > "rammp_logs/rammp_logs_$(date +%Y-%m-%d_%H-%M-%S).txt"; \
+            ros2 launch rammp_prototype_bringup nvwg_study.launch.py $ARGS_STR > "rammp_logs/rammp_logs_$(date +%Y-%m-%d_%H-%M-%S).txt"; \
             echo \"[jetson] Launch exited.\"; read'"
 
 # Window 5: Calibration — waits for arm and base to be ready

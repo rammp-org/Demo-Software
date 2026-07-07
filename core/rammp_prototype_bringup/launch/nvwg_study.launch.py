@@ -11,6 +11,8 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     bringup_dir = get_package_share_directory("rammp_prototype_bringup")
+    keyboard_dir = get_package_share_directory("keyboard_driver")
+    data_collect_dir = get_package_share_directory("data_logger")
 
     # ── Launch arguments ──────────────────────────────────────────────────────
 
@@ -160,6 +162,18 @@ def generate_launch_description():
     #     condition=IfCondition(LaunchConfiguration("launch_neu_navigation")),
     # )
 
+    keyboard_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(keyboard_dir, "launch", "keyboard.launch.py")
+        )
+    )
+
+    ros_bag_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(data_collect_dir, "launch", "ros_bag.launch.py")
+        )
+    )
+
     return LaunchDescription(
         [
             # Arguments — hardware config
@@ -179,6 +193,8 @@ def generate_launch_description():
             luci_launch,
             gui_bridge_launch,
             system_control_node,
+            keyboard_launch,
+            ros_bag_launch,
             # Demo modules
             cameras_launch,
         ]

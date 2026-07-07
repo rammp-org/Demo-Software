@@ -134,9 +134,15 @@ class RosBagNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = RosBagNode()
-    rclpy.spin(node)
-    node.stop_recording()  # add this — ensures del writer is called cleanly
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Close any open bag (del writer) even on Ctrl-C so it flushes cleanly.
+        node.stop_recording()
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ from rclpy.action import ActionServer, CancelResponse
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, String
 from std_srvs.srv import Empty, SetBool
 
 from .joint_converter import BASE_JOINT_ORDER, JOINT_CONVERSIONS
@@ -329,6 +329,11 @@ class MEBotControlNode(Node):
             Bool, "estop", self.estop_callback, 10
         )
 
+        # for gamepad control
+        self.gamepad_control_subscription = self.create_subscription(
+            String, "serial_commands", self.gamepad_control_callback, 10
+        )
+
     def _init_publishers(self):
         # joint state publisher
         self.joint_state_publisher = self.create_publisher(
@@ -353,6 +358,9 @@ class MEBotControlNode(Node):
 
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
+
+    def gamepad_control_callback(self, msg: String):
+        self.write_serial_data(msg.data)
 
     def read_serial_data(self):
         if self.ser is None:

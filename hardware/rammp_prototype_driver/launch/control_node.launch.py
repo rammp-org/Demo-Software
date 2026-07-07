@@ -23,6 +23,15 @@ def generate_launch_description():
                 description="ROS 2 log level (DEBUG, INFO, WARN, ERROR, FATAL)",
             ),
             Node(
+                package="joy",
+                executable="joy_node",
+                name="joy_node",
+                output="screen",
+                respawn=True,
+                respawn_delay=2.0,
+                parameters=[{"autorepeat_rate": 40.0}],
+            ),
+            Node(
                 package="rammp_prototype_driver",
                 executable="control_node",
                 name="base_control_node",
@@ -36,6 +45,21 @@ def generate_launch_description():
                         "serial_port": LaunchConfiguration("serial_port"),
                     }
                 ],
+                arguments=[
+                    "--ros-args",
+                    "--log-level",
+                    LaunchConfiguration("log_level"),
+                ],
+            ),
+            Node(
+                package="rammp_prototype_driver",
+                executable="manual_control_node",
+                name="manual_control_node",
+                namespace=LaunchConfiguration("namespace"),
+                output="screen",
+                emulate_tty=True,
+                respawn=True,
+                respawn_delay=2.0,
                 arguments=[
                     "--ros-args",
                     "--log-level",

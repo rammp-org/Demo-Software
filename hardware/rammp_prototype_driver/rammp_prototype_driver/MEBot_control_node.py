@@ -340,7 +340,7 @@ class MEBotControlNode(Node):
         )
 
         self.user_joystick_subscription = self.create_subscription(
-            LuciJoystick, "luci/joystick_position", self.user_joystick_callback, 10
+            LuciJoystick, "/luci/joystick_position", self.user_joystick_callback, 10
         )
 
     def _init_publishers(self):
@@ -722,7 +722,7 @@ class MEBotControlNode(Node):
     def disable_remote_input(self):
         request = Empty.Request()
         future = self.remove_remote_input.call_async(request)
-        future.add_done_callback(self.remote_input_done)
+        future.add_done_callback(self.luci_req_done)
         self.get_logger().info("Remote input disabled")
         return future
 
@@ -965,10 +965,14 @@ def main(args=None):
     executor = MultiThreadedExecutor()
     executor.add_node(node)
 
-    executor.spin()
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.disable_remote_input()
 
     rclpy.shutdown()
-    node.disable_remote_input()
 
 
 if __name__ == "__main__":

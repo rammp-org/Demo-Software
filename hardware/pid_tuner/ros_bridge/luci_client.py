@@ -21,8 +21,8 @@ JS_ORIGIN = 8
 
 INPUT_REMOTE = 1
 
-JOYSTICK_TOPIC = "luci/remote_joystick"
-JOYSTICK_MSG_TYPE = "luci_messages/msg/LuciJoystick"
+JOYSTICK_TOPIC = "/luci/remote_joystick"
+JOYSTICK_MSG_TYPE = "/luci_messages/msg/LuciJoystick"
 SET_AUTO_SERVICE = "/luci/set_auto_remote_input"
 REMOVE_AUTO_SERVICE = "/luci/remove_auto_remote_input"
 

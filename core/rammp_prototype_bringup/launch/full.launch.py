@@ -11,6 +11,7 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     bringup_dir = get_package_share_directory("rammp_prototype_bringup")
+    keyboard_dir = get_package_share_directory("keyboard_driver")
 
     # ── Launch arguments ──────────────────────────────────────────────────────
 
@@ -222,6 +223,12 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("launch_atdev_coffee_stabilizer")),
     )
 
+    keyboard_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(keyboard_dir, "launch", "keyboard.launch.py")
+        )
+    )
+
     return LaunchDescription(
         [
             # Arguments — hardware config
@@ -250,6 +257,7 @@ def generate_launch_description():
             # Demo modules
             cmu_door_opener_launch,
             cameras_launch,
+            keyboard_launch,
             neu_navigation_descent_node,
             neu_navigation_ascent_node,
             atdev_coffee_stabilizer_node,

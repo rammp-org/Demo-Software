@@ -831,6 +831,19 @@ class MEBotControlNode(Node):
             )
             keyframes = _load_keyframes_from_json(json_path)
             self.send_sequence(keyframes, auto_run=True)
+            time.sleep(0.5)  # wait for sequence to start
+            while self.seq_mode != 0:
+                time.sleep(0.01)
+                if goal.is_cancel_requested:
+                    goal.canceled()
+                    result.success = False
+                    self.user_control_enabled = True
+                    self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+                    self.write_serial_data("z\n")
+                    self.write_serial_data("c\n")
+                    self.disable_remote_input()
+                    return result
+            self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
             self.write_serial_data("s:0.2000\n")
             # waiting for user to hit front caster on curb
             while self.FC_loadcell > 200:

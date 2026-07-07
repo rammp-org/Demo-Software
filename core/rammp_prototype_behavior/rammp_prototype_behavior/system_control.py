@@ -1,43 +1,42 @@
 import asyncio
 import enum
+import os
 import threading
-from std_msgs.msg import Float32
 
 import rclpy
 import rclpy.action
 import rclpy.node
+from ament_index_python.packages import get_package_share_directory
+from arm_interfaces.srv import SetMode, SetSpeedPreset
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+from gui_interfaces.msg import SystemState
+from gui_interfaces.srv import UserInputs
+from rammp_prototype_interfaces.msg import SeatCommand
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Bool, Float32
+from std_srvs.srv import SetBool, Trigger
+from transitions.extensions import HierarchicalMachine as Machine
 
-import os
+from .action_client.arm_calibrate_action_client import ArmCalibrateActionClient
 from .action_client.arm_preset_action_client import ArmPreset, ArmPresetActionClient
 from .action_client.bring_cup_to_mouth_action_client import BringCupToMouthActionClient
+from .action_client.chair_calibrate_action_client import ChairCalibrateActionClient
+from .action_client.chair_curb_traverse_action_client import (
+    ChairCurbTraverseActionClient,
+    CurbTraverseDirection,
+)
 from .action_client.grab_cup_from_table_action_client import (
     GrabCupFromTableActionClient,
 )
 from .action_client.home_cup_action_client import HomeCupActionClient
+from .action_client.open_door_action_client import OpenDoorActionClient
 from .action_client.pick_up_and_order_action_client import PickUpAndOrderActionClient
 from .action_client.pub_cup_back_to_holder_action_client import (
     PutCupBackToHolderActionClient,
 )
-from .action_client.open_door_action_client import OpenDoorActionClient
-from .action_client.chair_curb_traverse_action_client import (
-    CurbTraverseDirection,
-    ChairCurbTraverseActionClient,
-)
-from .action_client.chair_calibrate_action_client import ChairCalibrateActionClient
-from .action_client.arm_calibrate_action_client import ArmCalibrateActionClient
-from gui_interfaces.srv import UserInputs
-from gui_interfaces.msg import SystemState
-from transitions.extensions import HierarchicalMachine as Machine
 from .node_name_monitor import NodeNameMonitor
-from ament_index_python.packages import get_package_share_directory
-from arm_interfaces.srv import SetMode, SetSpeedPreset
-from std_srvs.srv import Trigger, SetBool
-from std_msgs.msg import Bool
-from sensor_msgs.msg import JointState
-from diagnostic_msgs.msg import DiagnosticStatus, DiagnosticArray
-from rammp_prototype_interfaces.msg import SeatCommand
 
 UserInputsToSeatCommand: dict[str, int] = {
     UserInputs.Request.CHAIR_SEAT_ELEVATE_UP: SeatCommand.RAISE,
@@ -609,6 +608,8 @@ class SystemControl(rclpy.node.Node):
         self.base_self_leveling_enable(
             False
         )  # disable self-leveling when entering SLOff state
+
+        self.base_drive_enable(True)  # enable drive when entering SLOff state
 
     def on_enter_Nav_SLOn(self):
         self.get_logger().info("Self-leveling is turned on.")

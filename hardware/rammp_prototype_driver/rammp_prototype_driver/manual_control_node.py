@@ -66,6 +66,8 @@ class ManualControlNode(Node):
         )
 
     def joy_callback(self, msg):
+        if self.teensy_state is None:
+            return
         estop_pressed = len(msg.buttons) > 1 and msg.buttons[1] == 1
         if estop_pressed and not self._prev_estop_pressed:
             self._trigger_estop()
@@ -78,13 +80,13 @@ class ManualControlNode(Node):
 
         entered_manual = False
         if start_pressed and not self.prev_start_pressed:
-            if self.teensy_state == RAMMPPrototypeState.ESTOP:
+            if self.teensy_state == RAMMPPrototypeState.STATE_ESTOP:
                 self.serial_commands_pub.publish(String(data="c\n"))
                 self.state = self.STATE_IDLE
-
+                return
             if (
                 self.state == self.STATE_IDLE
-                and self.teensy_state == RAMMPPrototypeState.IDLE
+                and self.teensy_state == RAMMPPrototypeState.STATE_IDLE
             ):
                 axes_array = list(msg.axes)
                 if not self._fc_axis_neutral(axes_array):

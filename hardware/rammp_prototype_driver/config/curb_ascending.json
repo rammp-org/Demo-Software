@@ -1,71 +1,6 @@
 {
-  "name": "faster_curb_climb_v2",
+  "name": "curb_ascending",
   "keyframes": [
-    {
-      "label": "Raise to curb and let user drive",
-      "targets": [
-        210.0,
-        45.0,
-        250.0,
-        210.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0
-      ],
-      "duration_ms": 1000,
-      "relative": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true
-      ],
-      "carriage_return": 0,
-      "motor_durations": [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      "guard_threshold": [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0
-      ],
-      "guard_condition": [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-      ]
-    },
     {
       "label": "Raise seat and drive wheels up",
       "targets": [
@@ -158,7 +93,7 @@
         true,
         true
       ],
-      "carriage_return": 1,
+      "carriage_return": 5,
       "motor_durations": [
         null,
         null,
@@ -205,7 +140,7 @@
         175.0,
         0.0,
         0.0,
-        2500.0,
+        5000.0,
         0.0,
         0.0,
         0.0

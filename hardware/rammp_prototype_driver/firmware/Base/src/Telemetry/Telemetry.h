@@ -2,6 +2,7 @@
 #define TELEMETRY_H
 
 #include <Arduino.h>
+#include "../FcMotorConfig/FcMotorConfig.h"
 
 // Phase 4: State Machine
 enum SystemState {
@@ -47,8 +48,8 @@ struct SystemTelemetry {
   float raw_enc_velocities[2];
   int drive_directions[2];
   int drive_enc_directions[2];
-  float odrive_positions[2];     // [R, L] robot frame (turns)
-  float odrive_torques[2];       // [R, L] Nm
+  float odrive_positions[2]; // [R, L] turns (hub feedback is deg internally)
+  float odrive_torques[2];   // [R, L] Nm (unused for hub motors; always 0)
   int carriage_return_direction; // for smooth carriage return during curb
                                  // traversal
 };
@@ -69,8 +70,15 @@ extern IMU_Class IMU;
 extern StrainGauge sg_rc, sg_fc, sg_ml, sg_mr;
 extern bool ml_fwd_limit, ml_bwd_limit, mr_fwd_limit, mr_bwd_limit;
 
+#if (fc_motor_id == 1)
 class ODrive;
 extern ODrive ODriveR, ODriveL;
+#elif (fc_motor_id == 2)
+class HubMotor;
+extern HubMotor hubMotorR, hubMotorL;
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
 
 extern int carriage_return_direction;
 

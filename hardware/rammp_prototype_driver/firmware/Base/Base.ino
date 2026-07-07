@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include "src/FcMotorConfig/FcMotorConfig.h"
 #include "src/Constants/Constants.h"
 #include "src/EncoderContainer/EncoderContainer.h"
 #include "src/IMU_Class/IMU_Class.h"
@@ -25,11 +26,19 @@
 #include "src/PIDController/PIDController.h"
 #include "src/StrainGauge/StrainGauge.h"
 
+// Front casters: ODrive or hub motors on Serial1 / Serial8 (see
+// FcMotorConfig.h).
+#if (fc_motor_id == 1)
 #include <ODriveUART.h>
 #include "ODriveEnums.h"
 #include "src/ODrive/ODrive.h"
-#define DEBUG_MODE 1
-
+#elif (fc_motor_id == 2)
+#include "src/HubMotor/HubMotor.h"
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
+#include "src/FcMotorConfig/FcMotors.h"
+#define DEBUG_MODE 0
 // Drive motor position deadzone. When the FB position error is within this
 // many ticks, the target is snapped to current position and both PIDs are
 // cleared so the telemetry PWM output (read by the RNET joystick spoofer)
@@ -77,9 +86,35 @@ RoboClaw roboclaw_carriages(&Serial3, 10000); // Serial3
 RoboClaw roboclaw_casters(&Serial4, 10000);   // Serial4
 RoboClaw roboclaw_main(&Serial5, 10000);      // Serial5
 
-// Init ODrive motors
+// odrive init
+#if (fc_motor_id == 1)
 HardwareSerial &odriveR_serial = Serial1;
 HardwareSerial &odriveL_serial = Serial7;
+ODriveUART odriveR(odriveR_serial);
+ODriveUART odriveL(odriveL_serial);
+ODrive ODriveR(odriveR, FC_MOTOR_R_AXIS_DIR);
+ODrive ODriveL(odriveL, FC_MOTOR_L_AXIS_DIR);
+// hub motor init
+#elif (fc_motor_id == 2)
+HardwareSerial &hubMotorR_serial = Serial1;
+HardwareSerial &hubMotorL_serial = Serial8;
+HubMotor hubMotorR(FC_MOTOR_R_AXIS_DIR, hubMotorR_serial);
+HubMotor hubMotorL(FC_MOTOR_L_AXIS_DIR, hubMotorL_serial);
+float hub_r_last_sent_pos = NAN;
+float hub_l_last_sent_pos = NAN;
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
+
+#if (fc_motor_id == 1)
+#define FC_MOTOR_R (&ODriveR)
+#define FC_MOTOR_L (&ODriveL)
+#elif (fc_motor_id == 2)
+#define FC_MOTOR_R (&hubMotorR)
+#define FC_MOTOR_L (&hubMotorL)
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
 
 // Instantiate the 6 actuated Motor objects + 2 body-frame drive controllers
 Motor rc;
@@ -90,10 +125,6 @@ Motor ml_carriage;
 Motor mr_carriage;
 Motor drive_fb;
 Motor drive_lr;
-ODriveUART odriveR(odriveR_serial);
-ODriveUART odriveL(odriveL_serial);
-ODrive ODriveR(odriveR);     // hardware == robot +X
-ODrive ODriveL(odriveL, -1); // flip hardware vs robot frame
 
 int8_t ml_enc_dir = 1;
 int8_t mr_enc_dir = 1;
@@ -102,6 +133,7 @@ float raw_ml_enc_pos = 0, raw_mr_enc_pos = 0;
 float raw_ml_enc_vel = 0, raw_mr_enc_vel = 0;
 
 // Centralized motor-encoder mapping table (declared extern in MotorMap.h)
+#if (fc_motor_id == 1)
 MotorEntry motor_map[10] = {
     {&rc, 3, &roboclaw_casters, 1, true, true, "rc"},
     {&fc, 2, &roboclaw_casters, 2, true, true, "fc"},
@@ -112,7 +144,24 @@ MotorEntry motor_map[10] = {
     {&drive_fb, 9, nullptr, 0, false, false, "drive_fb"},
     {&drive_lr, 10, nullptr, 0, false, false, "drive_lr"},
     {&ODriveL, 0, nullptr, 0, false, false, "odrive_l"},
-    {&ODriveR, 0, nullptr, 0, false, false, "odrive_r"}};
+    {&ODriveR, 0, nullptr, 0, false, false, "odrive_r"},
+};
+#elif (fc_motor_id == 2)
+MotorEntry motor_map[10] = {
+    {&rc, 3, &roboclaw_casters, 1, true, true, "rc"},
+    {&fc, 2, &roboclaw_casters, 2, true, true, "fc"},
+    {&ml, 7, &roboclaw_main, 1, true, true, "ml"},
+    {&mr, 5, &roboclaw_main, 2, true, true, "mr"},
+    {&ml_carriage, 11, &roboclaw_carriages, 1, true, true, "ml_carriage"},
+    {&mr_carriage, 12, &roboclaw_carriages, 2, true, true, "mr_carriage"},
+    {&drive_fb, 9, nullptr, 0, false, false, "drive_fb"},
+    {&drive_lr, 10, nullptr, 0, false, false, "drive_lr"},
+    {&hubMotorL, 0, nullptr, 0, false, false, "hub_motor_l"},
+    {&hubMotorR, 0, nullptr, 0, false, false, "hub_motor_r"},
+};
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
 
 // Strain gauge objects — one per load cell (default lpf_alpha = 0.5)
 StrainGauge sg_rc(RC_LOADCELL_PIN, 0.8f);
@@ -127,8 +176,8 @@ int16_t scaled_ml_pwm;
 int16_t scaled_mr_pwm;
 
 // IMU offset
-float pitch_trim_deg = 3.0f;
-float roll_trim_deg = 2.0f;
+float pitch_trim_deg = 7.0f;
+float roll_trim_deg = 0.0f;
 
 float getPitchTrim() { return pitch_trim_deg; }
 void setPitchTrim(float val) { pitch_trim_deg = val; }
@@ -413,11 +462,19 @@ float cal_pwm = 0.0f;
 bool cal_done[CAL_NUM_MOTORS] = {};
 
 void startCalibration(float pwm) {
-  // disable odrives before calibration
+
+// disable odrives or hub motorsbefore calibration
+#if (fc_motor_id == 1)
   ODriveL.setTargetVelocity(0.0f);
   ODriveR.setTargetVelocity(0.0f);
   ODriveL.disable();
   ODriveR.disable();
+#elif (fc_motor_id == 2)
+  hubMotorR.disable();
+  hubMotorL.disable();
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
 
   cal_start_ms = millis();
   cal_pwm = pwm;
@@ -496,8 +553,9 @@ void setup() {
   Serial3.begin(460800); // roboclaw 1
   Serial4.begin(460800); // roboclaw 2
   Serial5.begin(460800); // roboclaw 3
-  Serial1.begin(460800); // odrive right
-  Serial7.begin(460800); // odrive left
+  Serial1.begin(FC_MOTOR_SERIAL_BAUD);
+  // Serial7.begin(FC_MOTOR_SERIAL_BAUD);
+  Serial8.begin(FC_MOTOR_SERIAL_BAUD);
 
   // set up limit switches
   pinMode(CARRIAGE_SW1_PIN, INPUT_PULLDOWN);
@@ -522,12 +580,15 @@ void setup() {
     return (isnan(v) || isinf(v)) ? 0.0f : v;
   };
 
-  MotorBase *all_motors[10] = {&rc,          &fc,          &ml,       &mr,
-                               &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
-                               &ODriveR,     &ODriveL};
-  for (int i = 0; i < 8; i++) {
+  MotorBase *all_motors[10];
+  FILL_ALL_MOTORS(all_motors, &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
+                  &drive_fb, &drive_lr, FC_MOTOR_L, FC_MOTOR_R);
+  for (int i = 0; i < 10; i++) {
     MotorConfig conf = ConfigStorage::loadMotorConfig(i + 1);
-    all_motors[i]->setDirection(conf.motor_dir);
+    // FC actuators 9–10: axis sign comes from FcMotorConfig.h, not EEPROM.
+    if (i < 8) {
+      all_motors[i]->setDirection(conf.motor_dir);
+    }
     all_motors[i]->setEncoderDirection(conf.encoder_dir);
     // Restore drive wheel kinematics encoder direction from EEPROM.
     // ml_enc_dir/mr_enc_dir are the runtime source of truth for drive wheel
@@ -570,6 +631,8 @@ void setup() {
           (signed long)(conf.saved_position / (float)conf.encoder_dir);
     }
   }
+
+  applyFcMotorAxisDirections(FC_MOTOR_L, FC_MOTOR_R);
 
   rc.attachStrainGauge(&sg_rc);
   fc.attachStrainGauge(&sg_fc);
@@ -617,9 +680,16 @@ void loop() {
   mr.updateSensorData(EContr.encoderf[5], dt);
   ml_carriage.updateSensorData(EContr.encoderf[11], dt);
   mr_carriage.updateSensorData(EContr.encoderf[12], dt);
-  ODriveR.updateSensorData(
-      0, dt); // 0s for odrives because they have their own encoders
+#if (fc_motor_id == 1)
+  ODriveR.updateSensorData(0, dt);
   ODriveL.updateSensorData(0, dt);
+#elif (fc_motor_id == 2)
+  hubMotorR.updateSensorData(0, dt);
+  hubMotorL.updateSensorData(0, dt);
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
+
   {
     static float prev_ml = 0, prev_mr = 0;
     float ml_enc = EContr.encoderf[9] * ml_enc_dir;
@@ -685,10 +755,11 @@ void loop() {
         Serial.println("DEBUG: ESTOP Cleared, entering UNCALIBRATED");
     }
   } else if (cmd.type == CMD_SEQ_MODE) {
-    // All sequence actuators (RoboClaw, drive virtual, ODrive L/R).
-    MotorBase *seq_motors[SEQ_NUM_MOTORS] = {
-        &rc,          &fc,       &ml,       &mr,      &ml_carriage,
-        &mr_carriage, &drive_fb, &drive_lr, &ODriveR, &ODriveL};
+    // All sequence actuators (RoboClaw, drive virtual, ODrive L/R or Hub Motor
+    // L/R).
+    MotorBase *seq_motors[SEQ_NUM_MOTORS];
+    FILL_SEQ_MOTORS(seq_motors, &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
+                    &drive_fb, &drive_lr, FC_MOTOR_R, FC_MOTOR_L);
     if (cmd.actuator_id == 1) {
       // B1:1 / B1:0 — enter or exit sequence mode
       if (cmd.value > 0.5f) {
@@ -716,9 +787,10 @@ void loop() {
       // If jumping from AUTO_CURB_CLIMBING, clean up sequence state first
       // so drive wheels don't stay in POSITION_CONTROL with stale targets.
       if (current_state == AUTO_CURB_CLIMBING) {
-        MotorBase *seq_motors[SEQ_NUM_MOTORS] = {
-            &rc,          &fc,       &ml,       &mr,      &ml_carriage,
-            &mr_carriage, &drive_fb, &drive_lr, &ODriveR, &ODriveL};
+        MotorBase *seq_motors[SEQ_NUM_MOTORS];
+        FILL_SEQ_MOTORS(seq_motors, &rc, &fc, &ml, &mr, &ml_carriage,
+                        &mr_carriage, &drive_fb, &drive_lr, FC_MOTOR_R,
+                        FC_MOTOR_L);
         sequenceExit(seq_motors);
       }
       current_state = SELF_LEVELING;
@@ -761,12 +833,21 @@ void loop() {
       Serial.println("DEBUG: Command rejected — calibration required");
   }
 
-  // Both ODrives: same velocity command (s:<turns/s>, robot frame).
-  if (cmd.type == CMD_ODRIVE_VEL && current_state != ESTOP) {
-    ODriveL.setMode(MotorBase::VELOCITY_CONTROL);
+  // Global FC velocity command (s:<vel>, robot frame).
+  if (cmd.type == CMD_FC_VEL && current_state != ESTOP) {
+#if (fc_motor_id == 1)
     ODriveR.setMode(MotorBase::VELOCITY_CONTROL);
-    ODriveL.setTargetVelocity(cmd.value);
+    ODriveL.setMode(MotorBase::VELOCITY_CONTROL);
     ODriveR.setTargetVelocity(cmd.value);
+    ODriveL.setTargetVelocity(cmd.value);
+#elif (fc_motor_id == 2)
+    hubMotorR.setMode(MotorBase::VELOCITY_CONTROL);
+    hubMotorL.setMode(MotorBase::VELOCITY_CONTROL);
+    hubMotorR.setTargetVelocity(cmd.value);
+    hubMotorL.setTargetVelocity(cmd.value);
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
   }
 
   // Config reads are safe during any state (including E-Stop).
@@ -804,12 +885,9 @@ void loop() {
 
   // Sequence command dispatch (delegated to SequencePlayer module)
   if (current_state == AUTO_CURB_CLIMBING && cmd.type != CMD_NONE) {
-    MotorBase
-        *seq_motors[SEQ_NUM_MOTORS] =
-            {&rc,          &fc,          &ml,       &mr,
-             &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
-             &ODriveR,     &ODriveL}; // indices 0-5: position-mode; 6-7:
-                                      // velocity-mode (drive wheels)
+    MotorBase *seq_motors[SEQ_NUM_MOTORS];
+    FILL_SEQ_MOTORS(seq_motors, &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
+                    &drive_fb, &drive_lr, FC_MOTOR_R, FC_MOTOR_L);
     sequenceHandleCommand(cmd, seq_motors, parser.last_payload);
   }
 
@@ -824,24 +902,35 @@ void loop() {
     mr_carriage.disable();
     drive_fb.disable();
     drive_lr.disable();
+#if (fc_motor_id == 1)
     ODriveR.disable();
     ODriveL.disable();
+#elif (fc_motor_id == 2)
+    hubMotorR.disable();
+    hubMotorL.disable();
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
   } else if (current_state == SELF_LEVELING) {
     // Drive wheels are not used during leveling — disable every tick to prevent
     // stale PID output from leaking to the joystick (e.g. if a prior mode left
     // drive_fb in POSITION_CONTROL with a stale target).
     drive_fb.disable();
     drive_lr.disable();
+#if (fc_motor_id == 1)
     ODriveR.disable();
     ODriveL.disable();
+#elif (fc_motor_id == 2)
+    hubMotorR.disable();
+    hubMotorL.disable();
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
     runSelfLeveling(dt);
   } else if (current_state == AUTO_CURB_CLIMBING) {
-    MotorBase
-        *seq_motors[SEQ_NUM_MOTORS] =
-            {&rc,          &fc,          &ml,       &mr,
-             &ml_carriage, &mr_carriage, &drive_fb, &drive_lr,
-             &ODriveR,     &ODriveL}; // indices 0-5: position-mode; 6-7:
-                                      // velocity-mode (drive wheels)
+    MotorBase *seq_motors[SEQ_NUM_MOTORS];
+    FILL_SEQ_MOTORS(seq_motors, &rc, &fc, &ml, &mr, &ml_carriage, &mr_carriage,
+                    &drive_fb, &drive_lr, FC_MOTOR_R, FC_MOTOR_L);
     sequenceUpdate(seq_motors);
   } else if (current_state == CALIBRATING) {
     runCalibration(dt);
@@ -917,6 +1006,7 @@ void loop() {
 
   roboclaw_carriages.DutyM2(0x80, (int16_t)mrc_pwm);
 
+#if (fc_motor_id == 1)
   if (ODriveR.mode == ODrive::VELOCITY_CONTROL) {
     odriveR.setVelocity(ODriveR.getTargetVelocity());
   } else if (ODriveR.mode == ODrive::POSITION_CONTROL) {
@@ -927,6 +1017,40 @@ void loop() {
   } else if (ODriveL.mode == ODrive::POSITION_CONTROL) {
     odriveL.setPosition(ODriveL.getTargetPosition());
   }
+
+#elif (fc_motor_id == 2)
+  if (hubMotorR.mode == MotorBase::OPEN_LOOP) {
+    hub_r_last_sent_pos = NAN;
+    hubMotorR.writePWM();
+  } else if (hubMotorR.mode == MotorBase::VELOCITY_CONTROL) {
+    hub_r_last_sent_pos = NAN;
+    hubMotorR.writeTargetVel();
+  } else if (hubMotorR.mode == MotorBase::POSITION_CONTROL) {
+    if (hubMotorR.target_pos != hub_r_last_sent_pos) {
+      hubMotorR.writeTargetPos();
+      hub_r_last_sent_pos = hubMotorR.target_pos;
+    }
+  } else {
+    hub_r_last_sent_pos = NAN;
+  }
+
+  if (hubMotorL.mode == MotorBase::OPEN_LOOP) {
+    hub_l_last_sent_pos = NAN;
+    hubMotorL.writePWM();
+  } else if (hubMotorL.mode == MotorBase::VELOCITY_CONTROL) {
+    hub_l_last_sent_pos = NAN;
+    hubMotorL.writeTargetVel();
+  } else if (hubMotorL.mode == MotorBase::POSITION_CONTROL) {
+    if (hubMotorL.target_pos != hub_l_last_sent_pos) {
+      hubMotorL.writeTargetPos();
+      hub_l_last_sent_pos = hubMotorL.target_pos;
+    }
+  } else {
+    hub_l_last_sent_pos = NAN;
+  }
+#else
+#error "fc_motor_id must be 1 (ODrive) or 2 (hub motors); see FcMotorConfig.h"
+#endif
 
   // 5. Send Telemetry
   updateTelemetry();

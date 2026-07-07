@@ -34,7 +34,7 @@ JS_BACK_RIGHT = 6
 JS_BACK = 7
 JS_ORIGIN = 8
 
-INPUT_REMOTE = 1
+INPUT_REMOTE = 5
 
 JOYSTICK_TOPIC = "/luci/remote_joystick"
 JOYSTICK_MSG_TYPE = "/luci_messages/msg/LuciJoystick"
@@ -145,8 +145,8 @@ class SerialField(IntEnum):
     MR_WHEEL_POS = 71
     ML_WHEEL_VEL = 72
     MR_WHEEL_VEL = 73
-    ODRIVE_L_POS = 78
-    ODRIVE_R_POS = 79
+    ODRIVE_R_POS = 78
+    ODRIVE_L_POS = 79
     ODRIVE_L_TORQUE_NM = 80
     ODRIVE_R_TORQUE_NM = 81
     CARRIAGE_RETURN_DIRECTION = 82
@@ -215,6 +215,10 @@ class MEBotControlNode(Node):
         )
 
         self.estop = False
+        self.user_fb = 0
+        self.user_lr = 0
+        self.user_control_enabled = True
+        self.cap_user_speed = False
 
         # Fields to store sequence player data
         self.current_seq = 0
@@ -247,8 +251,8 @@ class MEBotControlNode(Node):
         self.MR_wheel_vel = 0.0
         self.odrive_l_pos = 0.0
         self.odrive_r_pos = 0.0
-        self.odrive_l_torque_nm = 0.0
-        self.odrive_r_torque_nm = 0.0
+        # self.odrive_l_torque_nm = 0.0
+        # self.odrive_r_torque_nm = 0.0
         self.carriage_return_direction = 0
 
         # Loadcells
@@ -285,7 +289,7 @@ class MEBotControlNode(Node):
         self._init_subscribers()
         self._init_publishers()
 
-        self.send_remove_luci()
+        self.enable_remote_input()
 
     def _init_services(self):
         # services
@@ -303,6 +307,12 @@ class MEBotControlNode(Node):
         )
         self.remove_auto_remote_client = self.create_client(
             Empty, "/luci/remove_auto_remote_input"
+        )
+        self.set_remote_input = self.create_client(
+            Empty, "/luci/set_shared_remote_input"
+        )
+        self.remove_remote_input = self.create_client(
+            Empty, "/luci/remove_shared_remote_input"
         )
 
     def _init_actions(self):
@@ -329,6 +339,10 @@ class MEBotControlNode(Node):
             Bool, "estop", self.estop_callback, 10
         )
 
+        self.user_joystick_subscription = self.create_subscription(
+            LuciJoystick, "/luci/joystick_position", self.user_joystick_callback, 10
+        )
+
     def _init_publishers(self):
         # joint state publisher
         self.joint_state_publisher = self.create_publisher(
@@ -349,7 +363,7 @@ class MEBotControlNode(Node):
         self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
         self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
-        self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
+        # self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
 
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
@@ -362,9 +376,7 @@ class MEBotControlNode(Node):
             if line:
                 raw_data = line.decode("utf-8", errors="replace").strip()
                 if raw_data.startswith("TELEMETRY"):
-                    # self.get_logger().info(raw_data)
                     data = raw_data.split(",")  # All values are str
-                    # self.get_logger().info(str(data))
                     self.update_data(data)  # Update variables with new data
                 if raw_data.startswith(
                     "SEQ_STATUS"
@@ -672,6 +684,10 @@ class MEBotControlNode(Node):
             )
         return stat
 
+    def user_joystick_callback(self, msg: LuciJoystick):
+        self.user_fb = msg.forward_back
+        self.user_lr = msg.left_right
+
     def manual_seat_control_callback(self, msg: SeatCommand):
         self.get_logger().info("Seat command callback has been entered")
         deltas = SEAT_DELTAS.get(msg.command)
@@ -692,32 +708,24 @@ class MEBotControlNode(Node):
     def estop_callback(self, msg):
         self.estop = msg.data
         if msg.data:
-            self.send_remove_luci()  # may be redundent, ensure user has manual control
+            self.user_control_enabled = True
             self.write_serial_data(
                 "z\n"
             )  # triggers MotorController function NO_MOVEMENT
             self.write_serial_data("K0\n")
 
-    def send_set_luci(self):
-        self.get_logger().info(
-            f"JoystickDebug: setting LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
-        )
+    def enable_remote_input(self):
         request = Empty.Request()
-        future = self.set_auto_remote_client.call_async(request)
+        future = self.set_remote_input.call_async(request)
         future.add_done_callback(self.luci_req_done)
-
-        self.luci_heartbeat_timer.reset()
+        self.get_logger().info("Remote input enabled")
         return future
 
-    def send_remove_luci(self):
-        self.get_logger().info(
-            f"JoystickDebug: removing LUCI auto remote input (state={self.state}, fb_pwm={self.fb_pwm})"
-        )
+    def disable_remote_input(self):
         request = Empty.Request()
-        future = self.remove_auto_remote_client.call_async(request)
+        future = self.remove_remote_input.call_async(request)
         future.add_done_callback(self.luci_req_done)
-
-        self.luci_heartbeat_timer.cancel()
+        self.get_logger().info("Remote input disabled")
         return future
 
     def luci_req_done(self, future):
@@ -760,22 +768,25 @@ class MEBotControlNode(Node):
         result.message = f"Calibrated {self.cal_joints_done}/6 joints"
         return result
 
-    def _send_joystick(self):
+    def _send_joystick(self, fb_pwm=None):
+        msg = LuciJoystick()
         if self.carriage_return_direction != 0:
-            msg = LuciJoystick()
             msg.forward_back = self.carriage_return_direction
-            lr_val = -2
+            lr_val = -8
             msg.left_right = lr_val
-            msg.joystick_zone = _compute_zone(self.carriage_return_direction, lr_val)
-            msg.input_source = INPUT_REMOTE
-            self.luci_js_publisher.publish(msg)
+        elif self.user_control_enabled and not self.cap_user_speed:
+            msg.forward_back = self.user_fb
+            msg.left_right = self.user_lr
+        elif self.user_control_enabled and self.cap_user_speed:
+            msg.forward_back = min(self.user_fb, 15)
+            msg.left_right = 0
         else:
-            msg = LuciJoystick()
             msg.forward_back = self.fb_pwm
             msg.left_right = 0
-            msg.joystick_zone = _compute_zone(self.fb_pwm, 0)
-            msg.input_source = INPUT_REMOTE
-            self.luci_js_publisher.publish(msg)
+
+        msg.joystick_zone = _compute_zone(msg.forward_back, msg.left_right)
+        msg.input_source = INPUT_REMOTE
+        self.luci_js_publisher.publish(msg)
 
         # Warn when publishing non-zero joystick data outside of active drive states
         if self.fb_pwm != 0 and self.state != SystemState.AUTO_CURB_CLIMBING:
@@ -796,25 +807,85 @@ class MEBotControlNode(Node):
             self._js_warn_count = 0
 
     def curb_traverse_action_callback(self, goal):
-        self.send_set_luci()  # enable LUCI control over js
+        self.enable_remote_input()
 
+        self.cap_user_speed = True
         # feedback_msg = CurbTraverse.Feedback()
         result = CurbTraverse.Result()
 
-        # call the calibration function before going down curb
-        self.cal_joints_done = 0
-        self.cal_complete = False
-        self.write_serial_data(f"W0:{CALIBRATION_PWM}\n")
-
-        # delay while calibration runs
-        time.sleep(6)
-
         if goal.request.direction == 1:
+            # send first kf to get chair at height to detect curb
+            json_path = (
+                get_package_share_directory("rammp_prototype_driver")
+                + "/config/ascend_approach.json"
+            )
+            keyframes = _load_keyframes_from_json(json_path)
+            self.send_sequence(keyframes, auto_run=True)
+
+            time.sleep(0.5)  # wait for sequence to start
+            while self.seq_mode != 0:  # while kf is running
+                time.sleep(0.01)
+                if goal.is_cancel_requested:
+                    goal.canceled()
+                    result.success = False
+                    self.user_control_enabled = True
+                    self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+                    self.write_serial_data("z\n")
+                    self.write_serial_data("c\n")
+                    self.disable_remote_input()
+                    return result
+
+            self.write_serial_data("s:0.2000\n")
+            # waiting for user to hit front caster on curb
+            while self.FC_loadcell > 200:
+                if goal.is_cancel_requested:
+                    goal.canceled()
+                    result.success = False
+                    self.user_control_enabled = True
+                    self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+                    self.write_serial_data("z\n")
+                    self.write_serial_data("c\n")
+                    self.disable_remote_input()
+                    return result
+                time.sleep(0.01)
+
+            time.sleep(0.5)
+
+            # immediately remove user joystick control and stop drive wheels
+            self.write_serial_data("s:0.000\n")
+            self.user_control_enabled = False
+
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
                 + "/config/curb_ascending.json"
             )
         else:
+            # send first kf to get chair at height to detect ground
+            json_path = (
+                get_package_share_directory("rammp_prototype_driver")
+                + "/config/descend_approach.json"
+            )
+            keyframes = _load_keyframes_from_json(json_path)
+            self.send_sequence(keyframes, auto_run=True)
+
+            time.sleep(3)
+
+            # waiting for user to get front caster off curb
+            while self.FC_loadcell < 150:
+                if goal.is_cancel_requested:
+                    goal.canceled()
+                    result.success = False
+                    self.user_control_enabled = True
+                    self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+                    self.write_serial_data("z\n")
+                    self.write_serial_data("c\n")
+                    self.disable_remote_input()
+                    return result
+                time.sleep(0.01)
+
+            # immediately remove user joystick control and stop drive wheels
+            self.user_control_enabled = False
+
             json_path = (
                 get_package_share_directory("rammp_prototype_driver")
                 + "/config/curb_descending.json"
@@ -829,10 +900,11 @@ class MEBotControlNode(Node):
             if goal.is_cancel_requested:
                 goal.canceled()
                 result.success = False
-                self.send_remove_luci()
+                self.user_control_enabled = True
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")
+                self.disable_remote_input()
                 return result
             time.sleep(0.01)
 
@@ -842,10 +914,11 @@ class MEBotControlNode(Node):
             if goal.is_cancel_requested:
                 goal.canceled()
                 result.success = False
-                self.send_remove_luci()
+                self.user_control_enabled = True
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")
+                self.disable_remote_input()
                 return result
 
             # feedback_msg.progress = (
@@ -864,15 +937,16 @@ class MEBotControlNode(Node):
         self.seq_length = 0
         self.seq_mode = 0
 
-        self.send_remove_luci()
+        self.user_control_enabled = True
+        self.cap_user_speed = False
         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
         return result
 
     def drive_enable_callback(self, request, response):
         if request.data:
-            self.send_remove_luci()
+            self.user_control_enabled = True
         else:
-            self.send_set_luci()
+            self.user_control_enabled = False
 
         response.success = True  # just acknowledges request recieved and sent
         return response
@@ -893,7 +967,12 @@ def main(args=None):
     executor = MultiThreadedExecutor()
     executor.add_node(node)
 
-    executor.spin()
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.disable_remote_input()
 
     rclpy.shutdown()
 

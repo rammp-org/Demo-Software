@@ -12,6 +12,19 @@ fi
 ROSDEP_SOURCE="/etc/ros/rosdep/sources.list.d/50-rammp-custom.list"
 ROSDEP_YAML="file://${REPO_ROOT}/hardware/arm_driver/rosdep/python.yaml"
 
+# Reload udev rules only when a udev daemon is actually running.
+# In CI/containers there is no systemd-udevd (no /run/udev socket), so
+# `udevadm control --reload-rules` would fail; the copied rules file is
+# still installed correctly and will take effect on the next real boot.
+reload_udev_rules() {
+    if [ -d /run/udev ]; then
+        $SUDO udevadm control --reload-rules
+        $SUDO udevadm trigger
+    else
+        echo "udev daemon not running (CI/container?) — rules copied but not reloaded."
+    fi
+}
+
 echo "=== Updating apt ==="
 $SUDO apt-get update -q
 
@@ -84,8 +97,7 @@ for path in "${SEARCH_PATHS[@]}"; do
 done
 if [ -n "${ORBBEC_UDEV_RULES}" ]; then
     $SUDO cp "${ORBBEC_UDEV_RULES}" /etc/udev/rules.d/
-    $SUDO udevadm control --reload-rules
-    $SUDO udevadm trigger
+    reload_udev_rules
     echo "Orbbec udev rules installed from: ${ORBBEC_UDEV_RULES}"
 elif [ -f "/etc/udev/rules.d/99-obsensor-libusb.rules" ]; then
     echo "Orbbec udev rules already installed at /etc/udev/rules.d/ — skipping."
@@ -93,6 +105,19 @@ else
     echo "WARNING: Orbbec udev rules not found in any known location."
     echo "Install ros-humble-orbbec-camera or pyorbbecsdk first,"
     echo "then re-run setup.sh to install udev rules."
+fi
+
+echo "=== Installing RAMMP keypad udev rules ==="
+# Stable /dev/rammp_keyboard symlink for the SayoDevice 1x4P keypad (keyboard_driver).
+# Points at the one event node (USB interface 0) that emits the W/E/R/T presses;
+# the sibling nodes advertise the keys but never fire.
+KEYPAD_UDEV_RULES="${REPO_ROOT}/hardware/keyboard_driver/udev/99-rammp-keyboard.rules"
+if [ -f "${KEYPAD_UDEV_RULES}" ]; then
+    $SUDO cp "${KEYPAD_UDEV_RULES}" /etc/udev/rules.d/
+    reload_udev_rules
+    echo "RAMMP keypad udev rules installed from: ${KEYPAD_UDEV_RULES}"
+else
+    echo "WARNING: RAMMP keypad udev rules not found at ${KEYPAD_UDEV_RULES}."
 fi
 
 echo "=== Configuring Jetson max performance mode ==="

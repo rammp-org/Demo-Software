@@ -9,7 +9,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "bag_directory",
-                default_value="bags",
+                default_value="~/bags",
                 description="Directory to save the bags",
             ),
             Node(

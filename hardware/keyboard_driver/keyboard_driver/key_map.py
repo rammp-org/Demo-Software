@@ -24,11 +24,11 @@ CANCEL = "CANCEL"
 def resolve_action(key_name, state):
     state = state or ""
     if key_name == "KEY_W":
-        return CONFIRM if "ascendDetecting" in state else ASCEND
+        return CANCEL
     if key_name == "KEY_E":
         return CONFIRM if "descendDetecting" in state else DESCEND
     if key_name == "KEY_R":
-        return SELFLEVEL_ON
+        return CONFIRM if "ascendDetecting" in state else ASCEND
     if key_name == "KEY_T":
-        return CANCEL
+        return SELFLEVEL_ON
     return None

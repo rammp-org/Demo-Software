@@ -29,6 +29,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/SetSpeedPreset.srv"
   "srv/GetSpeedPreset.srv"
   "srv/CheckReachability.srv"
+  "srv/SetGripperPosition.srv"
   "action/ReachPreset.action"
   "action/ExecuteTrajectory.action"
   "action/Calibrate.action"

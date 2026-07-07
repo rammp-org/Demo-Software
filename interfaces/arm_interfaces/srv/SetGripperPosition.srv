@@ -1,0 +1,12 @@
+# Service definition for commanding the gripper to a partial position.
+# Adds continuous position control alongside the existing /arm/open_gripper and
+# /arm/close_gripper services (which remain unchanged).
+
+# Request message
+# Normalized target position: 0.0 = fully open, 1.0 = fully closed.
+# Values outside [0.0, 1.0] are clamped.
+float32 position
+---
+# Response message
+bool success
+string message

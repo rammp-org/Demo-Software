@@ -69,8 +69,8 @@ class RosBagNode(Node):
         bag_uri = os.path.join(self.bag_directory, bag_name)
 
         try:
-            self.writer = rosbag2_py.SequentialWriter()
-            self.writer.open(
+            writer = rosbag2_py.SequentialWriter()
+            writer.open(
                 rosbag2_py.StorageOptions(uri=bag_uri, storage_id="sqlite3"),
                 rosbag2_py.ConverterOptions("", ""),
             )
@@ -80,10 +80,14 @@ class RosBagNode(Node):
                 type="rammp_prototype_interfaces/msg/RAMMPPrototypeState",
                 serialization_format="cdr",
             )
-            self.writer.create_topic(topic_info)
+            writer.create_topic(topic_info)
         except Exception as e:
+            # Only publish a fully-opened writer to self.writer, so a failed
+            # open leaves self.writer as None and the next maneuver can retry.
             self.get_logger().error(f"Error starting recording: {e}")
             return
+
+        self.writer = writer
         self.get_logger().info(f"Started recording bag: {bag_uri}")
 
     def stop_recording(self):

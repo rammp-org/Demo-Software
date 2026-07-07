@@ -769,20 +769,16 @@ class MEBotControlNode(Node):
     def _send_joystick(self, fb_pwm=None):
         msg = LuciJoystick()
         if self.carriage_return_direction != 0:
-            self.get_logger().info("carriage return")
             msg.forward_back = self.carriage_return_direction
             lr_val = -8
             msg.left_right = lr_val
         elif self.user_control_enabled and not self.cap_user_speed:
-            self.get_logger().info("normal manual control")
             msg.forward_back = self.user_fb
             msg.left_right = self.user_lr
         elif self.user_control_enabled and self.cap_user_speed:
-            self.get_logger().info("slower manual control")
             msg.forward_back = min(self.user_fb, 15)
             msg.left_right = 0
         else:
-            self.get_logger().info("auto control")
             msg.forward_back = self.fb_pwm
             msg.left_right = 0
 

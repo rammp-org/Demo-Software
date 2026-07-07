@@ -195,7 +195,7 @@ class LuciClient(QObject):
                 lr = self._lr
             if self._carriage_return_direction != 0:
                 fb = self._carriage_return_direction
-                lr = -2
+                lr = 0
             self._topic.publish(
                 roslibpy.Message(
                     {

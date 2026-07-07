@@ -47,7 +47,9 @@ class RosBagNode(Node):
 
         self.rammp_prototype_state_subscription = self.create_subscription(
             RAMMPPrototypeState,
-            "/rammp_prototype_state",
+            # MEBot_control_node publishes this relative topic under the "base"
+            # namespace, so the resolved name is /base/rammp_prototype_state.
+            "/base/rammp_prototype_state",
             self.rammp_prototype_state_callback,
             10,
         )

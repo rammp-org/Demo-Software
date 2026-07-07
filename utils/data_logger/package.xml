@@ -11,7 +11,6 @@
   <depend>rammp_prototype_interfaces</depend>
   <depend>gui_interfaces</depend>
   <exec_depend>rosbag2_py</exec_depend>
-  <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

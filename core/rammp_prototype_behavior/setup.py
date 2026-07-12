@@ -40,6 +40,7 @@ setup(
             "mock_cup_stabilizer = rammp_prototype_behavior.mocks.mock_cup_stablizer:main",
             "mock_chair_control = rammp_prototype_behavior.mocks.mock_chair_control_node:main",
             "mock_curb_detection = rammp_prototype_behavior.mocks.mock_curb_detection:main",
+            "mock_luci = rammp_prototype_behavior.mocks.mock_luci:main",
         ],
     },
 )

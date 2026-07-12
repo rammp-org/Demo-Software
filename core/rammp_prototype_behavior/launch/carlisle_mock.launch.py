@@ -25,5 +25,10 @@ def generate_launch_description():
                 executable="mock_curb_detection",
                 output="screen",
             ),
+            Node(
+                package="rammp_prototype_behavior",
+                executable="mock_luci",
+                output="screen",
+            ),
         ]
     )

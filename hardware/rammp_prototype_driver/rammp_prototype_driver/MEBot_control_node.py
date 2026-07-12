@@ -7,7 +7,6 @@ from enum import IntEnum
 import diagnostic_updater
 import rclpy
 import serial
-from ament_index_python.packages import get_package_share_directory
 from diagnostic_msgs.msg import DiagnosticStatus
 from luci_messages.msg import LuciJoystick
 from rammp_prototype_interfaces.action import Calibration, CurbTraverse
@@ -805,140 +804,141 @@ class MEBotControlNode(Node):
             self._js_warn_count = 0
 
     def curb_traverse_action_callback(self, goal):
-        self.enable_remote_input()
+        pass
+        # self.enable_remote_input()
 
-        self.cap_user_speed = True
-        # feedback_msg = CurbTraverse.Feedback()
-        result = CurbTraverse.Result()
+        # self.cap_user_speed = True
+        # # feedback_msg = CurbTraverse.Feedback()
+        # result = CurbTraverse.Result()
 
-        if goal.request.direction == 1:
-            # send first kf to get chair at height to detect curb
-            json_path = (
-                get_package_share_directory("rammp_prototype_driver")
-                + "/config/ascend_approach.json"
-            )
-            keyframes = _load_keyframes_from_json(json_path)
-            self.send_sequence(keyframes, auto_run=True)
+        # if goal.request.direction == 1:
+        #     # send first kf to get chair at height to detect curb
+        #     json_path = (
+        #         get_package_share_directory("rammp_prototype_driver")
+        #         + "/config/ascend_approach.json"
+        #     )
+        #     keyframes = _load_keyframes_from_json(json_path)
+        #     self.send_sequence(keyframes, auto_run=True)
 
-            time.sleep(0.5)  # wait for sequence to start
-            while self.seq_mode != 0:  # while kf is running
-                time.sleep(0.01)
-                if goal.is_cancel_requested:
-                    goal.canceled()
-                    result.success = False
-                    self.user_control_enabled = True
-                    self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
-                    self.write_serial_data("z\n")
-                    self.write_serial_data("c\n")
-                    self.disable_remote_input()
-                    return result
+        #     time.sleep(0.5)  # wait for sequence to start
+        #     while self.seq_mode != 0:  # while kf is running
+        #         time.sleep(0.01)
+        #         if goal.is_cancel_requested:
+        #             goal.canceled()
+        #             result.success = False
+        #             self.user_control_enabled = True
+        #             self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+        #             self.write_serial_data("z\n")
+        #             self.write_serial_data("c\n")
+        #             self.disable_remote_input()
+        #             return result
 
-            self.write_serial_data("s:0.2000\n")
-            # waiting for user to hit front caster on curb
-            while self.FC_loadcell > 200:
-                if goal.is_cancel_requested:
-                    goal.canceled()
-                    result.success = False
-                    self.user_control_enabled = True
-                    self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
-                    self.write_serial_data("z\n")
-                    self.write_serial_data("c\n")
-                    self.disable_remote_input()
-                    return result
-                time.sleep(0.01)
+        #     self.write_serial_data("s:0.2000\n")
+        #     # waiting for user to hit front caster on curb
+        #     while self.FC_loadcell > 200:
+        #         if goal.is_cancel_requested:
+        #             goal.canceled()
+        #             result.success = False
+        #             self.user_control_enabled = True
+        #             self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+        #             self.write_serial_data("z\n")
+        #             self.write_serial_data("c\n")
+        #             self.disable_remote_input()
+        #             return result
+        #         time.sleep(0.01)
 
-            time.sleep(0.5)
+        #     time.sleep(0.5)
 
-            # immediately remove user joystick control and stop drive wheels
-            self.write_serial_data("s:0.000\n")
-            self.user_control_enabled = False
+        #     # immediately remove user joystick control and stop drive wheels
+        #     self.write_serial_data("s:0.000\n")
+        #     self.user_control_enabled = False
 
-            json_path = (
-                get_package_share_directory("rammp_prototype_driver")
-                + "/config/curb_ascending.json"
-            )
-        else:
-            # send first kf to get chair at height to detect ground
-            json_path = (
-                get_package_share_directory("rammp_prototype_driver")
-                + "/config/descend_approach.json"
-            )
-            keyframes = _load_keyframes_from_json(json_path)
-            self.send_sequence(keyframes, auto_run=True)
+        #     json_path = (
+        #         get_package_share_directory("rammp_prototype_driver")
+        #         + "/config/curb_ascending.json"
+        #     )
+        # else:
+        #     # send first kf to get chair at height to detect ground
+        #     json_path = (
+        #         get_package_share_directory("rammp_prototype_driver")
+        #         + "/config/descend_approach.json"
+        #     )
+        #     keyframes = _load_keyframes_from_json(json_path)
+        #     self.send_sequence(keyframes, auto_run=True)
 
-            time.sleep(3)
+        #     time.sleep(3)
 
-            # waiting for user to get front caster off curb
-            while self.FC_loadcell < 150:
-                if goal.is_cancel_requested:
-                    goal.canceled()
-                    result.success = False
-                    self.user_control_enabled = True
-                    self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
-                    self.write_serial_data("z\n")
-                    self.write_serial_data("c\n")
-                    self.disable_remote_input()
-                    return result
-                time.sleep(0.01)
+        #     # waiting for user to get front caster off curb
+        #     while self.FC_loadcell < 150:
+        #         if goal.is_cancel_requested:
+        #             goal.canceled()
+        #             result.success = False
+        #             self.user_control_enabled = True
+        #             self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+        #             self.write_serial_data("z\n")
+        #             self.write_serial_data("c\n")
+        #             self.disable_remote_input()
+        #             return result
+        #         time.sleep(0.01)
 
-            # immediately remove user joystick control and stop drive wheels
-            self.user_control_enabled = False
+        #     # immediately remove user joystick control and stop drive wheels
+        #     self.user_control_enabled = False
 
-            json_path = (
-                get_package_share_directory("rammp_prototype_driver")
-                + "/config/curb_descending.json"
-            )
+        #     json_path = (
+        #         get_package_share_directory("rammp_prototype_driver")
+        #         + "/config/curb_descending.json"
+        #     )
 
-        keyframes = _load_keyframes_from_json(json_path)
-        self.get_logger().info(f"Loaded {len(keyframes)} keyframes from {json_path}")
+        # keyframes = _load_keyframes_from_json(json_path)
+        # self.get_logger().info(f"Loaded {len(keyframes)} keyframes from {json_path}")
 
-        self.send_sequence(keyframes, auto_run=True)
+        # self.send_sequence(keyframes, auto_run=True)
 
-        while self.seq_mode == 0:
-            if goal.is_cancel_requested:
-                goal.canceled()
-                result.success = False
-                self.user_control_enabled = True
-                self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
-                self.write_serial_data("z\n")
-                self.write_serial_data("c\n")
-                self.disable_remote_input()
-                return result
-            time.sleep(0.01)
+        # while self.seq_mode == 0:
+        #     if goal.is_cancel_requested:
+        #         goal.canceled()
+        #         result.success = False
+        #         self.user_control_enabled = True
+        #         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+        #         self.write_serial_data("z\n")
+        #         self.write_serial_data("c\n")
+        #         self.disable_remote_input()
+        #         return result
+        #     time.sleep(0.01)
 
-        while self.current_seq != self.seq_length and self.seq_mode != 0:
-            self.get_logger().info(f"Current sequence: {self.current_seq}")
+        # while self.current_seq != self.seq_length and self.seq_mode != 0:
+        #     self.get_logger().info(f"Current sequence: {self.current_seq}")
 
-            if goal.is_cancel_requested:
-                goal.canceled()
-                result.success = False
-                self.user_control_enabled = True
-                self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
-                self.write_serial_data("z\n")
-                self.write_serial_data("c\n")
-                self.disable_remote_input()
-                return result
+        #     if goal.is_cancel_requested:
+        #         goal.canceled()
+        #         result.success = False
+        #         self.user_control_enabled = True
+        #         self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+        #         self.write_serial_data("z\n")
+        #         self.write_serial_data("c\n")
+        #         self.disable_remote_input()
+        #         return result
 
-            # feedback_msg.progress = (
-            #     self.current_seq * 100.0 / float(self.seq_length)
-            #     if self.seq_length > 0
-            #     else 0.0
-            # )
-            # goal.publish_feedback(feedback_msg)
+        #     # feedback_msg.progress = (
+        #     #     self.current_seq * 100.0 / float(self.seq_length)
+        #     #     if self.seq_length > 0
+        #     #     else 0.0
+        #     # )
+        #     # goal.publish_feedback(feedback_msg)
 
-            time.sleep(0.05)
+        #     time.sleep(0.05)
 
-        goal.succeed()
-        result.success = True
+        # goal.succeed()
+        # result.success = True
 
-        self.current_seq = 0
-        self.seq_length = 0
-        self.seq_mode = 0
+        # self.current_seq = 0
+        # self.seq_length = 0
+        # self.seq_mode = 0
 
-        self.user_control_enabled = True
-        self.cap_user_speed = False
-        self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
-        return result
+        # self.user_control_enabled = True
+        # self.cap_user_speed = False
+        # self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
+        # return result
 
     def drive_enable_callback(self, request, response):
         if request.data:

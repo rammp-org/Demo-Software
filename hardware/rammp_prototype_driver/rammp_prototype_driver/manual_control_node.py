@@ -107,7 +107,6 @@ class ManualControlNode(Node):
                         String(data="s:0.0000\nT9:0.00\nT10:0.00\n")
                     )
                     entered_manual = True
-                    self.get_logger().info("Entered gamepad control mode")
             else:
                 self.state = self.STATE_IDLE
                 self.axes_centered = False

@@ -804,12 +804,13 @@ class MEBotControlNode(Node):
             self._js_warn_count = 0
 
     def curb_traverse_action_callback(self, goal):
-        pass
-        # self.enable_remote_input()
+        self.enable_remote_input()
 
-        # self.cap_user_speed = True
-        # # feedback_msg = CurbTraverse.Feedback()
-        # result = CurbTraverse.Result()
+        self.cap_user_speed = True
+        # feedback_msg = CurbTraverse.Feedback()
+        result = CurbTraverse.Result()
+        result.success = True
+        return result
 
         # if goal.request.direction == 1:
         #     # send first kf to get chair at height to detect curb
@@ -817,8 +818,8 @@ class MEBotControlNode(Node):
         #         get_package_share_directory("rammp_prototype_driver")
         #         + "/config/ascend_approach.json"
         #     )
-        #     keyframes = _load_keyframes_from_json(json_path)
-        #     self.send_sequence(keyframes, auto_run=True)
+        #     # keyframes = _load_keyframes_from_json(json_path)
+        #     # self.send_sequence(keyframes, auto_run=True)
 
         #     time.sleep(0.5)  # wait for sequence to start
         #     while self.seq_mode != 0:  # while kf is running
@@ -833,7 +834,7 @@ class MEBotControlNode(Node):
         #             self.disable_remote_input()
         #             return result
 
-        #     self.write_serial_data("s:0.2000\n")
+        #     # self.write_serial_data("s:0.2000\n")
         #     # waiting for user to hit front caster on curb
         #     while self.FC_loadcell > 200:
         #         if goal.is_cancel_requested:

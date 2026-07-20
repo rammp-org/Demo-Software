@@ -360,6 +360,7 @@ class MEBotControlNode(Node):
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
 
     def gamepad_control_callback(self, msg: String):
+        self.get_logger().info(f"Gamepad control callback: {msg.data}")
         self.write_serial_data(msg.data)
 
     def read_serial_data(self):

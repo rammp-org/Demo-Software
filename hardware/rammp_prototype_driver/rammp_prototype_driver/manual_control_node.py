@@ -40,6 +40,7 @@ class ManualControlNode(Node):
         self.serial_commands_pub = self.create_publisher(String, "serial_commands", 10)
 
     def state_callback(self, msg: RAMMPPrototypeState) -> None:
+        self.get_logger().info(f"State: {msg.state}")
         self.teensy_state = msg.state
 
     def _fc_axis_neutral(self, axes_array: list[float]) -> bool:

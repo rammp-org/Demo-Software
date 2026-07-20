@@ -40,7 +40,6 @@ class ManualControlNode(Node):
         self.serial_commands_pub = self.create_publisher(String, "serial_commands", 10)
 
     def state_callback(self, msg: RAMMPPrototypeState) -> None:
-        self.get_logger().info(f"State: {msg.state}")
         self.teensy_state = msg.state
 
     def _fc_axis_neutral(self, axes_array: list[float]) -> bool:
@@ -108,6 +107,7 @@ class ManualControlNode(Node):
                         String(data="s:0.0000\nT9:0.00\nT10:0.00\n")
                     )
                     entered_manual = True
+                    self.get_logger().info("Entered gamepad control mode")
             else:
                 self.state = self.STATE_IDLE
                 self.axes_centered = False

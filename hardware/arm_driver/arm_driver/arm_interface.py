@@ -50,6 +50,18 @@ except ModuleNotFoundError:
     pass
 
 
+# ===========================================================================
+# READ-ONLY MODE (dirty, intentional)
+# ---------------------------------------------------------------------------
+# When True, KinovaArm still connects and reads full telemetry (get_state,
+# get_ee_force, get_fault_state, compute_ik) so /arm/joint_states and the
+# /arm/ee/* topics keep publishing, but every method that would actually move
+# the arm or the gripper is short-circuited to a no-op. The arm CANNOT be
+# commanded while this is True. Flip to False to restore normal control.
+# ===========================================================================
+READ_ONLY = True
+
+
 # ---------------------------------------------------------------------------
 # RAMMP custom arm presets (radians).
 # Move the arm to the desired pose, run scripts/read_arm_joints.py, and paste
@@ -296,6 +308,9 @@ class KinovaArm:
             )
 
     def _execute_reference_action(self, action_name, blocking=True):
+        if READ_ONLY:
+            print(f"[READ_ONLY] suppressing reference action '{action_name}'")
+            return
         # Retrieve reference action
         with self._lock:
             opts = self.control_send_options
@@ -367,6 +382,9 @@ class KinovaArm:
             linear_xyz: Linear velocity [vx, vy, vz] in m/s.
             angular_xyz: Angular velocity [wx, wy, wz] in rad/s.
         """
+        if READ_ONLY:
+            print("[READ_ONLY] suppressing send_twist_base_frame")
+            return
         command = Base_pb2.TwistCommand()
         command.reference_frame = Base_pb2.CARTESIAN_REFERENCE_FRAME_BASE
         command.duration = 0
@@ -389,6 +407,9 @@ class KinovaArm:
             linear_xyz: Linear velocity [vx, vy, vz] in m/s.
             angular_xyz: Angular velocity [wx, wy, wz] in rad/s.
         """
+        if READ_ONLY:
+            print("[READ_ONLY] suppressing send_twist")
+            return
         command = Base_pb2.TwistCommand()
         command.reference_frame = Base_pb2.CARTESIAN_REFERENCE_FRAME_MIXED
         command.duration = 0  # 0 = run until next command
@@ -520,6 +541,9 @@ class KinovaArm:
         }
 
     def move_angular_trajectory(self, trajectory_joint_angles, blocking=True):
+        if READ_ONLY:
+            print("[READ_ONLY] suppressing move_angular_trajectory")
+            return
         assert len(trajectory_joint_angles) > 0, "Invalid trajectory"
         assert (
             len(trajectory_joint_angles[0]) == self.actuator_count
@@ -564,6 +588,9 @@ class KinovaArm:
                 print("Timeout on action notification wait")
 
     def move_angular(self, joint_angles, blocking=True):
+        if READ_ONLY:
+            print("[READ_ONLY] suppressing move_angular")
+            return
         assert (
             len(joint_angles) == self.actuator_count
         ), "Invalid number of joint angles"
@@ -598,6 +625,9 @@ class KinovaArm:
                 )
 
     def move_cartesian(self, xyz, xyz_quat, blocking=True):
+        if READ_ONLY:
+            print("[READ_ONLY] suppressing move_cartesian")
+            return
         theta_xyz = R.from_quat(xyz_quat).as_euler("xyz")
 
         # Create action
@@ -648,6 +678,9 @@ class KinovaArm:
             return self.base.ComputeInverseKinematics(ik_data)
 
     def _gripper_position_command(self, value, blocking=True, timeout=1.0):
+        if READ_ONLY:
+            print(f"[READ_ONLY] suppressing gripper command (value={value})")
+            return
         # Send gripper command
         gripper_command = Base_pb2.GripperCommand()
         gripper_command.mode = Base_pb2.GRIPPER_POSITION

@@ -14,28 +14,34 @@ python3-scipy:
       packages: []
 
 # --- cornell_feeding: PRPL planning stack (git-hosted, no public rosdep key) ---
+# These keys exist so the package.xml <exec_depend> entries resolve; the actual
+# installs happen in setup.sh (see "cornell_feeding pip dependencies" section,
+# pinned to a prpl-mono commit). rosdep's pip installer cannot verify URL- or
+# version-constrained entries ("Failed to detect successful installation"
+# false negatives on every run), so setup.sh passes them via --skip-keys.
 python3-pybullet-helpers-pip:
   ubuntu:
     pip:
-      packages: ["pybullet_helpers@git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git#subdirectory=pybullet-helpers"]
+      packages: []
 
 python3-relational-structs-pip:
   ubuntu:
     pip:
-      packages: ["relational_structs@git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git#subdirectory=relational-structs"]
+      packages: []
 
 python3-prpl-utils-pip:
   ubuntu:
     pip:
-      packages: ["prpl-utils@git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git#subdirectory=prpl-utils"]
+      packages: []
 
 python3-tomsutils-pip:
   ubuntu:
     pip:
-      packages: ["tomsutils@git+https://github.com/tomsilver/toms-utils.git"]
+      packages: []
 
-# cornell_feeding: mediapipe needs protobuf>=4.25.3,<5 (apt python3-protobuf is too old).
+# cornell_feeding: mediapipe needs protobuf>=4.25.3,<5 (apt python3-protobuf is
+# too old). Installed by setup.sh alongside the packages above.
 python3-protobuf-pip:
   ubuntu:
     pip:
-      packages: ["protobuf>=4.25.3,<5"]
+      packages: []

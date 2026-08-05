@@ -20,6 +20,12 @@ collections.Mapping = collections.abc.Mapping
 collections.Sequence = collections.abc.Sequence
 collections.Callable = collections.abc.Callable
 
+# kortex_api 2.6.0 ships protobuf gencode older than 3.19, which the modern
+# protobuf runtime (>=4.25, required by mediapipe/cornell_feeding) refuses to
+# load under its default upb implementation. The pure-python implementation
+# accepts it. Must be set before google.protobuf is first imported.
+os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+
 try:
     from kortex_api.autogen.client_stubs.ActuatorConfigClientRpc import (
         ActuatorConfigClient,

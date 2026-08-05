@@ -1,4 +1,8 @@
-kortex_api @ https://artifactory.kinovaapps.com/artifactory/generic-public/kortex/API/2.6.0/kortex_api-2.6.0.post3-py3-none-any.whl
+# kortex_api is installed by setup.sh with --no-deps: its protobuf==3.5.1 pin
+# cannot even import on Python 3.10 and conflicts with mediapipe
+# (protobuf>=4.25.3,<5, installed system-wide by setup.sh). Its remaining
+# runtime dependency is listed here instead.
+deprecated==1.2.7
 pin
 scipy==1.15.3
 numpy==1.26.4

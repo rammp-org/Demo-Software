@@ -79,6 +79,10 @@ def generate_launch_description():
             emulate_tty=True,
             respawn=True,
             respawn_delay=2.0,
+            # kortex_api's pre-4.x protobuf gencode only loads under the
+            # pure-python protobuf implementation (protobuf>=4.25 is
+            # system-wide for mediapipe). arm_interface.py also sets this.
+            additional_env={"PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION": "python"},
         ),
         # Wrist RealSense (D435i), published under /camera/wrist/*.
         IncludeLaunchDescription(

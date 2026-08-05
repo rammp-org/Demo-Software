@@ -1,0 +1,61 @@
+# RAMMP container orchestration.
+#
+# The config every module shares - host networking, ROS domain, RMW, and the
+# Cyclone config mount - is defined ONCE in the x-ros-common anchor below and
+# merged into each service with `<<: *ros-common`. Adding a module is then just
+# a small service block: build context, image name, container name, command.
+#
+# Build the base image first (one time, and after any base change):
+#   docker build -t rammp-base:humble docker/base       (or: make base)
+# Then:
+#   docker compose up --build                            (or: make up)
+
+x-ros-common: &ros-common
+  network_mode: host
+  environment:
+    ROS_DOMAIN_ID: "0"                          # must match your native system
+    RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+    CYCLONEDDS_URI: file:///config/cyclonedds.xml
+  volumes:
+    # Same Cyclone config the native system uses, so discovery matches.
+    - ./core/rammp_prototype_bringup/config/cyclonedds.xml:/config/cyclonedds.xml:ro
+
+services:
+
+  cornell_feeding:
+    <<: *ros-common
+    build:
+      context: .
+      dockerfile: demo_modules/cornell_feeding/Dockerfile
+    image: cornell-feeding:latest
+    container_name: cornell_feeding
+    # Sim mode - no camera or arm needed. For the real robot, append
+    # `run_on_robot:=true` here once the host is publishing /camera/wrist/* and
+    # /arm/* (ros2 launch rammp_prototype_bringup cornell.launch.py).
+    command: ros2 launch cornell_feeding cornell_feeding.launch.py
+    volumes:
+      # YAML merge is shallow, so this REPLACES the anchor's volumes - the
+      # cyclonedds mount has to be repeated here.
+      - ./core/rammp_prototype_bringup/config/cyclonedds.xml:/config/cyclonedds.xml:ro
+      # Head-perception calibration is runtime state that calibrate_head writes
+      # into the package tree; --symlink-install makes that resolve to the src
+      # path below. Bind-mounting it in-tree persists it across rebuilds and
+      # shares it with a native run.
+      - ./demo_modules/cornell_feeding/rammp/perception/head_perception/mediapipe_config:/ros2_ws/src/cornell_feeding/rammp/perception/head_perception/mediapipe_config
+
+  # ---------------------------------------------------------------------------
+  # Add each further module the same way. Example skeleton:
+  #
+  # neu_navigation:
+  #   <<: *ros-common
+  #   build:
+  #     context: .
+  #     dockerfile: demo_modules/neu_navigation/Dockerfile
+  #   image: neu-navigation:latest
+  #   container_name: neu_navigation
+  #   command: ros2 launch neu_navigation <launch_file>
+  #
+  # If a service needs an EXTRA env var on top of the shared set, give it its own
+  # full `environment:` block (YAML merge is shallow, so it replaces rather than
+  # extends the anchor's environment).
+  # ---------------------------------------------------------------------------

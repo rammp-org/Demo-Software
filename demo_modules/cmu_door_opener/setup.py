@@ -12,7 +12,7 @@ setup(
         ("share/" + package_name, ["package.xml"]),
         ("share/" + package_name + "/launch", ["launch/cmu_door_opener.launch.py"]),
     ],
-    install_requires=["setuptools"],
+    install_requires=["setuptools", "pybullet", "numpy"],
     zip_safe=True,
     maintainer="root",
     maintainer_email="root@todo.todo",

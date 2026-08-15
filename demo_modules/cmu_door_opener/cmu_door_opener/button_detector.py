@@ -83,14 +83,22 @@ class LogThrottle:
 
 
 class PoseFilter:
-    """Simple exponential moving average filter for 3D pose (xyz + rpy)."""
+    """Exponential moving average filter for 3D pose (xyz + rpy).
 
-    def __init__(self, alpha: float = 0.3, min_samples: int = 3):
+    Only reports stable when at least `min_samples` have been collected
+    AND the spread (max pairwise distance) of the last `min_samples`
+    raw xyz readings is within `max_spread_m`.
+    """
+
+    def __init__(self, alpha: float = 0.3, min_samples: int = 3,
+                 max_spread_m: float = 0.02):
         self.alpha = alpha
         self.min_samples = min_samples
+        self.max_spread_m = max_spread_m
         self._count = 0
         self._xyz = np.zeros(3, dtype=np.float64)
         self._rpy = np.zeros(3, dtype=np.float64)
+        self._recent_xyz: list[np.ndarray] = []
 
     def update(self, xyz: np.ndarray, rpy: np.ndarray):
         if self._count == 0:
@@ -100,10 +108,28 @@ class PoseFilter:
             self._xyz = self.alpha * xyz + (1.0 - self.alpha) * self._xyz
             self._rpy = self.alpha * rpy + (1.0 - self.alpha) * self._rpy
         self._count += 1
+        self._recent_xyz.append(xyz.astype(np.float64).copy())
+        if len(self._recent_xyz) > self.min_samples:
+            self._recent_xyz.pop(0)
+
+    @property
+    def spread(self) -> float:
+        """Max pairwise distance among the last min_samples xyz readings."""
+        if len(self._recent_xyz) < self.min_samples:
+            return float('inf')
+        pts = np.array(self._recent_xyz)
+        max_dist = 0.0
+        for i in range(len(pts)):
+            for j in range(i + 1, len(pts)):
+                d = float(np.linalg.norm(pts[i] - pts[j]))
+                if d > max_dist:
+                    max_dist = d
+        return max_dist
 
     @property
     def is_stable(self) -> bool:
-        return self._count >= self.min_samples
+        return (self._count >= self.min_samples
+                and self.spread <= self.max_spread_m)
 
     @property
     def xyz(self) -> np.ndarray:
@@ -117,6 +143,7 @@ class PoseFilter:
         self._count = 0
         self._xyz = np.zeros(3, dtype=np.float64)
         self._rpy = np.zeros(3, dtype=np.float64)
+        self._recent_xyz.clear()
 
 
 class ButtonPressVisionNode(Node):
@@ -163,6 +190,7 @@ class ButtonPressVisionNode(Node):
         # filter
         self.declare_parameter("filter_alpha", 0.3)
         self.declare_parameter("filter_min_samples", 3)
+        self.declare_parameter("filter_max_spread_m", 0.02)
 
         # visualization
         self.declare_parameter("show_opencv_windows", False)
@@ -192,6 +220,7 @@ class ButtonPressVisionNode(Node):
         self._pose_filter = PoseFilter(
             alpha=float(self.get_parameter("filter_alpha").value),
             min_samples=int(self.get_parameter("filter_min_samples").value),
+            max_spread_m=float(self.get_parameter("filter_max_spread_m").value),
         )
 
         # Button ID counter
@@ -1295,7 +1324,7 @@ class ButtonPressVisionNode(Node):
         # 5) Filter
         self._pose_filter.update(centroid_base.astype(np.float64), rpy)
         self.get_logger().debug(
-            f"[FILTER] count={self._pose_filter._count}, stable={self._pose_filter.is_stable}"
+            f"[FILTER] count={self._pose_filter._count}, spread={self._pose_filter.spread:.4f}m, stable={self._pose_filter.is_stable}"
         )
         self.get_logger().debug(
             f"[FILTER] filtered_xyz=[{self._pose_filter.xyz[0]:+.4f},{self._pose_filter.xyz[1]:+.4f},{self._pose_filter.xyz[2]:+.4f}]"

@@ -23,10 +23,15 @@ def _drink_node(context, *args, **kwargs):
     """
     scene_config = LaunchConfiguration("scene_config").perform(context)
     run_on_robot = LaunchConfiguration("run_on_robot").perform(context)
+    no_waits = LaunchConfiguration("no_waits").perform(context)
 
     node_args = ["--scene_config", scene_config]
     if run_on_robot.lower() in ("true", "1"):
         node_args.append("--run_on_robot")
+    # Without --no_waits every robot command blocks on input("Execute next
+    # command?"), which has no tty in the container (EOFError -> action fails).
+    if no_waits.lower() in ("true", "1"):
+        node_args.append("--no_waits")
 
     return [
         Node(
@@ -43,6 +48,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("scene_config", default_value="wheelchair"),
         DeclareLaunchArgument("run_on_robot", default_value="false"),
+        DeclareLaunchArgument("no_waits", default_value="true"),
         Node(
             package="tf2_ros",
             executable="static_transform_publisher",

@@ -66,9 +66,13 @@ def generate_launch_description():
         # TF tree + end_effector_link -> wrist_camera_link mount extrinsic. The
         # camera_frame override makes the mount-TF child equal the RealSense root
         # frame so base_link -> wrist_color_optical_frame resolves for perception.
+        # Keep description.launch.py's default camera_frame
+        # (wrist_wrist_camera_link): the RealSense wrapper prefixes camera_name
+        # onto base_frame_id, so that is the frame it actually publishes.
+        # Overriding it to wrist_camera_link leaves base_link ->
+        # wrist_color_optical_frame unresolvable and head perception gets no TF.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(description_launch),
-            launch_arguments={"camera_frame": "wrist_camera_link"}.items(),
         ),
         # Kinova Gen3 hardware backend (owns the Kortex link; provides /arm/*).
         Node(

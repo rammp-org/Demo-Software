@@ -38,6 +38,7 @@ RUN . /opt/ros/humble/setup.sh && \
       --skip-keys "python3-scipy python3-mediapipe-pip python3-open3d-pip \
 python3-pybullet-pip python3-protobuf-pip python3-pybullet-helpers-pip \
 python3-relational-structs-pip python3-prpl-utils-pip python3-tomsutils-pip" && \
+    apt-get install -y --no-install-recommends libegl1 libgles2 && \
     rm -rf /var/lib/apt/lists/*
 
 # rammp-base ships pip 22.0.2, which fails on `name @ git+https://...

@@ -90,6 +90,44 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
+### Running the system
+
+Bring-up is managed by [sheppy](https://rammp-org.github.io/sheppy): `sheppy-manifest.yaml`
+at the repo root lists every node and its real and mock alternatives, and
+`profiles/` says which to run. Install sheppy on the Jetson once:
+
+```bash
+curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
+```
+
+Then, from a plain shell (sheppy's daemon inherits the environment of the shell
+that starts it, including `ROS_DOMAIN_ID`, which must stay `0` to match the
+containers):
+
+```bash
+cd ~/ros2_ws/src/Demo-Software
+docker compose build cornell_feeding   # once, and after cornell_feeding changes
+sheppy up full          # everything real, with GUI and calibration
+sheppy status           # per-node state, CPU, memory, last output
+sheppy logs <node> -n 100
+sheppy woof <node>      # restart one node (crashes are never auto-restarted)
+sheppy down             # stop every node and the daemon
+```
+
+`sheppy up mock` runs every mock with no hardware, on any machine with the
+workspace built. To skip a node (the old `--no-arm`, `--no-cameras`,
+`--no-luci`) copy `profiles/full.yaml`, delete that node's line, and
+`sheppy up <your-profile>`. To change the serial port, chair IP or UE host, add
+an `overrides:` block to the copy; `profiles/full.yaml` shows the shape.
+
+Calibration is the `calibration` node: it waits for the base and arm calibrate
+action servers, sends both goals, then idles. `sheppy woof calibration`
+re-runs it; a failed goal shows the node as crashed. Per-node logs are under
+`~/.sheppy/logs/<node>/`.
+
+`scripts/validate_manifest.py` loads the manifest and every profile through
+sheppy's own loader; run it after editing either.
+
 ## Contributing
 
 The tasks for the upcoming demo are organized in a couple of key locations

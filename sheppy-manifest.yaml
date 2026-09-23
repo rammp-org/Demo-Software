@@ -1,0 +1,198 @@
+# Sheppy manifest for the RAMMP demo. On the Jetson:
+#   cd ~/ros2_ws/src/Demo-Software && sheppy up full
+#
+# One node per subsystem, transcribed from full.launch.py. Hardware nodes
+# carry a mock alternative (the executables in rammp_prototype_behavior) so
+# `profiles/mock.yaml` runs on a workstation with nothing attached. The mocks
+# publish plausible messages at the right topics; they are not a simulation.
+#
+# Every non-docker alternative names the `jetson` machine, which is how
+# sheppy sources the workspace before the command. That setup runs the
+# bringup package's env hook, so RMW_IMPLEMENTATION and CYCLONEDDS_URI come
+# along; no alternative sets its own env. Sheppy runs everything with
+# `bash -c`, never zsh.
+#
+# Sheppy starts all selected nodes at once and never restarts one on its
+# own. A crash shows in `sheppy status`; `sheppy woof <node>` restarts it.
+machines:
+  - name: jetson
+    host: rammp-jetson
+    user: herl
+    ros_setup: ~/ros2_ws/install/setup.bash
+
+nodes:
+  - name: description
+    description: robot_state_publisher and static TFs
+    select: single
+    alternatives:
+      - id: description
+        kind: launch_file
+        machine: jetson
+        package: rammp_prototype_description
+        launch_file: description.launch.py
+
+  - name: base
+    description: MEBot wheel base over the Teensy serial link
+    select: single
+    alternatives:
+      - id: mebot_driver
+        kind: launch_file
+        machine: jetson
+        package: rammp_prototype_driver
+        launch_file: control_node.launch.py
+        params:
+          serial_port: /dev/ttyACM0
+      - id: mock
+        kind: executable
+        machine: jetson
+        package: rammp_prototype_behavior
+        executable: mock_chair_control
+
+  - name: luci
+    description: LUCI chair gRPC interface
+    select: single
+    alternatives:
+      - id: luci
+        kind: launch_file
+        machine: jetson
+        package: rammp_prototype_bringup
+        launch_file: luci.launch.py
+        params:
+          chair_ip: 10.2.10.3
+      # No mock: nothing else in the graph needs it, so a mock profile
+      # leaves this node unselected.
+
+  - name: arm
+    description: Kinova arm driver
+    select: single
+    alternatives:
+      - id: arm_driver
+        kind: executable
+        machine: jetson
+        package: arm_driver
+        executable: arm_driver
+      - id: mock
+        kind: executable
+        machine: jetson
+        package: rammp_prototype_behavior
+        executable: mock_arm_driver
+        publishes:
+          - /arm/status
+          - /arm/imu
+          - /arm/ee_force
+          - /estop
+
+  - name: gui_bridge
+    description: Bridge to the Unreal Engine GUI (a TCP client; reconnects on its own)
+    select: single
+    alternatives:
+      - id: gui_bridge
+        kind: launch_file
+        machine: jetson
+        package: rammp_prototype_gui
+        launch_file: Gui_bridge.launch.py
+        params:
+          ue_host: 127.0.0.1
+
+  - name: system_control
+    description: Behavior state machine
+    select: single
+    alternatives:
+      - id: system_control
+        kind: executable
+        machine: jetson
+        package: rammp_prototype_behavior
+        executable: system_control
+
+  - name: door_opener
+    description: CMU door opener (button detector + push controller)
+    select: single
+    alternatives:
+      - id: cmu_door_opener
+        kind: launch_file
+        machine: jetson
+        package: cmu_door_opener
+        launch_file: cmu_door_opener.launch.py
+      - id: mock
+        kind: executable
+        machine: jetson
+        package: rammp_prototype_behavior
+        executable: mock_opening_door
+
+  - name: cameras
+    description: RealSense wrist camera + Orbbec nav cameras (camera_demo_main.yaml)
+    select: single
+    alternatives:
+      - id: cameras
+        kind: launch_file
+        machine: jetson
+        package: rammp_prototype_bringup
+        launch_file: camera.launch.py
+        publishes:
+          - /camera/wrist/color/image_raw
+      - id: mock
+        kind: process
+        machine: jetson
+        command: "ros2 topic pub -r 10 /camera/wrist/color/image_raw sensor_msgs/msg/Image '{}'"
+        publishes:
+          - /camera/wrist/color/image_raw
+
+  - name: curb_detection
+    description: NEU curb ascent/descent detection
+    select: single
+    alternatives:
+      - id: neu_navigation
+        kind: launch_file
+        machine: jetson
+        package: rammp_prototype_bringup
+        launch_file: neu_navigation.launch.py
+      - id: mock
+        kind: executable
+        machine: jetson
+        package: rammp_prototype_behavior
+        executable: mock_curb_detection
+
+  - name: cup_stabilizer
+    description: ATDev cup stabilizer; only the mock exists today
+    select: single
+    alternatives:
+      - id: mock
+        kind: executable
+        machine: jetson
+        package: rammp_prototype_behavior
+        executable: mock_cup_stabilizer
+
+  - name: drink
+    description: Cornell feeding / drink action servers, in the cornell_feeding container
+    select: single
+    alternatives:
+      - id: cornell_feeding
+        kind: docker
+        compose:
+          file: docker-compose.yml
+          service: cornell_feeding_robot
+      - id: mock
+        kind: executable
+        machine: jetson
+        package: rammp_prototype_behavior
+        executable: mock_drinking_node
+
+  - name: gui
+    description: Unreal Engine GUI (launch_ui.sh in the operator's home, not in this repo)
+    select: single
+    alternatives:
+      - id: unreal
+        kind: process
+        command: "cd $HOME && DISPLAY=:$(ls /tmp/.X11-unix | head -1 | tr -d X) exec ./launch_ui.sh"
+
+  - name: calibration
+    description: Calibrate base then arm once their action servers are up, then idle
+    select: single
+    alternatives:
+      # Sheppy has no one-shot tasks and treats any exit as a crash, so the
+      # script chains into sleep. A failed goal exits nonzero and the node
+      # shows as crashed. Restarting this node reruns calibration.
+      - id: calibrate
+        kind: process
+        machine: jetson
+        command: "$HOME/ros2_ws/src/Demo-Software/scripts/calibrate.sh && sleep infinity"

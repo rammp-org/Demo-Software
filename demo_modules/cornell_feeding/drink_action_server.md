@@ -1,7 +1,7 @@
 # `drink_action_server` Node
 
 **Source:** `src/rammp/integration/drink_action_server.py`\
-**Package:** `drink_actions_test`\
+**Package:** `cornell_feeding` (vendored `rammp` stack)\
 **ROS2 Node Name:** `drink_action_server`
 
 ## Overview
@@ -34,7 +34,7 @@ ______________________________________________________________________
 
 ## Action Servers
 
-All five action servers use the same action type: `drink_actions_test/action/DrinkAction`.
+All action servers use the same action type: `cornell_feeding_interfaces/action/DrinkAction`.
 
 ### `DrinkAction` Interface
 
@@ -135,35 +135,26 @@ ______________________________________________________________________
 
 ## Launch Files
 
-### `minimal.launch.py`
+### `cornell_feeding.launch.py`
 
-Minimal setup for sim-only or quick testing:
-
-```bash
-ros2 launch drink_actions_test minimal.launch.py scene_config:=wheelchair
-```
-
-Starts:
-
-- `static_transform_publisher` — `map` → `world`
-- `drink_action_server`
-
-### `real.launch.py`
-
-Full hardware launch:
+The node plus a `map` -> `world` static TF. Sim mode by default; `run_on_robot:=true` enables the hardware interfaces, `no_waits` (default `true`) skips the operator prompts, which have no terminal in the container.
 
 ```bash
-ros2 launch drink_actions_test real.launch.py scene_config:=wheelchair
+ros2 launch cornell_feeding cornell_feeding.launch.py run_on_robot:=true scene_config:=wheelchair
 ```
 
-Starts:
+### `cornell_real.launch.py`
 
-- `joint_state_publisher` — merges `robot_joint_states` + `wrist_joint_states`
-- Static TF publishers: `map`→`world`, `end_effector_link`→`camera_link`, `finger_tip`→`drinkbase`
-- `realsense2_camera` — RealSense D4xx with depth alignment and pointcloud enabled
-- `rviz2` — with `real.rviz` config
-- `drink_action_server` — with `--run_on_robot` implied by the launch context
-- A `sim/` namespaced `joint_state_publisher` for the PyBullet mirror
+Stand-alone bench bring-up on the physical arm: `rammp_prototype_description` (robot state publisher and the wrist-camera mount TF), `arm_driver`, the wrist RealSense via `rammp_prototype_bringup/camera.launch.py`, then `cornell_feeding.launch.py` in robot mode. Set the arm mode before sending goals (`/arm/set_mode`, `ORDER_DRINK`).
+
+### Running in the container (chair)
+
+```bash
+make base && docker compose build cornell_feeding
+docker compose run --rm cornell_feeding ros2 launch cornell_feeding cornell_feeding.launch.py run_on_robot:=true
+```
+
+The compose service bind-mounts `rammp/perception/head_perception/mediapipe_config/` so the head calibration persists across rebuilds. The node waits for `/camera/wrist/*` before it starts serving, logging a reminder every 10 s.
 
 ______________________________________________________________________
 
@@ -171,7 +162,7 @@ ______________________________________________________________________
 
 ```bash
 ros2 action send_goal /arm/drink/grab_cup_from_table \
-  drink_actions_test/action/DrinkAction \
+  cornell_feeding_interfaces/action/DrinkAction \
   "{request_id: 'step_1'}"
 ```
 
@@ -184,7 +175,7 @@ ______________________________________________________________________
 | Package                                     | Role                                              |
 | ------------------------------------------- | ------------------------------------------------- |
 | `rclpy`                                     | ROS2 Python client library                        |
-| `drink_actions_test`                        | Custom action definition (`DrinkAction`)          |
+| `cornell_feeding_interfaces`                | Action / message definitions (`DrinkAction`, `CupInfo`) |
 | `rammp.interfaces.perception_interface`     | Wraps RealSense camera data                       |
 | `rammp.interfaces.rviz_interface`           | Publishes markers / plan visualization to RViz    |
 | `rammp.control.robot_controller.arm_client` | Sends joint/Cartesian/gripper commands to the arm |

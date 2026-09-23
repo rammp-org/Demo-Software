@@ -12,36 +12,3 @@ python3-scipy:
   ubuntu:
     pip:
       packages: []
-
-# --- cornell_feeding: PRPL planning stack (git-hosted, no public rosdep key) ---
-# These keys exist so the package.xml <exec_depend> entries resolve; the actual
-# installs happen in setup.sh (see "cornell_feeding pip dependencies" section,
-# pinned to a prpl-mono commit). rosdep's pip installer cannot verify URL- or
-# version-constrained entries ("Failed to detect successful installation"
-# false negatives on every run), so setup.sh passes them via --skip-keys.
-python3-pybullet-helpers-pip:
-  ubuntu:
-    pip:
-      packages: []
-
-python3-relational-structs-pip:
-  ubuntu:
-    pip:
-      packages: []
-
-python3-prpl-utils-pip:
-  ubuntu:
-    pip:
-      packages: []
-
-python3-tomsutils-pip:
-  ubuntu:
-    pip:
-      packages: []
-
-# cornell_feeding: mediapipe needs protobuf>=4.25.3,<5 (apt python3-protobuf is
-# too old). Installed by setup.sh alongside the packages above.
-python3-protobuf-pip:
-  ubuntu:
-    pip:
-      packages: []

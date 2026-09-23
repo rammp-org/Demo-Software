@@ -22,22 +22,16 @@ COPY interfaces/cornell_feeding_interfaces/ /ros2_ws/src/cornell_feeding_interfa
 
 # ROS/apt deps only (cached unless a package.xml changes).
 #
-# Every python3-*-pip key is skipped so requirements.txt below is the single
-# source of truth for the Python stack:
-#   - The PRPL keys and python3-protobuf-pip resolve on the dev Jetson ONLY
-#     because setup.sh registers /etc/ros/rosdep/sources.list.d/50-rammp-custom.list.
-#     A clean container has no such source, so rosdep would hard-fail on them.
-#   - python3-mediapipe-pip / -open3d-pip / -pybullet-pip DO resolve upstream,
-#     but would pip-install unpinned versions behind requirements.txt's back.
-#   - python3-scipy is skipped because pybullet_helpers pins scipy==1.14.0 and
-#     the apt build would fight it.
+# The pip-backed keys are skipped so requirements.txt below is the single
+# source of truth for the Python stack (rosdep would pip-install unpinned
+# versions behind its back); python3-scipy is skipped because pybullet_helpers
+# pins scipy==1.14.0 and the apt build would fight it.
 COPY demo_modules/cornell_feeding/package.xml /ros2_ws/src/cornell_feeding/package.xml
 RUN . /opt/ros/humble/setup.sh && \
     apt-get update && \
     rosdep install --from-paths src --ignore-src -y \
       --skip-keys "python3-scipy python3-mediapipe-pip python3-open3d-pip \
-python3-pybullet-pip python3-protobuf-pip python3-pybullet-helpers-pip \
-python3-relational-structs-pip python3-prpl-utils-pip python3-tomsutils-pip" && \
+python3-pybullet-pip" && \
     apt-get install -y --no-install-recommends libegl1 libgles2 && \
     rm -rf /var/lib/apt/lists/*
 

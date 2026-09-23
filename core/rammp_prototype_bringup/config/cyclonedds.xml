@@ -3,16 +3,8 @@
   <Domain>
     <General>
       <Interfaces>
-        <NetworkInterface name="enP1p1s0" priority="default" multicast="true"/>
+        <NetworkInterface name="enP8p1s0" priority="default" multicast="true"/>
       </Interfaces>
     </General>
-    <Internal>
-      <!-- Wrist-camera images are ~1-2 MB per frame, fragmented into hundreds of
-           UDP packets. With the kernel default 208 KB socket buffer the receiver
-           overflows (net.core.rmem_max / UDP RcvbufErrors) and best-effort image
-           samples are dropped, which is how the drink node's synchronized camera
-           stream stalled. Requires net.core.rmem_max >= 64 MB (see /etc/sysctl.d). -->
-      <SocketReceiveBufferSize min="32MB" max="64MB"/>
-    </Internal>
   </Domain>
 </CycloneDDS>

@@ -98,20 +98,13 @@ class BaseAction(abc.ABC):
         self._check_cancel()
         self.sim.grasp_object(tool)
         if self.robot_interface is not None:
-            # Grasping must physically CLOSE the gripper on the tool/cup. The arm
-            # driver maps /arm/close_gripper -> Kortex finger.value=1 (closed) with
-            # no inversion, so a CloseGripperCommand is required here. (The sim side
-            # above closes independently via grasp_object.) Verify 0=open/1=closed on
-            # the real Robotiq once before relying on this on hardware.
-            self.execute_robot_command(CloseGripperCommand(), tool_update=tool)
+            self.execute_robot_command(OpenGripperCommand(), tool_update=tool)
 
     def ungrasp_tool(self, tool: str) -> None:
         self._check_cancel()
         self.sim.ungrasp_object()
         if self.robot_interface is not None:
-            # Releasing must physically OPEN the gripper (/arm/open_gripper ->
-            # finger.value=0). See grasp_tool for the inversion rationale.
-            self.execute_robot_command(OpenGripperCommand(), tool_update=tool)
+            self.execute_robot_command(CloseGripperCommand(), tool_update=tool)
 
     def open_gripper(self) -> None:
         self._check_cancel()

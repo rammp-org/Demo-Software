@@ -45,36 +45,31 @@ class UnrealRemoteWebsocket:
         self._response_queue = Queue()  # 1 response per request
         self._value_change_queue = Queue()  # For unsolicited value changes from UE
         self._send_lock = Lock()  # serialize sends
-        self.ws_client = None
+        self.ws_client = None  # command connection: tunneled HTTP calls + responses
+        self.event_client = None  # event connection: preset registration + value changes only
         self.user_input_callback = user_input_callback
 
         t = threading.Thread(target=self.start_async_loop, daemon=True)
         t.start()
         asyncio.run_coroutine_threadsafe(self.ws_client_handler(), self.loop)
+        asyncio.run_coroutine_threadsafe(self.event_client_handler(), self.loop)
         asyncio.run_coroutine_threadsafe(self.parse_value_changes(), self.loop)
 
     async def ws_client_handler(self):
-        # uri = "ws://192.168.68.51:30020"
+        # Command connection. UE serves the messages of one websocket in order at
+        # roughly one per rendered frame, so the preset is deliberately NOT
+        # registered here: if it were, UserInput events would be delivered
+        # behind the queue of pending call responses and button presses could
+        # lag by seconds whenever calls outpace UE (see event_client_handler).
         while not self.ws_shutdown:
             try:
                 async with websockets.connect(self.base_url) as ws:
                     self.ws_client = ws
                     print("GUI connected.")
-                    await self.register_preset()  # Register preset on connect
-                    print("Preset registration sent.")
                     async for message in ws:
                         command = json.loads(message)
-                        # print(f"Received command from UE: {json.dumps(command)}")
                         if "ResponseCode" in command:
                             await self._response_queue.put(command)
-                        if "ChangedFields" in command:
-                            await self._value_change_queue.put(
-                                command["ChangedFields"][0]
-                            )
-                            print(
-                                f"Received value change from UE: {command['ChangedFields'][0]}"
-                            )
-                        # print(f"Received command from Ethernet GUI: {command}")
                         if self.ws_shutdown:
                             break
             except Exception as e:
@@ -89,11 +84,39 @@ class UnrealRemoteWebsocket:
                     print("GUI disconnected.")
                     await asyncio.sleep(3)  # Wait before trying to reconnect
 
-    async def register_preset(self):
+    async def event_client_handler(self):
+        # Event connection: registers the preset and only ever reads, so value
+        # changes (button presses) are never queued behind call responses.
+        while not self.ws_shutdown:
+            try:
+                async with websockets.connect(self.base_url) as ws:
+                    self.event_client = ws
+                    await self.register_preset(ws)
+                    print("Preset registration sent on the event connection.")
+                    async for message in ws:
+                        command = json.loads(message)
+                        if "ChangedFields" in command:
+                            await self._value_change_queue.put(
+                                command["ChangedFields"][0]
+                            )
+                            print(
+                                f"Received value change from UE: {command['ChangedFields'][0]}"
+                            )
+                        if self.ws_shutdown:
+                            break
+            except Exception as e:
+                if not self.ws_shutdown:
+                    print(f"GUI event connection error: {e}")
+            finally:
+                self.event_client = None
+                if not self.ws_shutdown:
+                    await asyncio.sleep(3)  # Wait before trying to reconnect
+
+    async def register_preset(self, ws):
         if self.preset is None:
             print("No preset specified, skipping registration.")
             return
-        if self.ws_client is None:
+        if ws is None:
             print("WebSocket client not connected, cannot register preset.")
             return
         command = {
@@ -102,7 +125,7 @@ class UnrealRemoteWebsocket:
                 "PresetName": self.preset,
             },
         }
-        await self.ws_client.send(json.dumps(command))
+        await ws.send(json.dumps(command))
 
     async def send_and_wait(self, parameters, timeout=None):
         """

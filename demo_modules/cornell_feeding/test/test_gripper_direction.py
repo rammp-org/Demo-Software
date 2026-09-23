@@ -1,9 +1,11 @@
 """
 Regression test for the gripper direction in BaseAction.
 
-grasp_tool must physically CLOSE the gripper (CloseGripperCommand) and ungrasp_tool
-must OPEN it (OpenGripperCommand). The arm driver does not invert open/close, so an
-inverted mapping here would release the cup at the grasp moment. This guards the fix.
+The cup is held by an INSIDE grasp: the closed fingers enter the handle loop and
+opening them presses outward against the handle. So grasp_tool must send
+OpenGripperCommand and ungrasp_tool must send CloseGripperCommand (the arm
+driver maps open -> Kortex finger 0, close -> finger 1, no inversion).
+pickup_and_order closes the gripper before entering the handle for this reason.
 """
 
 from rammp.actions.base import BaseAction
@@ -36,15 +38,15 @@ class _Spy:
         self.sent.append(command)
 
 
-def test_grasp_tool_closes_gripper():
+def test_grasp_tool_opens_gripper_inside_handle():
     spy = _Spy()
     BaseAction.grasp_tool(spy, "drink")
     assert len(spy.sent) == 1
-    assert isinstance(spy.sent[0], CloseGripperCommand)
+    assert isinstance(spy.sent[0], OpenGripperCommand)
 
 
-def test_ungrasp_tool_opens_gripper():
+def test_ungrasp_tool_closes_gripper():
     spy = _Spy()
     BaseAction.ungrasp_tool(spy, "drink")
     assert len(spy.sent) == 1
-    assert isinstance(spy.sent[0], OpenGripperCommand)
+    assert isinstance(spy.sent[0], CloseGripperCommand)

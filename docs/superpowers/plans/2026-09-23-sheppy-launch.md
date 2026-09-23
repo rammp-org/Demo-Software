@@ -23,27 +23,31 @@
 ## Review Focus
 
 1. A profile override for a param the manifest does not declare is silently dropped by sheppy. The validator must fail on that warning (Task 6 test).
-2. A compose service name or file that does not exist only fails at launch in sheppy. The validator resolves compose references itself (Task 1, checked in Task 5).
-3. A failed calibrate goal must be visible, not swallowed. `calibrate.sh` uses `set -e`, so a failed goal makes the node `crashed` instead of `running` (Task 4).
-4. `sheppy up` from a shell with a different `ROS_DOMAIN_ID` than the compose file's `0` splits the graph. README says to run from a plain shell (Task 7).
-5. A profile that selects a node name that no longer exists in the manifest is dropped with a warning. The validator fails on any reconcile warning (Task 6).
+1. A compose service name or file that does not exist only fails at launch in sheppy. The validator resolves compose references itself (Task 1, checked in Task 5).
+1. A failed calibrate goal must be visible, not swallowed. `calibrate.sh` uses `set -e`, so a failed goal makes the node `crashed` instead of `running` (Task 4).
+1. `sheppy up` from a shell with a different `ROS_DOMAIN_ID` than the compose file's `0` splits the graph. README says to run from a plain shell (Task 7).
+1. A profile that selects a node name that no longer exists in the manifest is dropped with a warning. The validator fails on any reconcile warning (Task 6).
 
----
+______________________________________________________________________
 
 ### Task 1: Manifest and profile validator
 
 **Files:**
+
 - Create: `scripts/validate_manifest.py`
 
 **Interfaces:**
+
 - Produces: `python scripts/validate_manifest.py` exits 0 when `sheppy-manifest.yaml` loads and every `profiles/*.yaml` reconciles without warnings; exits 1 and prints one line per problem otherwise.
 
 - [ ] **Step 1: Confirm the sheppy checkout imports under uv**
 
 Run from the repo root:
+
 ```bash
 uv run --with /home/swapnil/atdev/sheppy python -c "import sheppy; print(sheppy.__version__)"
 ```
+
 Expected: `1.0.0`. If `--with` refuses a directory, use `uv run --project /home/swapnil/atdev/sheppy python -c ...` instead and use that form in every later step.
 
 - [ ] **Step 2: Write the validator**
@@ -153,6 +157,7 @@ mkdir -p profiles && printf 'selections: {x: a}\n' > profiles/t.yaml
 uv run --with /home/swapnil/atdev/sheppy python scripts/validate_manifest.py; echo exit=$?
 rm sheppy-manifest.yaml profiles/t.yaml && rmdir profiles
 ```
+
 Expected: a line `x/a: compose service unreadable: ...`, then `exit=1`.
 
 - [ ] **Step 5: Commit**
@@ -162,14 +167,16 @@ git add scripts/validate_manifest.py
 git commit -m "scripts: validate the sheppy manifest and profiles through sheppy's loader (#256)"
 ```
 
----
+______________________________________________________________________
 
 ### Task 2: Robot-mode cornell_feeding compose service
 
 **Files:**
+
 - Modify: `docker-compose.yml` (the `services:` block, after `cornell_feeding`)
 
 **Interfaces:**
+
 - Produces: compose service `cornell_feeding_robot`, referenced by the manifest's `drink` node in Task 5.
 
 - [ ] **Step 1: Add the service**
@@ -205,14 +212,16 @@ git add docker-compose.yml
 git commit -m "compose: cornell_feeding_robot service for the sheppy drink node (#256)"
 ```
 
----
+______________________________________________________________________
 
 ### Task 3: NEU curb detection launch wrapper
 
 **Files:**
+
 - Create: `core/rammp_prototype_bringup/launch/neu_navigation.launch.py`
 
 **Interfaces:**
+
 - Produces: `ros2 launch rammp_prototype_bringup neu_navigation.launch.py` starts both NEU nodes; referenced by the manifest's `curb_detection` node in Task 5. The bringup `CMakeLists.txt` already installs `launch/`, so nothing else changes.
 
 - [ ] **Step 1: Write the launch file**
@@ -263,14 +272,16 @@ git add core/rammp_prototype_bringup/launch/neu_navigation.launch.py
 git commit -m "bringup: neu_navigation.launch.py wraps the two NEU curb nodes (#256)"
 ```
 
----
+______________________________________________________________________
 
 ### Task 4: Calibration script
 
 **Files:**
+
 - Create: `scripts/calibrate.sh` (executable)
 
 **Interfaces:**
+
 - Produces: `scripts/calibrate.sh` exits 0 after both calibrate goals succeed, nonzero if either goal fails. Referenced by the manifest's `calibration` node in Task 5.
 
 - [ ] **Step 1: Write the script**
@@ -318,15 +329,18 @@ git add scripts/calibrate.sh
 git commit -m "scripts: calibrate.sh, the base+arm calibration loop from launch.sh (#256)"
 ```
 
----
+______________________________________________________________________
 
 ### Task 5: The manifest
 
 **Files:**
+
 - Create: `sheppy-manifest.yaml`
 
 **Interfaces:**
+
 - Consumes: compose service `cornell_feeding_robot` (Task 2), `neu_navigation.launch.py` (Task 3), `scripts/calibrate.sh` (Task 4).
+
 - Produces: node names and alternative ids used by the profiles in Task 6: `description/description`, `base/{mebot_driver,mock}`, `luci/luci`, `arm/{arm_driver,mock}`, `gui_bridge/gui_bridge`, `system_control/system_control`, `door_opener/{cmu_door_opener,mock}`, `cameras/{cameras,mock}`, `curb_detection/{neu_navigation,mock}`, `cup_stabilizer/mock`, `drink/{cornell_feeding,mock}`, `gui/unreal`, `calibration/calibrate`.
 
 - [ ] **Step 1: Write the manifest**
@@ -549,15 +563,17 @@ git add sheppy-manifest.yaml
 git commit -m "sheppy manifest: one node per subsystem, transcribed from full.launch.py (#256)"
 ```
 
----
+______________________________________________________________________
 
 ### Task 6: Profiles
 
 **Files:**
+
 - Create: `profiles/full.yaml`
 - Create: `profiles/mock.yaml`
 
 **Interfaces:**
+
 - Consumes: node and alternative ids from Task 5.
 
 - [ ] **Step 1: Write the full profile**
@@ -619,6 +635,7 @@ printf 'selections: {base: mebot_driver, ghost: x}\noverrides:\n  base: {baud: 9
 uv run --with /home/swapnil/atdev/sheppy python scripts/validate_manifest.py; echo exit=$?
 rm profiles/bad.yaml
 ```
+
 Expected: two lines, `profiles/bad: dropped selection: unknown node 'ghost'` and `profiles/bad: dropped override 'base.baud': not a declared param`, then `exit=1`.
 
 - [ ] **Step 5: Commit**
@@ -628,12 +645,14 @@ git add profiles/full.yaml profiles/mock.yaml
 git commit -m "sheppy profiles: full (launch.sh defaults) and mock (no hardware) (#256)"
 ```
 
----
+______________________________________________________________________
 
 ### Task 7: Remove launch.sh and document the new flow
 
 **Files:**
+
 - Delete: `core/rammp_prototype_bringup/launch/launch.sh`
+
 - Modify: `README.md` (add a "Running the system" section after the build instructions)
 
 - [ ] **Step 1: Delete launch.sh**
@@ -648,7 +667,7 @@ Expected: a list of headings; the new section goes after the last "Getting Start
 
 - [ ] **Step 3: Add the README section**
 
-```markdown
+````markdown
 ### Running the system
 
 Bring-up is managed by [sheppy](https://rammp-org.github.io/sheppy): `sheppy-manifest.yaml`
@@ -657,7 +676,7 @@ at the repo root lists every node and its real and mock alternatives, and
 
 ```bash
 curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
-```
+````
 
 Then, from a plain shell (sheppy's daemon inherits the environment of the shell
 that starts it, including `ROS_DOMAIN_ID`, which must stay `0` to match the
@@ -683,7 +702,8 @@ Calibration is the `calibration` node: it waits for the base and arm calibrate
 action servers, sends both goals, then idles. `sheppy woof calibration`
 re-runs it; a failed goal shows the node as crashed. Per-node logs are under
 `~/.sheppy/logs/<node>/`.
-```
+
+````
 
 - [ ] **Step 4: Check the README renders sanely and the validator still passes**
 
@@ -695,9 +715,9 @@ Expected: the heading line, then the `ok:` line from the validator.
 ```bash
 git add README.md core/rammp_prototype_bringup/launch/launch.sh
 git commit -m "Replace launch.sh with sheppy; document the new bring-up (#256)"
-```
+````
 
----
+______________________________________________________________________
 
 ### Task 8: Jetson verification (attended)
 
@@ -711,6 +731,7 @@ cd ~/ros2_ws/src/Demo-Software && git checkout feature/256-sheppy-launch
 cd ~/ros2_ws && colcon build --packages-select rammp_prototype_bringup && source install/setup.bash
 cd ~/ros2_ws/src/Demo-Software && docker compose build cornell_feeding
 ```
+
 Expected: all four paths exist; build succeeds. If the repo is not at `~/ros2_ws/src/Demo-Software`, edit the `calibration` command in `sheppy-manifest.yaml` to the real path and commit that.
 
 - [ ] **Step 2: Mock profile first (no hardware moves)**
@@ -721,6 +742,7 @@ sheppy status
 ros2 node list
 sheppy down
 ```
+
 Expected: `exit=0`; every selected node `running`; the node list shows the mocks, system_control and gui_bridge.
 
 - [ ] **Step 3: Full profile**
@@ -730,6 +752,7 @@ sheppy up full; echo exit=$?
 sheppy status
 sheppy logs calibration -n 20
 ```
+
 Expected: `exit=0`; all 13 nodes `running`; the calibration log ends with `[calibration] done.` and the GUI is on screen. Exercise a GUI action, then `sheppy down`.
 
 - [ ] **Step 4: Note any deviation in the PR description and open the PR against `234-cornell-feeding`**

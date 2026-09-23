@@ -84,21 +84,21 @@ One sheppy node per subsystem. Real alternatives transcribe what
 `rammp_prototype_behavior`. `publishes`/`subscribes` lists are documentation
 and are filled in from the ROS spec where known.
 
-| node | real alternative | mock alternative | declared params |
-|---|---|---|---|
-| `description` | `launch_file` rammp_prototype_description `description.launch.py` | none; runs anywhere | |
-| `base` | `launch_file` rammp_prototype_driver `control_node.launch.py` | `executable` rammp_prototype_behavior `mock_chair_control` | `serial_port: /dev/ttyACM0` |
-| `luci` | `launch_file` rammp_prototype_bringup `luci.launch.py` | none; left unselected | `chair_ip: 10.2.10.3` |
-| `arm` | `executable` arm_driver `arm_driver` | `executable` rammp_prototype_behavior `mock_arm_driver` | |
-| `gui_bridge` | `launch_file` rammp_prototype_gui `Gui_bridge.launch.py` | none; it is a TCP client | `ue_host: 127.0.0.1` |
-| `system_control` | `executable` rammp_prototype_behavior `system_control` | none | |
-| `door_opener` | `launch_file` cmu_door_opener `cmu_door_opener.launch.py` | `executable` rammp_prototype_behavior `mock_opening_door` | |
-| `cameras` | `launch_file` rammp_prototype_bringup `camera.launch.py` | `process` publishing an empty `sensor_msgs/Image` on `/camera/wrist/color/image_raw` at 10 Hz | |
-| `curb_detection` | `launch_file` rammp_prototype_bringup `neu_navigation.launch.py` (new) | `executable` rammp_prototype_behavior `mock_curb_detection` | |
-| `cup_stabilizer` | `executable` rammp_prototype_behavior `mock_cup_stabilizer` (only alternative today) | | |
-| `drink` | `docker`, `compose: {file: docker-compose.yml, service: cornell_feeding_robot}` | `executable` rammp_prototype_behavior `mock_drinking_node` | |
-| `gui` | `process`: `cd $HOME && DISPLAY=:$(ls /tmp/.X11-unix \| head -1 \| tr -d X) ./launch_ui.sh` | none; left unselected | |
-| `calibration` | `process`: `<repo>/scripts/calibrate.sh && sleep infinity` | none; left unselected | |
+| node             | real alternative                                                                            | mock alternative                                                                              | declared params             |
+| ---------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------- |
+| `description`    | `launch_file` rammp_prototype_description `description.launch.py`                           | none; runs anywhere                                                                           |                             |
+| `base`           | `launch_file` rammp_prototype_driver `control_node.launch.py`                               | `executable` rammp_prototype_behavior `mock_chair_control`                                    | `serial_port: /dev/ttyACM0` |
+| `luci`           | `launch_file` rammp_prototype_bringup `luci.launch.py`                                      | none; left unselected                                                                         | `chair_ip: 10.2.10.3`       |
+| `arm`            | `executable` arm_driver `arm_driver`                                                        | `executable` rammp_prototype_behavior `mock_arm_driver`                                       |                             |
+| `gui_bridge`     | `launch_file` rammp_prototype_gui `Gui_bridge.launch.py`                                    | none; it is a TCP client                                                                      | `ue_host: 127.0.0.1`        |
+| `system_control` | `executable` rammp_prototype_behavior `system_control`                                      | none                                                                                          |                             |
+| `door_opener`    | `launch_file` cmu_door_opener `cmu_door_opener.launch.py`                                   | `executable` rammp_prototype_behavior `mock_opening_door`                                     |                             |
+| `cameras`        | `launch_file` rammp_prototype_bringup `camera.launch.py`                                    | `process` publishing an empty `sensor_msgs/Image` on `/camera/wrist/color/image_raw` at 10 Hz |                             |
+| `curb_detection` | `launch_file` rammp_prototype_bringup `neu_navigation.launch.py` (new)                      | `executable` rammp_prototype_behavior `mock_curb_detection`                                   |                             |
+| `cup_stabilizer` | `executable` rammp_prototype_behavior `mock_cup_stabilizer` (only alternative today)        |                                                                                               |                             |
+| `drink`          | `docker`, `compose: {file: docker-compose.yml, service: cornell_feeding_robot}`             | `executable` rammp_prototype_behavior `mock_drinking_node`                                    |                             |
+| `gui`            | `process`: `cd $HOME && DISPLAY=:$(ls /tmp/.X11-unix \| head -1 \| tr -d X) ./launch_ui.sh` | none; left unselected                                                                         |                             |
+| `calibration`    | `process`: `<repo>/scripts/calibrate.sh && sleep infinity`                                  | none; left unselected                                                                         |                             |
 
 Notes per node:
 
@@ -175,10 +175,10 @@ pip install of sheppy. Adding it to CI is out of scope for this issue.
 ## Testing
 
 1. **Manifest loads.** `validate_manifest.py` exits 0.
-2. **Workstation smoke test.** On a machine with the workspace built:
+1. **Workstation smoke test.** On a machine with the workspace built:
    `sheppy up mock`, then `sheppy status` shows every selected node
    `running`, `ros2 node list` shows the mocks, `sheppy down` exits 0.
-3. **Hardware test on the Jetson.** Attended, with someone on the e-stop:
+1. **Hardware test on the Jetson.** Attended, with someone on the e-stop:
    confirm sheppy and docker are installed and the cornell image is built;
    `sheppy up full`; `sheppy status` all `running`; `sheppy logs calibration`
    shows both goals succeeded; exercise the GUI; `sheppy down`.

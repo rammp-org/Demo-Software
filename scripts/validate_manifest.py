@@ -49,8 +49,9 @@ def check_manifest(path):
                 base_dir = os.path.dirname(file)
             *_, errs, warns = service_to_docker_args(service, base_dir)
             problems += [f"{where}: {e}" for e in errs]
-            problems += [f"{where}: warning: {w}" for w in warns
-                         if not w.startswith(TOLERATED)]
+            problems += [
+                f"{where}: warning: {w}" for w in warns if not w.startswith(TOLERATED)
+            ]
     return result.manifest, problems
 
 
@@ -63,8 +64,10 @@ def check_profiles(manifest, profiles_dir):
         if loaded.profile is None:
             problems += [f"profiles/{name}: {e}" for e in loaded.errors]
             continue
-        problems += [f"profiles/{name}: {w}"
-                     for w in reconcile(loaded.profile, manifest).warnings]
+        problems += [
+            f"profiles/{name}: {w}"
+            for w in reconcile(loaded.profile, manifest).warnings
+        ]
     return names, problems
 
 
@@ -80,8 +83,10 @@ def main():
     if problems:
         return 1
     alts = sum(len(n.alternatives) for n in manifest.nodes)
-    print(f"ok: {len(manifest.nodes)} nodes, {alts} alternatives, "
-          f"{len(names)} profiles ({', '.join(names)})")
+    print(
+        f"ok: {len(manifest.nodes)} nodes, {alts} alternatives, "
+        f"{len(names)} profiles ({', '.join(names)})"
+    )
     return 0
 
 

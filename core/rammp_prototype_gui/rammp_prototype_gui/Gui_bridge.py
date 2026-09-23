@@ -297,6 +297,15 @@ class GuiBridge(Node):
         self.arm_joints = None
         self.base_joints = None
         self._system_state = None
+        # Last values pushed to UE, so the 10 Hz ue_update only resends when
+        # something changed (plus a slow periodic refresh). Every call is a
+        # Remote Control message that UE processes in order at roughly one
+        # per frame; the previous unconditional 30 calls/s saturated that.
+        self._last_sent_state = None
+        self._last_sent_state_time = 0.0
+        self._last_sent_joints = None
+        self._last_sent_joints_time = 0.0
+        self._ue_refresh_period = 2.0  # seconds
 
         if self.use_shared_memory:
             # Create shared memory and map it
@@ -1048,10 +1057,23 @@ class GuiBridge(Node):
             arr[chair_mr_wheel_index] = base_joints.position[7] * 180.0 / 3.14159
 
         if base_joints is not None or arm_joints is not None:
+            now = time.monotonic()
+            unchanged = self._last_sent_joints is not None and all(
+                abs(a - b) < 1e-3 for a, b in zip(arr, self._last_sent_joints)
+            )
+            if unchanged and now - self._last_sent_joints_time < self._ue_refresh_period:
+                return
+            self._last_sent_joints = list(arr)
+            self._last_sent_joints_time = now
             self.ue.call_function("setJoints", {"Values": arr})
 
     def send_system_state_to_ue(self):
         if self.ue.is_connected() and self._system_state is not None:
+            self._last_sent_state = (
+                str(self._system_state.state),
+                tuple(self._system_state.supported_user_inputs),
+            )
+            self._last_sent_state_time = time.monotonic()
             self.ue.call_function(
                 "UpdateSystemState", {"SystemState": str(self._system_state.state)}
             )
@@ -1199,7 +1221,15 @@ class GuiBridge(Node):
 
     def ue_update(self):
         if self.ue.is_connected():
-            self.send_system_state_to_ue()
+            state = self._system_state
+            state_key = None if state is None else (
+                str(state.state), tuple(state.supported_user_inputs)
+            )
+            if state_key is not None and (
+                state_key != self._last_sent_state
+                or time.monotonic() - self._last_sent_state_time >= self._ue_refresh_period
+            ):
+                self.send_system_state_to_ue()
             self.set_ui_joints()
 
     def publish_connection_status(self):

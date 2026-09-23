@@ -46,7 +46,9 @@ class UnrealRemoteWebsocket:
         self._value_change_queue = Queue()  # For unsolicited value changes from UE
         self._send_lock = Lock()  # serialize sends
         self.ws_client = None  # command connection: tunneled HTTP calls + responses
-        self.event_client = None  # event connection: preset registration + value changes only
+        self.event_client = (
+            None  # event connection: preset registration + value changes only
+        )
         self.user_input_callback = user_input_callback
 
         t = threading.Thread(target=self.start_async_loop, daemon=True)

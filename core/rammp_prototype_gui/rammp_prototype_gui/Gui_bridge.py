@@ -1061,7 +1061,10 @@ class GuiBridge(Node):
             unchanged = self._last_sent_joints is not None and all(
                 abs(a - b) < 1e-3 for a, b in zip(arr, self._last_sent_joints)
             )
-            if unchanged and now - self._last_sent_joints_time < self._ue_refresh_period:
+            if (
+                unchanged
+                and now - self._last_sent_joints_time < self._ue_refresh_period
+            ):
                 return
             self._last_sent_joints = list(arr)
             self._last_sent_joints_time = now
@@ -1222,12 +1225,15 @@ class GuiBridge(Node):
     def ue_update(self):
         if self.ue.is_connected():
             state = self._system_state
-            state_key = None if state is None else (
-                str(state.state), tuple(state.supported_user_inputs)
+            state_key = (
+                None
+                if state is None
+                else (str(state.state), tuple(state.supported_user_inputs))
             )
             if state_key is not None and (
                 state_key != self._last_sent_state
-                or time.monotonic() - self._last_sent_state_time >= self._ue_refresh_period
+                or time.monotonic() - self._last_sent_state_time
+                >= self._ue_refresh_period
             ):
                 self.send_system_state_to_ue()
             self.set_ui_joints()

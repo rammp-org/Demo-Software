@@ -139,7 +139,7 @@ Notes per node:
 `127.0.0.1`).
 
 `profiles/mock.yaml` selects every mock alternative and leaves `luci`, `gui`,
-`cameras`, and `calibration` unselected. `description`, `gui_bridge`,
+and `calibration` unselected. `description`, `gui_bridge`,
 `system_control`, and `cup_stabilizer` are selected as-is, since they need no
 hardware.
 

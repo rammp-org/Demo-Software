@@ -172,12 +172,12 @@ ______________________________________________________________________
 
 ## Key Dependencies
 
-| Package                                     | Role                                              |
-| ------------------------------------------- | ------------------------------------------------- |
-| `rclpy`                                     | ROS2 Python client library                        |
+| Package                                     | Role                                                    |
+| ------------------------------------------- | ------------------------------------------------------- |
+| `rclpy`                                     | ROS2 Python client library                              |
 | `cornell_feeding_interfaces`                | Action / message definitions (`DrinkAction`, `CupInfo`) |
-| `rammp.interfaces.perception_interface`     | Wraps RealSense camera data                       |
-| `rammp.interfaces.rviz_interface`           | Publishes markers / plan visualization to RViz    |
-| `rammp.control.robot_controller.arm_client` | Sends joint/Cartesian/gripper commands to the arm |
-| `rammp.simulation.simulator`                | PyBullet-based simulator and motion planner       |
-| `pybullet_helpers`                          | Geometry utilities and PyBullet wrappers          |
+| `rammp.interfaces.perception_interface`     | Wraps RealSense camera data                             |
+| `rammp.interfaces.rviz_interface`           | Publishes markers / plan visualization to RViz          |
+| `rammp.control.robot_controller.arm_client` | Sends joint/Cartesian/gripper commands to the arm       |
+| `rammp.simulation.simulator`                | PyBullet-based simulator and motion planner             |
+| `pybullet_helpers`                          | Geometry utilities and PyBullet wrappers                |

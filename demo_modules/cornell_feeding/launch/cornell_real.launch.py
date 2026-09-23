@@ -61,48 +61,50 @@ def generate_launch_description():
         "cornell_feeding.launch.py",
     )
 
-    return LaunchDescription([
-        DeclareLaunchArgument("scene_config", default_value="wheelchair"),
-        # TF tree + end_effector_link -> wrist_camera_link mount extrinsic. The
-        # camera_frame override makes the mount-TF child equal the RealSense root
-        # frame so base_link -> wrist_color_optical_frame resolves for perception.
-        # Keep description.launch.py's default camera_frame
-        # (wrist_wrist_camera_link): the RealSense wrapper prefixes camera_name
-        # onto base_frame_id, so that is the frame it actually publishes.
-        # Overriding it to wrist_camera_link leaves base_link ->
-        # wrist_color_optical_frame unresolvable and head perception gets no TF.
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(description_launch),
-        ),
-        # Kinova Gen3 hardware backend (owns the Kortex link; provides /arm/*).
-        Node(
-            package="arm_driver",
-            executable="arm_driver",
-            name="arm_driver_node",
-            output="screen",
-            emulate_tty=True,
-            respawn=True,
-            respawn_delay=2.0,
-            # kortex_api's pre-4.x protobuf gencode only loads under the
-            # pure-python protobuf implementation (protobuf>=4.25 is
-            # system-wide for mediapipe). arm_interface.py also sets this.
-            additional_env={"PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION": "python"},
-        ),
-        # Wrist RealSense (D435i), published under /camera/wrist/*.
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(camera_launch),
-            launch_arguments={
-                "params_file": camera_params,
-                "disable_nav1": "true",
-                "disable_nav2": "true",
-            }.items(),
-        ),
-        # The drink_action_server itself, in real mode.
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(cornell_launch),
-            launch_arguments={
-                "run_on_robot": "true",
-                "scene_config": scene_config,
-            }.items(),
-        ),
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument("scene_config", default_value="wheelchair"),
+            # TF tree + end_effector_link -> wrist_camera_link mount extrinsic. The
+            # camera_frame override makes the mount-TF child equal the RealSense root
+            # frame so base_link -> wrist_color_optical_frame resolves for perception.
+            # Keep description.launch.py's default camera_frame
+            # (wrist_wrist_camera_link): the RealSense wrapper prefixes camera_name
+            # onto base_frame_id, so that is the frame it actually publishes.
+            # Overriding it to wrist_camera_link leaves base_link ->
+            # wrist_color_optical_frame unresolvable and head perception gets no TF.
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(description_launch),
+            ),
+            # Kinova Gen3 hardware backend (owns the Kortex link; provides /arm/*).
+            Node(
+                package="arm_driver",
+                executable="arm_driver",
+                name="arm_driver_node",
+                output="screen",
+                emulate_tty=True,
+                respawn=True,
+                respawn_delay=2.0,
+                # kortex_api's pre-4.x protobuf gencode only loads under the
+                # pure-python protobuf implementation (protobuf>=4.25 is
+                # system-wide for mediapipe). arm_interface.py also sets this.
+                additional_env={"PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION": "python"},
+            ),
+            # Wrist RealSense (D435i), published under /camera/wrist/*.
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(camera_launch),
+                launch_arguments={
+                    "params_file": camera_params,
+                    "disable_nav1": "true",
+                    "disable_nav2": "true",
+                }.items(),
+            ),
+            # The drink_action_server itself, in real mode.
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(cornell_launch),
+                launch_arguments={
+                    "run_on_robot": "true",
+                    "scene_config": scene_config,
+                }.items(),
+            ),
+        ]
+    )

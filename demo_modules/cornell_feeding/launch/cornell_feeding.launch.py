@@ -45,15 +45,17 @@ def _drink_node(context, *args, **kwargs):
 
 
 def generate_launch_description():
-    return LaunchDescription([
-        DeclareLaunchArgument("scene_config", default_value="wheelchair"),
-        DeclareLaunchArgument("run_on_robot", default_value="false"),
-        DeclareLaunchArgument("no_waits", default_value="true"),
-        Node(
-            package="tf2_ros",
-            executable="static_transform_publisher",
-            name="st_map2world",
-            arguments=["0", "0", "0", "0", "0", "0", "1", "map", "world"],
-        ),
-        OpaqueFunction(function=_drink_node),
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument("scene_config", default_value="wheelchair"),
+            DeclareLaunchArgument("run_on_robot", default_value="false"),
+            DeclareLaunchArgument("no_waits", default_value="true"),
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="st_map2world",
+                arguments=["0", "0", "0", "0", "0", "0", "1", "map", "world"],
+            ),
+            OpaqueFunction(function=_drink_node),
+        ]
+    )

@@ -5,6 +5,7 @@ defusedxml
 imageio
 mediapipe==1.0.0  # 1.0.1 needs libEGL (see Dockerfile); 1.0.0 is the version verified on the chair
 open3d
+scikit-learn
 protobuf>=4.25.3,<5
 # scipy is deliberately unpinned here: pybullet_helpers pins scipy==1.14.0
 # exactly, so any pin of our own makes `pip install -r` unresolvable. (The

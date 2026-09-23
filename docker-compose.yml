@@ -51,9 +51,15 @@ services:
     <<: *ros-common
     image: cornell-feeding:latest
     command: ros2 launch cornell_feeding cornell_feeding.launch.py run_on_robot:=true
+    # Absolute host paths on purpose: sheppy translates this service into
+    # `docker run -v` flags verbatim, so a relative `./...` source resolves
+    # against sheppyd's working directory (the home dir), not this file. That
+    # mounted an empty dir over the head calibration and a dir over
+    # cyclonedds.xml, and the node crashed at startup. Override REPO_ROOT if
+    # the checkout lives elsewhere. Tracked in rammp-org/sheppy.
     volumes:
-      - ./core/rammp_prototype_bringup/config/cyclonedds.xml:/config/cyclonedds.xml:ro
-      - ./demo_modules/cornell_feeding/rammp/perception/head_perception/mediapipe_config:/ros2_ws/src/cornell_feeding/rammp/perception/head_perception/mediapipe_config
+      - ${REPO_ROOT:-/home/herl/ros2_ws/src/Demo-Software}/core/rammp_prototype_bringup/config/cyclonedds.xml:/config/cyclonedds.xml:ro
+      - ${REPO_ROOT:-/home/herl/ros2_ws/src/Demo-Software}/demo_modules/cornell_feeding/rammp/perception/head_perception/mediapipe_config:/ros2_ws/src/cornell_feeding/rammp/perception/head_perception/mediapipe_config
 
   # ---------------------------------------------------------------------------
   # Add each further module the same way. Example skeleton:

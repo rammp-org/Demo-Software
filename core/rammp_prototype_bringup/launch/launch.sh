@@ -15,11 +15,9 @@
 # set -e
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-LAPTOP_USER="rammp"
-LAPTOP_IP="10.2.10.4"
-
+# The drink action servers run in the cornell_feeding Docker container on the
+# Jetson (see docker-compose.yml); there is no laptop in the loop any more.
 JETSON_WS="$HOME/ros2_ws"
-LAPTOP_WS="/home/$LAPTOP_USER/ros2_ws"
 
 ROS_SETUP="/opt/ros/humble/setup.zsh"
 SESSION="rammp"
@@ -55,12 +53,6 @@ cleanup() {
     tmux send-keys -t "$SESSION:jetson" C-c ""
     sleep 3
 
-    # Kill laptop node first (remote)
-    ssh -o ConnectTimeout=4 "$LAPTOP_USER@$LAPTOP_IP" \
-        "pkill -2 -f 'ros2' || true" 2>/dev/null \
-        && echo " Laptop nodes stopped." \
-        || echo " (Could not reach laptop — may already be down.)"
-
     # Kill the whole tmux session — terminates all local panes
     tmux kill-session -t "$SESSION" 2>/dev/null || true
 
@@ -71,13 +63,6 @@ trap cleanup SIGINT SIGTERM
 
 # ── Preflight checks ───────────────────────────────────────────────────────────
 echo "Running preflight checks..."
-
-# Check SSH reachability
-if ! ssh -o ConnectTimeout=4 "$LAPTOP_USER@$LAPTOP_IP" exit 2>/dev/null; then
-    echo "ERROR: Cannot reach laptop at $LAPTOP_IP. Check ethernet connection."
-    exit 1
-fi
-echo "   Laptop reachable."
 
 # Check serial port (if mebot driver will be launched)
 if [[ ! -e "$SERIAL_PORT" ]]; then
@@ -103,40 +88,29 @@ echo "Starting RAMMP system..."
 echo " Serial: $SERIAL_PORT"
 echo " Chair:   $CHAIR_IP"
 echo " UE host: $UE_HOST"
-echo " Laptop: $LAPTOP_USER@$LAPTOP_IP"
 echo ""
 
 # Window 1: GUI — must start first
 tmux new-session -d -s "$SESSION" -n "gui" \
-    "bash -c 'cd $HOME && export DISPLAY=:1 && ./launch_ui.sh; echo \"[gui] exited.\"; read'"
+    "bash -c 'cd $HOME && export DISPLAY=:$(ls /tmp/.X11-unix | head -1 | tr -d X) && ./launch_ui.sh; echo \"[gui] exited.\"; read'"
 
 sleep 2   # give the GUI a moment before launching nodes
 
-# Window 2: Laptop node (SSH)
-tmux new-window -t "$SESSION" -n "laptop" \
-    "bash -c 'ssh $LAPTOP_USER@$LAPTOP_IP \
-        \"source $ROS_SETUP && \
-        source ~/.zshrc && \
-        conda activate compute && \
-        source $LAPTOP_WS/install/setup.zsh && \
-        ros2 launch drink_actions_test minimal.launch.py\"; \
-    echo \"[laptop] SSH session ended.\"; read'"
-
-# Window 3: Jetson mock nodes
+# Window 2: Jetson mock nodes
 tmux new-window -t "$SESSION" -n "jetson_mocks" \
     "zsh -c 'source $ROS_SETUP && \
             source $JETSON_WS/install/setup.zsh && \
             ros2 launch rammp_prototype_behavior mock.launch.py; \
             echo \"[jetson_mocks] Launch exited.\"; read'"
 
-# Window 4: Jetson nodes
+# Window 3: Jetson nodes
 tmux new-window -t "$SESSION" -n "jetson" \
     "zsh -c 'source $ROS_SETUP && \
             source $JETSON_WS/install/setup.zsh && \
             ros2 launch rammp_prototype_bringup full.launch.py $ARGS_STR > "rammp_logs/rammp_logs_$(date +%Y-%m-%d_%H-%M-%S).txt"; \
             echo \"[jetson] Launch exited.\"; read'"
 
-# Window 5: Calibration — waits for arm and base to be ready
+# Window 4: Calibration — waits for arm and base to be ready
 tmux new-window -t "$SESSION" -n "calibration" \
     "zsh -c 'source $ROS_SETUP && \
               source $JETSON_WS/install/setup.zsh && \

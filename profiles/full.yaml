@@ -1,0 +1,24 @@
+# Everything real: what launch.sh started by default. Copy this file and
+# delete a node's line to skip it (the old --no-arm / --no-cameras /
+# --no-luci), or add an overrides block for --serial-port / --chair-ip /
+# --ue-host, e.g.
+#   overrides:
+#     base: {serial_port: /dev/ttyACM1}
+#
+# curb_detection stays on the mock: full.launch.py defaulted NEU off and
+# launch.sh ran mock_curb_detection. Switch to neu_navigation when it is ready.
+description: Everything real on the Jetson, with GUI and calibration
+selections:
+  description: description
+  base: mebot_driver
+  luci: luci
+  arm: arm_driver
+  gui_bridge: gui_bridge
+  system_control: system_control
+  door_opener: cmu_door_opener
+  cameras: cameras
+  curb_detection: mock
+  cup_stabilizer: mock
+  drink: cornell_feeding
+  gui: unreal
+  calibration: calibrate

@@ -1009,6 +1009,8 @@ class ArmDriverNode(rclpy.node.Node):
 
     def _publish_joint_states(self):
         """Publish current joint states and end-effector force at 100 Hz."""
+        if not self._arm:
+            return  # nothing to report until the arm is connected
         stamp = self.get_clock().now().to_msg()
 
         joint_msg = JointState()

@@ -13,6 +13,9 @@ import rclpy
 import tf2_ros
 
 from cv_bridge import CvBridge, CvBridgeError
+from rammp.interfaces.subscriptions import PausableCallbackGroup, destroy_subscriptions
+from rclpy.qos import DurabilityPolicy, QoSProfile
+from tf2_msgs.msg import TFMessage
 from geometry_msgs.msg import Point, TransformStamped, WrenchStamped
 from rclpy.node import Node
 from rclpy.time import Time
@@ -37,7 +40,7 @@ class RealSenseInterface:
 
         self.tf_buffer_lock = Lock()
         self.tf_buffer = tf2_ros.Buffer()
-        self.listener = None
+        self._tf_subs = []
 
         self.broadcaster = tf2_ros.TransformBroadcaster(self.node)
 
@@ -48,6 +51,7 @@ class RealSenseInterface:
         self.camera_info_sub = None
         self.depth_image_sub = None
         self.ts_top = None
+        self._sub_group = None
 
     def start(self):
         """Subscribe to the wrist camera and TF. Idempotent."""
@@ -56,28 +60,46 @@ class RealSenseInterface:
         from rclpy.qos import qos_profile_sensor_data, QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
         image_qos = qos_profile_sensor_data
         info_qos = QoSProfile(depth=10, history=QoSHistoryPolicy.KEEP_LAST, reliability=QoSReliabilityPolicy.RELIABLE)
+        # One pausable group for everything created here, so stop() can take
+        # them out of the executor before destroying them.
+        self._sub_group = PausableCallbackGroup()
 
+        # TF: the same two subscriptions tf2_ros.TransformListener would create,
+        # but in our group (TransformListener offers no way to set one).
         with self.tf_buffer_lock:
             self.tf_buffer = tf2_ros.Buffer()
-            self.listener = tf2_ros.TransformListener(self.tf_buffer, self.node)
+        self._tf_subs = [
+            self.node.create_subscription(
+                TFMessage, "/tf", self._tf_callback, QoSProfile(depth=100),
+                callback_group=self._sub_group,
+            ),
+            self.node.create_subscription(
+                TFMessage, "/tf_static", self._tf_static_callback,
+                QoSProfile(depth=100, durability=DurabilityPolicy.TRANSIENT_LOCAL),
+                callback_group=self._sub_group,
+            ),
+        ]
 
         self.color_image_sub = message_filters.Subscriber(
             self.node,
             Image,
             "/camera/wrist/color/image_raw",
             qos_profile=image_qos,
+            callback_group=self._sub_group,
         )
         self.camera_info_sub = message_filters.Subscriber(
             self.node,
             CameraInfo,
             "/camera/wrist/color/camera_info",
             qos_profile=info_qos,
+            callback_group=self._sub_group,
         )
         self.depth_image_sub = message_filters.Subscriber(
             self.node,
             Image,
             "/camera/wrist/aligned_depth_to_color/image_raw",
             qos_profile=image_qos,
+            callback_group=self._sub_group,
         )
 
         self.ts_top = message_filters.TimeSynchronizer(
@@ -90,18 +112,28 @@ class RealSenseInterface:
         """Drop the camera and TF subscriptions and the cached frame. Idempotent."""
         if self.ts_top is None:
             return
-        for sub in (self.color_image_sub, self.camera_info_sub, self.depth_image_sub):
-            self.node.destroy_subscription(sub.sub)
+        subs = [self.color_image_sub.sub, self.camera_info_sub.sub, self.depth_image_sub.sub]
+        subs += self._tf_subs
+        destroy_subscriptions(self.node, self._sub_group, subs)
         self.color_image_sub = self.camera_info_sub = self.depth_image_sub = None
         self.ts_top = None
-        with self.tf_buffer_lock:
-            self.listener.unregister()
-            self.listener = None
+        self._tf_subs = []
+        self._sub_group = None
         with self.camera_lock:
             self.camera_color_msg = None
             self.camera_info_data = None
             self.camera_depth_msg = None
             self.camera_header = None
+
+    def _tf_callback(self, msg):
+        with self.tf_buffer_lock:
+            for transform in msg.transforms:
+                self.tf_buffer.set_transform(transform, "default_authority")
+
+    def _tf_static_callback(self, msg):
+        with self.tf_buffer_lock:
+            for transform in msg.transforms:
+                self.tf_buffer.set_transform_static(transform, "default_authority")
 
     def rgbd_callback(self, rgb_image_msg, camera_info_msg, depth_image_msg):
         # Only keep the latest messages here; converting every frame at the

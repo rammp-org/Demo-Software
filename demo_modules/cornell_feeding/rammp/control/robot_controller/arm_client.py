@@ -25,6 +25,7 @@ from geometry_msgs.msg import PoseStamped
 from std_srvs.srv import Trigger
 from pybullet_helpers.geometry import Pose
 
+from rammp.interfaces.subscriptions import PausableCallbackGroup, destroy_subscriptions
 from rammp.control.robot_controller.command_interface import (
     KinovaCommand,
     JointCommand,
@@ -66,6 +67,7 @@ class ArmInterfaceClient:
         self._latest_ee_pose: Optional[Pose] = None
         self.joint_state_sub = None
         self.ee_pose_sub = None
+        self._sub_group = None
 
     def start(self) -> None:
         """Subscribe to the arm state topics. Idempotent."""
@@ -73,27 +75,32 @@ class ArmInterfaceClient:
             return
         self._latest_joint_state = None
         self._latest_ee_pose = None
+        self._sub_group = PausableCallbackGroup()
         self.joint_state_sub = self.node.create_subscription(
             JointState,
             "/arm/joint_states",
             self._joint_state_callback,
             10,
+            callback_group=self._sub_group,
         )
         self.ee_pose_sub = self.node.create_subscription(
             PoseStamped,
             "/arm/ee/pose",
             self._ee_pose_callback,
             10,
+            callback_group=self._sub_group,
         )
 
     def stop(self) -> None:
         """Drop the arm state subscriptions. Idempotent."""
         if self.joint_state_sub is None:
             return
-        self.node.destroy_subscription(self.joint_state_sub)
-        self.node.destroy_subscription(self.ee_pose_sub)
+        destroy_subscriptions(
+            self.node, self._sub_group, [self.joint_state_sub, self.ee_pose_sub]
+        )
         self.joint_state_sub = None
         self.ee_pose_sub = None
+        self._sub_group = None
 
     def _joint_state_callback(self, msg: JointState) -> None:
         self._latest_joint_state = msg

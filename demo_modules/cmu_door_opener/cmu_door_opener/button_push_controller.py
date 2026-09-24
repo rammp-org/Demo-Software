@@ -25,6 +25,35 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from scipy.spatial.transform import Rotation
 
+
+class _PausableCallbackGroup(ReentrantCallbackGroup):
+    """Members leave the executor's wait set while the group is paused."""
+
+    def __init__(self):
+        super().__init__()
+        self.active = True
+
+    def can_execute(self, entity):
+        return self.active and super().can_execute(entity)
+
+
+def _destroy_subscriptions(node, group, subscriptions, timeout_sec=2.0):
+    """Pause the group, wait for in-flight handlers, then destroy.
+
+    Destroying a subscription that a MultiThreadedExecutor has already queued a
+    handler for raises InvalidHandle inside the executor on Humble and kills
+    the node; this ordering avoids it.
+    """
+    group.active = False
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline and any(
+        getattr(sub, "_executor_event", False) for sub in subscriptions
+    ):
+        time.sleep(0.005)
+    for sub in subscriptions:
+        node.destroy_subscription(sub)
+
+
 # Button push parameters
 APPROACH_OFFSET = 0.2  # meters — stop this far in front of the button first
 PUSH_STEP = 0.01  # meters — incremental push distance per step (1cm)
@@ -165,17 +194,23 @@ class ButtonPushController(Node):
         """Action callback — subscribes to arm feedback for the push, then runs it."""
         self.latest_ee_force = None
         self.latest_ee_velocity = None
+        group = _PausableCallbackGroup()
         self._ee_force_sub = self.create_subscription(
-            Vector3Stamped, "/arm/ee/force", self._cb_ee_force, 10
+            Vector3Stamped, "/arm/ee/force", self._cb_ee_force, 10, callback_group=group
         )
         self._ee_velocity_sub = self.create_subscription(
-            TwistStamped, "/arm/ee/velocity", self._cb_ee_velocity, 10
+            TwistStamped,
+            "/arm/ee/velocity",
+            self._cb_ee_velocity,
+            10,
+            callback_group=group,
         )
         try:
             return self._run_open_door(goal_handle)
         finally:
-            self.destroy_subscription(self._ee_force_sub)
-            self.destroy_subscription(self._ee_velocity_sub)
+            _destroy_subscriptions(
+                self, group, [self._ee_force_sub, self._ee_velocity_sub]
+            )
             self._ee_force_sub = None
             self._ee_velocity_sub = None
 

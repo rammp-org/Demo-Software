@@ -195,19 +195,14 @@ class MEBotControlNode(Node):
         self.updater.add("Teensy state", self.check_teensy_state)
 
         # Data transfer rates
-        # Rate to read data from serial
-        self.serial_rate = 1 / 1000.0
-        # Rate to publish joint states
-        self.joint_state_rate = 1 / 100.0
-        # Rate to publish RAMMPPrototypeState
-        self.state_publish_rate = 1 / 100.0
         # Diagnostic publish rate
         self.diagnostic_publish_rate = 1 / 1.0
         # heartbeat timer
         self.heartbeat_rate = 0.5
-
-        # timer for serial data reading
-        self.serial_timer = self.create_timer(self.serial_rate, self.read_serial_data)
+        # Keepalive rate for the remote joystick. LUCI needs it faster than 10 Hz
+        # or it toggles the brakes; user joystick input is also forwarded as it
+        # arrives, so this only bounds the latency of autonomous drive commands.
+        self.luci_joystick_rate = 1 / 50.0
 
         # heartbeat to send serial message from jetson ->teensy to prevent teensy from timing out
         self.heartbeat_timer = self.create_timer(
@@ -289,6 +284,13 @@ class MEBotControlNode(Node):
         self._init_subscribers()
         self._init_publishers()
 
+        # Serial reader thread: blocks in readline() until the Teensy sends a
+        # line (10 Hz telemetry) instead of polling in_waiting from a timer.
+        self._serial_thread = threading.Thread(
+            target=self._serial_read_loop, daemon=True
+        )
+        self._serial_thread.start()
+
         self.enable_remote_input()
 
     def _init_services(self):
@@ -348,52 +350,59 @@ class MEBotControlNode(Node):
         self.joint_state_publisher = self.create_publisher(
             JointState, "joint_states", 10
         )
-        self.joint_state_timer = self.create_timer(
-            self.joint_state_rate, self.publish_joint_states
-        )
 
         # state publisher
         self.RAMMPPrototypeState_publisher = self.create_publisher(
             RAMMPPrototypeState, "rammp_prototype_state", 10
         )
-        self.RAMMPPrototypeState_timer = self.create_timer(
-            self.state_publish_rate, self.publish_RAMMPPrototypeState
-        )
 
         self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
-        self.luci_heartbeat_timer = self.create_timer(0.005, self._send_joystick)
+        self.luci_heartbeat_timer = self.create_timer(
+            self.luci_joystick_rate, self._send_joystick
+        )
         # self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
 
         # self.imu_publisher = self.create_publisher(Imu, "imu", 10)
         # self.imu_timer = self.create_timer(self.publish_rate, self.publish_imu_data)
 
-    def read_serial_data(self):
+    def _serial_read_loop(self):
         if self.ser is None:
             return
-        if self.ser.in_waiting > 0:
-            line = self.ser.readline()
+        while rclpy.ok():
+            try:
+                line = self.ser.readline()  # blocks until a line or the 1 s timeout
+            except serial.SerialException as e:
+                self.get_logger().error(f"Serial read failed: {e}")
+                return
             if line:
-                raw_data = line.decode("utf-8", errors="replace").strip()
-                if raw_data.startswith("TELEMETRY"):
-                    data = raw_data.split(",")  # All values are str
-                    self.update_data(data)  # Update variables with new data
-                if raw_data.startswith(
-                    "SEQ_STATUS"
-                ):  # parsing and storing information about sequence player if running
-                    split_data = raw_data.split(",")
-                    self.current_seq = int(split_data[1])
-                    self.seq_length = int(split_data[2])
-                    self.seq_mode = int(split_data[3].strip())
-                parsed = ProtocolParser.parse_line(raw_data)
-                if isinstance(parsed, SeqGuardTrigData):
-                    self.get_logger().info(
-                        f"Guard triggered: motor {parsed.motor_index}, load={parsed.load_value:.1f}"
-                    )
-                if raw_data.startswith("CAL: Homed"):
-                    self.cal_joints_done += 1
-                elif raw_data == "CAL_DONE":
-                    self.cal_complete = True
+                self.handle_serial_line(line)
+
+    def handle_serial_line(self, line: bytes):
+        raw_data = line.decode("utf-8", errors="replace").strip()
+        if raw_data.startswith("TELEMETRY"):
+            data = raw_data.split(",")  # All values are str
+            self.update_data(data)  # Update variables with new data
+            # Publish on arrival: the Teensy sends telemetry at a fixed 10 Hz,
+            # so republishing the same values from a faster timer is wasted work.
+            self.publish_joint_states()
+            self.publish_RAMMPPrototypeState()
+        if raw_data.startswith(
+            "SEQ_STATUS"
+        ):  # parsing and storing information about sequence player if running
+            split_data = raw_data.split(",")
+            self.current_seq = int(split_data[1])
+            self.seq_length = int(split_data[2])
+            self.seq_mode = int(split_data[3].strip())
+        parsed = ProtocolParser.parse_line(raw_data)
+        if isinstance(parsed, SeqGuardTrigData):
+            self.get_logger().info(
+                f"Guard triggered: motor {parsed.motor_index}, load={parsed.load_value:.1f}"
+            )
+        if raw_data.startswith("CAL: Homed"):
+            self.cal_joints_done += 1
+        elif raw_data == "CAL_DONE":
+            self.cal_complete = True
 
     def write_serial_data(self, data):
         if self.ser is None:
@@ -685,6 +694,8 @@ class MEBotControlNode(Node):
     def user_joystick_callback(self, msg: LuciJoystick):
         self.user_fb = msg.forward_back
         self.user_lr = msg.left_right
+        if self.user_control_enabled and self.carriage_return_direction == 0:
+            self._send_joystick()  # forward user input without waiting for the timer
 
     def manual_seat_control_callback(self, msg: SeatCommand):
         self.get_logger().info("Seat command callback has been entered")

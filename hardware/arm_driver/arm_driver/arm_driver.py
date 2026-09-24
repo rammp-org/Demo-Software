@@ -107,6 +107,7 @@ class ArmDriverNode(rclpy.node.Node):
         self._state = ArmState.IDLE
         self._error_reason: str = ""
         self._arm: KinovaArm | None = None
+        self._feedback_tick = 0
         self._collision_checker = None  # set in _init_arm after CollisionChecker lands
         self._last_feedback_time: float = time.monotonic()
         self._last_twist_time: float | None = None
@@ -1008,9 +1009,17 @@ class ArmDriverNode(rclpy.node.Node):
     # -------------------------------------------------------------------------
 
     def _publish_joint_states(self):
-        """Publish current joint states and end-effector force at 100 Hz."""
+        """Read arm feedback at 100 Hz; publish joint states and end-effector
+        topics on every other tick (50 Hz).
+
+        The feedback read, comms watchdog and collision check keep the full
+        100 Hz rate. Publishing at 50 Hz halves the per-message work in the
+        Python subscribers (GUI bridge, system_control, drink node), none of
+        which consumes faster than 20 Hz.
+        """
         if not self._arm:
             return  # nothing to report until the arm is connected
+        self._feedback_tick += 1
         stamp = self.get_clock().now().to_msg()
 
         joint_msg = JointState()
@@ -1054,6 +1063,9 @@ class ArmDriverNode(rclpy.node.Node):
                     self._error_reason = "Collision detected"
                     self._transition_to(ArmState.ERROR)
                     return
+
+            if self._feedback_tick % 2:
+                return
 
             joint_msg.name = [
                 f"joint_{i + 1}" for i in range(self._arm.actuator_count)

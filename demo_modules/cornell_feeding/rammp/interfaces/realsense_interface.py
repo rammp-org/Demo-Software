@@ -37,14 +37,29 @@ class RealSenseInterface:
 
         self.tf_buffer_lock = Lock()
         self.tf_buffer = tf2_ros.Buffer()
-        self.listener = tf2_ros.TransformListener(self.tf_buffer, self.node)
+        self.listener = None
 
         self.broadcaster = tf2_ros.TransformBroadcaster(self.node)
 
-        queue_size = 1000
+        # Camera and TF subscriptions exist only between start() and stop():
+        # receiving three 15 Hz camera topics and /tf while idle cost ~35% of a
+        # Jetson core in this node's executor even without touching the data.
+        self.color_image_sub = None
+        self.camera_info_sub = None
+        self.depth_image_sub = None
+        self.ts_top = None
+
+    def start(self):
+        """Subscribe to the wrist camera and TF. Idempotent."""
+        if self.ts_top is not None:
+            return
         from rclpy.qos import qos_profile_sensor_data, QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
         image_qos = qos_profile_sensor_data
         info_qos = QoSProfile(depth=10, history=QoSHistoryPolicy.KEEP_LAST, reliability=QoSReliabilityPolicy.RELIABLE)
+
+        with self.tf_buffer_lock:
+            self.tf_buffer = tf2_ros.Buffer()
+            self.listener = tf2_ros.TransformListener(self.tf_buffer, self.node)
 
         self.color_image_sub = message_filters.Subscriber(
             self.node,
@@ -67,11 +82,26 @@ class RealSenseInterface:
 
         self.ts_top = message_filters.TimeSynchronizer(
             [self.color_image_sub, self.camera_info_sub, self.depth_image_sub],
-            queue_size=queue_size,
+            queue_size=1000,
         )
         self.ts_top.registerCallback(self.rgbd_callback)
 
-        time.sleep(2.0)  # sleep until all subscribers are registered
+    def stop(self):
+        """Drop the camera and TF subscriptions and the cached frame. Idempotent."""
+        if self.ts_top is None:
+            return
+        for sub in (self.color_image_sub, self.camera_info_sub, self.depth_image_sub):
+            self.node.destroy_subscription(sub.sub)
+        self.color_image_sub = self.camera_info_sub = self.depth_image_sub = None
+        self.ts_top = None
+        with self.tf_buffer_lock:
+            self.listener.unregister()
+            self.listener = None
+        with self.camera_lock:
+            self.camera_color_msg = None
+            self.camera_info_data = None
+            self.camera_depth_msg = None
+            self.camera_header = None
 
     def rgbd_callback(self, rgb_image_msg, camera_info_msg, depth_image_msg):
         # Only keep the latest messages here; converting every frame at the
@@ -168,6 +198,7 @@ def main(args=None):
     node = Node("realsense_interface_node")
 
     interface = RealSenseInterface(node)
+    interface.start()
     camera_data = interface.get_camera_data()
     base_to_camera = interface.get_base_to_camera_transform()
 

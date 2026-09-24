@@ -36,6 +36,7 @@ class PerceptionInterface:
             # Warm start head perception — wait until camera data is available
             self._head_perception.set_tool("drink")
             self.node.get_logger().info("Waiting for camera data before warm-starting head perception...")
+            self.realsense_interface.start()
             # Wait as long as it takes: the wrist RealSense may be (re)starting
             # after this node, and crashing here would just need a relaunch.
             waited_since = time.time()
@@ -50,6 +51,7 @@ class PerceptionInterface:
             self.node.get_logger().info("Camera data received, warm-starting head perception.")
             warm_ok = sum(self.run_head_perception() is not None for _ in range(10))
             self.node.get_logger().info(f"Head perception warm-start: {warm_ok}/10 frames succeeded.")
+            self.realsense_interface.stop()
 
             self._drink_perception = DrinkPerception()
         else:
@@ -208,6 +210,8 @@ class PerceptionInterface:
             detected = None
             for _ in range(num_samples):
                 camera_data = self.realsense_interface.get_camera_data()
+                if camera_data["rgb_image"] is None:
+                    continue  # no frame yet (camera just subscribed)
                 base_to_camera = self.realsense_interface.get_base_to_camera_transform()
                 with timer("drink/run_perception_total"):
                     aruco_pose, bounding_box = self._drink_perception.run_perception(

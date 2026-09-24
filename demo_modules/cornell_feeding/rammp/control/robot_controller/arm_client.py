@@ -60,24 +60,40 @@ class ArmInterfaceClient:
             "/arm/close_gripper",
         )
 
-        # State cache
+        # State cache; the subscriptions feeding it exist only between
+        # start() and stop(), since the state is read only while a command runs.
         self._latest_joint_state: Optional[JointState] = None
         self._latest_ee_pose: Optional[Pose] = None
+        self.joint_state_sub = None
+        self.ee_pose_sub = None
 
-        # State subscribers
+    def start(self) -> None:
+        """Subscribe to the arm state topics. Idempotent."""
+        if self.joint_state_sub is not None:
+            return
+        self._latest_joint_state = None
+        self._latest_ee_pose = None
         self.joint_state_sub = self.node.create_subscription(
             JointState,
             "/arm/joint_states",
             self._joint_state_callback,
             10,
         )
-
         self.ee_pose_sub = self.node.create_subscription(
             PoseStamped,
             "/arm/ee/pose",
             self._ee_pose_callback,
             10,
         )
+
+    def stop(self) -> None:
+        """Drop the arm state subscriptions. Idempotent."""
+        if self.joint_state_sub is None:
+            return
+        self.node.destroy_subscription(self.joint_state_sub)
+        self.node.destroy_subscription(self.ee_pose_sub)
+        self.joint_state_sub = None
+        self.ee_pose_sub = None
 
     def _joint_state_callback(self, msg: JointState) -> None:
         self._latest_joint_state = msg

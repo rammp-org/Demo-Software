@@ -24,6 +24,8 @@
 | /arm/ee/pose                                   | geometry_msgs/msg/PoseStamped                                   |
 | /tf, /tf_static                                | tf2_msgs/msg/TFMessage (base_link -> wrist_color_optical_frame) |
 
+These subscriptions exist only while an action or cup-handle streaming is running (plus the head-perception warm start at launch); the idle node receives nothing but requests.
+
 ### Service Servers:
 
 | Topic                       | Type                                                             |

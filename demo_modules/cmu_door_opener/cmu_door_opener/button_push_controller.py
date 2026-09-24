@@ -63,15 +63,12 @@ class ButtonPushController(Node):
             DiagnosticStatus, "/arm/status", self._cb_arm_status, 10
         )
 
-        # End-effector force from arm_driver
+        # End-effector force / velocity from arm_driver (100 Hz each). Only the
+        # push phases read them, so subscribe for the duration of an action.
         self.latest_ee_force = None
-        self.create_subscription(Vector3Stamped, "/arm/ee/force", self._cb_ee_force, 10)
-
-        # End-effector velocity from arm_driver
         self.latest_ee_velocity = None
-        self.create_subscription(
-            TwistStamped, "/arm/ee/velocity", self._cb_ee_velocity, 10
-        )
+        self._ee_force_sub = None
+        self._ee_velocity_sub = None
 
         # Publisher to command arm cartesian pose
         self.pose_pub = self.create_publisher(
@@ -165,7 +162,25 @@ class ButtonPushController(Node):
         return pose
 
     def _execute_open_door(self, goal_handle):
-        """Action callback — runs the full button push sequence."""
+        """Action callback — subscribes to arm feedback for the push, then runs it."""
+        self.latest_ee_force = None
+        self.latest_ee_velocity = None
+        self._ee_force_sub = self.create_subscription(
+            Vector3Stamped, "/arm/ee/force", self._cb_ee_force, 10
+        )
+        self._ee_velocity_sub = self.create_subscription(
+            TwistStamped, "/arm/ee/velocity", self._cb_ee_velocity, 10
+        )
+        try:
+            return self._run_open_door(goal_handle)
+        finally:
+            self.destroy_subscription(self._ee_force_sub)
+            self.destroy_subscription(self._ee_velocity_sub)
+            self._ee_force_sub = None
+            self._ee_velocity_sub = None
+
+    def _run_open_door(self, goal_handle):
+        """Runs the full button push sequence."""
         result = DoorOpen.Result()
 
         self.get_logger().info("=== /arm/door/open action received ===")

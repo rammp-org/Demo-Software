@@ -250,7 +250,7 @@ class ButtonPressVisionNode(Node):
             SetBool, "/arm/door/detection/enable", self._srv_detection_enable
         )
 
-        # ---- Subscribers (always active — data is buffered so pipeline starts instantly) ----
+        # ---- Subscribers ----
         self.create_subscription(
             CameraInfo,
             self.get_parameter("color_info_topic").value,
@@ -263,18 +263,11 @@ class ButtonPressVisionNode(Node):
             self.cb_depth_info,
             10,
         )
-        self.create_subscription(
-            Image,
-            self.get_parameter("rgb_topic").value,
-            self.cb_rgb,
-            qos_profile_sensor_data,
-        )
-        self.create_subscription(
-            Image,
-            self.get_parameter("depth_topic").value,
-            self.cb_depth,
-            qos_profile_sensor_data,
-        )
+        # Image subscriptions exist only while something consumes the frames
+        # (detection enabled, or the OpenCV window). Converting every frame
+        # while idle cost ~25% of a Jetson core.
+        self._rgb_sub = None
+        self._depth_sub = None
 
         qos_extr = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
@@ -299,6 +292,8 @@ class ButtonPressVisionNode(Node):
 
         # ---- OpenCV window ----
         self.show_windows = bool(self.get_parameter("show_opencv_windows").value)
+        if self.show_windows:
+            self._subscribe_images()
         self.window_scale = float(self.get_parameter("window_scale").value)
         if self.show_windows:
             cv2.namedWindow("button_viz", cv2.WINDOW_NORMAL)
@@ -323,6 +318,32 @@ class ButtonPressVisionNode(Node):
             "Detection is OFF. Call /arm/door/detection/enable to start."
         )
         self.get_logger().info("ButtonPressVisionNode started.")
+
+    def _subscribe_images(self):
+        if self._rgb_sub is not None:
+            return
+        self._rgb_sub = self.create_subscription(
+            Image,
+            self.get_parameter("rgb_topic").value,
+            self.cb_rgb,
+            qos_profile_sensor_data,
+        )
+        self._depth_sub = self.create_subscription(
+            Image,
+            self.get_parameter("depth_topic").value,
+            self.cb_depth,
+            qos_profile_sensor_data,
+        )
+
+    def _unsubscribe_images(self):
+        if self._rgb_sub is None:
+            return
+        self.destroy_subscription(self._rgb_sub)
+        self.destroy_subscription(self._depth_sub)
+        self._rgb_sub = None
+        self._depth_sub = None
+        self.latest_rgb = None
+        self.latest_depth_m = None
 
     # ---- YOLO load / unload ----
     def _load_yolo(self):
@@ -388,6 +409,7 @@ class ButtonPressVisionNode(Node):
                 response.message = f"Failed to load YOLO model: {e}"
                 return response
             self._pose_filter.reset()
+            self._subscribe_images()
             self._detection_enabled = True
             self.get_logger().info("Detection ENABLED — YOLO loaded, pipeline running")
             response.message = "Detection pipeline started, YOLO model loaded"
@@ -396,6 +418,8 @@ class ButtonPressVisionNode(Node):
             self._detection_enabled = False
             self._pose_filter.reset()
             self._unload_yolo()
+            if not self.show_windows:
+                self._unsubscribe_images()
             self.get_logger().info("Detection DISABLED — YOLO unloaded, GPU freed")
             response.message = "Detection pipeline stopped, YOLO model unloaded"
         response.success = True

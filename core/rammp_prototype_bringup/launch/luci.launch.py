@@ -15,7 +15,11 @@ def generate_launch_description():
         package="luci_grpc_interface",
         executable="grpc_interface_node",
         name="luci_grpc_interface_node",
-        arguments=["-a", LaunchConfiguration("chair_ip"), "--"],
+        # The node logs an INFO line per joystick message and per camera frame,
+        # which alone cost ~6% CPU in the launch process and filled the log.
+        # It calls rclcpp::init(0, nullptr), so ROS log-level args are ignored;
+        # its own -l flag sets the level (it accepts debug, info or error).
+        arguments=["-a", LaunchConfiguration("chair_ip"), "-l", "error", "--"],
         output="screen",
     )
 

@@ -25,6 +25,35 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from scipy.spatial.transform import Rotation
 
+
+class _PausableCallbackGroup(ReentrantCallbackGroup):
+    """Members leave the executor's wait set while the group is paused."""
+
+    def __init__(self):
+        super().__init__()
+        self.active = True
+
+    def can_execute(self, entity):
+        return self.active and super().can_execute(entity)
+
+
+def _destroy_subscriptions(node, group, subscriptions, timeout_sec=2.0):
+    """Pause the group, wait for in-flight handlers, then destroy.
+
+    Destroying a subscription that a MultiThreadedExecutor has already queued a
+    handler for raises InvalidHandle inside the executor on Humble and kills
+    the node; this ordering avoids it.
+    """
+    group.active = False
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline and any(
+        getattr(sub, "_executor_event", False) for sub in subscriptions
+    ):
+        time.sleep(0.005)
+    for sub in subscriptions:
+        node.destroy_subscription(sub)
+
+
 # Button push parameters
 APPROACH_OFFSET = 0.2  # meters — stop this far in front of the button first
 PUSH_STEP = 0.01  # meters — incremental push distance per step (1cm)
@@ -63,15 +92,12 @@ class ButtonPushController(Node):
             DiagnosticStatus, "/arm/status", self._cb_arm_status, 10
         )
 
-        # End-effector force from arm_driver
+        # End-effector force / velocity from arm_driver (100 Hz each). Only the
+        # push phases read them, so subscribe for the duration of an action.
         self.latest_ee_force = None
-        self.create_subscription(Vector3Stamped, "/arm/ee/force", self._cb_ee_force, 10)
-
-        # End-effector velocity from arm_driver
         self.latest_ee_velocity = None
-        self.create_subscription(
-            TwistStamped, "/arm/ee/velocity", self._cb_ee_velocity, 10
-        )
+        self._ee_force_sub = None
+        self._ee_velocity_sub = None
 
         # Publisher to command arm cartesian pose
         self.pose_pub = self.create_publisher(
@@ -165,7 +191,31 @@ class ButtonPushController(Node):
         return pose
 
     def _execute_open_door(self, goal_handle):
-        """Action callback — runs the full button push sequence."""
+        """Action callback — subscribes to arm feedback for the push, then runs it."""
+        self.latest_ee_force = None
+        self.latest_ee_velocity = None
+        group = _PausableCallbackGroup()
+        self._ee_force_sub = self.create_subscription(
+            Vector3Stamped, "/arm/ee/force", self._cb_ee_force, 10, callback_group=group
+        )
+        self._ee_velocity_sub = self.create_subscription(
+            TwistStamped,
+            "/arm/ee/velocity",
+            self._cb_ee_velocity,
+            10,
+            callback_group=group,
+        )
+        try:
+            return self._run_open_door(goal_handle)
+        finally:
+            _destroy_subscriptions(
+                self, group, [self._ee_force_sub, self._ee_velocity_sub]
+            )
+            self._ee_force_sub = None
+            self._ee_velocity_sub = None
+
+    def _run_open_door(self, goal_handle):
+        """Runs the full button push sequence."""
         result = DoorOpen.Result()
 
         self.get_logger().info("=== /arm/door/open action received ===")

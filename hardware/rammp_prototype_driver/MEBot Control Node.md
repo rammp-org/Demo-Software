@@ -23,12 +23,12 @@
 
 ### Publishers:
 
-| Topic                       | Type                                               | Note                                                                                                                         |
-| --------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| /base/imu                   | sensor_msgs/msg/Imu                                | Orientation as quaternion; linear acceleration from Teensy. Computed from pitch/roll until Teensy sends quaternion directly. |
-| /base/joint_states          | sensor_msgs/msg/JointState                         | Encoder positions for all joints                                                                                             |
-| /base/rammp_prototype_state | rammp_prototype_interfaces/msg/RAMMPPrototypeState | Full state from Teensy. IMU fields (orientation, linear_acceleration, angular_velocity) are pending Teensy protocol update.  |
-| /diagnostics                | diagnostic_msgs/msg/DiagnosticArray                | Not namespaced per ROS convention. Not yet implemented.                                                                      |
+| Topic                       | Type                                               | Note                                                                                                                                                              |
+| --------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| /base/imu                   | sensor_msgs/msg/Imu                                | Orientation as quaternion; linear acceleration from Teensy. Computed from pitch/roll until Teensy sends quaternion directly.                                      |
+| /base/joint_states          | sensor_msgs/msg/JointState                         | Encoder positions for all joints. Published when a Teensy telemetry line arrives (10 Hz).                                                                         |
+| /base/rammp_prototype_state | rammp_prototype_interfaces/msg/RAMMPPrototypeState | Full state from Teensy, published per telemetry line (10 Hz). IMU fields (orientation, linear_acceleration, angular_velocity) are pending Teensy protocol update. |
+| /diagnostics                | diagnostic_msgs/msg/DiagnosticArray                | Not namespaced per ROS convention. Not yet implemented.                                                                                                           |
 
 ### Subscribers:
 

@@ -87,13 +87,15 @@ ______________________________________________________________________
 
 ## Publishers
 
-| Topic                | Type                                   | Rate   | Notes                                                                                                                        |
-| -------------------- | -------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `/arm/joint_states`  | `sensor_msgs/msg/JointState`           | 100 Hz | Gripper position appended as last element (normalized 0–1); gripper velocity and effort are always 0                         |
-| `/arm/ee/pose`       | `geometry_msgs/msg/PoseStamped`        | 100 Hz | End-effector position (x, y, z) and orientation as quaternion (x, y, z, w)                                                   |
-| `/arm/ee/velocity`   | `geometry_msgs/msg/TwistStamped`       | 100 Hz | End-effector linear velocity (x, y, z) and angular velocity (x, y, z) in tool frame                                          |
-| `/arm/ee/force`      | `geometry_msgs/msg/Vector3Stamped`     | 100 Hz | External wrench force at end-effector                                                                                        |
-| `/arm/status`        | `diagnostic_msgs/msg/DiagnosticStatus` | 1 Hz   | `message`: current `ArmState` name. `values`: `kortex_arm_state` (Kortex hardware state), `error_reason` (set when in ERROR) |
+| Topic               | Type                                   | Rate  | Notes                                                                                                                        |
+| ------------------- | -------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `/arm/joint_states` | `sensor_msgs/msg/JointState`           | 50 Hz | Gripper position appended as last element (normalized 0–1); gripper velocity and effort are always 0                         |
+| `/arm/ee/pose`      | `geometry_msgs/msg/PoseStamped`        | 50 Hz | End-effector position (x, y, z) and orientation as quaternion (x, y, z, w)                                                   |
+| `/arm/ee/velocity`  | `geometry_msgs/msg/TwistStamped`       | 50 Hz | End-effector linear velocity (x, y, z) and angular velocity (x, y, z) in tool frame                                          |
+| `/arm/ee/force`     | `geometry_msgs/msg/Vector3Stamped`     | 50 Hz | External wrench force at end-effector                                                                                        |
+| `/arm/status`       | `diagnostic_msgs/msg/DiagnosticStatus` | 1 Hz  | `message`: current `ArmState` name. `values`: `kortex_arm_state` (Kortex hardware state), `error_reason` (set when in ERROR) |
+
+Feedback is read from the arm at 100 Hz (collision check and comms watchdog run on every read); the four state topics are published on every other read.
 | `/robot_description` | `std_msgs/msg/String`                  | —      |                                                                                                                              |
 
 ## Subscribers

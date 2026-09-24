@@ -89,7 +89,7 @@ __init__():
   3. self._detection_enabled = False
   4. Create all publishers
   5. Create /arm/door/detection/enable service server (SetBool)
-  6. Create all subscribers (camera topics — always active, data is buffered)
+  6. Create the camera-info / extrinsics subscribers (image subscribers are created on detection enable)
   7. Subscribe to /robot_description (transient-local) for IK checker init
   8. self.yolo = None   *** YOLO IS NOT LOADED — GPU memory preserved ***
   9. Optionally open OpenCV visualization window
@@ -141,18 +141,18 @@ process_once() returns immediately again (detection disabled)
 | `enable(False)`          | `_unload_yolo()`: `del self.yolo`, `self.yolo = None`, `torch.cuda.empty_cache()`. GPU memory freed.                 |
 | Re-enable after disable  | `_load_yolo()` loads the model again from disk.                                                                      |
 
-### Subscribers (always active, even when detection is disabled)
+### Subscribers
 
-| Topic                                     | Type                                | QoS                                | Callback                | What it stores                                                                          |
-| ----------------------------------------- | ----------------------------------- | ---------------------------------- | ----------------------- | --------------------------------------------------------------------------------------- |
-| `/camera/wrist/color/image_raw`           | `sensor_msgs/Image`                 | `SENSOR_DATA` (best-effort)        | `cb_rgb`                | Converts to BGR8 via CvBridge → `self.latest_rgb`. Records timestamp.                   |
-| `/camera/wrist/depth/image_rect_raw`      | `sensor_msgs/Image`                 | `SENSOR_DATA` (best-effort)        | `cb_depth`              | Converts via CvBridge → `depth_to_meters()` → `self.latest_depth_m`. Records timestamp. |
-| `/camera/wrist/color/camera_info`         | `sensor_msgs/CameraInfo`            | Reliable, depth=10                 | `cb_color_info`         | Stores as `self.color_info`. Extracts `header.frame_id` → `self.color_frame_id`.        |
-| `/camera/wrist/depth/camera_info`         | `sensor_msgs/CameraInfo`            | Reliable, depth=10                 | `cb_depth_info`         | Stores as `self.depth_info` (depth intrinsics).                                         |
-| `/camera/wrist/extrinsics/depth_to_color` | `realsense2_camera_msgs/Extrinsics` | Reliable, TRANSIENT_LOCAL, depth=1 | `cb_extrinsics`         | Stores rotation (3x3) + translation (3x1) → `self.depth_to_color_extr`.                 |
-| `/robot_description`                      | `std_msgs/String`                   | Reliable, TRANSIENT_LOCAL, depth=1 | `_cb_robot_description` | URDF XML string. Used once to initialise the `ReachabilityChecker` for `is_pressable`.  |
+| Topic                                     | Type                                | QoS                                | Callback                | What it stores                                                                                                                                                   |
+| ----------------------------------------- | ----------------------------------- | ---------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/camera/wrist/color/image_raw`           | `sensor_msgs/Image`                 | `SENSOR_DATA` (best-effort)        | `cb_rgb`                | Converts to BGR8 via CvBridge → `self.latest_rgb`. Records timestamp. Subscribed only while detection is enabled (or the OpenCV window is on).                   |
+| `/camera/wrist/depth/image_rect_raw`      | `sensor_msgs/Image`                 | `SENSOR_DATA` (best-effort)        | `cb_depth`              | Converts via CvBridge → `depth_to_meters()` → `self.latest_depth_m`. Records timestamp. Subscribed only while detection is enabled (or the OpenCV window is on). |
+| `/camera/wrist/color/camera_info`         | `sensor_msgs/CameraInfo`            | Reliable, depth=10                 | `cb_color_info`         | Stores as `self.color_info`. Extracts `header.frame_id` → `self.color_frame_id`.                                                                                 |
+| `/camera/wrist/depth/camera_info`         | `sensor_msgs/CameraInfo`            | Reliable, depth=10                 | `cb_depth_info`         | Stores as `self.depth_info` (depth intrinsics).                                                                                                                  |
+| `/camera/wrist/extrinsics/depth_to_color` | `realsense2_camera_msgs/Extrinsics` | Reliable, TRANSIENT_LOCAL, depth=1 | `cb_extrinsics`         | Stores rotation (3x3) + translation (3x1) → `self.depth_to_color_extr`.                                                                                          |
+| `/robot_description`                      | `std_msgs/String`                   | Reliable, TRANSIENT_LOCAL, depth=1 | `_cb_robot_description` | URDF XML string. Used once to initialise the `ReachabilityChecker` for `is_pressable`.                                                                           |
 
-These are always subscribed so that data is buffered and ready the instant detection is enabled — no startup delay.
+The image and camera-info subscriptions and the TF listener are created by `enable(True)` and destroyed by `enable(False)`; converting every frame while idle cost ~25% of a Jetson core, and merely receiving camera_info and /tf another ~10%. The first frame arrives within one camera period (~67 ms) of enabling, i.e. before the first 5 Hz processing tick.
 
 ### Service Servers
 

@@ -54,6 +54,9 @@ class DrinkActionServers(Node):
             str(scene_config_path)
         )
         
+        self._sensor_lock = threading.Lock()
+        self._sensor_users = 0
+
         self.perception_interface = PerceptionInterface(
             node=self,
             simulation=not run_on_robot,
@@ -181,6 +184,25 @@ class DrinkActionServers(Node):
         goal_handle.canceled()
         return result
 
+    def _acquire_sensors(self):
+        """Subscribe to the camera and arm state while an action or streaming runs."""
+        with self._sensor_lock:
+            self._sensor_users += 1
+            if self._sensor_users == 1:
+                if self.perception_interface.realsense_interface is not None:
+                    self.perception_interface.realsense_interface.start()
+                if self.robot_interface is not None:
+                    self.robot_interface.start()
+
+    def _release_sensors(self):
+        with self._sensor_lock:
+            self._sensor_users -= 1
+            if self._sensor_users == 0:
+                if self.perception_interface.realsense_interface is not None:
+                    self.perception_interface.realsense_interface.stop()
+                if self.robot_interface is not None:
+                    self.robot_interface.stop()
+
     def _make_cancel_callback(self, hla_name: str):
         def cancel_callback(_goal_handle):
             self.get_logger().info(f"Cancel requested for {hla_name}")
@@ -195,6 +217,7 @@ class DrinkActionServers(Node):
         hla = self.hla_name_to_hla["PickupAndOrder"]
         hla.clear_cancel()
         self._publish_dummy_feedback(goal_handle, "starting pickup_and_order")
+        self._acquire_sensors()
         try:
             hla.execute_action()
             return self._finish_success(
@@ -209,6 +232,8 @@ class DrinkActionServers(Node):
                 goal_handle,
                 f"pickup_and_order failed: {exc}",
             )
+        finally:
+            self._release_sensors()
 
     def execute_grab_cup_from_table(self, goal_handle):
         self.get_logger().info(
@@ -217,6 +242,7 @@ class DrinkActionServers(Node):
         hla = self.hla_name_to_hla["GrabCupFromTable"]
         hla.clear_cancel()
         self._publish_dummy_feedback(goal_handle, "starting grab_cup_from_table")
+        self._acquire_sensors()
         try:
             hla.execute_action()
             return self._finish_success(
@@ -231,6 +257,8 @@ class DrinkActionServers(Node):
                 goal_handle,
                 f"grab_cup_from_table failed: {exc}",
             )
+        finally:
+            self._release_sensors()
 
     def execute_locate_cup(self, goal_handle):
         self.get_logger().info(
@@ -239,6 +267,7 @@ class DrinkActionServers(Node):
         hla = self.hla_name_to_hla["LocateCup"]
         hla.clear_cancel()
         self._publish_dummy_feedback(goal_handle, "starting locate_cup")
+        self._acquire_sensors()
         try:
             hla.execute_action()
             return self._finish_success(
@@ -253,6 +282,8 @@ class DrinkActionServers(Node):
                 goal_handle,
                 f"locate_cup failed: {exc}",
             )
+        finally:
+            self._release_sensors()
 
     def execute_set_streaming(self, request, response):
         if request.data:
@@ -261,6 +292,7 @@ class DrinkActionServers(Node):
                 response.message = "already streaming"
                 return response
             self._streaming = True
+            self._acquire_sensors()
             self._stream_thread = threading.Thread(
                 target=self._stream_cup_handle, daemon=True
             )
@@ -273,6 +305,7 @@ class DrinkActionServers(Node):
             if self._stream_thread is not None:
                 self._stream_thread.join(timeout=2.0)
                 self._stream_thread = None
+                self._release_sensors()
             self.get_logger().info("cup handle streaming stopped")
             print_summary()
             response.success = True
@@ -296,6 +329,7 @@ class DrinkActionServers(Node):
         hla = self.hla_name_to_hla["BringCupToMouth"]
         hla.clear_cancel()
         self._publish_dummy_feedback(goal_handle, "starting bring_cup_to_mouth")
+        self._acquire_sensors()
         try:
             hla.execute_action()
             return self._finish_success(
@@ -310,6 +344,8 @@ class DrinkActionServers(Node):
                 goal_handle,
                 f"bring_cup_to_mouth failed: {exc}",
             )
+        finally:
+            self._release_sensors()
 
     def execute_home_cup(self, goal_handle):
         self.get_logger().info(
@@ -318,6 +354,7 @@ class DrinkActionServers(Node):
         hla = self.hla_name_to_hla["HomeCup"]
         hla.clear_cancel()
         self._publish_dummy_feedback(goal_handle, "starting home_cup")
+        self._acquire_sensors()
         try:
             hla.execute_action()
             return self._finish_success(
@@ -332,6 +369,8 @@ class DrinkActionServers(Node):
                 goal_handle,
                 f"home_cup failed: {exc}",
             )
+        finally:
+            self._release_sensors()
 
     def execute_put_cup_back_to_holder(self, goal_handle):
         self.get_logger().info(
@@ -340,6 +379,7 @@ class DrinkActionServers(Node):
         hla = self.hla_name_to_hla["PutCupBackToHolder"]
         hla.clear_cancel()
         self._publish_dummy_feedback(goal_handle, "starting put_cup_back_to_holder")
+        self._acquire_sensors()
         try:
             hla.execute_action()
             return self._finish_success(
@@ -354,6 +394,8 @@ class DrinkActionServers(Node):
                 goal_handle,
                 f"put_cup_back_to_holder failed: {exc}",
             )
+        finally:
+            self._release_sensors()
 
 
 def main(args=None):

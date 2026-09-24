@@ -1,6 +1,7 @@
 import asyncio
 import enum
 import threading
+import time
 from std_msgs.msg import Float32
 
 import rclpy
@@ -177,6 +178,8 @@ class SystemControl(rclpy.node.Node):
         self._thread.start()
 
         self.old_state = None
+        self._last_published_state = None
+        self._last_state_publish_time = 0.0
 
         self.is_mocking = False
         if self.is_mocking:
@@ -763,7 +766,17 @@ class SystemControl(rclpy.node.Node):
         msg = SystemState()
         msg.state = self.state
         msg.supported_user_inputs = self.get_available_user_inputs()
-        self.system_state_publisher.publish(msg)
+        # The 10 Hz timer only checks for change; the message goes out when the
+        # state or its inputs change, and once a second as a keepalive.
+        now = time.monotonic()
+        published = (msg.state, list(msg.supported_user_inputs))
+        if (
+            published != self._last_published_state
+            or now - self._last_state_publish_time >= 1.0
+        ):
+            self.system_state_publisher.publish(msg)
+            self._last_published_state = published
+            self._last_state_publish_time = now
         if self.state != self.old_state:
             self.get_logger().info(
                 f"Current state: {msg.state}, available user inputs: {msg.supported_user_inputs}"

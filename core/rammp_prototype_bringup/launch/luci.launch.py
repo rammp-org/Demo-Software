@@ -16,6 +16,9 @@ def generate_launch_description():
         executable="grpc_interface_node",
         name="luci_grpc_interface_node",
         arguments=["-a", LaunchConfiguration("chair_ip"), "--"],
+        # The node logs an INFO line per joystick message and per camera frame;
+        # that alone cost ~6% CPU in the launch process and filled the log.
+        ros_arguments=["--log-level", "luci_interface:=warn"],
         output="screen",
     )
 

@@ -358,8 +358,9 @@ class MEBotControlNode(Node):
 
         self.luci_js_publisher = self.create_publisher(LuciJoystick, JOYSTICK_TOPIC, 10)
 
+        self._last_joystick_sent = 0.0
         self.luci_heartbeat_timer = self.create_timer(
-            self.luci_joystick_rate, self._send_joystick
+            self.luci_joystick_rate, self._send_joystick_keepalive
         )
         # self.luci_heartbeat_timer.cancel()  # start with heartbeat disabled until LUCI control is enabled
 
@@ -777,7 +778,14 @@ class MEBotControlNode(Node):
         result.message = f"Calibrated {self.cal_joints_done}/6 joints"
         return result
 
+    def _send_joystick_keepalive(self):
+        # Skip the tick if user input was forwarded within the last period
+        if time.monotonic() - self._last_joystick_sent < self.luci_joystick_rate:
+            return
+        self._send_joystick()
+
     def _send_joystick(self, fb_pwm=None):
+        self._last_joystick_sent = time.monotonic()
         msg = LuciJoystick()
         if self.carriage_return_direction != 0:
             msg.forward_back = self.carriage_return_direction

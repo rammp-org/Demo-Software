@@ -229,7 +229,7 @@ class ButtonPressVisionNode(Node):
 
         # TF2
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.tf_listener = None  # created with the camera subscriptions
 
         # ---- Publishers ----
         self.button_info_pub = self.create_publisher(
@@ -251,23 +251,14 @@ class ButtonPressVisionNode(Node):
         )
 
         # ---- Subscribers ----
-        self.create_subscription(
-            CameraInfo,
-            self.get_parameter("color_info_topic").value,
-            self.cb_color_info,
-            10,
-        )
-        self.create_subscription(
-            CameraInfo,
-            self.get_parameter("depth_info_topic").value,
-            self.cb_depth_info,
-            10,
-        )
-        # Image subscriptions exist only while something consumes the frames
-        # (detection enabled, or the OpenCV window). Converting every frame
-        # while idle cost ~25% of a Jetson core.
+        # Camera and TF subscriptions exist only while something consumes them
+        # (detection enabled, or the OpenCV window): converting every frame
+        # while idle cost ~25% of a Jetson core, and just receiving the two
+        # camera_info topics plus /tf another ~10%.
         self._rgb_sub = None
         self._depth_sub = None
+        self._color_info_sub = None
+        self._depth_info_sub = None
 
         qos_extr = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
@@ -293,7 +284,7 @@ class ButtonPressVisionNode(Node):
         # ---- OpenCV window ----
         self.show_windows = bool(self.get_parameter("show_opencv_windows").value)
         if self.show_windows:
-            self._subscribe_images()
+            self._subscribe_sensors()
         self.window_scale = float(self.get_parameter("window_scale").value)
         if self.show_windows:
             cv2.namedWindow("button_viz", cv2.WINDOW_NORMAL)
@@ -319,9 +310,23 @@ class ButtonPressVisionNode(Node):
         )
         self.get_logger().info("ButtonPressVisionNode started.")
 
-    def _subscribe_images(self):
+    def _subscribe_sensors(self):
         if self._rgb_sub is not None:
             return
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self._color_info_sub = self.create_subscription(
+            CameraInfo,
+            self.get_parameter("color_info_topic").value,
+            self.cb_color_info,
+            10,
+        )
+        self._depth_info_sub = self.create_subscription(
+            CameraInfo,
+            self.get_parameter("depth_info_topic").value,
+            self.cb_depth_info,
+            10,
+        )
         self._rgb_sub = self.create_subscription(
             Image,
             self.get_parameter("rgb_topic").value,
@@ -335,15 +340,24 @@ class ButtonPressVisionNode(Node):
             qos_profile_sensor_data,
         )
 
-    def _unsubscribe_images(self):
+    def _unsubscribe_sensors(self):
         if self._rgb_sub is None:
             return
-        self.destroy_subscription(self._rgb_sub)
-        self.destroy_subscription(self._depth_sub)
-        self._rgb_sub = None
-        self._depth_sub = None
+        for sub in (
+            self._rgb_sub,
+            self._depth_sub,
+            self._color_info_sub,
+            self._depth_info_sub,
+        ):
+            self.destroy_subscription(sub)
+        self._rgb_sub = self._depth_sub = None
+        self._color_info_sub = self._depth_info_sub = None
+        self.tf_listener.unregister()
+        self.tf_listener = None
         self.latest_rgb = None
         self.latest_depth_m = None
+        self.color_info = None
+        self.depth_info = None
 
     # ---- YOLO load / unload ----
     def _load_yolo(self):
@@ -409,7 +423,7 @@ class ButtonPressVisionNode(Node):
                 response.message = f"Failed to load YOLO model: {e}"
                 return response
             self._pose_filter.reset()
-            self._subscribe_images()
+            self._subscribe_sensors()
             self._detection_enabled = True
             self.get_logger().info("Detection ENABLED — YOLO loaded, pipeline running")
             response.message = "Detection pipeline started, YOLO model loaded"
@@ -419,7 +433,7 @@ class ButtonPressVisionNode(Node):
             self._pose_filter.reset()
             self._unload_yolo()
             if not self.show_windows:
-                self._unsubscribe_images()
+                self._unsubscribe_sensors()
             self.get_logger().info("Detection DISABLED — YOLO unloaded, GPU freed")
             response.message = "Detection pipeline stopped, YOLO model unloaded"
         response.success = True

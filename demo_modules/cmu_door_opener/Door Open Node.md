@@ -152,7 +152,7 @@ process_once() returns immediately again (detection disabled)
 | `/camera/wrist/extrinsics/depth_to_color` | `realsense2_camera_msgs/Extrinsics` | Reliable, TRANSIENT_LOCAL, depth=1 | `cb_extrinsics`         | Stores rotation (3x3) + translation (3x1) → `self.depth_to_color_extr`.                                                                                          |
 | `/robot_description`                      | `std_msgs/String`                   | Reliable, TRANSIENT_LOCAL, depth=1 | `_cb_robot_description` | URDF XML string. Used once to initialise the `ReachabilityChecker` for `is_pressable`.                                                                           |
 
-The image subscriptions are created by `enable(True)` and destroyed by `enable(False)`; converting every frame while idle cost ~10% of a Jetson core. The first frame arrives within one camera period (~67 ms) of enabling, i.e. before the first 5 Hz processing tick.
+The image and camera-info subscriptions and the TF listener are created by `enable(True)` and destroyed by `enable(False)`; converting every frame while idle cost ~25% of a Jetson core, and merely receiving camera_info and /tf another ~10%. The first frame arrives within one camera period (~67 ms) of enabling, i.e. before the first 5 Hz processing tick.
 
 ### Service Servers
 

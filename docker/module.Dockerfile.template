@@ -1,0 +1,40 @@
+# Template for a module container. Copy to demo_modules/<MODULE>/Dockerfile and
+# replace every <MODULE> with the package name.
+#
+# In docker-compose.yml, build it with the REPO ROOT as context:
+#   build:
+#     context: .
+#     dockerfile: demo_modules/<MODULE>/Dockerfile
+#
+# The layer order is deliberate: dependencies (which change rarely) are
+# installed BEFORE the full source is copied, so editing node code only
+# re-runs the fast colcon step - not the slow rosdep/pip installs.
+
+FROM rammp-base:humble
+
+# --- Interface packages -------------------------------------------------------
+# Needed only if this module uses CUSTOM interfaces (msg/srv/action) from
+# interfaces/. If it uses only standard messages (std_msgs, sensor_msgs, ...),
+# DELETE this line and build with the module folder itself as the context.
+COPY interfaces/ /ros2_ws/src/interfaces/
+
+# --- Dependency layers (cached unless manifests change) -----------------------
+# ROS deps: copy just the manifest so rosdep caches on package.xml, not code.
+COPY demo_modules/<MODULE>/package.xml /ros2_ws/src/<MODULE>/package.xml
+RUN . /opt/ros/humble/setup.sh && \
+    apt-get update && \
+    rosdep install --from-paths src --ignore-src -y && \
+    rm -rf /var/lib/apt/lists/*
+
+# Python deps: copy just requirements.txt so pip caches on it, not code.
+# DELETE these two lines if this module has no requirements.txt.
+COPY demo_modules/<MODULE>/requirements.txt /ros2_ws/src/<MODULE>/requirements.txt
+RUN pip install --no-cache-dir -r /ros2_ws/src/<MODULE>/requirements.txt
+
+# --- Source + build (only this re-runs when you edit node code) ---------------
+COPY demo_modules/<MODULE>/ /ros2_ws/src/<MODULE>/
+RUN . /opt/ros/humble/setup.sh && colcon build --symlink-install
+
+# Default run command. The compose `command:` overrides this, so it is optional,
+# but it lets `docker run <image>` work on its own.
+CMD ["ros2", "launch", "<MODULE>", "<MODULE>.launch.py"]

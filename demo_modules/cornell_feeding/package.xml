@@ -3,12 +3,33 @@
 <package format="3">
   <name>cornell_feeding</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Cornell drinking module: DrinkAction servers backed by feeding_deployment (cup perception + collision-aware planning), executed via the shared arm_driver.</description>
   <maintainer email="root@todo.todo">root</maintainer>
-  <license>TODO: License declaration</license>
+  <license>BSD-3-Clause</license>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>cv_bridge</depend>
+  <depend>cornell_feeding_interfaces</depend>
+
+  <!-- Python runtime deps the node needs beyond ROS. The full pinned set
+       (including the git-hosted PRPL planning packages and protobuf) is
+       installed from requirements.txt in the container image; these keys let
+       rosdep resolve on a host workspace build. -->
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-defusedxml</exec_depend>
+  <exec_depend>python3-imageio</exec_depend>
+  <exec_depend>python3-mediapipe-pip</exec_depend>
+  <exec_depend>python3-open3d-pip</exec_depend>
+  <exec_depend>python3-pybullet-pip</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

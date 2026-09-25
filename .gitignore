@@ -53,3 +53,8 @@ doxygen_output/
 
 # Navigation Models
 demo_modules/neu_navigation/models/*.pth
+
+
+# AI Documentation
+.superpowers
+docs/superpowers

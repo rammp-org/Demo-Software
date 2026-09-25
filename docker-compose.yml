@@ -43,6 +43,24 @@ services:
       # shares it with a native run.
       - ./demo_modules/cornell_feeding/rammp/perception/head_perception/mediapipe_config:/ros2_ws/src/cornell_feeding/rammp/perception/head_perception/mediapipe_config
 
+  # Same container in robot mode, for sheppy's `drink` node (see
+  # sheppy-manifest.yaml). Needs the host to publish /camera/wrist/* and
+  # /arm/*. Build the image once with `docker compose build cornell_feeding`;
+  # sheppy runs images, it does not build them.
+  cornell_feeding_robot:
+    <<: *ros-common
+    image: cornell-feeding:latest
+    command: ros2 launch cornell_feeding cornell_feeding.launch.py run_on_robot:=true
+    # Absolute host paths on purpose: sheppy translates this service into
+    # `docker run -v` flags verbatim, so a relative `./...` source resolves
+    # against sheppyd's working directory (the home dir), not this file. That
+    # mounted an empty dir over the head calibration and a dir over
+    # cyclonedds.xml, and the node crashed at startup. Override REPO_ROOT if
+    # the checkout lives elsewhere. Tracked in rammp-org/sheppy.
+    volumes:
+      - ${REPO_ROOT:-/home/herl/ros2_ws/src/Demo-Software}/core/rammp_prototype_bringup/config/cyclonedds.xml:/config/cyclonedds.xml:ro
+      - ${REPO_ROOT:-/home/herl/ros2_ws/src/Demo-Software}/demo_modules/cornell_feeding/rammp/perception/head_perception/mediapipe_config:/ros2_ws/src/cornell_feeding/rammp/perception/head_perception/mediapipe_config
+
   # ---------------------------------------------------------------------------
   # Add each further module the same way. Example skeleton:
   #

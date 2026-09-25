@@ -1,0 +1,14 @@
+# No hardware: runs on any machine with the workspace built. luci, gui and
+# calibration have no mock and stay unselected (sheppy stops an unlisted node).
+description: Every mock, no hardware, no GUI
+selections:
+  description: description
+  base: mock
+  arm: mock
+  gui_bridge: gui_bridge
+  system_control: system_control
+  door_opener: mock
+  cameras: mock
+  curb_detection: mock
+  cup_stabilizer: mock
+  drink: mock

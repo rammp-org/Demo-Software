@@ -768,9 +768,10 @@ class MEBotControlNode(Node):
 
     def _send_joystick(self, fb_pwm=None):
         msg = LuciJoystick()
+        # lr_val affects rotation of chair while carriage returns
         if self.carriage_return_direction != 0:
             msg.forward_back = self.carriage_return_direction
-            lr_val = -8
+            lr_val = 0
             msg.left_right = lr_val
         elif self.user_control_enabled and not self.cap_user_speed:
             msg.forward_back = self.user_fb
@@ -827,6 +828,7 @@ class MEBotControlNode(Node):
                     goal.canceled()
                     result.success = False
                     self.user_control_enabled = True
+                    self.cap_user_speed = False
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
@@ -840,6 +842,7 @@ class MEBotControlNode(Node):
                     goal.canceled()
                     result.success = False
                     self.user_control_enabled = True
+                    self.cap_user_speed = False
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
@@ -874,6 +877,7 @@ class MEBotControlNode(Node):
                     goal.canceled()
                     result.success = False
                     self.user_control_enabled = True
+                    self.cap_user_speed = False
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
@@ -899,6 +903,7 @@ class MEBotControlNode(Node):
                 goal.canceled()
                 result.success = False
                 self.user_control_enabled = True
+                self.cap_user_speed = False
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")
@@ -913,6 +918,7 @@ class MEBotControlNode(Node):
                 goal.canceled()
                 result.success = False
                 self.user_control_enabled = True
+                self.cap_user_speed = False
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")

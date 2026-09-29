@@ -610,6 +610,8 @@ class SystemControl(rclpy.node.Node):
             False
         )  # disable self-leveling when entering SLOff state
 
+        self.base_drive_enable(True)  # enable drive when entering SLOff state
+
     def on_enter_Nav_SLOn(self):
         self.get_logger().info("Self-leveling is turned on.")
         self.base_self_leveling_enable(

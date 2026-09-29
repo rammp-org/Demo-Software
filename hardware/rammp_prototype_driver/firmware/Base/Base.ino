@@ -190,13 +190,25 @@ void setRollTrim(float val) { roll_trim_deg = val; }
 
 const float CARRIAGE_LEVEL_TARGET = 100.0f;
 const float CARRIAGE_LEVEL_TOLERANCE = 200.0f;
-const unsigned long LEVEL_BLEND_MS = 2000;
+const unsigned long LEVEL_BLEND_MS = 3000;
+
+// Self-leveling blend state. Cleared by resetSelfLeveling() each time the mode
+// is entered so every activation eases in from the current pose.
+static bool ik_was_active = false;
+static unsigned long blend_start = 0;
+static float hold_rc, hold_ml, hold_mr, hold_fc;
+
+void resetSelfLeveling() { ik_was_active = false; }
+
+// Ease-in/ease-out blend factor (smoothstep) for elapsed/duration. Starts and
+// ends with zero slope so targets accelerate gently away from the hold pose
+// and settle gently onto the tracking targets.
+float levelBlend(unsigned long start_ms, unsigned long duration_ms) {
+  float t = min(1.0f, (float)(millis() - start_ms) / (float)duration_ms);
+  return t * t * (3.0f - 2.0f * t);
+}
 
 void runSelfLeveling(float dt) {
-  static bool ik_was_active = false;
-  static unsigned long blend_start = 0;
-  static float hold_rc, hold_ml, hold_mr, hold_fc;
-
   rc.setMode(MotorBase::POSITION_CONTROL);
   ml.setMode(MotorBase::POSITION_CONTROL);
   mr.setMode(MotorBase::POSITION_CONTROL);
@@ -358,10 +370,9 @@ void runSelfLeveling(float dt) {
                       2.0; // Average left/right caster height
   float z_target_mr = newmebot[2][3];
 
-  // Blend from hold positions to IK targets over LEVEL_BLEND_MS
+  // Ease from hold positions to IK targets over LEVEL_BLEND_MS
   // to prevent violent jerk when IK first engages.
-  float blend =
-      min(1.0f, (float)(millis() - blend_start) / (float)LEVEL_BLEND_MS);
+  float blend = levelBlend(blend_start, LEVEL_BLEND_MS);
 
   float ik_ml = z_target_ml * ML_CM_TO_TICKS;
   float ik_mr = z_target_mr * MR_CM_TO_TICKS;
@@ -793,6 +804,10 @@ void loop() {
                         FC_MOTOR_L);
         sequenceExit(seq_motors);
       }
+      // Only restart the ease-in on a fresh entry, not on repeated enable
+      // commands while already leveling.
+      if (current_state != SELF_LEVELING)
+        resetSelfLeveling();
       current_state = SELF_LEVELING;
       if (DEBUG_MODE)
         Serial.println("DEBUG: Entering SELF_LEVELING mode");

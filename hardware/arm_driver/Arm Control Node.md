@@ -110,15 +110,16 @@ ______________________________________________________________________
 
 ## Service Servers
 
-| Service                   | Type                                   | Notes                                                       |
-| ------------------------- | -------------------------------------- | ----------------------------------------------------------- |
-| `/arm/set_mode`           | `arm_interfaces/srv/SetMode`           | Rejected when in `ERROR`                                    |
-| `/arm/clear_error`        | `std_srvs/srv/Trigger`                 | Only valid exit from `ERROR`; clears Kortex hardware faults |
-| `/arm/set_speed_preset`   | `arm_interfaces/srv/SetSpeedPreset`    |                                                             |
-| `/arm/get_speed_preset`   | `arm_interfaces/srv/GetSpeedPreset`    |                                                             |
-| `/arm/open_gripper`       | `std_srvs/srv/Trigger`                 |                                                             |
-| `/arm/close_gripper`      | `std_srvs/srv/Trigger`                 |                                                             |
-| `/arm/check_reachability` | `arm_interfaces/srv/CheckReachability` |                                                             |
+| Service                     | Type                                    | Notes                                                                                                            |
+| --------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `/arm/set_mode`             | `arm_interfaces/srv/SetMode`            | Rejected when in `ERROR`                                                                                         |
+| `/arm/clear_error`          | `std_srvs/srv/Trigger`                  | Only valid exit from `ERROR`; clears Kortex hardware faults                                                      |
+| `/arm/set_speed_preset`     | `arm_interfaces/srv/SetSpeedPreset`     |                                                                                                                  |
+| `/arm/get_speed_preset`     | `arm_interfaces/srv/GetSpeedPreset`     |                                                                                                                  |
+| `/arm/open_gripper`         | `std_srvs/srv/Trigger`                  |                                                                                                                  |
+| `/arm/close_gripper`        | `std_srvs/srv/Trigger`                  |                                                                                                                  |
+| `/arm/set_gripper_position` | `arm_interfaces/srv/SetGripperPosition` | Partial gripper position; `position` in \[0, 1\] (0.0 = open, 1.0 = closed, clamped). Rejected in `IDLE`/`ERROR` |
+| `/arm/check_reachability`   | `arm_interfaces/srv/CheckReachability`  |                                                                                                                  |
 
 ## Action Servers
 

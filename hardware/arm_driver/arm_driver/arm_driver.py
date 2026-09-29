@@ -13,6 +13,7 @@ from arm_interfaces.action import Calibrate, ExecuteTrajectory, ReachPreset
 from arm_interfaces.srv import (
     CheckReachability,
     GetSpeedPreset,
+    SetGripperPosition,
     SetMode,
     SetSpeedPreset,
 )
@@ -235,6 +236,12 @@ class ArmDriverNode(rclpy.node.Node):
             Trigger,
             "/arm/close_gripper",
             self._on_close_gripper,
+            callback_group=self._service_group,
+        )
+        self._set_gripper_position_srv = self.create_service(
+            SetGripperPosition,
+            "/arm/set_gripper_position",
+            self._on_set_gripper_position,
             callback_group=self._service_group,
         )
         self._check_reachability_srv = self.create_service(
@@ -717,6 +724,51 @@ class ArmDriverNode(rclpy.node.Node):
             self._arm.close_gripper()
             response.success = True
             response.message = "Gripper closed"
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
+        return response
+
+    def _on_set_gripper_position(self, request, response):
+        """Handle a /arm/set_gripper_position service request.
+
+        Commands the gripper to a partial position. ``request.position`` is a
+        normalized target where 0.0 is fully open and 1.0 is fully closed;
+        values outside [0, 1] are clamped. Gated by the same state rules as
+        the open/close services (rejected in IDLE/ERROR).
+
+        Args:
+            request: SetGripperPosition request with ``position`` (float32).
+            response: Response with ``success`` (bool) and ``message`` (str).
+
+        Returns:
+            The populated service response.
+        """
+        if not self._arm:
+            response.success = False
+            response.message = "Arm not connected"
+            return response
+
+        if self._state in (ArmState.IDLE, ArmState.ERROR):
+            response.success = False
+            response.message = (
+                f"Gripper commands not allowed in state {self._state.name}"
+            )
+            return response
+
+        requested = float(request.position)
+        position = min(max(requested, 0.0), 1.0)
+
+        try:
+            self._arm.set_gripper_position(position)
+            response.success = True
+            if position != requested:
+                response.message = (
+                    f"Gripper set to {position:.2f} "
+                    f"(requested {requested:.2f}, clamped to [0, 1])"
+                )
+            else:
+                response.message = f"Gripper set to {position:.2f}"
         except Exception as e:
             response.success = False
             response.message = str(e)

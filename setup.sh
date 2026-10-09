@@ -69,12 +69,14 @@ echo "=== Installing Orbbec udev rules ==="
 #   - From ROS source build:   ${REPO_ROOT}/third_party/OrbbecSDK_ROS2/orbbec_camera/scripts/
 #   - From pyorbbecsdk:        ${HOME}/pyorbbecsdk/scripts/env_setup/
 ORBBEC_UDEV_RULES=""
+REAL_HOME=$(eval echo ~${SUDO_USER:-$USER})
 SEARCH_PATHS=(
+    "${REPO_ROOT}/hardware/udev/99-obsensor-libusb.rules"
     "/opt/ros/humble/share/orbbec_camera/scripts/99-obsensor-libusb.rules"
     "/opt/ros/humble/lib/orbbec_camera/orbbec_camera/scripts/99-obsensor-libusb.rules"
     "${REPO_ROOT}/third_party/OrbbecSDK_ROS2/orbbec_camera/scripts/99-obsensor-libusb.rules"
-    "${HOME}/ros2_ws/src/OrbbecSDK_ROS2/orbbec_camera/scripts/99-obsensor-libusb.rules"
-    "${HOME}/pyorbbecsdk/scripts/env_setup/99-obsensor-libusb.rules"
+    "${REAL_HOME}/ros2_ws/src/OrbbecSDK_ROS2/orbbec_camera/scripts/99-obsensor-libusb.rules"
+    "${REAL_HOME}/pyorbbecsdk/scripts/env_setup/99-obsensor-libusb.rules"
 )
 for path in "${SEARCH_PATHS[@]}"; do
     if [ -f "${path}" ]; then
@@ -84,8 +86,12 @@ for path in "${SEARCH_PATHS[@]}"; do
 done
 if [ -n "${ORBBEC_UDEV_RULES}" ]; then
     $SUDO cp "${ORBBEC_UDEV_RULES}" /etc/udev/rules.d/
-    $SUDO udevadm control --reload-rules
-    $SUDO udevadm trigger
+    # Reload udev rules if udev daemon is running (skipped in CI/containers)
+    if $SUDO udevadm control --reload-rules 2>/dev/null; then
+        $SUDO udevadm trigger
+    else
+        echo "Note: udev daemon not running — rules copied but not reloaded (OK in CI/containers)"
+    fi
     echo "Orbbec udev rules installed from: ${ORBBEC_UDEV_RULES}"
 elif [ -f "/etc/udev/rules.d/99-obsensor-libusb.rules" ]; then
     echo "Orbbec udev rules already installed at /etc/udev/rules.d/ — skipping."

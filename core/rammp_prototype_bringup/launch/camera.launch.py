@@ -143,6 +143,42 @@ def generate_launch_description():
                     ],
                 )
             )
+            actions.append(
+                Node(
+                    package="image_transport",
+                    executable="republish",
+                    name="wrist_color_republish",
+                    arguments=["raw", "compressed"],
+                    remappings=[
+                        ("in", "/camera/wrist/color/image_raw"),
+                        (
+                            "out/compressed",
+                            "/camera/wrist/color/image_raw/compressed_png",
+                        ),
+                    ],
+                    parameters=[{"out.format": "png", "out.png_level": 6}],
+                    output="screen",
+                )
+            )
+
+            # Depth
+            actions.append(
+                Node(
+                    package="image_transport",
+                    executable="republish",
+                    name="wrist_depth_republish",
+                    arguments=["raw", "compressed"],
+                    remappings=[
+                        ("in", "/camera/wrist/aligned_depth_to_color/image_raw"),
+                        (
+                            "out/compressed",
+                            "/camera/wrist/aligned_depth_to_color/image_raw/compressed_png",
+                        ),
+                    ],
+                    parameters=[{"out.format": "png", "out.png_level": 6}],
+                    output="screen",
+                )
+            )
 
         # ── Nav1 camera (Orbbec Gemini 336L) ──────────────────────────────
         # PushRosNamespace("camera") prepends /camera to all topics published

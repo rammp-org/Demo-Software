@@ -1,0 +1,23 @@
+numpy==1.26.4
+PyYAML
+opencv-python
+defusedxml
+imageio
+mediapipe==1.0.0  # 1.0.1 needs libEGL (see Dockerfile); 1.0.0 is the version verified on the chair
+open3d
+scikit-learn
+protobuf>=4.25.3,<5
+# scipy is deliberately unpinned here: pybullet_helpers pins scipy==1.14.0
+# exactly, so any pin of our own makes `pip install -r` unresolvable. (The
+# native arm_driver wants 1.15.3; that lives in its own requirements.txt.)
+# pybullet is deliberately absent: it has no aarch64 wheel on PyPI and would
+# build from sdist, and pybullet_helpers already pulls the prebuilt
+# pybullet-arm64>=3.2.8, which provides the same `pybullet` module.
+# prpl-mono commit pinned for reproducibility; keep in sync with
+# PRPL_MONO_COMMIT in setup.sh.
+# prpl-mono commit pinned for reproducibility; keep in sync with
+# PRPL_MONO_COMMIT in setup.sh.
+pybullet_helpers @ git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git@e215d1fc5fe01fa11d3a77a13551c5312594289c#subdirectory=pybullet-helpers
+relational_structs @ git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git@e215d1fc5fe01fa11d3a77a13551c5312594289c#subdirectory=relational-structs
+prpl-utils @ git+https://github.com/Princeton-Robot-Planning-and-Learning/prpl-mono.git@e215d1fc5fe01fa11d3a77a13551c5312594289c#subdirectory=prpl-utils
+tomsutils @ git+https://github.com/tomsilver/toms-utils.git

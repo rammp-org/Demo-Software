@@ -1,0 +1,22 @@
+# Trims the build context that every `docker compose build` ships to the daemon.
+# The context is the repo root (see docker-compose.yml), which is ~1 GB, almost
+# all of it .git.
+#
+# Patterns are matched against paths relative to the context root, so a bare
+# `log/` is root-anchored and does NOT touch
+# demo_modules/cornell_feeding/rammp/integration/log/, whose .pkl files the
+# drink node loads in simulation mode.
+
+.git
+.github
+.pre-commit-config.yaml
+
+# Python artifacts
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# colcon output, if anyone ever builds inside the repo
+build/
+install/
+log/

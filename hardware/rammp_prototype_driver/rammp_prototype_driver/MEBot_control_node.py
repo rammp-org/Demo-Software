@@ -829,7 +829,6 @@ class MEBotControlNode(Node):
                     goal.canceled()
                     result.success = False
                     self.user_control_enabled = True
-                    self.cap_user_speed = False
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
@@ -843,7 +842,6 @@ class MEBotControlNode(Node):
                     goal.canceled()
                     result.success = False
                     self.user_control_enabled = True
-                    self.cap_user_speed = False
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
@@ -870,9 +868,7 @@ class MEBotControlNode(Node):
             keyframes = _load_keyframes_from_json(json_path)
             self.send_sequence(keyframes, auto_run=True)
 
-            # waits for front casters to come down before reading load cells
             time.sleep(3)
-            self.user_control_enabled = True
 
             # waiting for user to get front caster off curb
             while self.FC_loadcell < 150:
@@ -880,7 +876,6 @@ class MEBotControlNode(Node):
                     goal.canceled()
                     result.success = False
                     self.user_control_enabled = True
-                    self.cap_user_speed = False
                     self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                     self.write_serial_data("z\n")
                     self.write_serial_data("c\n")
@@ -906,7 +901,6 @@ class MEBotControlNode(Node):
                 goal.canceled()
                 result.success = False
                 self.user_control_enabled = True
-                self.cap_user_speed = False
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")
@@ -921,7 +915,6 @@ class MEBotControlNode(Node):
                 goal.canceled()
                 result.success = False
                 self.user_control_enabled = True
-                self.cap_user_speed = False
                 self.write_serial_data(ProtocolEncoder.enter_sequence_mode(False))
                 self.write_serial_data("z\n")
                 self.write_serial_data("c\n")

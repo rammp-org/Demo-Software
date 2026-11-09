@@ -1,4 +1,8 @@
-exclude: ^hardware/rammp_prototype_driver/config/
+# demo_modules/cornell_feeding/rammp is vendored verbatim from empriselab/RAMMP
+# (feature/improve-performance) and is kept byte-identical to upstream so it
+# can be re-synced by copying; it is excluded from formatting here, as it is
+# from the module's ament lint tests.
+exclude: ^(hardware/rammp_prototype_driver/config/|demo_modules/cornell_feeding/rammp/)
 repos:
   # 1. General Housekeeping
   - repo: https://github.com/pre-commit/pre-commit-hooks

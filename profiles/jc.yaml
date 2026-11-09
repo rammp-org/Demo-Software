@@ -1,0 +1,4 @@
+selections:
+  base: mebot_driver
+  description: description
+  luci: luci

@@ -1,0 +1,14 @@
+selections:
+  arm: arm_driver
+  base: mebot_driver
+  calibration: calibrate
+  cameras: cameras
+  cup_stabilizer: mock
+  curb_detection: mock
+  description: description
+  door_opener: cmu_door_opener
+  drink: cornell_feeding
+  gui: unreal
+  gui_bridge: gui_bridge
+  luci: luci
+  system_control: system_control

@@ -876,7 +876,7 @@ class MEBotControlNode(Node):
 
             # waiting for user to get front caster off curb
             init_val = self.FC_loadcell
-            while abs(init_val - self.FC_loadcell) < 50:
+            while abs(init_val - self.FC_loadcell) < 100:
                 if goal.is_cancel_requested:
                     goal.canceled()
                     result.success = False

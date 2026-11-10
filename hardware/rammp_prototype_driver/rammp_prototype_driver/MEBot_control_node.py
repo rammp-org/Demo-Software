@@ -840,7 +840,7 @@ class MEBotControlNode(Node):
             self.write_serial_data("s:0.2000\n")
             # waiting for user to hit front caster on curb
             init_val = self.FC_loadcell
-            while abs(init_val - self.FC_loadcell) < 50:
+            while abs(init_val - self.FC_loadcell) < 35:
                 if goal.is_cancel_requested:
                     goal.canceled()
                     result.success = False
